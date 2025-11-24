@@ -1,8 +1,8 @@
 {
-  "buildCommand": "cd src/web && pnpm install && pnpm build",
+  "buildCommand": "pnpm install && pnpm --filter web build",
   "outputDirectory": "src/web/.next",
   "installCommand": "pnpm install",
-  "framework": "nextjs",
+  "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -10,4 +10,3 @@
     }
   ]
 }
-
