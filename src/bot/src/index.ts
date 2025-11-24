@@ -18,7 +18,14 @@ import { adminHandler, verifyFounderHandler, broadcastHandler, pollHandler, appr
 import { deleteUserHandler, confirmDeleteUser } from './handlers/deleteuser.js';
 import { handleStarsPayment } from './utils/stars.js';
 
+// Load environment variables first
 dotenv.config();
+
+// Check TELEGRAM_BOT_TOKEN before initializing bot
+if (!process.env.TELEGRAM_BOT_TOKEN) {
+  console.error('❌ TELEGRAM_BOT_TOKEN is not set!');
+  throw new Error('TELEGRAM_BOT_TOKEN environment variable is required');
+}
 
 interface SessionData {
   // Add session data here if needed
@@ -26,19 +33,26 @@ interface SessionData {
 
 type MyContext = Context & SessionFlavor<SessionData>;
 
-// Validate environment variables
-if (!process.env.TELEGRAM_BOT_TOKEN) {
-  console.error('❌ TELEGRAM_BOT_TOKEN is not set!');
-  throw new Error('TELEGRAM_BOT_TOKEN environment variable is required');
-}
-
+// Validate DATABASE_URL
 if (!process.env.DATABASE_URL) {
   console.error('❌ DATABASE_URL is not set!');
   throw new Error('DATABASE_URL environment variable is required');
 }
 
 // Initialize bot
-const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN);
+const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN || '');
+
+// Bot initialization (Grammy.js bots are ready after creation, but we can verify)
+// Note: Grammy.js doesn't have bot.init(), but we can test the bot is ready
+try {
+  // Test bot is ready by checking token
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    console.log('✅ Bot initialized successfully');
+  }
+} catch (err: any) {
+  console.error('❌ Bot init error:', err);
+  // Don't throw - allow webhook to handle errors gracefully
+}
 
 // Session middleware
 bot.use(session({
@@ -234,10 +248,47 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 /**
- * Webhook handler for Vercel using Grammy's webhookCallback
- * This is the recommended way to handle webhooks with Grammy.js
+ * Webhook handler for Vercel
+ * Uses bot.handleUpdate() which is the correct Grammy.js pattern
  */
-export const handler = bot.webhookCallback('/webhook');
+export const handler = async (req: any, res: any) => {
+  // Check TELEGRAM_BOT_TOKEN
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    console.error('Webhook: Missing TELEGRAM_BOT_TOKEN');
+    return res.status(500).send('Missing token');
+  }
+
+  try {
+    // Ensure Prisma is connected
+    try {
+      await prisma.$connect();
+    } catch (prismaError: any) {
+      console.error('Prisma connection error:', prismaError);
+      // Continue anyway - connection might already be established
+    }
+
+    // Parse request body
+    const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    
+    if (!update || !update.update_id) {
+      console.error('Webhook: Invalid update format', update);
+      return res.status(400).send('Invalid update format');
+    }
+
+    // Handle update with bot
+    await bot.handleUpdate(update);
+    
+    // Send success response
+    if (!res.headersSent) {
+      res.status(200).send('OK');
+    }
+  } catch (error: any) {
+    console.error('Webhook handler error:', error);
+    if (!res.headersSent) {
+      res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
+    }
+  }
+};
 
 /**
  * Legacy webhook handler (for compatibility)

@@ -2,5 +2,11 @@
   "buildCommand": "cd ../.. && pnpm prisma:generate && cd src/web && pnpm build",
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "routes": [
+    {
+      "src": "/api/webhook",
+      "dest": "/api/webhook"
+    }
+  ]
 }
