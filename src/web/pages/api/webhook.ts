@@ -17,10 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Ensure body is parsed (Next.js should do this automatically, but ensure it's an object)
     const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     
-    // Call webhook handler with parsed update
+    // Call webhook handler with parsed update (it will send the response)
     await webhookHandler({ body: update }, res);
-    
-    return res.status(200).send('OK');
   } catch (error: any) {
     console.error('Webhook error:', error);
     return res.status(500).json({ error: 'Internal server error', details: error.message });
