@@ -14,8 +14,14 @@ type MyConversation = Conversation<MyContext>;
  * Start command handler with onboarding conversation
  */
 export async function startHandler(ctx: MyContext) {
-  const telegramId = BigInt(ctx.from!.id);
-  const username = ctx.from?.username;
+  // Validate context
+  if (!ctx.from || !ctx.chat) {
+    console.error('Invalid context in startHandler');
+    return;
+  }
+
+  const telegramId = BigInt(ctx.from.id);
+  const username = ctx.from.username;
 
   // Check if user exists
   let user = await prisma.user.findUnique({

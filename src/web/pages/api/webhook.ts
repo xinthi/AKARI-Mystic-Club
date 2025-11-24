@@ -3,10 +3,15 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 let webhookHandler: any = null;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Check TELEGRAM_BOT_TOKEN first (as per instructions)
+  // Check TELEGRAM_BOT_TOKEN first
   if (!process.env.TELEGRAM_BOT_TOKEN) {
     console.error('Missing TELEGRAM_BOT_TOKEN');
     return res.status(500).send('Missing token');
+  }
+
+  if (!process.env.DATABASE_URL) {
+    console.error('Missing DATABASE_URL');
+    return res.status(500).json({ error: 'Database not configured' });
   }
 
   if (!process.env.DATABASE_URL) {

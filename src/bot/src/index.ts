@@ -21,10 +21,9 @@ import { handleStarsPayment } from './utils/stars.js';
 // Load environment variables first
 dotenv.config();
 
-// Check TELEGRAM_BOT_TOKEN before initializing bot
+// Check TELEGRAM_BOT_TOKEN
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error('Missing token');
-  // Don't throw in module scope - handle in handler
 }
 
 interface SessionData {
@@ -39,7 +38,7 @@ const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN || '');
 
 // Session middleware with proper initial state
 bot.use(session({
-  initial: (): SessionData => ({
+  initial: () => ({
     step: 'idle',
     tempData: {}
   }),
