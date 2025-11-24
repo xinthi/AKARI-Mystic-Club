@@ -6,7 +6,7 @@ Go to your Vercel project → Settings → Environment Variables and add:
 
 ### 1. Telegram Bot (REQUIRED)
 ```
-TELEGRAM_BOT_TOKEN=8300403255:AAGvbPLKH7rFL7X2j2l40y-vBprfCPBVW40
+TELEGRAM_BOT_TOKEN=8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8
 ```
 
 ### 2. Database - Supabase (REQUIRED)
@@ -44,7 +44,7 @@ TWITTER_CLIENT_SECRET=RpAbMi81P82Y3olcKLvrZLlf3wK6FfNUO7l0fMuCB_9ziqw6k2
 1. **Redeploy** your project in Vercel
 2. **Set Webhook** after deployment:
    ```
-   https://api.telegram.org/bot8300403255:AAGvbPLKH7rFL7X2j2l40y-vBprfCPBVW40/setWebhook?url=https://your-app.vercel.app/api/webhook
+   https://api.telegram.org/bot8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8/setWebhook?url=https://your-app.vercel.app/api/webhook
    ```
 3. **Test** by sending `/start` to your bot
 
@@ -52,6 +52,6 @@ TWITTER_CLIENT_SECRET=RpAbMi81P82Y3olcKLvrZLlf3wK6FfNUO7l0fMuCB_9ziqw6k2
 
 Check webhook status:
 ```
-https://api.telegram.org/bot8300403255:AAGvbPLKH7rFL7X2j2l40y-vBprfCPBVW40/getWebhookInfo
+https://api.telegram.org/bot8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8/getWebhookInfo
 ```
 
