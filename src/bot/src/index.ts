@@ -26,14 +26,6 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error('Missing TELEGRAM_BOT_TOKEN');
 }
 
-// Ensure Prisma is connected
-try {
-  await prisma.$connect();
-  console.log('Prisma connected');
-} catch (err: any) {
-  console.error('Prisma connect error:', err);
-}
-
 interface SessionData {
   step?: string;
   tempData?: Record<string, any>;
