@@ -10,7 +10,8 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       import('@twa-dev/sdk').then((sdk) => {
         try {
-          const initData = sdk.initData;
+          // @ts-ignore - SDK types may vary
+          const initData = (sdk as any).initData;
           if (initData?.user?.id) {
             setUserId(initData.user.id.toString());
           }
