@@ -23,40 +23,26 @@ dotenv.config();
 
 // Check TELEGRAM_BOT_TOKEN before initializing bot
 if (!process.env.TELEGRAM_BOT_TOKEN) {
-  console.error('❌ TELEGRAM_BOT_TOKEN is not set!');
-  throw new Error('TELEGRAM_BOT_TOKEN environment variable is required');
+  console.error('Missing token');
+  // Don't throw in module scope - handle in handler
 }
 
 interface SessionData {
-  // Add session data here if needed
+  step?: string;
+  tempData?: Record<string, any>;
 }
 
 type MyContext = Context & SessionFlavor<SessionData>;
 
-// Validate DATABASE_URL
-if (!process.env.DATABASE_URL) {
-  console.error('❌ DATABASE_URL is not set!');
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
 // Initialize bot
 const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN || '');
 
-// Bot initialization (Grammy.js bots are ready after creation, but we can verify)
-// Note: Grammy.js doesn't have bot.init(), but we can test the bot is ready
-try {
-  // Test bot is ready by checking token
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    console.log('✅ Bot initialized successfully');
-  }
-} catch (err: any) {
-  console.error('❌ Bot init error:', err);
-  // Don't throw - allow webhook to handle errors gracefully
-}
-
-// Session middleware
+// Session middleware with proper initial state
 bot.use(session({
-  initial: (): SessionData => ({}),
+  initial: (): SessionData => ({
+    step: 'idle',
+    tempData: {}
+  }),
 }));
 
 // Conversations middleware
@@ -248,47 +234,64 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 /**
- * Webhook handler for Vercel
- * Uses bot.handleUpdate() which is the correct Grammy.js pattern
+ * Webhook callback function for Grammy.js
+ * Creates a Next.js-compatible handler that uses bot.handleUpdate()
  */
-export const handler = async (req: any, res: any) => {
-  // Check TELEGRAM_BOT_TOKEN
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.error('Webhook: Missing TELEGRAM_BOT_TOKEN');
-    return res.status(500).send('Missing token');
-  }
+function webhookCallback(botInstance: Bot, framework: string = 'grammy') {
+  return async (req: any, res: any) => {
+    // Check TELEGRAM_BOT_TOKEN
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.error('Missing token');
+      return res.status(500).send('Missing token');
+    }
 
-  try {
-    // Ensure Prisma is connected
     try {
-      await prisma.$connect();
-    } catch (prismaError: any) {
-      console.error('Prisma connection error:', prismaError);
-      // Continue anyway - connection might already be established
-    }
+      // Ensure Prisma is connected
+      await prisma.$connect().catch((err: any) => {
+        console.error('Prisma connect error:', err);
+      });
 
-    // Parse request body
-    const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    
-    if (!update || !update.update_id) {
-      console.error('Webhook: Invalid update format', update);
-      return res.status(400).send('Invalid update format');
-    }
+      // Parse request body
+      const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      
+      if (!update || !update.update_id) {
+        console.error('Webhook: Invalid update format', update);
+        return res.status(400).send('Invalid update format');
+      }
 
-    // Handle update with bot
-    await bot.handleUpdate(update);
-    
-    // Send success response
-    if (!res.headersSent) {
-      res.status(200).send('OK');
+      // Handle update with bot
+      await botInstance.handleUpdate(update);
+      
+      // Send success response
+      if (!res.headersSent) {
+        res.status(200).send('OK');
+      }
+    } catch (error: any) {
+      console.error('Webhook handler error:', error);
+      if (!res.headersSent) {
+        res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
+      }
     }
-  } catch (error: any) {
-    console.error('Webhook handler error:', error);
-    if (!res.headersSent) {
-      res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
+  };
+}
+
+// Initialize bot (Grammy.js doesn't have bot.init(), but we can verify readiness)
+async function initializeBot() {
+  try {
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      // Test bot by checking if token is valid (bot is ready after creation)
+      console.log('Bot initialized');
     }
+  } catch (err: any) {
+    console.error('Bot init error:', err);
   }
-};
+}
+
+// Initialize bot on module load
+initializeBot();
+
+// Export webhook handler using webhookCallback pattern
+export const handler = webhookCallback(bot, 'grammy');
 
 /**
  * Legacy webhook handler (for compatibility)
