@@ -63,6 +63,8 @@ model Review {
   toUser      User     @relation("ReceivedReviews", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@unique([fromUserId, toUserId])
+  @@index([toUserId])
+  @@index([fromUserId])
   @@map("reviews")
 }
 
@@ -98,6 +100,9 @@ model Campaign {
   completions     Json[]
   leaderboard     Json?
 
+  @@index([createdById])
+  @@index([isActive])
+  @@index([startsAt, endsAt])
   @@map("campaigns")
 }
 
@@ -116,6 +121,9 @@ model Prediction {
   creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   bets          Bet[]
 
+  @@index([creatorId])
+  @@index([resolved])
+  @@index([endsAt])
   @@map("predictions")
 }
 
@@ -130,6 +138,9 @@ model Bet {
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   prediction    Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, predictionId])
+  @@index([predictionId])
+  @@index([userId])
   @@map("bets")
 }
 
@@ -148,6 +159,9 @@ model Survey {
 
   createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
+  @@index([campaignId])
+  @@index([createdById])
+  @@index([active])
   @@map("surveys")
 }
 
