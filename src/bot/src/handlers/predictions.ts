@@ -99,12 +99,18 @@ export async function betHandler(ctx: Context, predictionId: string, optionIndex
 
   // Send invoice for Stars payment
   if (!ctx.chat) return;
-  await ctx.api.sendInvoice(
+  const providerToken = process.env.PAYMENT_PROVIDER_TOKEN;
+  if (!providerToken) {
+    await ctx.reply('❌ Payment provider not configured.');
+    return;
+  }
+  // Grammy.js type issue - using type assertion
+  await (ctx.api.sendInvoice as any)(
     ctx.chat.id,
     `Bet: ${prediction.title}`,
     `Option ${optionIndex + 1}`,
     `bet_${prediction.id}_${optionIndex}_${user.id}`,
-    process.env.PAYMENT_PROVIDER_TOKEN || '',
+    providerToken,
     'XTR',
     [{ label: 'Entry Fee', amount: prediction.entryFeeStars }]
   );

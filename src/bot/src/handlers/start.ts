@@ -205,7 +205,7 @@ async function getXAuthUrl(userId: string): Promise<string> {
 /**
  * Show main menu
  */
-async function showMainMenu(ctx: MyContext, lang: string) {
+export async function showMainMenu(ctx: MyContext, lang: string) {
   const keyboard = new InlineKeyboard()
     .webApp('View Profile 👤', `${process.env.VERCEL_URL || 'http://localhost:3000'}/profile?userId=${ctx.from!.id}`)
     .row()

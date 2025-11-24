@@ -97,12 +97,18 @@ export async function createCampaignConversation(conversation: MyConversation, c
 
   // Send invoice for Stars payment
   if (!payCtx.chat) return;
-  await payCtx.api.sendInvoice(
+  const providerToken = process.env.PAYMENT_PROVIDER_TOKEN;
+  if (!providerToken) {
+    await payCtx.reply('❌ Payment provider not configured.');
+    return;
+  }
+  // Grammy.js type issue - using type assertion
+  await (payCtx.api.sendInvoice as any)(
     payCtx.chat.id,
     `Campaign: ${name}`,
     description,
     `campaign_${user.id}`,
-    process.env.PAYMENT_PROVIDER_TOKEN || '',
+    providerToken,
     'XTR',
     [{ label: 'Campaign Fee', amount: amount }]
   );
