@@ -1,5 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getOverallLeaderboard as getLeaderboardFn } from '../../lib/bot-utils';
+// Dynamic import to avoid build-time resolution
+const getOverallLeaderboard = async (tierPattern: string | null) => {
+  const { getOverallLeaderboard: fn } = await import('../../lib/bot-utils');
+  return fn(tierPattern);
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -10,8 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tier } = req.query;
     const tierPattern = tier && tier !== 'all' ? (tier as string) : null;
 
-    // @ts-ignore - Bot function signature
-    const leaderboard = await getLeaderboardFn(tierPattern);
+    const leaderboard = await getOverallLeaderboard(tierPattern);
     res.json({ leaderboard });
   } catch (error: any) {
     console.error('Leaderboard API error:', error);
