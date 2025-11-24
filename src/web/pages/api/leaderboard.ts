@@ -1,9 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-// Dynamic import to avoid build-time resolution
-const getOverallLeaderboard = async (tierPattern: string | null) => {
-  const { getOverallLeaderboard: fn } = await import('../../lib/bot-utils');
-  return fn(tierPattern);
-};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -16,6 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Dynamic import to avoid build-time resolution
     const { getOverallLeaderboard } = await import('../../lib/bot-utils');
+    // @ts-ignore - Bot function signature
     const leaderboard = await getOverallLeaderboard(tierPattern);
     res.json({ leaderboard });
   } catch (error: any) {

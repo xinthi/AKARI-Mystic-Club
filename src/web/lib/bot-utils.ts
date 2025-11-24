@@ -24,11 +24,12 @@ export async function getTwitterOAuthClient() {
   }
 }
 
-export async function getOverallLeaderboard() {
+export async function getOverallLeaderboard(tierPattern: string | null = null) {
   try {
     // @ts-ignore - Bot code is excluded from type checking
     const leaderboardModule = await import('../../bot/src/utils/leaderboard.js');
-    return leaderboardModule.getOverallLeaderboard as (tierPattern: string | null) => Promise<any[]>;
+    const fn = leaderboardModule.getOverallLeaderboard as (tierPattern: string | null) => Promise<any[]>;
+    return await fn(tierPattern);
   } catch (error) {
     console.error('Failed to import leaderboard utils:', error);
     throw error;
