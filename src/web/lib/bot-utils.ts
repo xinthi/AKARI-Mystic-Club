@@ -24,7 +24,7 @@ export async function getTwitterOAuthClient() {
 export async function getOverallLeaderboard() {
   try {
     const leaderboardModule = await import('../../bot/src/utils/leaderboard.js');
-    return leaderboardModule.getOverallLeaderboard;
+    return leaderboardModule.getOverallLeaderboard as (tierPattern: string | null) => Promise<any[]>;
   } catch (error) {
     console.error('Failed to import leaderboard utils:', error);
     throw error;

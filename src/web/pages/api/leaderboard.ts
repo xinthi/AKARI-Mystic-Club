@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tier } = req.query;
     const tierPattern = tier && tier !== 'all' ? (tier as string) : null;
 
-    const getOverallLeaderboard = await getLeaderboardFn();
+    const getOverallLeaderboard = getLeaderboardFn;
 
     const leaderboard = await getOverallLeaderboard(tierPattern);
     res.json({ leaderboard });
