@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm install && pnpm exec prisma generate --schema=./prisma/schema.prisma && cd src/web && pnpm install && pnpm build",
-  "outputDirectory": "src/web/.next",
-  "installCommand": "pnpm install",
-  "framework": null
+  "buildCommand": "cd ../.. && pnpm install && pnpm exec prisma generate --schema=./prisma/schema.prisma && cd src/web && pnpm install && pnpm build",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && pnpm install",
+  "framework": "nextjs"
 }
