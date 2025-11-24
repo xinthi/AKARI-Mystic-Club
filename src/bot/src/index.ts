@@ -26,8 +26,19 @@ interface SessionData {
 
 type MyContext = Context & SessionFlavor<SessionData>;
 
+// Validate environment variables
+if (!process.env.TELEGRAM_BOT_TOKEN) {
+  console.error('❌ TELEGRAM_BOT_TOKEN is not set!');
+  throw new Error('TELEGRAM_BOT_TOKEN environment variable is required');
+}
+
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not set!');
+  throw new Error('DATABASE_URL environment variable is required');
+}
+
 // Initialize bot
-const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN!);
+const bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN);
 
 // Session middleware
 bot.use(session({
