@@ -134,6 +134,9 @@ importers:
       eslint-config-next:
         specifier: ^14.1.0
         version: 14.2.33(eslint@8.57.1)(typescript@5.9.3)
+      prisma:
+        specifier: ^5.9.1
+        version: 5.9.1
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
