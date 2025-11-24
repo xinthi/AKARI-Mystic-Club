@@ -9,9 +9,13 @@ export default function Home() {
     // Get user ID from Telegram Web App
     if (typeof window !== 'undefined') {
       import('@twa-dev/sdk').then((sdk) => {
-        const initData = sdk.initData;
-        if (initData?.user?.id) {
-          setUserId(initData.user.id.toString());
+        try {
+          const initData = sdk.initData;
+          if (initData?.user?.id) {
+            setUserId(initData.user.id.toString());
+          }
+        } catch (error) {
+          console.log('Telegram SDK not available (running outside Telegram)');
         }
       });
     }
