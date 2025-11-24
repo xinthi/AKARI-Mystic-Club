@@ -220,19 +220,42 @@ cron.schedule('0 2 * * *', async () => {
  */
 export async function webhookHandler(req: any, res: any) {
   try {
+    // Validate environment
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.error('Webhook: Missing TELEGRAM_BOT_TOKEN');
+      if (!res.headersSent) {
+        return res.status(500).send('Bot token not configured');
+      }
+      return;
+    }
+
+    if (!process.env.DATABASE_URL) {
+      console.error('Webhook: Missing DATABASE_URL');
+      if (!res.headersSent) {
+        return res.status(500).send('Database not configured');
+      }
+      return;
+    }
+
     const update = req.body;
-    if (!update) {
-      console.error('Webhook: No update in request body');
-      return res.status(400).send('No update');
+    if (!update || !update.update_id) {
+      console.error('Webhook: Invalid update format', update);
+      if (!res.headersSent) {
+        return res.status(400).send('Invalid update format');
+      }
+      return;
     }
     
     await bot.handleUpdate(update);
-    res.status(200).send('OK');
-  } catch (error) {
+    
+    if (!res.headersSent) {
+      res.status(200).send('OK');
+    }
+  } catch (error: any) {
     console.error('Webhook error:', error);
     // Don't send error response if already sent
     if (!res.headersSent) {
-      res.status(500).send('Error');
+      res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
     }
   }
 }
