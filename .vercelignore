@@ -1,6 +1,6 @@
-src/bot
 prisma/migrations
 *.log
 .env
 .env.local
+node_modules
 
