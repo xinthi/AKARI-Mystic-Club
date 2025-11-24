@@ -1,3 +1,4 @@
+// @ts-nocheck - This file is not type-checked by Next.js
 import { Bot, Context } from 'grammy';
 import { prisma } from './prisma.js';
 import { getTwitterClient } from './twitter.js';

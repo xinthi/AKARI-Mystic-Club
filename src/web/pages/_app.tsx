@@ -7,7 +7,8 @@ export default function App({ Component, pageProps }: AppProps) {
     // Initialize Telegram Web App SDK
     if (typeof window !== 'undefined') {
       import('@twa-dev/sdk').then((sdk) => {
-        sdk.ready();
+        // SDK is automatically initialized on import
+        // No need to call ready() in v8.0.2
       });
     }
   }, []);

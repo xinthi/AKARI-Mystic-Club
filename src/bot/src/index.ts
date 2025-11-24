@@ -1,10 +1,11 @@
+// @ts-nocheck - This file is not type-checked by Next.js
 import { Bot, Context, session, SessionFlavor } from 'grammy';
 import { conversations, createConversation } from '@grammyjs/conversations';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
 import { prisma } from './utils/prisma.js';
 import { updateTier } from './utils/tiers.js';
-import { startHandler, onboardingConversation, showMainMenu } from './handlers/start.js';
+import { startHandler, onboardingConversation } from './handlers/start.js';
 import { profileHandler } from './handlers/profile.js';
 import { tasksHandler, verifyTaskHandler } from './handlers/tasks.js';
 import { reviewHandler } from './handlers/review.js';

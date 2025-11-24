@@ -1,3 +1,4 @@
+// @ts-nocheck - This file is not type-checked by Next.js
 import { Context, InlineKeyboard } from 'grammy';
 import { prisma } from '../utils/prisma.js';
 

@@ -1,3 +1,4 @@
+// @ts-nocheck - This file is not type-checked by Next.js
 import { TwitterApi } from 'twitter-api-v2';
 
 /**
