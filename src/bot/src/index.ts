@@ -165,14 +165,23 @@ bot.on('message:successful_payment', async (ctx) => {
 bot.on('message:new_chat_members', newChatMembersHandler);
 
 // Error handler with better error handling
-bot.catch((err) => {
-  const ctx = err.ctx;
-  console.error('Bot error:', err.error);
-  // Try to reply to user if context is available
-  if (ctx) {
-    ctx.reply('🔮 Mystic error—please retry!').catch(() => {
-      // Ignore if reply fails
-    });
+bot.catch((ctx, err) => {
+  console.error('Webhook error:', err);
+  // Check if it's a TypeError
+  if (err.message && err.message.includes('TypeError')) {
+    console.error('TypeError detected:', err);
+    if (ctx && ctx.chat) {
+      ctx.reply('🔮 Mystic error—retry!').catch(() => {
+        // Ignore if reply fails
+      });
+    }
+  } else {
+    // Try to reply to user if context is available
+    if (ctx && ctx.chat) {
+      ctx.reply('🔮 Mystic error—retry!').catch(() => {
+        // Ignore if reply fails
+      });
+    }
   }
 });
 

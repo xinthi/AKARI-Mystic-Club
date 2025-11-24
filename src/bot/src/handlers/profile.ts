@@ -6,7 +6,13 @@ import { prisma } from '../utils/prisma.js';
  * Profile command handler
  */
 export async function profileHandler(ctx: Context) {
-  const telegramId = BigInt(ctx.from!.id);
+  // Validate context
+  if (!ctx.from || !ctx.chat) {
+    console.error('Invalid context in profileHandler');
+    return;
+  }
+
+  const telegramId = BigInt(ctx.from.id);
 
   const user = await prisma.user.findUnique({
     where: { telegramId },
