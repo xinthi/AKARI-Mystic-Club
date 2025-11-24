@@ -12,7 +12,7 @@
     "dev": "pnpm --filter bot dev & pnpm --filter web dev",
     "build": "pnpm --filter bot build && pnpm --filter web build",
     "prisma:push": "pnpm --filter bot exec prisma db push --schema=../../prisma/schema.prisma",
-    "prisma:generate": "pnpm --filter bot exec prisma generate --schema=../../prisma/schema.prisma",
+    "prisma:generate": "pnpm exec prisma generate --schema=./prisma/schema.prisma",
     "prisma:seed": "pnpm --filter bot prisma db seed",
     "prisma:studio": "pnpm --filter bot prisma studio"
   },
