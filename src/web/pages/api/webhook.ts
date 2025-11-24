@@ -25,16 +25,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       webhookHandler = await getWebhookHandler();
     }
 
-    // Ensure body is parsed (Next.js should do this automatically, but ensure it's an object)
-    const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    
-    if (!update || !update.update_id) {
-      console.error('Invalid update format:', update);
-      return res.status(400).json({ error: 'Invalid update format' });
+    // Grammy's webhookCallback expects (req, res) directly
+    // If it's the new handler, call it directly
+    if (webhookHandler && typeof webhookHandler === 'function') {
+      // Check if it's Grammy's webhookCallback (takes req, res)
+      // or our legacy handler (takes { body }, res)
+      try {
+        // Try Grammy's format first
+        await webhookHandler(req, res);
+      } catch (err: any) {
+        // Fallback to legacy format
+        const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        if (!update || !update.update_id) {
+          console.error('Invalid update format:', update);
+          return res.status(400).json({ error: 'Invalid update format' });
+        }
+        await webhookHandler({ body: update }, res);
+      }
+    } else {
+      // Legacy handler format
+      const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      if (!update || !update.update_id) {
+        console.error('Invalid update format:', update);
+        return res.status(400).json({ error: 'Invalid update format' });
+      }
+      await webhookHandler({ body: update }, res);
     }
-    
-    // Call webhook handler with parsed update (it will send the response)
-    await webhookHandler({ body: update }, res);
   } catch (error: any) {
     console.error('Webhook error:', error);
     // Don't send error if response already sent

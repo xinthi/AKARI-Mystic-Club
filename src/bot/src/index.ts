@@ -165,9 +165,16 @@ bot.on('message:successful_payment', async (ctx) => {
 // Group handlers
 bot.on('message:new_chat_members', newChatMembersHandler);
 
-// Error handler
+// Error handler with better error handling
 bot.catch((err) => {
-  console.error('Bot error:', err);
+  const ctx = err.ctx;
+  console.error('Bot error:', err.error);
+  // Try to reply to user if context is available
+  if (ctx) {
+    ctx.reply('🔮 Mystic error—please retry!').catch(() => {
+      // Ignore if reply fails
+    });
+  }
 });
 
 /**
@@ -227,7 +234,14 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 /**
- * Webhook handler for Vercel
+ * Webhook handler for Vercel using Grammy's webhookCallback
+ * This is the recommended way to handle webhooks with Grammy.js
+ */
+export const handler = bot.webhookCallback('/webhook');
+
+/**
+ * Legacy webhook handler (for compatibility)
+ * @deprecated Use handler instead
  */
 export async function webhookHandler(req: any, res: any) {
   try {
@@ -246,6 +260,14 @@ export async function webhookHandler(req: any, res: any) {
         return res.status(500).send('Database not configured');
       }
       return;
+    }
+
+    // Ensure Prisma is connected
+    try {
+      await prisma.$connect();
+    } catch (prismaError: any) {
+      console.error('Prisma connection error:', prismaError);
+      // Continue anyway - connection might already be established
     }
 
     const update = req.body;

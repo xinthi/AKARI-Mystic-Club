@@ -6,7 +6,8 @@ export async function getWebhookHandler() {
   try {
     // @ts-ignore - Bot code is excluded from type checking
     const botModule = await import('../../bot/src/index.js');
-    return botModule.webhookHandler;
+    // Try to use the new handler first, fallback to legacy webhookHandler
+    return botModule.handler || botModule.webhookHandler;
   } catch (error) {
     console.error('Failed to import webhook handler:', error);
     throw error;

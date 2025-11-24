@@ -11,12 +11,13 @@ export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
-// Test connection on startup
+// Test connection on startup with error handling
 prisma.$connect()
   .then(() => {
     console.log('✅ Database connected successfully');
   })
   .catch((error) => {
     console.error('❌ Database connection failed:', error);
+    // Don't throw - allow retry on first use
   });
 
