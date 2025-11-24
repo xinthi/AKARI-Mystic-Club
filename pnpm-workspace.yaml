@@ -1,0 +1,4 @@
+packages:
+  - 'src/bot'
+  - 'src/web'
+

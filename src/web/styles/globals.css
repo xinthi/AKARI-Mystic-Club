@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #1A1A2E 0%, #0F0F1E 100%);
+  min-height: 100vh;
+}
+
+/* Badge carousel styles */
+.badge-carousel {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 1rem;
+  scroll-snap-type: x mandatory;
+}
+
+.badge-item {
+  flex-shrink: 0;
+  scroll-snap-align: center;
+  transition: transform 0.3s, filter 0.3s;
+}
+
+.badge-item:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 10px currentColor);
+}
+
+/* Character sprites animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.character-sprite {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  height: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6B46C1, #9333EA);
+  transition: width 0.3s ease;
+}
+

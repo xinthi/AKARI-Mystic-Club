@@ -1,0 +1,31 @@
+{
+  "name": "akari-mystic-bot",
+  "version": "1.0.0",
+  "description": "AKARI Mystic Club Telegram Mini App Bot",
+  "private": true,
+  "workspaces": [
+    "src/bot",
+    "src/web"
+  ],
+  "scripts": {
+    "setup": "pnpm install && pnpm prisma:push && pnpm prisma:generate && pnpm prisma:seed",
+    "dev": "pnpm --filter bot dev & pnpm --filter web dev",
+    "build": "pnpm --filter bot build && pnpm --filter web build",
+    "prisma:push": "pnpm --filter bot exec prisma db push --schema=../../prisma/schema.prisma",
+    "prisma:generate": "pnpm --filter bot exec prisma generate --schema=../../prisma/schema.prisma",
+    "prisma:seed": "pnpm --filter bot prisma db seed",
+    "prisma:studio": "pnpm --filter bot prisma studio"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prisma": "5.9.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "5.9.1"
+  }
+}

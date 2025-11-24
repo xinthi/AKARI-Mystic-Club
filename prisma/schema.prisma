@@ -1,0 +1,153 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Interest {
+  content_creator
+  airdrop_hunter
+  investor
+  founder
+  new_to_crypto
+}
+
+model User {
+  id                    String       @id @default(cuid())
+  telegramId            BigInt       @unique
+  username              String?
+  xUsername             String?
+  xUserId               String?
+  tonWallet              String?
+  evmWallet              String?
+  language              String?      @default("en")
+  interests             Interest[]
+  isNewToCrypto         Boolean      @default(true)
+  isVerifiedFounder     Boolean      @default(false)
+  founderSubscriptionEnd DateTime?
+  points                Int          @default(0)
+  tier                  String?
+  credibilityScore      Float?       @default(0)
+  positiveReviews       Int          @default(0)
+  joinedAt              DateTime     @default(now())
+  lastActive            DateTime     @updatedAt
+  completedTasks        Json[]
+  reviewsGiven          Review[]     @relation("GivenReviews")
+  reviewsReceived       Review[]     @relation("ReceivedReviews")
+  createdCampaigns      Campaign[]
+  createdPredictions    Prediction[]
+  createdSurveys        Survey[]
+  bets                  Bet[]
+
+  @@index([telegramId])
+  @@index([points])
+  @@index([tier])
+  @@map("users")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  fromUserId  String
+  toUserId    String
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  fromUser    User     @relation("GivenReviews", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User     @relation("ReceivedReviews", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@map("reviews")
+}
+
+model Tier {
+  id          String   @id @default(cuid())
+  name        String
+  level       Int
+  minPoints   Int
+  maxPoints   Int?
+  badgeEmoji  String
+  color       String
+  imageUrl    String?
+  description String
+
+  @@unique([name, level])
+  @@map("tiers")
+}
+
+model Campaign {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  rewards         String
+  tasks           Json[]
+  startsAt        DateTime
+  endsAt          DateTime
+  createdById     String
+  starsFee        Int       @default(0)
+  projectTgHandle String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  createdBy       User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  completions     Json[]
+  leaderboard     Json?
+
+  @@map("campaigns")
+}
+
+model Prediction {
+  id            String   @id @default(cuid())
+  title         String
+  options       Json[]
+  entryFeeStars Int      @default(0)
+  pot           Int      @default(0)
+  houseFee      Float    @default(0.05)
+  creatorId     String
+  resolved      Boolean  @default(false)
+  winnerOption  Int?
+  createdAt     DateTime @default(now())
+  endsAt        DateTime
+  creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  bets          Bet[]
+
+  @@map("predictions")
+}
+
+model Bet {
+  id            String     @id @default(cuid())
+  userId        String
+  predictionId  String
+  optionIndex   Int
+  starsBet      Int
+  createdAt     DateTime   @default(now())
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prediction    Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@map("bets")
+}
+
+model Survey {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  questions       Json[]
+  campaignId      String?
+  projectTgHandle String
+  createdById     String
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  responses       Json[]
+  report          Json?
+
+  createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@map("surveys")
+}
+
