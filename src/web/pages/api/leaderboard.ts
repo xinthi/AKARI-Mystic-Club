@@ -14,6 +14,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tier } = req.query;
     const tierPattern = tier && tier !== 'all' ? (tier as string) : null;
 
+    // Dynamic import to avoid build-time resolution
+    const { getOverallLeaderboard } = await import('../../lib/bot-utils');
     const leaderboard = await getOverallLeaderboard(tierPattern);
     res.json({ leaderboard });
   } catch (error: any) {
