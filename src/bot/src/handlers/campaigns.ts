@@ -100,11 +100,11 @@ export async function createCampaignConversation(conversation: MyConversation, c
   await payCtx.api.sendInvoice(
     payCtx.chat.id,
     `Campaign: ${name}`,
-    description,
+    description || '',
     `campaign_${user.id}`,
     process.env.PAYMENT_PROVIDER_TOKEN || '',
-    'XTR',
-    [{ label: 'Campaign Fee', amount: amount }]
+    [{ label: 'Campaign Fee', amount: amount * 100 }], // Amount in smallest currency unit (cents for XTR)
+    'XTR'
   );
 
   // Wait for payment (handled by stars handler)
