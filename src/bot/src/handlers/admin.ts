@@ -102,7 +102,7 @@ export async function pollHandler(ctx: Context, question: string, options: strin
     return;
   }
 
-  await ctx.replyPoll(question, options, {
+  await ctx.replyWithPoll(question, options, {
     is_anonymous: false
   });
 }

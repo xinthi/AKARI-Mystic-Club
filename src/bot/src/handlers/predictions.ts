@@ -97,17 +97,17 @@ export async function betHandler(ctx: Context, predictionId: string, optionIndex
     return;
   }
 
-  // Create invoice
-  const invoice = await ctx.api.createInvoiceLink({
-    title: `Bet: ${prediction.title}`,
-    description: `Option ${optionIndex + 1}`,
-    payload: `bet_${prediction.id}_${optionIndex}_${user.id}`,
-    provider_token: process.env.PAYMENT_PROVIDER_TOKEN || '',
-    currency: 'XTR',
-    prices: [{ label: 'Entry Fee', amount: prediction.entryFeeStars }]
-  });
-
-  await ctx.reply(`Place your bet:\n${invoice}`);
+  // Send invoice for Stars payment
+  if (!ctx.chat) return;
+  await ctx.api.sendInvoice(
+    ctx.chat.id,
+    `Bet: ${prediction.title}`,
+    `Option ${optionIndex + 1}`,
+    `bet_${prediction.id}_${optionIndex}_${user.id}`,
+    process.env.PAYMENT_PROVIDER_TOKEN || '',
+    'XTR',
+    [{ label: 'Entry Fee', amount: prediction.entryFeeStars }]
+  );
 }
 
 /**

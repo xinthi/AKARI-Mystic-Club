@@ -95,17 +95,17 @@ export async function createCampaignConversation(conversation: MyConversation, c
   const payCtx = await conversation.waitForCallbackQuery(/^pay_/);
   const amount = payCtx.callbackQuery.data === 'pay_100' ? 100 : 200;
 
-  // Create invoice
-  const invoice = await ctx.api.createInvoiceLink({
-    title: `Campaign: ${name}`,
-    description: description,
-    payload: `campaign_${user.id}`,
-    provider_token: process.env.PAYMENT_PROVIDER_TOKEN || '',
-    currency: 'XTR',
-    prices: [{ label: 'Campaign Fee', amount: amount }]
-  });
-
-  await payCtx.reply(`Please pay ${amount} Stars:\n${invoice}`);
+  // Send invoice for Stars payment
+  if (!payCtx.chat) return;
+  await payCtx.api.sendInvoice(
+    payCtx.chat.id,
+    `Campaign: ${name}`,
+    description,
+    `campaign_${user.id}`,
+    process.env.PAYMENT_PROVIDER_TOKEN || '',
+    'XTR',
+    [{ label: 'Campaign Fee', amount: amount }]
+  );
 
   // Wait for payment (handled by stars handler)
   // For now, create campaign after payment confirmation
