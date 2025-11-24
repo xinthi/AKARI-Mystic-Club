@@ -98,6 +98,23 @@ pnpm prisma:seed
 
 ### 4. Development
 
+**Important: Remove Webhook for Local Testing**
+
+Before running locally, you must remove any existing Telegram webhook. Telegram can only use either webhook OR polling, not both.
+
+```bash
+# Check if webhook is set
+# Visit: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
+
+# Remove webhook (choose one method):
+# Method 1 - Browser: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/deleteWebhook
+# Method 2 - PowerShell:
+#   $token = 'YOUR_BOT_TOKEN'
+#   Invoke-RestMethod -Uri "https://api.telegram.org/bot$token/deleteWebhook" -Method POST
+# Method 3 - curl:
+#   curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/deleteWebhook"
+```
+
 ```bash
 # Start bot and web app in development mode
 pnpm dev
