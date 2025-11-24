@@ -10,9 +10,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tier } = req.query;
     const tierPattern = tier && tier !== 'all' ? (tier as string) : null;
 
-    const getOverallLeaderboard = getLeaderboardFn;
-
-    const leaderboard = await getOverallLeaderboard(tierPattern);
+    // @ts-ignore - Bot function signature
+    const leaderboard = await getLeaderboardFn(tierPattern);
     res.json({ leaderboard });
   } catch (error: any) {
     console.error('Leaderboard API error:', error);
