@@ -66,7 +66,7 @@ bot.command('poll', async (ctx) => {
   await pollHandler(ctx, question, options);
 });
 bot.command('broadcast', async (ctx) => {
-  const message = ctx.message.text.split(' ').slice(1).join(' ');
+  const message = ctx.message?.text?.split(' ').slice(1).join(' ') || '';
   if (!message) {
     await ctx.reply('Usage: /broadcast <message>');
     return;
@@ -74,7 +74,8 @@ bot.command('broadcast', async (ctx) => {
   await broadcastHandler(ctx, message);
 });
 bot.command('verifyfounder', async (ctx) => {
-  const args = ctx.message.text.split(' ').slice(1);
+  const text = ctx.message?.text || '';
+  const args = text.split(' ').slice(1);
   if (args.length < 1) {
     await ctx.reply('Usage: /verifyfounder <userId>');
     return;
@@ -82,7 +83,8 @@ bot.command('verifyfounder', async (ctx) => {
   await verifyFounderHandler(ctx, args[0]);
 });
 bot.command('approve', async (ctx) => {
-  const args = ctx.message.text.split(' ').slice(1);
+  const text = ctx.message?.text || '';
+  const args = text.split(' ').slice(1);
   if (args.length < 1) {
     await ctx.reply('Usage: /approve <messageId>');
     return;
@@ -218,11 +220,20 @@ cron.schedule('0 2 * * *', async () => {
  */
 export async function webhookHandler(req: any, res: any) {
   try {
-    await bot.handleUpdate(req.body);
+    const update = req.body;
+    if (!update) {
+      console.error('Webhook: No update in request body');
+      return res.status(400).send('No update');
+    }
+    
+    await bot.handleUpdate(update);
     res.status(200).send('OK');
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(500).send('Error');
+    // Don't send error response if already sent
+    if (!res.headersSent) {
+      res.status(500).send('Error');
+    }
   }
 }
 
