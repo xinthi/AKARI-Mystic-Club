@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-
-let getOverallLeaderboard: any = null;
+import { getOverallLeaderboard as getLeaderboardFn } from '../../lib/bot-utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -11,10 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tier } = req.query;
     const tierPattern = tier && tier !== 'all' ? (tier as string) : null;
 
-    if (!getOverallLeaderboard) {
-      const leaderboardModule = await import('../../../bot/src/utils/leaderboard.js');
-      getOverallLeaderboard = leaderboardModule.getOverallLeaderboard;
-    }
+    const getOverallLeaderboard = await getLeaderboardFn();
 
     const leaderboard = await getOverallLeaderboard(tierPattern);
     res.json({ leaderboard });

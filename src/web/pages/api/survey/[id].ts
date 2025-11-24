@@ -1,15 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-
-let prisma: any = null;
+import { prisma } from '../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
 
   try {
-    if (!prisma) {
-      const prismaModule = await import('../../../../bot/src/utils/prisma.js');
-      prisma = prismaModule.prisma;
-    }
 
     if (req.method === 'GET') {
       const survey = await prisma.survey.findUnique({

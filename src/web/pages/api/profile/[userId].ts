@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-
-let prisma: any = null;
+import { prisma } from '../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -9,11 +8,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { userId } = req.query;
-
-    if (!prisma) {
-      const prismaModule = await import('../../../../bot/src/utils/prisma.js');
-      prisma = prismaModule.prisma;
-    }
 
     // Try to find by ID first, then by telegramId
     let user = await prisma.user.findUnique({

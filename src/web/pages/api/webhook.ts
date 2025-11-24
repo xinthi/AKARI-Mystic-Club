@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getWebhookHandler } from '../../lib/bot-utils';
 
-// Import bot webhook handler
 let webhookHandler: any = null;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -9,10 +9,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Dynamically import the webhook handler
     if (!webhookHandler) {
-      const botModule = await import('../../../bot/src/index.js');
-      webhookHandler = botModule.webhookHandler;
+      webhookHandler = await getWebhookHandler();
     }
 
     return webhookHandler(req, res);

@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-
-let prisma: any = null;
-let getTwitterOAuthClient: any = null;
+import { prisma } from '../../lib/prisma';
+import { getTwitterOAuthClient as getTwitterClient } from '../../lib/bot-utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -15,15 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).send('Missing code or userId');
     }
 
-    if (!prisma) {
-      const prismaModule = await import('../../../bot/src/utils/prisma.js');
-      prisma = prismaModule.prisma;
-    }
-
-    if (!getTwitterOAuthClient) {
-      const twitterModule = await import('../../../bot/src/utils/twitter.js');
-      getTwitterOAuthClient = twitterModule.getTwitterOAuthClient;
-    }
+    const getTwitterOAuthClient = await getTwitterClient();
 
     const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
     const callbackUrl = `${vercelUrl}/api/x-callback`;
