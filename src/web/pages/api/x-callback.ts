@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../lib/prisma';
-import { getTwitterOAuthClient as getTwitterClient } from '../../lib/bot-utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -14,6 +13,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).send('Missing code or userId');
     }
 
+    // Dynamic import to avoid build-time resolution
+    const { getTwitterOAuthClient: getTwitterClient } = await import('../../lib/bot-utils');
     const getTwitterOAuthClient = await getTwitterClient();
 
     const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';

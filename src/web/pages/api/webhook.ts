@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getWebhookHandler } from '../../lib/bot-utils';
 
 let webhookHandler: any = null;
 
@@ -10,6 +9,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (!webhookHandler) {
+      // Dynamic import to avoid build-time resolution
+      const { getWebhookHandler } = await import('../../lib/bot-utils');
       webhookHandler = await getWebhookHandler();
     }
 

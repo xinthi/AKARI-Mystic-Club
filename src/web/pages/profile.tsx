@@ -11,6 +11,8 @@ interface User {
   tierConfig: {
     name: string;
     level: number;
+    minPoints: number;
+    maxPoints?: number | null;
     badgeEmoji: string;
     color: string;
     description: string;
@@ -71,7 +73,7 @@ export default function Profile() {
     );
   }
 
-  const tierConfig = user.tierConfig as { name: string; level: number; minPoints: number; maxPoints?: number | null; badgeEmoji: string; color: string; description: string } | null;
+  const tierConfig = user.tierConfig;
   const tierColor = tierConfig?.color || '#6B46C1';
   const nextTierPoints = tierConfig ? (tierConfig.maxPoints || 100000) : 1000;
   const progress = tierConfig ? ((user.points / nextTierPoints) * 100) : 0;

@@ -7,11 +7,14 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     // Ignore bot modules during build - they're imported dynamically at runtime
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '../../bot': false,
-      '../../../bot': false,
-    };
+    if (isServer) {
+      // For server-side, use externals to prevent bundling
+      config.externals = config.externals || [];
+      config.externals.push({
+        '../../bot/src': 'commonjs ../../bot/src',
+        '../../../bot/src': 'commonjs ../../../bot/src',
+      });
+    }
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
