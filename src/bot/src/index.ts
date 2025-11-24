@@ -23,7 +23,15 @@ dotenv.config();
 
 // Check TELEGRAM_BOT_TOKEN
 if (!process.env.TELEGRAM_BOT_TOKEN) {
-  console.error('Missing token');
+  console.error('Missing TELEGRAM_BOT_TOKEN');
+}
+
+// Ensure Prisma is connected
+try {
+  await prisma.$connect();
+  console.log('Prisma connected');
+} catch (err: any) {
+  console.error('Prisma connect error:', err);
 }
 
 interface SessionData {
@@ -66,7 +74,7 @@ bot.command('leaderboard', leaderboardHandler);
 bot.command('credibility', credibilityHandler);
 bot.command('admin', adminHandler);
 bot.command('poll', async (ctx) => {
-  const args = ctx.message.text.split(' ').slice(1);
+  const args = ctx.message?.text?.split(' ').slice(1) || [];
   if (args.length < 3) {
     await ctx.reply('Usage: /poll <question> <option1> <option2> [option3] ...');
     return;
@@ -164,24 +172,13 @@ bot.on('message:successful_payment', async (ctx) => {
 // Group handlers
 bot.on('message:new_chat_members', newChatMembersHandler);
 
-// Error handler with better error handling
+// Error handler - catch all errors
 bot.catch((ctx, err) => {
-  console.error('Webhook error:', err);
-  // Check if it's a TypeError
-  if (err.message && err.message.includes('TypeError')) {
-    console.error('TypeError detected:', err);
-    if (ctx && ctx.chat) {
-      ctx.reply('🔮 Mystic error—retry!').catch(() => {
-        // Ignore if reply fails
-      });
-    }
-  } else {
-    // Try to reply to user if context is available
-    if (ctx && ctx.chat) {
-      ctx.reply('🔮 Mystic error—retry!').catch(() => {
-        // Ignore if reply fails
-      });
-    }
+  console.error('Bot error:', err);
+  if (ctx && ctx.chat) {
+    ctx.reply('🔮 Mystic error—retry!').catch(() => {
+      // Ignore if reply fails
+    });
   }
 });
 
@@ -242,88 +239,17 @@ cron.schedule('0 2 * * *', async () => {
 });
 
 /**
- * Webhook callback function for Grammy.js
- * Creates a Next.js-compatible handler that uses bot.handleUpdate()
+ * Webhook handler for Next.js API routes
+ * Grammy.js doesn't export webhookCallback, so we create our own
  */
-function webhookCallback(botInstance: Bot, framework: string = 'grammy') {
-  return async (req: any, res: any) => {
-    // Check TELEGRAM_BOT_TOKEN
-    if (!process.env.TELEGRAM_BOT_TOKEN) {
-      console.error('Missing token');
-      return res.status(500).send('Missing token');
-    }
-
-    try {
-      // Ensure Prisma is connected
-      await prisma.$connect().catch((err: any) => {
-        console.error('Prisma connect error:', err);
-      });
-
-      // Parse request body
-      const update = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      
-      if (!update || !update.update_id) {
-        console.error('Webhook: Invalid update format', update);
-        return res.status(400).send('Invalid update format');
-      }
-
-      // Handle update with bot
-      await botInstance.handleUpdate(update);
-      
-      // Send success response
-      if (!res.headersSent) {
-        res.status(200).send('OK');
-      }
-    } catch (error: any) {
-      console.error('Webhook handler error:', error);
-      if (!res.headersSent) {
-        res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
-      }
-    }
-  };
-}
-
-// Initialize bot (Grammy.js doesn't have bot.init(), but we can verify readiness)
-async function initializeBot() {
-  try {
-    if (process.env.TELEGRAM_BOT_TOKEN) {
-      // Test bot by checking if token is valid (bot is ready after creation)
-      console.log('Bot initialized');
-    }
-  } catch (err: any) {
-    console.error('Bot init error:', err);
+export const handler = async (req: any, res: any) => {
+  // Check TELEGRAM_BOT_TOKEN
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    console.error('Missing TELEGRAM_BOT_TOKEN');
+    return res.status(500).send('Missing token');
   }
-}
 
-// Initialize bot on module load
-initializeBot();
-
-// Export webhook handler using webhookCallback pattern
-export const handler = webhookCallback(bot, 'grammy');
-
-/**
- * Legacy webhook handler (for compatibility)
- * @deprecated Use handler instead
- */
-export async function webhookHandler(req: any, res: any) {
   try {
-    // Validate environment
-    if (!process.env.TELEGRAM_BOT_TOKEN) {
-      console.error('Webhook: Missing TELEGRAM_BOT_TOKEN');
-      if (!res.headersSent) {
-        return res.status(500).send('Bot token not configured');
-      }
-      return;
-    }
-
-    if (!process.env.DATABASE_URL) {
-      console.error('Webhook: Missing DATABASE_URL');
-      if (!res.headersSent) {
-        return res.status(500).send('Database not configured');
-      }
-      return;
-    }
-
     // Ensure Prisma is connected
     try {
       await prisma.$connect();
@@ -332,27 +258,49 @@ export async function webhookHandler(req: any, res: any) {
       // Continue anyway - connection might already be established
     }
 
-    const update = req.body;
-    if (!update || !update.update_id) {
-      console.error('Webhook: Invalid update format', update);
-      if (!res.headersSent) {
-        return res.status(400).send('Invalid update format');
+    // Parse request body
+    let update;
+    if (typeof req.body === 'string') {
+      try {
+        update = JSON.parse(req.body);
+      } catch (parseError) {
+        console.error('Failed to parse body:', parseError);
+        return res.status(400).send('Invalid JSON');
       }
-      return;
+    } else {
+      update = req.body;
     }
     
+    if (!update || !update.update_id) {
+      console.error('Webhook: Invalid update format', update);
+      return res.status(400).send('Invalid update format');
+    }
+
+    // Handle update with bot - this is the core Grammy.js method
     await bot.handleUpdate(update);
     
+    // Send success response
     if (!res.headersSent) {
       res.status(200).send('OK');
     }
   } catch (error: any) {
-    console.error('Webhook error:', error);
-    // Don't send error response if already sent
+    console.error('Webhook handler error:', error);
+    console.error('Error stack:', error.stack);
     if (!res.headersSent) {
       res.status(500).send(`Error: ${error.message || 'Unknown error'}`);
     }
   }
+};
+
+// Test log
+console.log('Handler exported');
+
+/**
+ * Legacy webhook handler (for compatibility)
+ * @deprecated Use handler instead
+ */
+export async function webhookHandler(req: any, res: any) {
+  return handler(req, res);
 }
 
 /**
@@ -364,4 +312,3 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default bot;
-

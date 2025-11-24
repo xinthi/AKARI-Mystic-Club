@@ -3,15 +3,16 @@
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs",
+  "functions": {
+    "api/webhook.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 30
+    }
+  },
   "routes": [
     {
       "src": "/api/webhook",
       "dest": "/api/webhook.js"
     }
-  ],
-  "functions": {
-    "/api/webhook.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
