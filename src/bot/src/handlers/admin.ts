@@ -102,7 +102,12 @@ export async function pollHandler(ctx: Context, question: string, options: strin
     return;
   }
 
-  await ctx.replyWithPoll(question, options, {
+  if (!ctx.chat) {
+    await ctx.reply('❌ Cannot send poll: chat not found.');
+    return;
+  }
+
+  await ctx.api.sendPoll(ctx.chat.id, question, options, {
     is_anonymous: false
   });
 }

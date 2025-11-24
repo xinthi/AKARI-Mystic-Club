@@ -54,6 +54,45 @@ bot.command('newsurvey', newSurveyHandler);
 bot.command('leaderboard', leaderboardHandler);
 bot.command('credibility', credibilityHandler);
 bot.command('admin', adminHandler);
+bot.command('poll', async (ctx) => {
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length < 3) {
+    await ctx.reply('Usage: /poll <question> <option1> <option2> [option3] ...');
+    return;
+  }
+  const question = args[0];
+  const options = args.slice(1);
+  await pollHandler(ctx, question, options);
+});
+bot.command('broadcast', async (ctx) => {
+  const message = ctx.message.text.split(' ').slice(1).join(' ');
+  if (!message) {
+    await ctx.reply('Usage: /broadcast <message>');
+    return;
+  }
+  await broadcastHandler(ctx, message);
+});
+bot.command('verifyfounder', async (ctx) => {
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length < 1) {
+    await ctx.reply('Usage: /verifyfounder <userId>');
+    return;
+  }
+  await verifyFounderHandler(ctx, args[0]);
+});
+bot.command('approve', async (ctx) => {
+  const args = ctx.message.text.split(' ').slice(1);
+  if (args.length < 1) {
+    await ctx.reply('Usage: /approve <messageId>');
+    return;
+  }
+  const messageId = parseInt(args[0], 10);
+  if (isNaN(messageId)) {
+    await ctx.reply('Invalid message ID');
+    return;
+  }
+  await approveHandler(ctx, messageId);
+});
 bot.command('deleteuser', deleteUserHandler);
 bot.on('message:text', confirmDeleteUser);
 
@@ -63,6 +102,24 @@ bot.callbackQuery('menu_predictions', predictionsHandler);
 bot.callbackQuery(/^leaderboard_/, (ctx) => {
   const tier = ctx.callbackQuery.data.replace('leaderboard_', '');
   leaderboardTierHandler(ctx, tier);
+});
+
+// Admin callback queries
+bot.callbackQuery('admin_verify_founder', async (ctx) => {
+  await ctx.answerCallbackQuery('Use /verifyfounder <userId>');
+  await ctx.reply('Use /verifyfounder <userId> to verify a founder.');
+});
+bot.callbackQuery('admin_broadcast', async (ctx) => {
+  await ctx.answerCallbackQuery('Use /broadcast <message>');
+  await ctx.reply('Use /broadcast <message> to broadcast to all users.');
+});
+bot.callbackQuery('admin_poll', async (ctx) => {
+  await ctx.answerCallbackQuery('Use /poll <question> <option1> <option2> ...');
+  await ctx.reply('Use /poll <question> <option1> <option2> ... to create a poll.');
+});
+bot.callbackQuery('admin_approve', async (ctx) => {
+  await ctx.answerCallbackQuery('Use /approve <messageId>');
+  await ctx.reply('Use /approve <messageId> to approve a verification.');
 });
 
 // Payment handler
