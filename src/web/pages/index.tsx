@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { getWebApp } from '../lib/telegram-webapp';
 
 interface User {
   id: string;
@@ -26,24 +27,29 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Initialize Telegram WebApp
-    if (typeof window !== 'undefined') {
-      import('@twa-dev/sdk').then((sdk) => {
-        try {
-          // @ts-ignore - SDK types may vary
-          const initData = (sdk as any).initData;
-          if (initData) {
-            setInitData(initData);
-            authenticateUser(initData);
-          } else {
-            setError('Telegram init data not available');
-            setLoading(false);
-          }
-        } catch (err) {
-          console.error('Telegram SDK error:', err);
-          setError('Failed to initialize Telegram WebApp');
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+        
+        // @ts-ignore - SDK types may vary
+        const initData = (WebApp as any).initData;
+        if (initData) {
+          setInitData(initData);
+          authenticateUser(initData);
+        } else {
+          setError('Telegram init data not available');
           setLoading(false);
         }
-      });
+      } catch (err) {
+        console.error('Telegram SDK error:', err);
+        setError('Failed to initialize Telegram WebApp');
+        setLoading(false);
+      }
+    } else {
+      setError('Telegram WebApp SDK not available (server-side)');
+      setLoading(false);
     }
   }, []);
 

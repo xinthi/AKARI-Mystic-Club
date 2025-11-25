@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { getWebApp } from '../../lib/telegram-webapp';
 
 interface Task {
   taskId: string;
@@ -34,6 +35,15 @@ export default function CampaignDetailPage() {
   const [completingTask, setCompletingTask] = useState<string | null>(null);
 
   useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
     if (id) {
       loadCampaign();
     }
@@ -43,9 +53,11 @@ export default function CampaignDetailPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch(`/api/campaigns/${id}`, {
@@ -74,9 +86,11 @@ export default function CampaignDetailPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch(`/api/campaigns/${id}/complete-task`, {

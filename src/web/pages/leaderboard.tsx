@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getWebApp } from '../lib/telegram-webapp';
 
 interface LeaderboardEntry {
   rank: number;
@@ -24,6 +25,15 @@ export default function LeaderboardPage() {
   const [type, setType] = useState<'points' | 'tier'>('points');
 
   useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
     loadLeaderboard();
   }, [type]);
 
@@ -31,9 +41,11 @@ export default function LeaderboardPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore - SDK types may vary
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const url = type === 'tier' 

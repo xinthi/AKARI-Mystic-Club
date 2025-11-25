@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { getWebApp } from '../lib/telegram-webapp';
 
 interface Campaign {
   id: string;
@@ -29,6 +30,15 @@ export default function CampaignsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
     loadCampaigns();
   }, []);
 
@@ -36,9 +46,11 @@ export default function CampaignsPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore - SDK types may vary
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch('/api/campaigns', {

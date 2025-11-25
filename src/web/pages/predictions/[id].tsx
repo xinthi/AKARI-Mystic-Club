@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { getWebApp } from '../../lib/telegram-webapp';
 
 interface PredictionDetail {
   id: string;
@@ -43,6 +44,15 @@ export default function PredictionDetailPage() {
   const [placingBet, setPlacingBet] = useState(false);
 
   useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
     if (id) {
       loadPrediction();
     }
@@ -52,9 +62,11 @@ export default function PredictionDetailPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch(`/api/predictions/${id}`, {
@@ -91,16 +103,18 @@ export default function PredictionDetailPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        const WebApp = getWebApp();
+        if (WebApp) {
+          // @ts-ignore - SDK types may vary
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const betData: any = {
         optionIndex: selectedOption,
       };
 
-      if (prediction?.entryFeeStars > 0) {
+      if ((prediction?.entryFeeStars ?? 0) > 0) {
         betData.starsBet = parseInt(betAmount);
       } else {
         betData.pointsBet = parseInt(betAmount);

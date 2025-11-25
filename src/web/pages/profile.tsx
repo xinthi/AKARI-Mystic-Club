@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getWebApp } from '../lib/telegram-webapp';
 
 interface User {
   id: string;
@@ -38,6 +39,15 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
     loadProfile();
   }, []);
 
@@ -45,9 +55,11 @@ export default function ProfilePage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        // @ts-ignore - SDK types may vary
+        const WebApp = getWebApp();
+        if (WebApp) {
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch('/api/profile', {
@@ -79,9 +91,11 @@ export default function ProfilePage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await import('@twa-dev/sdk');
-        // @ts-ignore
-        initData = (sdk as any).initData || '';
+        // @ts-ignore - SDK types may vary
+        const WebApp = getWebApp();
+        if (WebApp) {
+          initData = (WebApp as any).initData || '';
+        }
       }
 
       const response = await fetch('/api/profile', {

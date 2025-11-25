@@ -1,57 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  // For now, just log the query and body for debugging
+  console.log('X callback hit:', {
+    method: req.method,
+    query: req.query,
+    body: req.body,
+  });
 
-  try {
-    const { code, state, userId } = req.query;
-
-    if (!code || !userId) {
-      return res.status(400).send('Missing code or userId');
-    }
-
-    // Dynamic import to avoid build-time resolution
-    const { getTwitterOAuthClient: getTwitterClient } = await import('../../lib/bot-utils');
-    const getTwitterOAuthClient = await getTwitterClient();
-
-    const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
-    const callbackUrl = `${vercelUrl}/api/x-callback`;
-
-    const oauthClient = getTwitterOAuthClient();
-    const { client: loggedClient } = await oauthClient.loginWithOAuth2({
-      code: code as string,
-      codeVerifier: state as string,
-      redirectUri: callbackUrl
-    });
-
-    const user = await loggedClient.v2.me();
-
-    // Update user in database
-    await prisma.user.update({
-      where: { id: userId as string },
-      data: {
-        xUserId: user.data.id,
-        xUsername: user.data.username
-      }
-    });
-
-    res.send(`
-      <html>
-        <body>
-          <h1>✅ X Account Connected!</h1>
-          <p>You can close this window and return to Telegram.</p>
-          <script>
-            setTimeout(() => window.close(), 2000);
-          </script>
-        </body>
-      </html>
-    `);
-  } catch (error: any) {
-    console.error('X callback error:', error);
-    res.status(500).send('Error connecting X account');
-  }
+  // Return a simple success response so Telegram Mini App and front-end do not break
+  return res.status(200).json({ ok: true, message: 'X callback stub endpoint' });
 }
 
