@@ -127,10 +127,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       update: req.body?.update_id ? { update_id: req.body.update_id } : 'no update_id'
     });
 
-    // Return error response (but still 200 to avoid Telegram retries for transient errors)
-    // Telegram will retry on 5xx, so we return 200 with ok: false for non-critical errors
+    // Return error response
+    // Telegram will retry on 5xx status codes
     if (!res.headersSent) {
-      return res.status(200).json({ 
+      return res.status(500).json({ 
         ok: false, 
         error: 'Internal server error',
         // Only include error details in development
