@@ -198,7 +198,7 @@ export async function onboardingConversation(conversation: MyConversation, ctx: 
  * Get X OAuth URL
  */
 async function getXAuthUrl(userId: string): Promise<string> {
-  const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
+  const vercelUrl = 'https://akari-mystic-club.vercel.app';
   const callbackUrl = `${vercelUrl}/api/x-callback?userId=${userId}`;
   
   const oauthClient = getTwitterOAuthClient();
@@ -214,7 +214,7 @@ async function getXAuthUrl(userId: string): Promise<string> {
  */
 async function showMainMenu(ctx: MyContext, lang: string) {
   const keyboard = new InlineKeyboard()
-    .webApp('View Profile 👤', `${process.env.VERCEL_URL || 'http://localhost:3000'}/profile?userId=${ctx.from!.id}`)
+    .webApp('View Profile 👤', `https://akari-mystic-club.vercel.app/profile?userId=${ctx.from!.id}`)
     .row()
     .text('Tasks 📋', 'menu_tasks')
     .text('Predictions 🎲', 'menu_predictions');

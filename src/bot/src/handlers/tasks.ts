@@ -33,9 +33,8 @@ export async function tasksHandler(ctx: Context, bot: Bot) {
     return;
   }
 
-  const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
   const keyboard = new InlineKeyboard()
-    .webApp('View All Tasks 📋', `${vercelUrl}/tasks?userId=${user.id}`);
+    .webApp('View All Tasks 📋', `https://akari-mystic-club.vercel.app/tasks?userId=${user.id}`);
 
   let message = '📋 *Active Campaigns*\n\n';
   for (const campaign of campaigns) {

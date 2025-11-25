@@ -48,9 +48,8 @@ export async function shareSurveyHandler(ctx: Context, surveyId: string) {
     return;
   }
 
-  const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
   const keyboard = new InlineKeyboard()
-    .webApp('Take Survey 📝', `${vercelUrl}/survey/${surveyId}`);
+    .webApp('Take Survey 📝', `https://akari-mystic-club.vercel.app/survey/${surveyId}`);
 
   await ctx.reply(
     `📝 *${survey.title}*\n\n` +

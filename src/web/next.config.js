@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  // Only use standalone output on Vercel, not on local Windows dev
+  // This prevents symlink errors (EPERM) on Windows during local builds
+  output: process.env.VERCEL ? 'standalone' : undefined,
   env: {
     VERCEL_URL: process.env.VERCEL_URL,
   },

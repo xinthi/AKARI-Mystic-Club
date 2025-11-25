@@ -26,9 +26,8 @@ export async function profileHandler(ctx: Context) {
     return;
   }
 
-  const vercelUrl = process.env.VERCEL_URL || 'http://localhost:3000';
   const keyboard = new InlineKeyboard()
-    .webApp('View Profile 👤', `${vercelUrl}/profile?userId=${user.id}`);
+    .webApp('View Profile 👤', `https://akari-mystic-club.vercel.app/profile?userId=${user.id}`);
 
   const credBadge = user.positiveReviews >= 10 ? ' 🛡️' : '';
   const tierDisplay = user.tier || 'None';

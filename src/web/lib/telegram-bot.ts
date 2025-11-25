@@ -17,17 +17,13 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 
 // Get WebApp URL from environment
 const getWebAppUrl = (startParam?: string): string => {
-  const baseUrl = process.env.TELEGRAM_WEBAPP_URL || 
-                  process.env.VERCEL_URL || 
-                  'http://localhost:3000';
-  
-  const url = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+  const baseUrl = 'https://akari-mystic-club.vercel.app';
   
   if (startParam) {
-    return `${url}?startapp=${startParam}`;
+    return `${baseUrl}?startapp=${startParam}`;
   }
   
-  return url;
+  return baseUrl;
 };
 
 // Create bot instance
