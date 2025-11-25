@@ -1,149 +1,71 @@
-/**
- * Leaderboard API
- * 
- * GET: Get leaderboard by points, tier, or campaign
- */
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+type LeaderboardEntry = {
+  rank: number;
+  userId: string;
+  username?: string;
+  tier?: string;
+  points: number;
+  credibilityScore?: number;
+  positiveReviews?: number;
+  completions?: number;
+};
 
+type Data = {
+  ok: boolean;
+  leaderboard: LeaderboardEntry[];
+  reason?: string;
+};
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<Data>
+) {
   try {
-    const type = (req.query.type as string) || 'points'; // points, tier, campaign
-    const tier = req.query.tier as string | undefined;
-    const campaignId = req.query.campaignId as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const { type = 'points' } = req.query;
 
-    if (type === 'campaign' && campaignId) {
-      // Campaign-specific leaderboard
-      const campaign = await prisma.campaign.findUnique({
-        where: { id: campaignId },
-        select: { leaderboard: true, completions: true }
-      });
-
-      if (!campaign) {
-        return res.status(404).json({ error: 'Campaign not found' });
-      }
-
-      // Calculate leaderboard from completions
-      const completions = (campaign.completions as any[]) || [];
-      const userCompletions: Record<string, number> = {};
-
-      for (const completion of completions) {
-        const userId = completion.userId;
-        userCompletions[userId] = (userCompletions[userId] || 0) + 1;
-      }
-
-      // Get top users
-      const topUserIds = Object.entries(userCompletions)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, limit)
-        .map(([userId]) => userId);
-
-      const users = await prisma.user.findMany({
-        where: { id: { in: topUserIds } },
-        select: {
-          id: true,
-          username: true,
-          tier: true,
-          points: true,
-          credibilityScore: true
-        }
-      });
-
-      const leaderboard = users.map(user => ({
-        userId: user.id,
-        username: user.username,
-        tier: user.tier,
-        points: user.points,
-        credibilityScore: user.credibilityScore,
-        completions: userCompletions[user.id] || 0
-      })).sort((a, b) => b.completions - a.completions);
-
-      return res.status(200).json({
-        type: 'campaign',
-        campaignId,
-        leaderboard
-      });
+    // Base query based on type
+    let whereClause: { tier?: { not: null }; points?: { gt: number } } = {};
+    
+    if (type === 'tier') {
+      // For tier leaderboard, filter users who have a tier
+      whereClause = { tier: { not: null } };
     }
 
-    if (type === 'tier' && tier) {
-      // Tier-specific leaderboard
-      const users = await prisma.user.findMany({
-        where: {
-          tier: {
-            startsWith: tier
-          }
-        },
-        select: {
-          id: true,
-          username: true,
-          tier: true,
-          points: true,
-          credibilityScore: true,
-          positiveReviews: true
-        },
-        orderBy: [
-          { points: 'desc' },
-          { credibilityScore: 'desc' }
-        ],
-        take: limit
-      });
-
-      return res.status(200).json({
-        type: 'tier',
-        tier,
-        leaderboard: users.map((user, index) => ({
-          rank: index + 1,
-          userId: user.id,
-          username: user.username,
-          tier: user.tier,
-          points: user.points,
-          credibilityScore: user.credibilityScore,
-          positiveReviews: user.positiveReviews
-        }))
-      });
-    }
-
-    // Default: Overall points leaderboard
     const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        username: true,
-        tier: true,
-        points: true,
-        credibilityScore: true,
-        positiveReviews: true
+      where: whereClause,
+      orderBy: { points: 'desc' },
+      take: 50,
+      include: {
+        _count: {
+          select: {
+            campaignsProgress: {
+              where: { completed: true },
+            },
+          },
+        },
       },
-      orderBy: [
-        { points: 'desc' },
-        { credibilityScore: 'desc' }
-      ],
-      take: limit
     });
 
-    return res.status(200).json({
-      type: 'points',
-      leaderboard: users.map((user, index) => ({
-        rank: index + 1,
-        userId: user.id,
-        username: user.username,
-        tier: user.tier,
-        points: user.points,
-        credibilityScore: user.credibilityScore,
-        positiveReviews: user.positiveReviews
-      }))
-    });
-  } catch (error: any) {
-    console.error('Leaderboard API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      ...(process.env.NODE_ENV === 'development' && { details: error.message })
-    });
+    // Filter out users with 0 points if there are any with points
+    const usersWithPoints = users.filter((u) => u.points > 0);
+    const finalUsers = usersWithPoints.length > 0 ? usersWithPoints : [];
+
+    const leaderboard: LeaderboardEntry[] = finalUsers.map((u, idx) => ({
+      rank: idx + 1,
+      userId: u.id,
+      username: u.username ?? 'Anonymous',
+      tier: u.tier ?? undefined,
+      points: u.points,
+      credibilityScore: u.credibilityScore ?? undefined,
+      positiveReviews: u.positiveReviews,
+      completions: u._count.campaignsProgress,
+    }));
+
+    res.status(200).json({ ok: true, leaderboard });
+  } catch (e: any) {
+    console.error('Leaderboard API error:', e);
+    res.status(500).json({ ok: false, leaderboard: [], reason: 'Server error' });
   }
 }
-

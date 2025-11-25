@@ -1,6 +1,6 @@
 /**
  * Resolve Prediction API
- * 
+ *
  * POST: Resolve a prediction (admin only)
  * Distributes pot to winners
  */
@@ -11,7 +11,7 @@ import { getTelegramUserFromRequest } from '../../../../lib/telegram-auth';
 import { z } from 'zod';
 
 const resolvePredictionSchema = z.object({
-  winnerOption: z.number().int().min(0),
+  winningOption: z.string(), // The winning option string (e.g., "Yes" or "No")
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const telegramUser = getTelegramUserFromRequest(req);
-    
+
     if (!telegramUser) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -39,20 +39,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const validation = resolvePredictionSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
-      return res.status(400).json({ 
-        error: 'Invalid request data',
-        details: validation.error.errors
-      });
+      return res
+        .status(400)
+        .json({ error: 'Invalid request data', details: validation.error.errors });
     }
 
     // Get prediction
     const prediction = await prisma.prediction.findUnique({
       where: { id },
       include: {
-        bets: true
-      }
+        bets: true,
+      },
     });
 
     if (!prediction) {
@@ -64,23 +63,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check winner option is valid
-    if (validation.data.winnerOption >= prediction.options.length) {
-      return res.status(400).json({ error: 'Invalid winner option' });
+    if (!prediction.options.includes(validation.data.winningOption)) {
+      return res.status(400).json({ error: 'Invalid winning option' });
     }
 
     // Get winning bets
     const winningBets = prediction.bets.filter(
-      bet => bet.optionIndex === validation.data.winnerOption
+      (bet) => bet.option === validation.data.winningOption
     );
 
-    if (winningBets.length === 0) {
-      return res.status(400).json({ error: 'No bets on winning option' });
-    }
-
     // Calculate payout (95% of pot, 5% house fee)
-    const houseFee = prediction.pot * prediction.houseFee;
+    const houseFeeRate = 0.05;
+    const houseFee = Math.floor(prediction.pot * houseFeeRate);
     const payoutPot = prediction.pot - houseFee;
-    
+
     // Calculate total bet amount for winners
     const totalWinningBets = winningBets.reduce(
       (sum, bet) => sum + (bet.starsBet || bet.pointsBet),
@@ -94,36 +90,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id },
         data: {
           resolved: true,
-          winnerOption: validation.data.winnerOption
-        }
+          winningOption: validation.data.winningOption,
+        },
       });
 
-      // Distribute winnings proportionally
-      for (const bet of winningBets) {
-        const betAmount = bet.starsBet || bet.pointsBet;
-        const share = (betAmount / totalWinningBets) * payoutPot;
-        const payout = Math.floor(share);
+      // Distribute winnings proportionally (only if there are winners)
+      if (winningBets.length > 0 && totalWinningBets > 0) {
+        for (const bet of winningBets) {
+          const betAmount = bet.starsBet || bet.pointsBet;
+          const share = (betAmount / totalWinningBets) * payoutPot;
+          const payout = Math.floor(share);
 
-        if (bet.starsBet > 0) {
-          // Stars payout (would need external payment system)
-          // For now, convert to points at 1:1 ratio
+          // Payout in points
           await tx.user.update({
             where: { id: bet.userId },
             data: {
               points: {
-                increment: payout
-              }
-            }
-          });
-        } else {
-          // Points payout
-          await tx.user.update({
-            where: { id: bet.userId },
-            data: {
-              points: {
-                increment: payout
-              }
-            }
+                increment: payout,
+              },
+            },
           });
         }
       }
@@ -131,16 +116,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      message: `Prediction resolved. Winner: Option ${validation.data.winnerOption + 1}`,
+      message: `Prediction resolved. Winner: ${validation.data.winningOption}`,
       payoutPot,
-      winners: winningBets.length
+      winners: winningBets.length,
     });
   } catch (error: any) {
     console.error('Resolve prediction API error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
     });
   }
 }
-

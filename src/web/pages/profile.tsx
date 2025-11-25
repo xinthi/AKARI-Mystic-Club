@@ -1,7 +1,7 @@
 /**
  * Profile Page
- * 
- * Shows user profile, stats, and allows editing
+ *
+ * Shows user profile, stats, X connection status, and allows editing
  */
 
 import { useEffect, useState } from 'react';
@@ -14,14 +14,12 @@ interface User {
   tier?: string;
   credibilityScore: string;
   positiveReviews: number;
-  interests: string[];
-  tonWallet?: string;
-  evmWallet?: string;
-  language?: string;
+  xConnected?: boolean;
+  xHandle?: string;
   recentBets?: Array<{
     id: string;
     predictionTitle: string;
-    optionIndex: number;
+    option: string;
     starsBet: number;
     pointsBet: number;
   }>;
@@ -31,12 +29,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    tonWallet: '',
-    evmWallet: '',
-    language: 'en',
-  });
+  const [connectingX, setConnectingX] = useState(false);
 
   useEffect(() => {
     const WebApp = getWebApp();
@@ -55,9 +48,9 @@ export default function ProfilePage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        // @ts-ignore - SDK types may vary
         const WebApp = getWebApp();
         if (WebApp) {
+          // @ts-ignore - SDK types may vary
           initData = (WebApp as any).initData || '';
         }
       }
@@ -69,7 +62,6 @@ export default function ProfilePage() {
       });
 
       if (!response.ok) {
-        // Still try to parse response - might have data even with non-200
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Failed to load profile');
       }
@@ -77,52 +69,67 @@ export default function ProfilePage() {
       const data = await response.json();
       if (data.user) {
         setUser(data.user);
-        setFormData({
-          tonWallet: data.user.tonWallet || '',
-          evmWallet: data.user.evmWallet || '',
-          language: data.user.language || 'en',
-        });
       }
       setLoading(false);
-      setError(null); // Clear any previous errors
+      setError(null);
     } catch (err: any) {
       console.error('Error loading profile:', err);
-      // Don't show critical error - show a message but allow viewing
       setError(err.message || 'Failed to load data');
       setLoading(false);
     }
   };
 
-  const saveProfile = async () => {
+  const connectXAccount = async () => {
+    setConnectingX(true);
+
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        // @ts-ignore - SDK types may vary
         const WebApp = getWebApp();
         if (WebApp) {
+          // @ts-ignore - SDK types may vary
           initData = (WebApp as any).initData || '';
         }
       }
 
-      const response = await fetch('/api/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Telegram-Init-Data': initData,
-        },
-        body: JSON.stringify(formData),
-      });
+      // Open X OAuth in a new window/tab
+      // The start endpoint will redirect to X
+      const url = `/api/auth/x/start`;
 
-      if (!response.ok) {
-        throw new Error('Failed to update profile');
+      // For Telegram Mini App, we need to use window.open or location.href
+      // Using window.open for better UX
+      const authWindow = window.open(url, '_blank');
+
+      // Check if window opened successfully
+      if (!authWindow) {
+        // Fallback to location.href if popup blocked
+        window.location.href = url;
+        return;
       }
 
-      alert('Profile updated!');
-      setEditing(false);
-      loadProfile();
+      // Poll to check if auth completed (simple approach)
+      const checkInterval = setInterval(() => {
+        try {
+          if (authWindow.closed) {
+            clearInterval(checkInterval);
+            setConnectingX(false);
+            // Reload profile to get updated X connection status
+            loadProfile();
+          }
+        } catch {
+          // Cross-origin access, window still open
+        }
+      }, 1000);
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        setConnectingX(false);
+      }, 300000);
     } catch (err: any) {
-      console.error('Error updating profile:', err);
-      alert(err.message || 'Failed to update profile');
+      console.error('Error connecting X:', err);
+      alert(err.message || 'Failed to connect X account');
+      setConnectingX(false);
     }
   };
 
@@ -134,10 +141,8 @@ export default function ProfilePage() {
     );
   }
 
-  // Show error message but still render the page if possible
   const showError = error && !user;
 
-  // If no user, show a message but still render the page structure
   if (showError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
@@ -148,7 +153,9 @@ export default function ProfilePage() {
           <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-8 text-center border border-red-500/20">
             <div className="text-4xl mb-4">🔮</div>
             <div className="text-lg mb-2">{error || 'User not found'}</div>
-            <div className="text-sm text-purple-300 mb-4">Please open this app from Telegram to view your profile</div>
+            <div className="text-sm text-purple-300 mb-4">
+              Please open this app from Telegram to view your profile
+            </div>
             <button
               onClick={loadProfile}
               className="px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700"
@@ -213,75 +220,42 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Wallets */}
+        {/* X Account Connection */}
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Wallets</h2>
-            <button
-              onClick={() => editing ? saveProfile() : setEditing(true)}
-              className="text-sm text-purple-300 hover:text-white"
-            >
-              {editing ? 'Save' : 'Edit'}
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold mb-4">Connected Accounts</h2>
 
-          {editing ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-purple-300 mb-2">TON Wallet</label>
-                <input
-                  type="text"
-                  value={formData.tonWallet}
-                  onChange={(e) => setFormData({ ...formData, tonWallet: e.target.value })}
-                  placeholder="Enter TON wallet address"
-                  className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
-                />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
               </div>
               <div>
-                <label className="block text-sm text-purple-300 mb-2">EVM Wallet</label>
-                <input
-                  type="text"
-                  value={formData.evmWallet}
-                  onChange={(e) => setFormData({ ...formData, evmWallet: e.target.value })}
-                  placeholder="Enter EVM wallet address"
-                  className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
-                />
+                <div className="font-semibold">X (Twitter)</div>
+                {user.xConnected ? (
+                  <div className="text-sm text-green-400">@{user.xHandle}</div>
+                ) : (
+                  <div className="text-sm text-purple-300">Not connected</div>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <div className="text-sm text-purple-300 mb-1">TON</div>
-                <div className="font-mono text-sm break-all">
-                  {user.tonWallet || 'Not set'}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-purple-300 mb-1">EVM</div>
-                <div className="font-mono text-sm break-all">
-                  {user.evmWallet || 'Not set'}
-                </div>
-              </div>
-            </div>
-          )}
+
+            {!user.xConnected && (
+              <button
+                onClick={connectXAccount}
+                disabled={connectingX}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg text-sm font-semibold transition-colors"
+              >
+                {connectingX ? 'Connecting...' : 'Connect'}
+              </button>
+            )}
+
+            {user.xConnected && (
+              <span className="text-green-400 text-sm">✓ Connected</span>
+            )}
+          </div>
         </div>
-
-        {/* Interests */}
-        {user.interests && user.interests.length > 0 && (
-          <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
-            <h2 className="text-lg font-semibold mb-4">Interests</h2>
-            <div className="flex flex-wrap gap-2">
-              {user.interests.map((interest) => (
-                <span
-                  key={interest}
-                  className="px-3 py-1 bg-purple-600 rounded-full text-sm"
-                >
-                  {interest.replace(/_/g, ' ')}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Recent Bets */}
         {user.recentBets && user.recentBets.length > 0 && (
@@ -289,10 +263,13 @@ export default function ProfilePage() {
             <h2 className="text-lg font-semibold mb-4">Recent Bets</h2>
             <div className="space-y-3">
               {user.recentBets.map((bet) => (
-                <div key={bet.id} className="text-sm">
-                  <div className="font-semibold">{bet.predictionTitle}</div>
-                  <div className="text-purple-300">
-                    {bet.starsBet > 0 ? `${bet.starsBet} ⭐` : `${bet.pointsBet} EP`}
+                <div key={bet.id} className="text-sm border-b border-purple-500/10 pb-3 last:border-0 last:pb-0">
+                  <div className="font-semibold mb-1">{bet.predictionTitle}</div>
+                  <div className="flex justify-between text-purple-300">
+                    <span>Choice: {bet.option}</span>
+                    <span>
+                      {bet.starsBet > 0 ? `${bet.starsBet} ⭐` : `${bet.pointsBet} EP`}
+                    </span>
                   </div>
                 </div>
               ))}

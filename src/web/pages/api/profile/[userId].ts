@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
+import { getTierConfig } from '../../../lib/tiers';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -12,26 +13,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Try to find by ID first, then by telegramId
     let user = await prisma.user.findUnique({
       where: { id: userId as string },
-      include: {
-        reviewsReceived: true,
-        createdCampaigns: {
-          where: { isActive: true },
-          take: 5
-        }
-      }
     });
 
     // If not found by ID, try telegramId
     if (!user && /^\d+$/.test(userId as string)) {
       user = await prisma.user.findUnique({
-        where: { telegramId: BigInt(userId as string) },
-        include: {
-          reviewsReceived: true,
-          createdCampaigns: {
-            where: { isActive: true },
-            take: 5
-          }
-        }
+        where: { telegramId: userId as string },
       });
     }
 
@@ -39,13 +26,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get tier config
-    const tierConfig = user.tier ? await prisma.tier.findFirst({
-      where: {
-        name: user.tier.split('_')[0],
-        level: parseInt(user.tier.split('_L')[1] || '1', 10)
-      }
-    }) : null;
+    // Get tier config from static configuration
+    const tierConfig = getTierConfig(user.tier);
 
     res.json({
       user: {
@@ -56,14 +38,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         tierConfig,
         credibilityScore: user.credibilityScore || 0,
         positiveReviews: user.positiveReviews,
-        interests: user.interests,
-        joinedAt: user.joinedAt,
-        lastActive: user.lastActive
-      }
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
     });
   } catch (error: any) {
     console.error('Profile API error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 }
-

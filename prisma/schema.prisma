@@ -10,171 +10,117 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User interests for onboarding and targeting
-enum Interest {
-  content_creator    // Content creators and influencers
-  airdrop_hunter    // Users hunting for airdrops
-  investor          // Crypto investors
-  founder           // Project founders
-  new_to_crypto     // New to crypto (auto-removed after 365 days)
-}
-
-// User model - Core user data for the Mini App
 model User {
-  id                    String       @id @default(cuid())
-  telegramId            BigInt       @unique  // Telegram user ID (unique identifier)
-  username              String?               // Telegram username
-  xUsername             String?               // X (Twitter) username if connected
-  xUserId               String?               // X (Twitter) user ID
-  tonWallet             String?               // TON wallet address
-  evmWallet             String?               // EVM wallet address (Ethereum, etc.)
-  language              String?      @default("en")  // User language preference
-  interests             Interest[]             // User interests (multi-select)
-  isNewToCrypto         Boolean      @default(true)  // Flag for new users
-  isVerifiedFounder     Boolean      @default(false)  // Founder verification status
-  founderSubscriptionEnd DateTime?           // Founder subscription expiration
-  points                Int          @default(0)      // User points (EP) for tier progression
-  tier                  String?                      // Current tier (e.g., "Seeker_L1")
-  credibilityScore      Float?       @default(0)      // Credibility score (0-10)
-  positiveReviews       Int          @default(0)      // Count of positive reviews (>=4 stars)
-  joinedAt              DateTime     @default(now())  // Account creation timestamp
-  lastActive            DateTime     @updatedAt        // Last activity timestamp
-  completedTasks        Json[]                       // Array of completed task IDs
-  
-  // Relations
-  reviewsGiven          Review[]     @relation("GivenReviews")
-  reviewsReceived       Review[]     @relation("ReceivedReviews")
-  createdCampaigns      Campaign[]
-  createdPredictions    Prediction[]
-  createdSurveys        Survey[]
-  bets                  Bet[]
+  id               String   @id @default(cuid())
+  telegramId       String   @unique
+  username         String?
+  firstName        String?
+  lastName         String?
+  photoUrl         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  @@index([telegramId])
-  @@index([points])
-  @@index([tier])
-  @@map("users")
+  points           Int      @default(0)
+  tier             String?  // e.g. "Seeker", "Mystic"
+  credibilityScore Float    @default(0)
+  positiveReviews  Int      @default(0)
+
+  twitterAccounts  TwitterAccount[]
+  bets             Bet[]
+  campaignsProgress CampaignUserProgress[]
 }
 
-// Review model - User credibility system
-model Review {
-  id          String   @id @default(cuid())
-  fromUserId  String   // User who gave the review
-  toUserId    String   // User being reviewed
-  rating      Int      // Rating 1-5
-  comment     String?  // Optional review comment
-  createdAt   DateTime @default(now())
-
-  fromUser    User     @relation("GivenReviews", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser      User     @relation("ReceivedReviews", fields: [toUserId], references: [id], onDelete: Cascade)
-
-  @@unique([fromUserId, toUserId])  // One review per user pair
-  @@index([toUserId])
-  @@index([fromUserId])
-  @@map("reviews")
+model TwitterAccount {
+  id                String   @id @default(cuid())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  twitterUserId     String   @unique
+  handle            String?
+  accessToken       String?
+  refreshToken      String?
+  tokenExpiresAt    DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
-// Tier model - User progression tiers
-model Tier {
-  id          String   @id @default(cuid())
-  name        String   // Tier name (e.g., "Seeker", "Alchemist")
-  level       Int      // Tier level (1, 2, 3, etc.)
-  minPoints   Int      // Minimum points required
-  maxPoints   Int?     // Maximum points (null for highest tier)
-  badgeEmoji  String   // Badge emoji for display
-  color       String   // Tier color (hex code)
-  imageUrl    String?  // Optional tier image URL
-  description String   // Tier description
-
-  @@unique([name, level])
-  @@map("tiers")
-}
-
-// Campaign model - Marketing campaigns with tasks
-model Campaign {
-  id              String    @id @default(cuid())
-  name            String    // Campaign name
-  description     String?   // Campaign description
-  rewards         String    // Rewards description
-  tasks           Json[]    // Array of task objects (structured JSON)
-  startsAt        DateTime  // Campaign start date
-  endsAt          DateTime  // Campaign end date
-  createdById     String    // Creator user ID
-  starsFee        Int       @default(0)  // Stars fee to create campaign
-  projectTgHandle String?   // Project Telegram handle (for surveys)
-  isActive        Boolean   @default(true)  // Active status
-  createdAt       DateTime  @default(now())
-  completions     Json[]    // Array of completion records
-  leaderboard     Json?     // Cached leaderboard data
-
-  createdBy       User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
-
-  @@index([createdById])
-  @@index([isActive])
-  @@index([startsAt, endsAt])
-  @@map("campaigns")
-}
-
-// Prediction model - Prediction market
 model Prediction {
-  id            String   @id @default(cuid())
-  title         String   // Prediction title
-  description   String?  // Optional detailed description
-  options       Json[]   // Array of prediction options (e.g., ["Yes", "No"])
-  entryFeeStars Int      @default(0)  // Entry fee in Stars (0 = free)
-  entryFeePoints Int     @default(0)   // Entry fee in points (alternative to Stars)
-  pot           Int      @default(0)   // Total pot size (Stars or points)
-  houseFee      Float    @default(0.05)  // House fee percentage (5% default)
-  creatorId     String   // Creator user ID
-  resolved      Boolean  @default(false)  // Whether prediction is resolved
-  winnerOption  Int?     // Winning option index (null if not resolved)
-  createdAt     DateTime @default(now())
-  endsAt        DateTime // Prediction end date/time
-  creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  bets          Bet[]    // All bets placed on this prediction
-
-  @@index([creatorId])
-  @@index([resolved])
-  @@index([endsAt])
-  @@map("predictions")
-}
-
-// Bet model - User bets on predictions
-model Bet {
-  id            String     @id @default(cuid())
-  userId        String     // User who placed the bet
-  predictionId  String     // Prediction being bet on
-  optionIndex   Int        // Selected option index (0-based)
-  starsBet      Int        @default(0)  // Bet amount in Stars
-  pointsBet    Int        @default(0)   // Bet amount in points
-  createdAt     DateTime   @default(now())
-  
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  prediction    Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, predictionId])  // One bet per user per prediction
-  @@index([predictionId])
-  @@index([userId])
-  @@map("bets")
-}
-
-// Survey model - Feedback surveys linked to campaigns
-model Survey {
   id              String   @id @default(cuid())
-  title           String   // Survey title
-  description     String?  // Survey description
-  questions       Json[]   // Array of question objects (structured JSON)
-  campaignId      String?  // Optional linked campaign ID
-  projectTgHandle String   // Project Telegram handle
-  createdById     String   // Creator user ID
-  active          Boolean  @default(true)  // Active status
+  title           String
+  description     String?
+  options         String[] // e.g. ["Yes","No"]
+  entryFeeStars   Int      @default(0)
+  entryFeePoints  Int      @default(0)
+  pot             Int      @default(0)
+  resolved        Boolean  @default(false)
+  winningOption   String?
+  endsAt          DateTime
+  participantCount Int     @default(0)
+
   createdAt       DateTime @default(now())
-  responses       Json[]   // Array of survey responses
-  report          Json?    // Computed survey report/analytics
+  updatedAt       DateTime @updatedAt
 
-  createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  bets            Bet[]
+}
 
-  @@index([campaignId])
-  @@index([createdById])
-  @@index([active])
-  @@map("surveys")
+model Bet {
+  id           String      @id @default(cuid())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  prediction   Prediction  @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  predictionId String
+
+  option       String
+  starsBet     Int         @default(0)
+  pointsBet    Int         @default(0)
+
+  createdAt    DateTime    @default(now())
+}
+
+model Campaign {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  rewards      String
+  endsAt       DateTime
+  starsFee     Int       @default(0)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tasks        CampaignTask[]
+  progress     CampaignUserProgress[]
+}
+
+model CampaignTask {
+  id           String    @id @default(cuid())
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId   String
+
+  title        String
+  description  String?
+  type         String    // e.g. "follow_x", "retweet", "join_telegram"
+  metadata     Json?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  progress     CampaignUserProgress[]
+}
+
+model CampaignUserProgress {
+  id           String       @id @default(cuid())
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId   String
+  task         CampaignTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId       String
+
+  completed    Boolean      @default(false)
+  completedAt  DateTime?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([userId, taskId])
 }
