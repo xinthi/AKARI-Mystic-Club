@@ -7,10 +7,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import dynamic from 'next/dynamic';
-
-// Dynamically import Telegram SDK to avoid SSR issues
-const TelegramWebApp = dynamic(() => import('@twa-dev/sdk'), { ssr: false });
 
 interface User {
   id: string;
@@ -31,7 +27,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Initialize Telegram WebApp
     if (typeof window !== 'undefined') {
-      TelegramWebApp.then((sdk) => {
+      import('@twa-dev/sdk').then((sdk) => {
         try {
           // @ts-ignore - SDK types may vary
           const initData = (sdk as any).initData;

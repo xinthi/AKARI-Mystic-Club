@@ -5,9 +5,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-
-const TelegramWebApp = dynamic(() => import('@twa-dev/sdk'), { ssr: false });
 
 interface User {
   id: string;
@@ -48,7 +45,7 @@ export default function ProfilePage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await TelegramWebApp;
+        const sdk = await import('@twa-dev/sdk');
         // @ts-ignore
         initData = (sdk as any).initData || '';
       }
@@ -82,7 +79,7 @@ export default function ProfilePage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await TelegramWebApp;
+        const sdk = await import('@twa-dev/sdk');
         // @ts-ignore
         initData = (sdk as any).initData || '';
       }

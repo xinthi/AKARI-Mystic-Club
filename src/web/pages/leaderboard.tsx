@@ -5,9 +5,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-
-const TelegramWebApp = dynamic(() => import('@twa-dev/sdk'), { ssr: false });
 
 interface LeaderboardEntry {
   rank: number;
@@ -34,8 +31,8 @@ export default function LeaderboardPage() {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
-        const sdk = await TelegramWebApp;
-        // @ts-ignore
+        const sdk = await import('@twa-dev/sdk');
+        // @ts-ignore - SDK types may vary
         initData = (sdk as any).initData || '';
       }
 

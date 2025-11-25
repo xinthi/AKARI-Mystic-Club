@@ -94,6 +94,9 @@ importers:
       canvas-confetti:
         specifier: ^1.9.2
         version: 1.9.4
+      grammy:
+        specifier: ^1.21.1
+        version: 1.38.4
       lucide-react:
         specifier: ^0.309.0
         version: 0.309.0(react@18.3.1)
@@ -115,6 +118,9 @@ importers:
       tailwindcss:
         specifier: ^3.4.1
         version: 3.4.18(tsx@4.20.6)
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
     devDependencies:
       '@types/canvas-confetti':
         specifier: ^1.0.3
