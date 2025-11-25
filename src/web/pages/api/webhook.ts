@@ -24,15 +24,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Dynamic import to avoid build-time resolution
       const botModule = await import('../../bot/src/index.js');
       webhookHandler = botModule.handler;
+      
+      if (!webhookHandler || typeof webhookHandler !== 'function') {
+        console.error('Webhook handler is not a function:', typeof webhookHandler);
+        return res.status(500).json({ error: 'Handler not available' });
+      }
     }
 
     // Call the handler directly with req and res
-    if (webhookHandler && typeof webhookHandler === 'function') {
-      await webhookHandler(req, res);
-    } else {
-      console.error('Webhook handler is not a function:', typeof webhookHandler);
-      return res.status(500).json({ error: 'Handler not available' });
-    }
+    await webhookHandler(req, res);
   } catch (error: any) {
     console.error('Webhook error:', error);
     console.error('Error stack:', error.stack);

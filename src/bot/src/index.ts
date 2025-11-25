@@ -3,7 +3,7 @@ import { Bot, Context, session, SessionFlavor } from 'grammy';
 import { conversations, createConversation } from '@grammyjs/conversations';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { prisma } from './utils/prisma.js';
+import { PrismaClient } from '@prisma/client';
 import { updateTier } from './utils/tiers.js';
 import { startHandler, onboardingConversation } from './handlers/start.js';
 import { profileHandler } from './handlers/profile.js';
@@ -25,6 +25,18 @@ dotenv.config();
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error('Missing TELEGRAM_BOT_TOKEN');
 }
+
+// Initialize Prisma Client
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+
+// Connect Prisma (non-blocking)
+prisma.$connect().then(() => {
+  console.log('Prisma connected');
+}).catch((err: any) => {
+  console.error('Prisma connection error:', err);
+});
 
 interface SessionData {
   step?: string;
@@ -232,7 +244,8 @@ cron.schedule('0 2 * * *', async () => {
 
 /**
  * Webhook handler for Next.js API routes
- * Grammy.js doesn't export webhookCallback, so we create our own
+ * Grammy.js doesn't export webhookCallback, so we use bot.handleUpdate() directly
+ * This is the recommended pattern for serverless environments
  */
 export const handler = async (req: any, res: any) => {
   // Check TELEGRAM_BOT_TOKEN
@@ -241,13 +254,21 @@ export const handler = async (req: any, res: any) => {
     return res.status(500).send('Missing token');
   }
 
+  if (!process.env.DATABASE_URL) {
+    console.error('Missing DATABASE_URL');
+    return res.status(500).send('Database not configured');
+  }
+
   try {
     // Ensure Prisma is connected
     try {
       await prisma.$connect();
+      console.log('Prisma connected in handler');
     } catch (prismaError: any) {
-      console.error('Prisma connection error:', prismaError);
-      // Continue anyway - connection might already be established
+      // Connection might already be established
+      if (!prismaError.message?.includes('already connected')) {
+        console.error('Prisma connection error:', prismaError);
+      }
     }
 
     // Parse request body
@@ -269,6 +290,7 @@ export const handler = async (req: any, res: any) => {
     }
 
     // Handle update with bot - this is the core Grammy.js method
+    // Grammy.js bots are ready immediately after creation, no init() needed
     await bot.handleUpdate(update);
     
     // Send success response
@@ -304,3 +326,4 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default bot;
+export { prisma };
