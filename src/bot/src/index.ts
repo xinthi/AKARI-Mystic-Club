@@ -3,7 +3,7 @@ import { Bot, Context, session, SessionFlavor } from 'grammy';
 import { conversations, createConversation } from '@grammyjs/conversations';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './utils/prisma.js';
 import { updateTier } from './utils/tiers.js';
 import { startHandler, onboardingConversation } from './handlers/start.js';
 import { profileHandler } from './handlers/profile.js';
@@ -25,18 +25,6 @@ dotenv.config();
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   console.error('Missing TELEGRAM_BOT_TOKEN');
 }
-
-// Initialize Prisma Client
-const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-});
-
-// Connect Prisma (non-blocking)
-prisma.$connect().then(() => {
-  console.log('Prisma connected');
-}).catch((err: any) => {
-  console.error('Prisma connection error:', err);
-});
 
 interface SessionData {
   step?: string;
