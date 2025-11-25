@@ -69,20 +69,26 @@ export default function ProfilePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load profile');
+        // Still try to parse response - might have data even with non-200
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to load profile');
       }
 
       const data = await response.json();
-      setUser(data.user);
-      setFormData({
-        tonWallet: data.user.tonWallet || '',
-        evmWallet: data.user.evmWallet || '',
-        language: data.user.language || 'en',
-      });
+      if (data.user) {
+        setUser(data.user);
+        setFormData({
+          tonWallet: data.user.tonWallet || '',
+          evmWallet: data.user.evmWallet || '',
+          language: data.user.language || 'en',
+        });
+      }
       setLoading(false);
+      setError(null); // Clear any previous errors
     } catch (err: any) {
       console.error('Error loading profile:', err);
-      setError(err.message || 'Failed to load profile');
+      // Don't show critical error - show a message but allow viewing
+      setError(err.message || 'Failed to load data');
       setLoading(false);
     }
   };
@@ -128,13 +134,37 @@ export default function ProfilePage() {
     );
   }
 
-  if (error || !user) {
+  // Show error message but still render the page if possible
+  const showError = error && !user;
+
+  // If no user, show a message but still render the page structure
+  if (showError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+        <header className="p-6 pb-4">
+          <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
+        </header>
+        <div className="px-6 pb-6">
+          <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-8 text-center border border-red-500/20">
+            <div className="text-4xl mb-4">🔮</div>
+            <div className="text-lg mb-2">{error || 'User not found'}</div>
+            <div className="text-sm text-purple-300 mb-4">Please open this app from Telegram to view your profile</div>
+            <button
+              onClick={loadProfile}
+              className="px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="text-xl mb-4">🔮</div>
-          <div className="text-lg">{error || 'User not found'}</div>
-        </div>
+        <div className="text-white text-xl">Loading profile...</div>
       </div>
     );
   }
@@ -145,6 +175,20 @@ export default function ProfilePage() {
         <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
         <p className="text-purple-300">@{user.username || 'mystic'}</p>
       </header>
+
+      {error && (
+        <div className="px-6 mb-4">
+          <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-4 border border-red-500/20">
+            <div className="text-sm text-red-200 mb-2">{error}</div>
+            <button
+              onClick={loadProfile}
+              className="text-xs px-3 py-1 bg-red-600 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-6 pb-6 space-y-6">
         {/* Stats Card */}

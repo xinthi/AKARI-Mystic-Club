@@ -60,15 +60,20 @@ export default function CampaignsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load campaigns');
+        // Still try to parse response - might have data even with non-200
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to load campaigns');
       }
 
       const data = await response.json();
       setCampaigns(data.campaigns || []);
       setLoading(false);
+      setError(null); // Clear any previous errors
     } catch (err: any) {
       console.error('Error loading campaigns:', err);
-      setError(err.message || 'Failed to load campaigns');
+      // Don't show critical error - just show empty state
+      setCampaigns([]);
+      setError(err.message || 'Failed to load data');
       setLoading(false);
     }
   };
@@ -95,16 +100,8 @@ export default function CampaignsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="text-xl mb-4">🔮</div>
-          <div className="text-lg">{error}</div>
-        </div>
-      </div>
-    );
-  }
+  // Show error message but still render the page
+  const showError = error && campaigns.length === 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
@@ -114,6 +111,17 @@ export default function CampaignsPage() {
       </header>
 
       <div className="px-6 pb-6 space-y-4">
+        {showError && (
+          <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-4 border border-red-500/20 mb-4">
+            <div className="text-sm text-red-200 mb-2">{error}</div>
+            <button
+              onClick={loadCampaigns}
+              className="text-xs px-3 py-1 bg-red-600 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {campaigns.length === 0 ? (
           <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-8 text-center border border-purple-500/20">
             <div className="text-4xl mb-4">🔮</div>

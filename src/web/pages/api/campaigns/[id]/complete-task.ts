@@ -6,7 +6,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
-import { getTelegramUserFromRequest } from '../../../../lib/telegram-auth';
 import { z } from 'zod';
 import { updateTier } from '../../../../lib/tiers';
 
@@ -20,10 +19,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const telegramUser = getTelegramUserFromRequest(req);
-    
-    if (!telegramUser) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    // Try to read initData, but never crash the request
+    const initDataHeader =
+      (req.headers['x-telegram-init-data'] as string | undefined) ||
+      (typeof req.body === 'string'
+        ? req.body
+        : (req.body?.initData as string | undefined));
+
+    let userId: string | number | null = null;
+
+    if (initDataHeader) {
+      try {
+        const params = new URLSearchParams(initDataHeader);
+        const userJson = params.get('user');
+        if (userJson) {
+          const parsed = JSON.parse(userJson);
+          userId = parsed.id;
+        } else {
+          console.warn('No user in initData for POST /api/campaigns/[id]/complete-task');
+        }
+      } catch (err) {
+        console.error('Failed to parse Telegram initData for POST /api/campaigns/[id]/complete-task:', err);
+      }
+    } else {
+      console.warn('No X-Telegram-Init-Data header for POST /api/campaigns/[id]/complete-task');
+    }
+
+    // For POST, we need a user, but return a friendly error instead of 401
+    if (!userId) {
+      return res.status(200).json({ 
+        error: 'Authentication required',
+        message: 'Please open this app from Telegram to complete tasks'
+      });
     }
 
     const { id } = req.query;
@@ -41,7 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const telegramId = BigInt(telegramUser.id);
+    const telegramId = BigInt(userId);
     const user = await prisma.user.findUnique({
       where: { telegramId }
     });

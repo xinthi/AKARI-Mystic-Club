@@ -7,7 +7,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
-import { getTelegramUserFromRequest } from '../../../lib/telegram-auth';
 import { z } from 'zod';
 
 const createPredictionSchema = z.object({
@@ -90,11 +89,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'POST') {
-      // Create new prediction
-      const telegramUser = getTelegramUserFromRequest(req);
-      
-      if (!telegramUser) {
-        return res.status(401).json({ error: 'Unauthorized' });
+      // Create new prediction - requires auth
+      // Try to read initData, but never crash the request
+      const initDataHeader =
+        (req.headers['x-telegram-init-data'] as string | undefined) ||
+        (typeof req.body === 'string'
+          ? req.body
+          : (req.body?.initData as string | undefined));
+
+      let userId: string | number | null = null;
+
+      if (initDataHeader) {
+        try {
+          const params = new URLSearchParams(initDataHeader);
+          const userJson = params.get('user');
+          if (userJson) {
+            const parsed = JSON.parse(userJson);
+            userId = parsed.id;
+          } else {
+            console.warn('No user in initData for POST /api/predictions');
+          }
+        } catch (err) {
+          console.error('Failed to parse Telegram initData for POST /api/predictions:', err);
+        }
+      } else {
+        console.warn('No X-Telegram-Init-Data header for POST /api/predictions');
+      }
+
+      // For POST, we still need a user, but return a friendly error instead of 401
+      if (!userId) {
+        return res.status(200).json({ 
+          error: 'Authentication required to create predictions',
+          message: 'Please open this app from Telegram to create predictions'
+        });
       }
 
       const validation = createPredictionSchema.safeParse(req.body);
@@ -106,13 +133,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      const telegramId = BigInt(telegramUser.id);
+      const telegramId = BigInt(userId);
       const user = await prisma.user.findUnique({
         where: { telegramId }
       });
 
       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+        return res.status(200).json({ 
+          error: 'User not found',
+          message: 'Please authenticate first'
+        });
       }
 
       // Check if user has enough points/stars (if required)

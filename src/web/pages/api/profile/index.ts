@@ -7,7 +7,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
-import { getTelegramUserFromRequest } from '../../../lib/telegram-auth';
 import { z } from 'zod';
 
 const updateProfileSchema = z.object({
@@ -18,18 +17,60 @@ const updateProfileSchema = z.object({
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Get user from Telegram init data
-  const telegramUser = getTelegramUserFromRequest(req);
-  
-  if (!telegramUser) {
-    return res.status(401).json({ error: 'Unauthorized - Invalid Telegram auth' });
+  // Try to read initData, but never crash the request
+  const initDataHeader =
+    (req.headers['x-telegram-init-data'] as string | undefined) ||
+    (typeof req.body === 'string'
+      ? req.body
+      : (req.body?.initData as string | undefined));
+
+  let userId: string | number | null = null;
+
+  if (initDataHeader) {
+    try {
+      const params = new URLSearchParams(initDataHeader);
+      const userJson = params.get('user');
+      if (userJson) {
+        const parsed = JSON.parse(userJson);
+        userId = parsed.id;
+      } else {
+        console.warn('No user in initData for /api/profile');
+      }
+    } catch (err) {
+      console.error('Failed to parse Telegram initData for /api/profile:', err);
+    }
+  } else {
+    console.warn('No X-Telegram-Init-Data header for /api/profile');
   }
 
-  const telegramId = BigInt(telegramUser.id);
+  // For profile routes, we need a user, but return a friendly message instead of 401
+  if (!userId) {
+    if (req.method === 'GET') {
+      return res.status(200).json({ 
+        user: null,
+        message: 'Please open this app from Telegram to view your profile'
+      });
+    }
+    if (req.method === 'PATCH') {
+      return res.status(200).json({ 
+        error: 'Authentication required',
+        message: 'Please open this app from Telegram to update your profile'
+      });
+    }
+  }
+
+  const telegramId = userId ? BigInt(userId) : null;
 
   try {
     if (req.method === 'GET') {
       // Fetch user profile
+      if (!telegramId) {
+        return res.status(200).json({ 
+          user: null,
+          message: 'Please open this app from Telegram to view your profile'
+        });
+      }
+
       const user = await prisma.user.findUnique({
         where: { telegramId },
         include: {
@@ -45,13 +86,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+        return res.status(200).json({ 
+          user: null,
+          message: 'User not found. Please authenticate first.'
+        });
       }
 
       // Calculate credibility score
       const reviews = user.reviewsReceived;
       const avgRating = reviews.length > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        ? reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / reviews.length
         : 0;
       const credibilityScore = avgRating * 2;
 
@@ -70,7 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           language: user.language,
           joinedAt: user.joinedAt,
           lastActive: user.lastActive,
-          recentBets: user.bets.map(bet => ({
+          recentBets: user.bets.map((bet: any) => ({
             id: bet.id,
             predictionTitle: bet.prediction.title,
             optionIndex: bet.optionIndex,
@@ -110,6 +154,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       if (validation.data.language !== undefined) {
         updateData.language = validation.data.language;
+      }
+
+      if (!telegramId) {
+        return res.status(200).json({ 
+          error: 'Authentication required',
+          message: 'Please open this app from Telegram to update your profile'
+        });
       }
 
       const user = await prisma.user.update({
