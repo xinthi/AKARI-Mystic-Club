@@ -11,6 +11,7 @@
     "setup": "pnpm install && pnpm prisma:push && pnpm prisma:generate && pnpm prisma:seed",
     "dev": "pnpm --filter bot dev & pnpm --filter web dev",
     "build": "pnpm --filter bot build && pnpm --filter web build",
+    "postinstall": "pnpm exec prisma generate --schema=./prisma/schema.prisma",
     "prisma:push": "pnpm --filter bot exec prisma db push --schema=../../prisma/schema.prisma",
     "prisma:generate": "pnpm exec prisma generate --schema=./prisma/schema.prisma",
     "prisma:seed": "pnpm --filter bot prisma db seed",
