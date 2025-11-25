@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma Schema for AKARI Mystic Club
+// Telegram Mini App - Prediction Marketplace with Tasks and Campaigns
 
 generator client {
   provider = "prisma-client-js"
@@ -10,34 +10,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User interests for onboarding and targeting
 enum Interest {
-  content_creator
-  airdrop_hunter
-  investor
-  founder
-  new_to_crypto
+  content_creator    // Content creators and influencers
+  airdrop_hunter    // Users hunting for airdrops
+  investor          // Crypto investors
+  founder           // Project founders
+  new_to_crypto     // New to crypto (auto-removed after 365 days)
 }
 
+// User model - Core user data for the Mini App
 model User {
   id                    String       @id @default(cuid())
-  telegramId            BigInt       @unique
-  username              String?
-  xUsername             String?
-  xUserId               String?
-  tonWallet              String?
-  evmWallet              String?
-  language              String?      @default("en")
-  interests             Interest[]
-  isNewToCrypto         Boolean      @default(true)
-  isVerifiedFounder     Boolean      @default(false)
-  founderSubscriptionEnd DateTime?
-  points                Int          @default(0)
-  tier                  String?
-  credibilityScore      Float?       @default(0)
-  positiveReviews       Int          @default(0)
-  joinedAt              DateTime     @default(now())
-  lastActive            DateTime     @updatedAt
-  completedTasks        Json[]
+  telegramId            BigInt       @unique  // Telegram user ID (unique identifier)
+  username              String?               // Telegram username
+  xUsername             String?               // X (Twitter) username if connected
+  xUserId               String?               // X (Twitter) user ID
+  tonWallet             String?               // TON wallet address
+  evmWallet             String?               // EVM wallet address (Ethereum, etc.)
+  language              String?      @default("en")  // User language preference
+  interests             Interest[]             // User interests (multi-select)
+  isNewToCrypto         Boolean      @default(true)  // Flag for new users
+  isVerifiedFounder     Boolean      @default(false)  // Founder verification status
+  founderSubscriptionEnd DateTime?           // Founder subscription expiration
+  points                Int          @default(0)      // User points (EP) for tier progression
+  tier                  String?                      // Current tier (e.g., "Seeker_L1")
+  credibilityScore      Float?       @default(0)      // Credibility score (0-10)
+  positiveReviews       Int          @default(0)      // Count of positive reviews (>=4 stars)
+  joinedAt              DateTime     @default(now())  // Account creation timestamp
+  lastActive            DateTime     @updatedAt        // Last activity timestamp
+  completedTasks        Json[]                       // Array of completed task IDs
+  
+  // Relations
   reviewsGiven          Review[]     @relation("GivenReviews")
   reviewsReceived       Review[]     @relation("ReceivedReviews")
   createdCampaigns      Campaign[]
@@ -51,54 +55,58 @@ model User {
   @@map("users")
 }
 
+// Review model - User credibility system
 model Review {
   id          String   @id @default(cuid())
-  fromUserId  String
-  toUserId    String
-  rating      Int
-  comment     String?
+  fromUserId  String   // User who gave the review
+  toUserId    String   // User being reviewed
+  rating      Int      // Rating 1-5
+  comment     String?  // Optional review comment
   createdAt   DateTime @default(now())
 
   fromUser    User     @relation("GivenReviews", fields: [fromUserId], references: [id], onDelete: Cascade)
   toUser      User     @relation("ReceivedReviews", fields: [toUserId], references: [id], onDelete: Cascade)
 
-  @@unique([fromUserId, toUserId])
+  @@unique([fromUserId, toUserId])  // One review per user pair
   @@index([toUserId])
   @@index([fromUserId])
   @@map("reviews")
 }
 
+// Tier model - User progression tiers
 model Tier {
   id          String   @id @default(cuid())
-  name        String
-  level       Int
-  minPoints   Int
-  maxPoints   Int?
-  badgeEmoji  String
-  color       String
-  imageUrl    String?
-  description String
+  name        String   // Tier name (e.g., "Seeker", "Alchemist")
+  level       Int      // Tier level (1, 2, 3, etc.)
+  minPoints   Int      // Minimum points required
+  maxPoints   Int?     // Maximum points (null for highest tier)
+  badgeEmoji  String   // Badge emoji for display
+  color       String   // Tier color (hex code)
+  imageUrl    String?  // Optional tier image URL
+  description String   // Tier description
 
   @@unique([name, level])
   @@map("tiers")
 }
 
+// Campaign model - Marketing campaigns with tasks
 model Campaign {
   id              String    @id @default(cuid())
-  name            String
-  description     String?
-  rewards         String
-  tasks           Json[]
-  startsAt        DateTime
-  endsAt          DateTime
-  createdById     String
-  starsFee        Int       @default(0)
-  projectTgHandle String?
-  isActive        Boolean   @default(true)
+  name            String    // Campaign name
+  description     String?   // Campaign description
+  rewards         String    // Rewards description
+  tasks           Json[]    // Array of task objects (structured JSON)
+  startsAt        DateTime  // Campaign start date
+  endsAt          DateTime  // Campaign end date
+  createdById     String    // Creator user ID
+  starsFee        Int       @default(0)  // Stars fee to create campaign
+  projectTgHandle String?   // Project Telegram handle (for surveys)
+  isActive        Boolean   @default(true)  // Active status
   createdAt       DateTime  @default(now())
+  completions     Json[]    // Array of completion records
+  leaderboard     Json?     // Cached leaderboard data
+
   createdBy       User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  completions     Json[]
-  leaderboard     Json?
 
   @@index([createdById])
   @@index([isActive])
@@ -106,20 +114,23 @@ model Campaign {
   @@map("campaigns")
 }
 
+// Prediction model - Prediction market
 model Prediction {
   id            String   @id @default(cuid())
-  title         String
-  options       Json[]
-  entryFeeStars Int      @default(0)
-  pot           Int      @default(0)
-  houseFee      Float    @default(0.05)
-  creatorId     String
-  resolved      Boolean  @default(false)
-  winnerOption  Int?
+  title         String   // Prediction title
+  description   String?  // Optional detailed description
+  options       Json[]   // Array of prediction options (e.g., ["Yes", "No"])
+  entryFeeStars Int      @default(0)  // Entry fee in Stars (0 = free)
+  entryFeePoints Int     @default(0)   // Entry fee in points (alternative to Stars)
+  pot           Int      @default(0)   // Total pot size (Stars or points)
+  houseFee      Float    @default(0.05)  // House fee percentage (5% default)
+  creatorId     String   // Creator user ID
+  resolved      Boolean  @default(false)  // Whether prediction is resolved
+  winnerOption  Int?     // Winning option index (null if not resolved)
   createdAt     DateTime @default(now())
-  endsAt        DateTime
+  endsAt        DateTime // Prediction end date/time
   creator       User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  bets          Bet[]
+  bets          Bet[]    // All bets placed on this prediction
 
   @@index([creatorId])
   @@index([resolved])
@@ -127,35 +138,38 @@ model Prediction {
   @@map("predictions")
 }
 
+// Bet model - User bets on predictions
 model Bet {
   id            String     @id @default(cuid())
-  userId        String
-  predictionId  String
-  optionIndex   Int
-  starsBet      Int
+  userId        String     // User who placed the bet
+  predictionId  String     // Prediction being bet on
+  optionIndex   Int        // Selected option index (0-based)
+  starsBet      Int        @default(0)  // Bet amount in Stars
+  pointsBet    Int        @default(0)   // Bet amount in points
   createdAt     DateTime   @default(now())
-
+  
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   prediction    Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, predictionId])
+  @@unique([userId, predictionId])  // One bet per user per prediction
   @@index([predictionId])
   @@index([userId])
   @@map("bets")
 }
 
+// Survey model - Feedback surveys linked to campaigns
 model Survey {
   id              String   @id @default(cuid())
-  title           String
-  description     String?
-  questions       Json[]
-  campaignId      String?
-  projectTgHandle String
-  createdById     String
-  active          Boolean  @default(true)
+  title           String   // Survey title
+  description     String?  // Survey description
+  questions       Json[]   // Array of question objects (structured JSON)
+  campaignId      String?  // Optional linked campaign ID
+  projectTgHandle String   // Project Telegram handle
+  createdById     String   // Creator user ID
+  active          Boolean  @default(true)  // Active status
   createdAt       DateTime @default(now())
-  responses       Json[]
-  report          Json?
+  responses       Json[]   // Array of survey responses
+  report          Json?    // Computed survey report/analytics
 
   createdBy       User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
@@ -164,4 +178,3 @@ model Survey {
   @@index([active])
   @@map("surveys")
 }
-

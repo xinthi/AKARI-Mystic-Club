@@ -2,17 +2,5 @@
   "buildCommand": "cd ../.. && pnpm install && cd src/web && pnpm build",
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install",
-  "framework": "nextjs",
-  "routes": [
-    {
-      "src": "/api/webhook",
-      "dest": "/api/webhook.js"
-    }
-  ],
-  "functions": {
-    "api/webhook.js": {
-      "runtime": "nodejs18.x",
-      "maxDuration": 30
-    }
-  }
+  "framework": "nextjs"
 }

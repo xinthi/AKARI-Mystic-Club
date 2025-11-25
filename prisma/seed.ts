@@ -1,235 +1,155 @@
-import { PrismaClient, Interest } from '@prisma/client';
+/**
+ * Prisma Seed Script
+ * 
+ * Seeds the database with initial tier data and optional demo data.
+ * Run with: pnpm prisma:seed
+ */
+
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-
-/**
- * Seed tiers with SVG placeholder images
- */
-const tiers = [
-  // Seeker L1-3 (0-1k EP, red #FF0000 🧭)
-  {
-    name: 'Seeker',
-    level: 1,
-    minPoints: 0,
-    maxPoints: 333,
-    badgeEmoji: '🧭',
-    color: '#FF0000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK08L3RleHQ+PC9zdmc+',
-    description: 'New adventurer hunting first drops'
-  },
-  {
-    name: 'Seeker',
-    level: 2,
-    minPoints: 334,
-    maxPoints: 666,
-    badgeEmoji: '🧭',
-    color: '#FF0000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK08L3RleHQ+PC9zdmc+',
-    description: 'New adventurer hunting first drops'
-  },
-  {
-    name: 'Seeker',
-    level: 3,
-    minPoints: 667,
-    maxPoints: 1000,
-    badgeEmoji: '🧭',
-    color: '#FF0000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK08L3RleHQ+PC9zdmc+',
-    description: 'New adventurer hunting first drops'
-  },
-  // Alchemist L1-3 (1k-5k, orange #FF4500 🔥)
-  {
-    name: 'Alchemist',
-    level: 1,
-    minPoints: 1001,
-    maxPoints: 2333,
-    badgeEmoji: '🔥',
-    color: '#FF4500',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGNDUwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK88L3RleHQ+PC9zdmc+',
-    description: 'Fiery creator of opportunities'
-  },
-  {
-    name: 'Alchemist',
-    level: 2,
-    minPoints: 2334,
-    maxPoints: 3666,
-    badgeEmoji: '🔥',
-    color: '#FF4500',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGNDUwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK88L3RleHQ+PC9zdmc+',
-    description: 'Fiery creator of opportunities'
-  },
-  {
-    name: 'Alchemist',
-    level: 3,
-    minPoints: 3667,
-    maxPoints: 5000,
-    badgeEmoji: '🔥',
-    color: '#FF4500',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0ZGNDUwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjK88L3RleHQ+PC9zdmc+',
-    description: 'Fiery creator of opportunities'
-  },
-  // Sentinel L1-4 (5k-20k, red #DC143C 🛡️)
-  {
-    name: 'Sentinel',
-    level: 1,
-    minPoints: 5001,
-    maxPoints: 8750,
-    badgeEmoji: '🛡️',
-    color: '#DC143C',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0RDMTQzQyIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKE8L3RleHQ+PC9zdmc+',
-    description: 'Guardian of the club'
-  },
-  {
-    name: 'Sentinel',
-    level: 2,
-    minPoints: 8751,
-    maxPoints: 12500,
-    badgeEmoji: '🛡️',
-    color: '#DC143C',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0RDMTQzQyIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKE8L3RleHQ+PC9zdmc+',
-    description: 'Guardian of the club'
-  },
-  {
-    name: 'Sentinel',
-    level: 3,
-    minPoints: 12501,
-    maxPoints: 16250,
-    badgeEmoji: '🛡️',
-    color: '#DC143C',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0RDMTQzQyIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKE8L3RleHQ+PC9zdmc+',
-    description: 'Guardian of the club'
-  },
-  {
-    name: 'Sentinel',
-    level: 4,
-    minPoints: 16251,
-    maxPoints: 20000,
-    badgeEmoji: '🛡️',
-    color: '#DC143C',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0RDMTQzQyIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKE8L3RleHQ+PC9zdmc+',
-    description: 'Guardian of the club'
-  },
-  // Merchant L1-3 (20k-50k, blue #0000FF 💰)
-  {
-    name: 'Merchant',
-    level: 1,
-    minPoints: 20001,
-    maxPoints: 30000,
-    badgeEmoji: '💰',
-    color: '#0000FF',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDBGRiIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKk8L3RleHQ+PC9zdmc+',
-    description: 'Wise trader of rewards'
-  },
-  {
-    name: 'Merchant',
-    level: 2,
-    minPoints: 30001,
-    maxPoints: 40000,
-    badgeEmoji: '💰',
-    color: '#0000FF',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDBGRiIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKk8L3RleHQ+PC9zdmc+',
-    description: 'Wise trader of rewards'
-  },
-  {
-    name: 'Merchant',
-    level: 3,
-    minPoints: 40001,
-    maxPoints: 50000,
-    badgeEmoji: '💰',
-    color: '#0000FF',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDBGRiIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKk8L3RleHQ+PC9zdmc+',
-    description: 'Wise trader of rewards'
-  },
-  // Guardian L1-3 (50k-100k, black #000000 ⚔️)
-  {
-    name: 'Guardian',
-    level: 1,
-    minPoints: 50001,
-    maxPoints: 66666,
-    badgeEmoji: '⚔️',
-    color: '#000000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKg8L3RleHQ+PC9zdmc+',
-    description: 'Defender of the realm'
-  },
-  {
-    name: 'Guardian',
-    level: 2,
-    minPoints: 66667,
-    maxPoints: 83333,
-    badgeEmoji: '⚔️',
-    color: '#000000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKg8L3RleHQ+PC9zdmc+',
-    description: 'Defender of the realm'
-  },
-  {
-    name: 'Guardian',
-    level: 3,
-    minPoints: 83334,
-    maxPoints: 100000,
-    badgeEmoji: '⚔️',
-    color: '#000000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKg8L3RleHQ+PC9zdmc+',
-    description: 'Defender of the realm'
-  },
-  // Sovereign L1+ (100k+, black #000000 👑)
-  {
-    name: 'Sovereign',
-    level: 1,
-    minPoints: 100001,
-    maxPoints: null,
-    badgeEmoji: '👑',
-    color: '#000000',
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMDAwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2NSIgZm9udC1zaXplPSI0MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfjKk8L3RleHQ+PC9zdmc+',
-    description: 'Ruler of quests'
-  }
-];
 
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Clear existing tiers
-  await prisma.tier.deleteMany({});
+  // Seed Tiers
+  const tiers = [
+    // Seeker Tiers
+    { name: 'Seeker', level: 1, minPoints: 0, maxPoints: 333, badgeEmoji: '🧭', color: '#FF0000', description: 'New adventurer hunting first drops' },
+    { name: 'Seeker', level: 2, minPoints: 334, maxPoints: 666, badgeEmoji: '🧭', color: '#FF0000', description: 'New adventurer hunting first drops' },
+    { name: 'Seeker', level: 3, minPoints: 667, maxPoints: 999, badgeEmoji: '🧭', color: '#FF0000', description: 'New adventurer hunting first drops' },
+    
+    // Alchemist Tiers
+    { name: 'Alchemist', level: 1, minPoints: 1000, maxPoints: 2333, badgeEmoji: '🔥', color: '#FF4500', description: 'Fiery creator of opportunities' },
+    { name: 'Alchemist', level: 2, minPoints: 2334, maxPoints: 3666, badgeEmoji: '🔥', color: '#FF4500', description: 'Fiery creator of opportunities' },
+    { name: 'Alchemist', level: 3, minPoints: 3667, maxPoints: 4999, badgeEmoji: '🔥', color: '#FF4500', description: 'Fiery creator of opportunities' },
+    
+    // Sentinel Tiers
+    { name: 'Sentinel', level: 1, minPoints: 5000, maxPoints: 8750, badgeEmoji: '🛡️', color: '#DC143C', description: 'Guardian of the club' },
+    { name: 'Sentinel', level: 2, minPoints: 8751, maxPoints: 12500, badgeEmoji: '🛡️', color: '#DC143C', description: 'Guardian of the club' },
+    { name: 'Sentinel', level: 3, minPoints: 12501, maxPoints: 16250, badgeEmoji: '🛡️', color: '#DC143C', description: 'Guardian of the club' },
+    { name: 'Sentinel', level: 4, minPoints: 16251, maxPoints: 19999, badgeEmoji: '🛡️', color: '#DC143C', description: 'Guardian of the club' },
+    
+    // Merchant Tiers
+    { name: 'Merchant', level: 1, minPoints: 20000, maxPoints: 30000, badgeEmoji: '💰', color: '#0000FF', description: 'Wise trader of rewards' },
+    { name: 'Merchant', level: 2, minPoints: 30001, maxPoints: 40000, badgeEmoji: '💰', color: '#0000FF', description: 'Wise trader of rewards' },
+    { name: 'Merchant', level: 3, minPoints: 40001, maxPoints: 49999, badgeEmoji: '💰', color: '#0000FF', description: 'Wise trader of rewards' },
+    
+    // Guardian Tiers
+    { name: 'Guardian', level: 1, minPoints: 50000, maxPoints: 66666, badgeEmoji: '⚔️', color: '#000000', description: 'Defender of the realm' },
+    { name: 'Guardian', level: 2, minPoints: 66667, maxPoints: 83333, badgeEmoji: '⚔️', color: '#000000', description: 'Defender of the realm' },
+    { name: 'Guardian', level: 3, minPoints: 83334, maxPoints: 99999, badgeEmoji: '⚔️', color: '#000000', description: 'Defender of the realm' },
+    
+    // Sovereign Tier (no max)
+    { name: 'Sovereign', level: 1, minPoints: 100000, maxPoints: null, badgeEmoji: '👑', color: '#000000', description: 'Ruler of quests' },
+  ];
 
-  // Create tiers
   for (const tier of tiers) {
-    await prisma.tier.create({
-      data: tier
+    await prisma.tier.upsert({
+      where: {
+        name_level: {
+          name: tier.name,
+          level: tier.level,
+        },
+      },
+      update: tier,
+      create: tier,
     });
   }
 
-  console.log(`✅ Created ${tiers.length} tiers`);
+  console.log(`✅ Seeded ${tiers.length} tiers`);
 
-  // Create test admin/founder user if ADMIN_TELEGRAM_ID is set
-  const adminId = process.env.ADMIN_TELEGRAM_ID;
-  if (adminId) {
-    const existingAdmin = await prisma.user.findUnique({
-      where: { telegramId: BigInt(adminId) }
-    });
+  // Optional: Create demo data (only in development)
+  if (process.env.NODE_ENV === 'development' && process.env.SEED_DEMO_DATA === 'true') {
+    console.log('📦 Creating demo data...');
 
-    if (!existingAdmin) {
-      await prisma.user.create({
+    // Create demo users
+    const demoUsers = await Promise.all([
+      prisma.user.upsert({
+        where: { telegramId: BigInt(123456789) },
+        update: {},
+        create: {
+          telegramId: BigInt(123456789),
+          username: 'demo_user_1',
+          points: 5000,
+          tier: 'Sentinel_L1',
+          interests: ['airdrop_hunter', 'investor'],
+        },
+      }),
+      prisma.user.upsert({
+        where: { telegramId: BigInt(987654321) },
+        update: {},
+        create: {
+          telegramId: BigInt(987654321),
+          username: 'demo_user_2',
+          points: 15000,
+          tier: 'Sentinel_L3',
+          interests: ['content_creator', 'founder'],
+        },
+      }),
+    ]);
+
+    console.log(`✅ Created ${demoUsers.length} demo users`);
+
+    // Create demo predictions
+    const demoPredictions = await Promise.all([
+      prisma.prediction.create({
         data: {
-          telegramId: BigInt(adminId),
-          isVerifiedFounder: true,
-          founderSubscriptionEnd: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
-          points: 10000,
-          tier: 'Sentinel_L2',
-          interests: [Interest.founder, Interest.investor]
-        }
-      });
-      console.log('✅ Created test admin/founder user');
-    }
+          title: 'Will Bitcoin reach $100k by end of 2024?',
+          description: 'Place your bets on Bitcoin price prediction',
+          options: ['Yes', 'No'],
+          entryFeePoints: 100,
+          creatorId: demoUsers[0].id,
+          endsAt: new Date('2024-12-31'),
+          pot: 500,
+        },
+      }),
+      prisma.prediction.create({
+        data: {
+          title: 'Which chain will have the most TVL in Q2 2024?',
+          description: 'Ethereum, Solana, or TON?',
+          options: ['Ethereum', 'Solana', 'TON'],
+          entryFeePoints: 50,
+          creatorId: demoUsers[1].id,
+          endsAt: new Date('2024-06-30'),
+          pot: 200,
+        },
+      }),
+    ]);
+
+    console.log(`✅ Created ${demoPredictions.length} demo predictions`);
+
+    // Create demo campaigns
+    const demoCampaigns = await Promise.all([
+      prisma.campaign.create({
+        data: {
+          name: 'TON Ecosystem Airdrop',
+          description: 'Complete tasks to qualify for TON airdrop',
+          rewards: '500 TON tokens + 1000 EP',
+          tasks: [
+            { type: 'join_telegram', groupId: '@ton_blockchain', title: 'Join TON Telegram' },
+            { type: 'follow_twitter', username: 'ton_blockchain', title: 'Follow TON on X' },
+            { type: 'retweet', tweetId: '123456', title: 'Retweet announcement' },
+          ],
+          startsAt: new Date(),
+          endsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          createdById: demoUsers[0].id,
+          starsFee: 0,
+        },
+      }),
+    ]);
+
+    console.log(`✅ Created ${demoCampaigns.length} demo campaigns`);
   }
 
-  console.log('✨ Seeding completed!');
+  console.log('✨ Seeding complete!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    console.error('❌ Seeding error:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-

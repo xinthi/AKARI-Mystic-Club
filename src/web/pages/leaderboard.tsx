@@ -1,152 +1,164 @@
+/**
+ * Leaderboard Page
+ * 
+ * Shows top users by points, tier, or campaign
+ */
+
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import { Trophy, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import dynamic from 'next/dynamic';
+
+const TelegramWebApp = dynamic(() => import('@twa-dev/sdk'), { ssr: false });
 
 interface LeaderboardEntry {
   rank: number;
-  username: string;
+  userId: string;
+  username?: string;
+  tier?: string;
   points: number;
-  tier: string;
-  cred: number;
+  credibilityScore?: number;
+  positiveReviews?: number;
+  completions?: number;
 }
 
-export default function Leaderboard() {
-  const router = useRouter();
-  const { tier } = router.query;
+export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTier, setSelectedTier] = useState<string | null>(
-    (tier as string) || null
-  );
+  const [error, setError] = useState<string | null>(null);
+  const [type, setType] = useState<'points' | 'tier'>('points');
 
   useEffect(() => {
-    const tierParam = selectedTier || 'all';
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    fetch(`${apiUrl}/leaderboard?tier=${tierParam}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setLeaderboard(data.leaderboard || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('Error fetching leaderboard:', err);
-        setLoading(false);
-      });
-  }, [selectedTier]);
+    loadLeaderboard();
+  }, [type]);
 
-  const tiers = [
-    { name: 'all', label: 'All Tiers', emoji: '🏆' },
-    { name: 'Seeker', label: 'Seeker', emoji: '🧭' },
-    { name: 'Alchemist', label: 'Alchemist', emoji: '🔥' },
-    { name: 'Sentinel', label: 'Sentinel', emoji: '🛡️' },
-    { name: 'Merchant', label: 'Merchant', emoji: '💰' },
-    { name: 'Guardian', label: 'Guardian', emoji: '⚔️' },
-    { name: 'Sovereign', label: 'Sovereign', emoji: '👑' },
-  ];
+  const loadLeaderboard = async () => {
+    try {
+      let initData = '';
+      if (typeof window !== 'undefined') {
+        const sdk = await TelegramWebApp;
+        // @ts-ignore
+        initData = (sdk as any).initData || '';
+      }
+
+      const url = type === 'tier' 
+        ? '/api/leaderboard?type=tier&tier=Seeker'
+        : '/api/leaderboard?type=points';
+
+      const response = await fetch(url, {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load leaderboard');
+      }
+
+      const data = await response.json();
+      setLeaderboard(data.leaderboard || []);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Error loading leaderboard:', err);
+      setError(err.message || 'Failed to load leaderboard');
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-mystic flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading leaderboard...</div>
       </div>
     );
   }
 
-  const chartData = leaderboard.slice(0, 10).map((entry) => ({
-    name: entry.username,
-    points: entry.points,
-  }));
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="text-xl mb-4">🔮</div>
+          <div className="text-lg">{error}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-mystic text-white p-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8 text-center">🏆 Leaderboard</h1>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+      <header className="p-6 pb-4">
+        <h1 className="text-3xl font-bold mb-2">🏆 Leaderboard</h1>
+        <p className="text-purple-300">Top players in AKARI Mystic Club</p>
+      </header>
 
-        {/* Tier Filter */}
-        <div className="flex flex-wrap gap-2 mb-8 justify-center">
-          {tiers.map((t) => (
-            <button
-              key={t.name}
-              onClick={() => setSelectedTier(t.name === 'all' ? null : t.name)}
-              className={`px-4 py-2 rounded-lg transition ${
-                (selectedTier === t.name) || (t.name === 'all' && !selectedTier)
-                  ? 'bg-mystic-purple'
-                  : 'bg-mystic-dark/50'
-              }`}
-            >
-              {t.emoji} {t.label}
-            </button>
-          ))}
+      {/* Type Selector */}
+      <div className="px-6 mb-4">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setType('points')}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+              type === 'points'
+                ? 'bg-purple-600 text-white'
+                : 'bg-purple-900/30 text-purple-300'
+            }`}
+          >
+            Points
+          </button>
+          <button
+            onClick={() => setType('tier')}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${
+              type === 'tier'
+                ? 'bg-purple-600 text-white'
+                : 'bg-purple-900/30 text-purple-300'
+            }`}
+          >
+            By Tier
+          </button>
         </div>
+      </div>
 
-        {/* Chart */}
-        {chartData.length > 0 && (
-          <div className="bg-mystic-dark/50 rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Top 10 Points</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" tick={{ fill: '#fff' }} />
-                <YAxis tick={{ fill: '#fff' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1A1A2E',
-                    border: '1px solid #6B46C1',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Bar dataKey="points" fill="#6B46C1" />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Leaderboard */}
+      <div className="px-6 pb-6">
+        {leaderboard.length === 0 ? (
+          <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-8 text-center border border-purple-500/20">
+            <div className="text-4xl mb-4">🔮</div>
+            <div className="text-lg mb-2">No rankings yet</div>
+            <div className="text-sm text-purple-300">Be the first to earn points!</div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {leaderboard.map((entry, index) => {
+              const isTopThree = entry.rank <= 3;
+              const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : null;
+
+              return (
+                <div
+                  key={entry.userId}
+                  className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border ${
+                    isTopThree
+                      ? 'border-yellow-500/30 bg-yellow-900/10'
+                      : 'border-purple-500/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="text-2xl font-bold w-12 text-center">
+                      {medal || `#${entry.rank}`}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold">
+                        {entry.username || 'Anonymous'} {entry.tier && `(${entry.tier})`}
+                      </div>
+                      <div className="text-sm text-purple-300">
+                        {entry.points.toLocaleString()} EP
+                        {entry.credibilityScore && ` • ${entry.credibilityScore.toFixed(1)} cred`}
+                        {entry.completions !== undefined && ` • ${entry.completions} tasks`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-
-        {/* Leaderboard Table */}
-        <div className="bg-mystic-dark/50 rounded-lg p-6">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-mystic-purple/30">
-                  <th className="text-left p-2">Rank</th>
-                  <th className="text-left p-2">Username</th>
-                  <th className="text-left p-2">EP</th>
-                  <th className="text-left p-2">Tier</th>
-                  <th className="text-left p-2">Cred</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((entry) => (
-                  <tr
-                    key={entry.rank}
-                    className="border-b border-mystic-purple/10 hover:bg-mystic-purple/10"
-                  >
-                    <td className="p-2">
-                      {entry.rank <= 3 ? (
-                        <Trophy
-                          className={`w-5 h-5 inline ${
-                            entry.rank === 1
-                              ? 'text-yellow-400'
-                              : entry.rank === 2
-                              ? 'text-gray-300'
-                              : 'text-orange-400'
-                          }`}
-                        />
-                      ) : (
-                        <span className="text-gray-400">#{entry.rank}</span>
-                      )}
-                    </td>
-                    <td className="p-2 font-medium">@{entry.username}</td>
-                    <td className="p-2">{entry.points.toLocaleString()}</td>
-                    <td className="p-2 text-sm text-gray-400">{entry.tier}</td>
-                    <td className="p-2">{entry.cred.toFixed(1)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
   );
 }
-

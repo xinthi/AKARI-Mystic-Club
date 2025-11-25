@@ -1,201 +1,250 @@
+/**
+ * Profile Page
+ * 
+ * Shows user profile, stats, and allows editing
+ */
+
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import confetti from 'canvas-confetti';
-import { Trophy, Star, Shield, TrendingUp } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const TelegramWebApp = dynamic(() => import('@twa-dev/sdk'), { ssr: false });
 
 interface User {
   id: string;
-  username: string | null;
+  username?: string;
   points: number;
-  tier: string | null;
-  tierConfig: {
-    name: string;
-    level: number;
-    minPoints: number;
-    maxPoints?: number | null;
-    badgeEmoji: string;
-    color: string;
-    description: string;
-  } | null;
-  credibilityScore: number;
+  tier?: string;
+  credibilityScore: string;
   positiveReviews: number;
   interests: string[];
-  joinedAt: string;
-  lastActive: string;
+  tonWallet?: string;
+  evmWallet?: string;
+  language?: string;
+  recentBets?: Array<{
+    id: string;
+    predictionTitle: string;
+    optionIndex: number;
+    starsBet: number;
+    pointsBet: number;
+  }>;
 }
 
-export default function Profile() {
-  const router = useRouter();
-  const { userId } = router.query;
+export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [prevTier, setPrevTier] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    tonWallet: '',
+    evmWallet: '',
+    language: 'en',
+  });
 
   useEffect(() => {
-    if (!userId) return;
+    loadProfile();
+  }, []);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    fetch(`${apiUrl}/profile/${userId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setUser(data.user);
-        setLoading(false);
+  const loadProfile = async () => {
+    try {
+      let initData = '';
+      if (typeof window !== 'undefined') {
+        const sdk = await TelegramWebApp;
+        // @ts-ignore
+        initData = (sdk as any).initData || '';
+      }
 
-        // Check for tier up
-        if (prevTier && data.user.tier && prevTier !== data.user.tier) {
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-          });
-        }
-        setPrevTier(data.user.tier);
-      })
-      .catch((err) => {
-        console.error('Error fetching profile:', err);
-        setLoading(false);
+      const response = await fetch('/api/profile', {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
       });
-  }, [userId, prevTier]);
+
+      if (!response.ok) {
+        throw new Error('Failed to load profile');
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+      setFormData({
+        tonWallet: data.user.tonWallet || '',
+        evmWallet: data.user.evmWallet || '',
+        language: data.user.language || 'en',
+      });
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Error loading profile:', err);
+      setError(err.message || 'Failed to load profile');
+      setLoading(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      let initData = '';
+      if (typeof window !== 'undefined') {
+        const sdk = await TelegramWebApp;
+        // @ts-ignore
+        initData = (sdk as any).initData || '';
+      }
+
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': initData,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      alert('Profile updated!');
+      setEditing(false);
+      loadProfile();
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      alert(err.message || 'Failed to update profile');
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-mystic flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading profile...</div>
       </div>
     );
   }
 
-  if (!user) {
+  if (error || !user) {
     return (
-      <div className="min-h-screen bg-gradient-mystic flex items-center justify-center">
-        <div className="text-white text-xl">User not found</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="text-xl mb-4">🔮</div>
+          <div className="text-lg">{error || 'User not found'}</div>
+        </div>
       </div>
     );
   }
-
-  const tierConfig = user.tierConfig;
-  const tierColor = tierConfig?.color || '#6B46C1';
-  const nextTierPoints = tierConfig ? (tierConfig.maxPoints || 100000) : 1000;
-  const progress = tierConfig ? ((user.points / nextTierPoints) * 100) : 0;
-
-  // Credibility stars (1-10 scale, display as 5 stars)
-  const credStars = Math.round((user.credibilityScore / 10) * 5);
 
   return (
-    <div className="min-h-screen bg-gradient-mystic text-white p-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
-          <p className="text-mystic-purple-300">@{user.username || 'Anonymous'}</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+      <header className="p-6 pb-4">
+        <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
+        <p className="text-purple-300">@{user.username || 'mystic'}</p>
+      </header>
 
-        {/* Badge Carousel */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Badges</h2>
-          <div className="badge-carousel">
-            {tierConfig && (
-              <div
-                className="badge-item w-24 h-24 rounded-full flex items-center justify-center text-4xl"
-                style={{
-                  backgroundColor: tierColor,
-                  boxShadow: `0 0 20px ${tierColor}40`,
-                }}
-              >
-                {tierConfig.badgeEmoji}
-              </div>
-            )}
-            {user.positiveReviews >= 10 && (
-              <div className="badge-item w-24 h-24 rounded-full flex items-center justify-center text-4xl bg-yellow-500">
-                🛡️
-              </div>
-            )}
-            {/* Add more badges as needed */}
-          </div>
-        </div>
-
-        {/* EP Progress Bar */}
-        <div className="mb-8 bg-mystic-dark/50 rounded-lg p-6">
-          <div className="flex justify-between mb-2">
-            <span className="font-semibold">EP Points</span>
-            <span className="text-mystic-purple-300">
-              {user.points.toLocaleString()} / {nextTierPoints.toLocaleString()}
-            </span>
-          </div>
-          <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${Math.min(progress, 100)}%` }}
-            />
-          </div>
-          <p className="text-sm text-gray-400 mt-2">
-            {tierConfig ? `${tierConfig.name} L${tierConfig.level}` : 'No Tier'} - {tierConfig?.description || ''}
-          </p>
-        </div>
-
-        {/* Credibility Score */}
-        <div className="mb-8 bg-mystic-dark/50 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              <span className="font-semibold">Credibility Score</span>
+      <div className="px-6 pb-6 space-y-6">
+        {/* Stats Card */}
+        <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Points</div>
+              <div className="text-2xl font-bold">{user.points.toLocaleString()} EP</div>
             </div>
-            <span className="text-2xl font-bold">{user.credibilityScore.toFixed(1)}/10</span>
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Tier</div>
+              <div className="text-xl font-semibold">{user.tier || 'None'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Credibility</div>
+              <div className="text-lg font-semibold">{user.credibilityScore}/10</div>
+            </div>
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Reviews</div>
+              <div className="text-lg font-semibold">{user.positiveReviews} 🛡️</div>
+            </div>
           </div>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className={`w-6 h-6 ${
-                  star <= credStars ? 'fill-yellow-400 text-yellow-400' : 'text-gray-600'
-                }`}
-              />
-            ))}
+        </div>
+
+        {/* Wallets */}
+        <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Wallets</h2>
+            <button
+              onClick={() => editing ? saveProfile() : setEditing(true)}
+              className="text-sm text-purple-300 hover:text-white"
+            >
+              {editing ? 'Save' : 'Edit'}
+            </button>
           </div>
-          <p className="text-sm text-gray-400 mt-2">
-            {user.positiveReviews} positive reviews
-          </p>
+
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-purple-300 mb-2">TON Wallet</label>
+                <input
+                  type="text"
+                  value={formData.tonWallet}
+                  onChange={(e) => setFormData({ ...formData, tonWallet: e.target.value })}
+                  placeholder="Enter TON wallet address"
+                  className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-purple-300 mb-2">EVM Wallet</label>
+                <input
+                  type="text"
+                  value={formData.evmWallet}
+                  onChange={(e) => setFormData({ ...formData, evmWallet: e.target.value })}
+                  placeholder="Enter EVM wallet address"
+                  className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <div className="text-sm text-purple-300 mb-1">TON</div>
+                <div className="font-mono text-sm break-all">
+                  {user.tonWallet || 'Not set'}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-purple-300 mb-1">EVM</div>
+                <div className="font-mono text-sm break-all">
+                  {user.evmWallet || 'Not set'}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Interests */}
-        <div className="mb-8 bg-mystic-dark/50 rounded-lg p-6">
-          <h3 className="font-semibold mb-4">Interests</h3>
-          <div className="flex flex-wrap gap-2">
-            {user.interests.map((interest) => {
-              const emoji: Record<string, string> = {
-                content_creator: '🎥',
-                airdrop_hunter: '🪂',
-                investor: '📈',
-                founder: '👑',
-                new_to_crypto: '🌱',
-              };
-              return (
+        {user.interests && user.interests.length > 0 && (
+          <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
+            <h2 className="text-lg font-semibold mb-4">Interests</h2>
+            <div className="flex flex-wrap gap-2">
+              {user.interests.map((interest) => (
                 <span
                   key={interest}
-                  className="px-3 py-1 bg-mystic-purple/30 rounded-full text-sm"
+                  className="px-3 py-1 bg-purple-600 rounded-full text-sm"
                 >
-                  {emoji[interest] || '•'} {interest.replace('_', ' ')}
+                  {interest.replace(/_/g, ' ')}
                 </span>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-mystic-dark/50 rounded-lg p-4 text-center">
-            <Trophy className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
-            <div className="text-2xl font-bold">{user.points.toLocaleString()}</div>
-            <div className="text-sm text-gray-400">Total EP</div>
+        {/* Recent Bets */}
+        {user.recentBets && user.recentBets.length > 0 && (
+          <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
+            <h2 className="text-lg font-semibold mb-4">Recent Bets</h2>
+            <div className="space-y-3">
+              {user.recentBets.map((bet) => (
+                <div key={bet.id} className="text-sm">
+                  <div className="font-semibold">{bet.predictionTitle}</div>
+                  <div className="text-purple-300">
+                    {bet.starsBet > 0 ? `${bet.starsBet} ⭐` : `${bet.pointsBet} EP`}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="bg-mystic-dark/50 rounded-lg p-4 text-center">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-green-400" />
-            <div className="text-2xl font-bold">{user.positiveReviews}</div>
-            <div className="text-sm text-gray-400">Positive Reviews</div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
-

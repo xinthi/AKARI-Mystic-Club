@@ -1,86 +1,63 @@
-# 🔮 AKARI Mystic Bot
+# 🔮 AKARI Mystic Club
 
-A complete, production-ready TypeScript Telegram Mini App Bot for the AKARI Mystic Club (AMC), featuring Stars payments, tier system, campaigns, predictions, surveys, and more.
+A Telegram Mini App for prediction markets, campaigns, tasks, and rewards. Built with Next.js 14, Prisma, and Supabase.
+
+## 🎯 Features
+
+- **Prediction Markets**: Create and bet on predictions with Stars or points
+- **Campaigns & Tasks**: Complete tasks to earn rewards and points
+- **Leaderboards**: Compete with other users by tier and points
+- **User Profiles**: Track your points, tier, credibility score, and achievements
+- **Surveys**: Participate in feedback surveys for campaigns
 
 ## 🏗️ Architecture
 
-- **Bot**: Grammy.js bot with conversation flows
-- **Database**: PostgreSQL with Prisma ORM
-- **Mini App**: Next.js with Tailwind CSS and Telegram Web App SDK
-- **API**: Express serverless functions for Vercel
-- **Package Manager**: pnpm (monorepo)
+- **Frontend**: Next.js 14 (Pages Router) with Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: PostgreSQL via Supabase with Prisma ORM
+- **Bot**: Minimal Grammy.js bot for Mini App entry point
+- **Deployment**: Vercel (serverless)
 
-## 📁 Project Structure
+## 📋 Prerequisites
 
-```
-.
-├── src/
-│   ├── bot/              # Grammy.js bot
-│   │   ├── src/
-│   │   │   ├── handlers/ # Command handlers
-│   │   │   ├── utils/    # Utilities (tiers, stars, verifications)
-│   │   │   └── index.ts  # Bot core & webhook
-│   │   └── package.json
-│   ├── web/              # Next.js Mini App
-│   │   ├── pages/        # Next.js pages
-│   │   ├── styles/       # Tailwind CSS
-│   │   └── package.json
-│   └── api/              # Express API routes
-├── prisma/
-│   ├── schema.prisma     # Database schema
-│   └── seed.ts           # Seed data (tiers)
-├── package.json          # Root workspace
-└── vercel.json          # Vercel configuration
-```
+- Node.js >= 18.0.0
+- pnpm >= 8.0.0
+- Supabase account and database
+- Telegram Bot Token
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- pnpm 8+
-- PostgreSQL database
-- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
-- Twitter API credentials (optional, for X verifications)
+## 🚀 Setup
 
 ### 1. Clone and Install
 
 ```bash
-# Clone the repository
 git clone <your-repo-url>
-cd akari-mystic-bot
-
-# Install dependencies
+cd akari-mystic-club
 pnpm install
 ```
 
-### 2. Environment Setup
+### 2. Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-Required environment variables:
+Create a `.env` file in the root directory:
 
 ```env
-# Telegram Bot
+# Telegram
 TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_WEBAPP_URL=https://your-app.vercel.app
+TELEGRAM_WEBHOOK_SECRET=optional_webhook_secret
 
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/akari_mystic?schema=public
-
-# Twitter API (optional)
-TWITTER_BEARER_TOKEN=your_twitter_bearer_token
-TWITTER_CLIENT_ID=your_twitter_client_id
-TWITTER_CLIENT_SECRET=your_twitter_client_secret
-
-# Vercel
-VERCEL_URL=your_app_url.vercel.app
+DATABASE_URL=postgresql://user:password@host:port/database?sslmode=require
 
 # Admin
 ADMIN_TELEGRAM_ID=your_telegram_user_id
+
+# Optional: Twitter API (for X/Twitter integrations)
+TWITTER_BEARER_TOKEN=optional
+TWITTER_CLIENT_ID=optional
+TWITTER_CLIENT_SECRET=optional
+
+# Vercel (auto-set in production)
+VERCEL_URL=your-app.vercel.app
 ```
 
 ### 3. Database Setup
@@ -92,220 +69,202 @@ pnpm prisma:push
 # Generate Prisma Client
 pnpm prisma:generate
 
-# Seed tiers and test data
+# Seed initial data (tiers)
 pnpm prisma:seed
 ```
 
 ### 4. Development
 
-**Important: Remove Webhook for Local Testing**
-
-Before running locally, you must remove any existing Telegram webhook. Telegram can only use either webhook OR polling, not both.
-
 ```bash
-# Check if webhook is set
-# Visit: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
-
-# Remove webhook (choose one method):
-# Method 1 - Browser: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/deleteWebhook
-# Method 2 - PowerShell:
-#   $token = 'YOUR_BOT_TOKEN'
-#   Invoke-RestMethod -Uri "https://api.telegram.org/bot$token/deleteWebhook" -Method POST
-# Method 3 - curl:
-#   curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/deleteWebhook"
-```
-
-```bash
-# Start bot and web app in development mode
+# Start Next.js dev server
 pnpm dev
 ```
 
-- Bot: Runs in polling mode (local development)
-- Web App: http://localhost:3000
+The app will be available at `http://localhost:3000`
 
-### 5. Production Deployment (Vercel)
+## 📦 Database Management
 
-#### Step 1: Create GitHub Repository
-
-1. Create a new **public** repository on GitHub
-2. Push your code:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
-
-#### Step 2: Deploy to Vercel
-
-1. Go to [Vercel](https://vercel.com) and sign in
-2. Click "New Project"
-3. Import your GitHub repository
-4. Configure:
-   - **Framework Preset**: Other
-   - **Root Directory**: `.` (root)
-   - **Build Command**: `pnpm build`
-   - **Output Directory**: `src/web/.next` (for Next.js)
-5. Add all environment variables from `.env`
-6. Deploy!
-
-#### Step 3: Set Webhook
-
-After deployment, set your Telegram webhook:
+### Reset Database (Development)
 
 ```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://your-app.vercel.app/api/webhook"}'
+# Reset schema and seed data
+pnpm db:reset
+```
+
+### Clean Database (Development)
+
+```bash
+# Delete all data (preserves schema)
+pnpm db:cleanup
+```
+
+**Warning**: This deletes all user data, predictions, campaigns, etc. Only use in development!
+
+### Manual Cleanup in Supabase
+
+1. Open Supabase Dashboard → SQL Editor
+2. Run the SQL from `prisma/cleanup.sql`
+3. Or use the TypeScript script: `pnpm db:cleanup`
+
+## 🚢 Deployment
+
+### Vercel
+
+1. **Connect Repository**
+   - Import your GitHub repository to Vercel
+   - Set root directory to `src/web` in Vercel project settings
+
+2. **Environment Variables**
+   - Add all environment variables from `.env` to Vercel
+   - Ensure `DATABASE_URL` is set correctly
+
+3. **Build Settings**
+   - Framework: Next.js
+   - Root Directory: `src/web`
+   - Build Command: `cd ../.. && pnpm install && cd src/web && pnpm build`
+   - Install Command: `cd ../.. && pnpm install`
+
+4. **Deploy**
+   - Push to main branch triggers automatic deployment
+   - Or deploy manually from Vercel dashboard
+
+### Set Telegram Webhook
+
+After deployment, set the webhook URL:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-app.vercel.app/api/webhook&secret_token=<YOUR_WEBHOOK_SECRET>"
 ```
 
 Or use the Telegram Bot API:
 
+```bash
+POST https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook
+Content-Type: application/json
+
+{
+  "url": "https://your-app.vercel.app/api/webhook",
+  "secret_token": "your_webhook_secret"
+}
 ```
-https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-app.vercel.app/api/webhook
-```
 
-## 🎮 Features
-
-### User Onboarding
-
-- Welcome message with language selection (English/Spanish)
-- Multi-select interests (Content Creator, Airdrop Hunter, Investor, Founder, New to Crypto)
-- X (Twitter) OAuth connection
-- Wallet input (TON & EVM) - verification later
-- 5 bonus EP on completion
-
-### Tiers System
-
-- **Seeker** L1-3 (0-1k EP) 🧭 Red
-- **Alchemist** L1-3 (1k-5k EP) 🔥 Orange
-- **Sentinel** L1-4 (5k-20k EP) 🛡️ Red
-- **Merchant** L1-3 (20k-50k EP) 💰 Blue
-- **Guardian** L1-3 (50k-100k EP) ⚔️ Black
-- **Sovereign** L1+ (100k+ EP) 👑 Black
-
-Points accrue from:
-- Task completions: 0.2 EP per task
-- Stars payments: 1 EP per $1 spent (100 Stars = $1)
-
-### Stars Payments
-
-- Campaign creation: $100 one-time (100 Stars) or $20/year (200 Stars)
-- Prediction bets: Configurable entry fee
-- 5% fee logged in database
-- Points automatically awarded
-
-### Verifications
-
-- **Telegram**: Group/channel membership
-- **X (Twitter)**: Follow, like, repost
-- **Instagram**: Screenshot upload (admin approval)
-
-### Reviews & Credibility
-
-- `/review @username 1-5 [comment]`
-- Credibility score: Average rating × 2 (1-10 scale)
-- "Credible 🛡️" badge for 10+ positive reviews
-
-### Campaigns
-
-- Founders can create campaigns with Stars payment
-- Tasks with verification
-- Leaderboard per campaign
-- Surveys linked to campaigns
-
-### Predictions
-
-- Create predictions with options
-- Place bets with Stars
-- Admin resolution with pro-rata distribution (95% pot)
-
-### Surveys
-
-- Founders create surveys linked to campaigns
-- Multiple question types: rating, multiple choice, text
-- Responses stored and reports generated
-
-### Mini App Pages
-
-- `/profile`: Dashboard with badges, EP progress, credibility
-- `/tasks`: Campaign list with verification buttons
-- `/leaderboard`: Per-tier leaderboards with charts
-- `/survey/[id]`: Survey form
-
-## 🤖 Commands
-
-- `/start` - Start bot and onboarding
-- `/profile` - View profile
-- `/tasks` - List active campaigns
-- `/review @username 1-5 [comment]` - Review a user
-- `/newcampaign` - Create campaign (founder only)
-- `/predictions` - List active predictions
-- `/newsurvey` - Create survey (founder only)
-- `/leaderboard [campaignId]` - View leaderboard
-- `/credibility` - Group credibility stats
-- `/admin` - Admin panel
-
-## 🔧 Admin Commands
-
-- `/verifyfounder <userId>` - Verify founder status
-- `/broadcast <message>` - Broadcast to all users
-- `/poll <question> <options>` - Create poll
-- `/approve <msgId>` - Approve verification (IG)
-
-## 📊 Cron Jobs
-
-- **Daily tier updates** (00:00 UTC)
-- **Remove new_to_crypto** after 365 days active (01:00 UTC)
-- **Update leaderboards** (02:00 UTC)
-
-## 🛠️ Development Scripts
+### Verify Webhook
 
 ```bash
-# Setup (install + db push + generate + seed)
-pnpm setup
-
-# Development
-pnpm dev
-
-# Build
-pnpm build
-
-# Prisma
-pnpm prisma:push      # Push schema
-pnpm prisma:generate  # Generate client
-pnpm prisma:seed      # Seed database
-pnpm prisma:studio    # Open Prisma Studio
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 ```
 
-## 📝 GDPR
+## 📁 Project Structure
 
-Users can request data deletion via `/deleteuser` command (to be implemented).
+```
+akari-mystic-club/
+├── prisma/
+│   ├── schema.prisma      # Database schema
+│   ├── seed.ts            # Seed script
+│   ├── cleanup.ts         # Cleanup script (TypeScript)
+│   └── cleanup.sql        # Cleanup script (SQL)
+├── src/
+│   ├── bot/               # Minimal Telegram bot (optional)
+│   └── web/               # Next.js Mini App
+│       ├── pages/
+│       │   ├── api/       # API routes
+│       │   │   ├── auth/
+│       │   │   ├── profile/
+│       │   │   ├── predictions/
+│       │   │   ├── campaigns/
+│       │   │   ├── leaderboard/
+│       │   │   ├── surveys/
+│       │   │   └── webhook.ts
+│       │   ├── index.tsx           # Dashboard
+│       │   ├── predictions.tsx     # Predictions list
+│       │   ├── predictions/[id].tsx
+│       │   ├── campaigns.tsx       # Campaigns list
+│       │   ├── campaigns/[id].tsx
+│       │   ├── leaderboard.tsx
+│       │   └── profile.tsx
+│       ├── lib/
+│       │   ├── prisma.ts           # Prisma client
+│       │   ├── telegram-bot.ts     # Minimal bot
+│       │   ├── telegram-auth.ts    # Auth utilities
+│       │   └── tiers.ts            # Tier management
+│       └── styles/
+└── package.json
+```
+
+## 🔧 API Routes
+
+### Authentication
+- `POST /api/auth/telegram` - Authenticate with Telegram init data
+
+### Profile
+- `GET /api/profile` - Get user profile
+- `PATCH /api/profile` - Update profile
+
+### Predictions
+- `GET /api/predictions` - List predictions
+- `GET /api/predictions/[id]` - Get prediction details
+- `POST /api/predictions` - Create prediction
+- `POST /api/predictions/[id]/bet` - Place bet
+- `POST /api/predictions/[id]/resolve` - Resolve prediction (admin)
+
+### Campaigns
+- `GET /api/campaigns` - List campaigns
+- `POST /api/campaigns/[id]/complete-task` - Complete task
+
+### Leaderboard
+- `GET /api/leaderboard` - Get leaderboard (points, tier, or campaign)
+
+### Surveys
+- `GET /api/surveys` - List surveys
+- `GET /api/surveys/[id]` - Get survey
+- `POST /api/surveys/[id]` - Submit survey
+
+### Webhook
+- `POST /api/webhook` - Telegram webhook handler
+
+## 🎨 Styling
+
+The app uses Tailwind CSS with a dark purple/black gradient theme. Key colors:
+
+- Primary: Purple (`#6B46C1`, `#9333EA`)
+- Background: Dark gradient (`from-purple-900 via-black to-purple-900`)
+- Cards: Semi-transparent purple with backdrop blur
 
 ## 🔒 Security
 
-- Helmet.js for security headers
-- CORS enabled
-- Environment variables for secrets
-- Admin-only commands protected
+- Telegram init data is verified using HMAC-SHA256
+- Webhook secret token validation (optional)
+- Admin-only endpoints check `ADMIN_TELEGRAM_ID`
+- Input validation using Zod schemas
 
-## 📄 License
+## 🐛 Troubleshooting
 
-MIT
+### Bot not responding
+
+1. Check webhook is set correctly
+2. Verify `TELEGRAM_BOT_TOKEN` in Vercel
+3. Check Vercel function logs for errors
+
+### Database connection errors
+
+1. Verify `DATABASE_URL` is correct
+2. Check Supabase connection settings
+3. Ensure Prisma Client is generated: `pnpm prisma:generate`
+
+### Build errors
+
+1. Ensure all dependencies are installed: `pnpm install`
+2. Check Prisma schema is valid: `pnpm prisma:validate`
+3. Verify TypeScript compilation: `pnpm build`
+
+## 📝 License
+
+Private - All rights reserved
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📞 Support
-
-For issues and questions, please open a GitHub issue.
+This is a private project. For questions or issues, contact the maintainers.
 
 ---
 
-**Built with ❤️ for AKARI Mystic Club**
-
+**Built with 🔮 for AKARI Mystic Club**

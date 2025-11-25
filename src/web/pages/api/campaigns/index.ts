@@ -1,0 +1,94 @@
+/**
+ * Campaigns API
+ * 
+ * GET: List active campaigns
+ */
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { prisma } from '../../../lib/prisma';
+import { getTelegramUserFromRequest } from '../../../lib/telegram-auth';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    const telegramUser = getTelegramUserFromRequest(req);
+    const telegramId = telegramUser ? BigInt(telegramUser.id) : null;
+
+    const where: any = {
+      isActive: true,
+      endsAt: { gte: new Date() },
+      startsAt: { lte: new Date() }
+    };
+
+    const [campaigns, total] = await Promise.all([
+      prisma.campaign.findMany({
+        where,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              username: true,
+              tier: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.campaign.count({ where })
+    ]);
+
+    // Get user's completed tasks if authenticated
+    let userCompletedTasks: string[] = [];
+    if (telegramId) {
+      const user = await prisma.user.findUnique({
+        where: { telegramId },
+        select: { completedTasks: true }
+      });
+      userCompletedTasks = (user?.completedTasks as string[]) || [];
+    }
+
+    return res.status(200).json({
+      campaigns: campaigns.map(campaign => ({
+        id: campaign.id,
+        name: campaign.name,
+        description: campaign.description,
+        rewards: campaign.rewards,
+        tasks: campaign.tasks,
+        startsAt: campaign.startsAt,
+        endsAt: campaign.endsAt,
+        starsFee: campaign.starsFee,
+        projectTgHandle: campaign.projectTgHandle,
+        createdAt: campaign.createdAt,
+        creator: campaign.createdBy,
+        // Mark which tasks user has completed
+        tasksWithStatus: (campaign.tasks as any[]).map((task: any, index: number) => ({
+          ...task,
+          taskId: `${campaign.id}_${index}`,
+          completed: userCompletedTasks.includes(`${campaign.id}_${index}`)
+        }))
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error: any) {
+    console.error('Campaigns API error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
+    });
+  }
+}
+
