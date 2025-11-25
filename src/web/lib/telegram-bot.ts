@@ -75,7 +75,8 @@ bot.command('help', async (ctx) => {
 // Handle any other text - suggest opening Mini App
 bot.on('message:text', async (ctx) => {
   // Only respond if it's not a command
-  if (!ctx.message.text.startsWith('/')) {
+  const text = ctx.message.text;
+  if (text && !text.startsWith('/')) {
     const webAppUrl = getWebAppUrl();
     
     const keyboard = new InlineKeyboard()
@@ -94,9 +95,10 @@ bot.on('message:text', async (ctx) => {
   }
 });
 
-// Error handler
+// Error handler - catch all errors gracefully
 bot.catch((err) => {
   console.error('Bot error:', err);
+  // Don't throw - let the webhook handler manage the response
 });
 
 // Export bot instance (no polling, no cron - serverless only)

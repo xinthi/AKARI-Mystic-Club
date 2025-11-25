@@ -44,8 +44,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Handle update using Grammy's webhookCallback
     await handleUpdate(req, res);
+    
+    // Ensure response is sent if handler didn't send one
+    if (!res.headersSent) {
+      return res.status(200).json({ ok: true });
+    }
   } catch (error: any) {
     console.error('Telegram webhook error:', error);
+    console.error('Error stack:', error.stack);
+    
     if (!res.headersSent) {
       return res.status(500).json({ 
         ok: false, 
