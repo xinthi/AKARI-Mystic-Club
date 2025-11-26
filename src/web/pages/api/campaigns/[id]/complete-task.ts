@@ -48,29 +48,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ ok: false, reason: 'Task not found' });
     }
 
-    // Upsert progress
-    await prisma.campaignUserProgress.upsert({
+    // Check if task was already completed - prevent double points
+    const existingProgress = await prisma.campaignUserProgress.findFirst({
       where: {
-        userId_taskId: {
-          userId: user.id,
-          taskId,
-        },
-      },
-      update: {
-        completed: true,
-        completedAt: new Date(),
-      },
-      create: {
         userId: user.id,
-        campaignId,
         taskId,
-        completed: true,
-        completedAt: new Date(),
       },
     });
 
-    // Award some points (e.g., 10 points per task)
+    if (existingProgress?.completed) {
+      // Task already completed - don't award points again
+      return res.status(200).json({
+        ok: true,
+        alreadyCompleted: true,
+        message: 'Task was already completed',
+      });
+    }
+
+    // Award points only when task goes from not-completed to completed
     const pointsToAward = 10;
+
+    if (existingProgress) {
+      // Progress exists but not completed - update it
+      await prisma.campaignUserProgress.update({
+        where: { id: existingProgress.id },
+        data: {
+          completed: true,
+          completedAt: new Date(),
+        },
+      });
+    } else {
+      // No progress exists - create it
+      await prisma.campaignUserProgress.create({
+        data: {
+          userId: user.id,
+          campaignId,
+          taskId,
+          completed: true,
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    // Award points exactly once
     await prisma.user.update({
       where: { id: user.id },
       data: {

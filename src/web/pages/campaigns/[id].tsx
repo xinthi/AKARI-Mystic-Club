@@ -80,8 +80,9 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const completeTask = async (taskIndex: number) => {
-    setCompletingTask(`${id}_${taskIndex}`);
+  const completeTask = async (task: Task) => {
+    const taskIdentifier = task.taskId || (task as any).id;
+    setCompletingTask(taskIdentifier);
 
     try {
       let initData = '';
@@ -99,7 +100,7 @@ export default function CampaignDetailPage() {
           'Content-Type': 'application/json',
           'X-Telegram-Init-Data': initData,
         },
-        body: JSON.stringify({ taskIndex }),
+        body: JSON.stringify({ taskId: taskIdentifier }),
       });
 
       if (!response.ok) {
@@ -206,11 +207,11 @@ export default function CampaignDetailPage() {
 
                 {!task.completed && (
                   <button
-                    onClick={() => completeTask(index)}
-                    disabled={completingTask === task.taskId}
+                    onClick={() => completeTask(task)}
+                    disabled={completingTask === (task.taskId || (task as any).id)}
                     className="mt-3 w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg py-2 text-sm font-semibold transition-colors"
                   >
-                    {completingTask === task.taskId ? 'Completing...' : 'Complete Task'}
+                    {completingTask === (task.taskId || (task as any).id) ? 'Completing...' : 'Complete Task'}
                   </button>
                 )}
               </div>

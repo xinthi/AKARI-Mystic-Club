@@ -198,27 +198,31 @@ export async function getUserFromRequest(
     }
   }
 
-  // 2) Fall back to ADMIN_TELEGRAM_ID (for MVP)
-  const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
-  if (!adminTelegramId) {
-    return null;
+  // 2) Fall back to ADMIN_TELEGRAM_ID (ONLY in development for local testing)
+  // In production, we MUST have valid initData - no fallback allowed
+  if (process.env.NODE_ENV !== 'production') {
+    const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
+    if (adminTelegramId) {
+      // Look for existing user with that telegramId
+      let user = await prisma.user.findFirst({
+        where: { telegramId: adminTelegramId.toString() },
+      });
+
+      // If not found, create a basic user row for admin
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            telegramId: adminTelegramId.toString(),
+            username: 'MuazXinthi',
+            firstName: 'Muaz',
+          },
+        });
+      }
+
+      return user;
+    }
   }
 
-  // Look for existing user with that telegramId
-  let user = await prisma.user.findFirst({
-    where: { telegramId: adminTelegramId.toString() },
-  });
-
-  // If not found, create a basic user row for admin
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        telegramId: adminTelegramId.toString(),
-        username: 'MuazXinthi',
-        firstName: 'Muaz',
-      },
-    });
-  }
-
-  return user;
+  // No valid auth - return null
+  return null;
 }

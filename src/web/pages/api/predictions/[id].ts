@@ -26,6 +26,15 @@ export default async function handler(
         return res.status(404).json({ ok: false, prediction: null, reason: 'Prediction not found' });
       }
 
+      // Build optionStats array (stub with zeros for now, can compute real stats later)
+      const optionStats = (prediction.options as string[]).map((option: string, index: number) => ({
+        option,
+        index,
+        betCount: 0,
+        totalStars: 0,
+        totalPoints: 0,
+      }));
+
       return res.status(200).json({
         ok: true,
         prediction: {
@@ -42,6 +51,7 @@ export default async function handler(
           participantCount: prediction._count.bets,
           createdAt: prediction.createdAt.toISOString(),
           updatedAt: prediction.updatedAt.toISOString(),
+          optionStats,
         },
       });
     }
