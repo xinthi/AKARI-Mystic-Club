@@ -1,6 +1,6 @@
 /**
  * Predictions Page
- * 
+ *
  * Lists all active predictions with ability to view details and place bets
  */
 
@@ -30,6 +30,30 @@ export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Telegram BackButton - wire it to go back to home
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.BackButton) return;
+
+    // Show the back button and wire it to go home
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      router.push('/');
+    });
+
+    // Cleanup on unmount
+    return () => {
+      try {
+        tg.BackButton.hide();
+        tg.BackButton.onClick(() => {});
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [router]);
 
   useEffect(() => {
     const WebApp = getWebApp();
@@ -185,4 +209,3 @@ export default function PredictionsPage() {
     </div>
   );
 }
-

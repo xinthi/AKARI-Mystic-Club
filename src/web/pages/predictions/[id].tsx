@@ -155,7 +155,23 @@ export default function PredictionDetailPage() {
   }, [router]);
 
   // Robust bet handler
-  const handleBet = async (optionIndex: number) => {
+  const handleBet = async (optionIndex?: number) => {
+    // Guard: ensure an option is selected
+    const indexToUse = optionIndex !== undefined ? optionIndex : selectedOption;
+    
+    if (indexToUse === null || indexToUse === undefined) {
+      const msg = 'Please choose Yes or No before betting.';
+      setBetError(msg);
+      
+      // Show alert (works in both browser and Telegram)
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.showAlert(msg);
+      } else {
+        alert(msg);
+      }
+      return;
+    }
+
     if (!prediction) {
       setBetError('Market is not loaded yet');
       return;
@@ -180,7 +196,7 @@ export default function PredictionDetailPage() {
           'Content-Type': 'application/json',
           'X-Telegram-Init-Data': initData,
         },
-        body: JSON.stringify({ optionIndex, betAmount: betAmount ? parseInt(betAmount) : undefined }),
+        body: JSON.stringify({ optionIndex: indexToUse, betAmount: betAmount ? parseInt(betAmount) : undefined }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -409,11 +425,11 @@ export default function PredictionDetailPage() {
 
             <button
               type="button"
-              onClick={() => selectedOption !== null && handleBet(selectedOption)}
+              onClick={() => handleBet()}
               disabled={placingBet || selectedOption === null}
               className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg py-3 font-semibold transition-colors"
             >
-              {placingBet ? 'Placing Bet…' : selectedOption === null ? 'Select an option above' : 'Place Bet'}
+              {placingBet ? 'Placing Bet…' : selectedOption === null ? 'Select an option above' : 'Confirm Bet'}
             </button>
 
             {/* Bet Error in form section */}
