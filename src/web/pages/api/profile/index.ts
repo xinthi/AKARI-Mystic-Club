@@ -2,89 +2,29 @@
  * User Profile API
  *
  * GET: Fetch user profile (including X account connection status)
- * PATCH: Update profile (wallets, language)
+ * PATCH: Update profile
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import crypto from 'crypto';
 import { prisma } from '../../../lib/prisma';
-
-/**
- * Parse and verify Telegram initData, return telegramId
- */
-function verifyAndParseInitData(initData: string, botToken: string): string | null {
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-    if (!hash) return null;
-
-    params.delete('hash');
-    const dataCheckArr: string[] = [];
-    Array.from(params.keys())
-      .sort()
-      .forEach((key) => {
-        const value = params.get(key);
-        if (value !== null) {
-          dataCheckArr.push(`${key}=${value}`);
-        }
-      });
-
-    const dataCheckString = dataCheckArr.join('\n');
-    const secret = crypto.createHash('sha256').update(botToken).digest();
-    const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-
-    if (hmac !== hash) return null;
-
-    const userJson = params.get('user');
-    if (!userJson) return null;
-
-    const parsed = JSON.parse(userJson);
-    return String(parsed.id);
-  } catch {
-    return null;
-  }
-}
+import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+  try {
+    const user = await getUserFromRequest(req, prisma);
 
-  // Try to read initData
-  const initDataHeader =
-    (req.headers['x-telegram-init-data'] as string | undefined) ||
-    (typeof req.body === 'string' ? req.body : (req.body?.initData as string | undefined));
-
-  let telegramId: string | null = null;
-  if (initDataHeader) {
-    telegramId = verifyAndParseInitData(initDataHeader, botToken);
-  }
-
-  // For profile routes, we need a user, but return a friendly message instead of 401
-  if (!telegramId) {
-    if (req.method === 'GET') {
+    if (!user) {
       return res.status(200).json({
+        ok: false,
         user: null,
         message: 'Please open this app from Telegram to view your profile',
       });
     }
-    if (req.method === 'PATCH') {
-      return res.status(200).json({
-        error: 'Authentication required',
-        message: 'Please open this app from Telegram to update your profile',
-      });
-    }
-  }
 
-  try {
     if (req.method === 'GET') {
-      if (!telegramId) {
-        return res.status(200).json({
-          user: null,
-          message: 'Please open this app from Telegram to view your profile',
-        });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { telegramId },
+      // Fetch full user data with relations
+      const fullUser = await prisma.user.findUnique({
+        where: { id: user.id },
         include: {
           twitterAccounts: {
             select: {
@@ -108,29 +48,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       });
 
-      if (!user) {
+      if (!fullUser) {
         return res.status(200).json({
+          ok: false,
           user: null,
-          message: 'User not found. Please authenticate first.',
+          message: 'User not found.',
         });
       }
 
       return res.status(200).json({
+        ok: true,
         user: {
-          id: user.id,
-          telegramId: user.telegramId,
-          username: user.username,
-          points: user.points,
-          tier: user.tier,
-          credibilityScore: (user.credibilityScore ?? 0).toFixed(1),
-          positiveReviews: user.positiveReviews,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          id: fullUser.id,
+          telegramId: fullUser.telegramId,
+          username: fullUser.username,
+          firstName: fullUser.firstName,
+          points: fullUser.points,
+          tier: fullUser.tier,
+          credibilityScore: (fullUser.credibilityScore ?? 0).toFixed(1),
+          positiveReviews: fullUser.positiveReviews,
+          createdAt: fullUser.createdAt,
+          updatedAt: fullUser.updatedAt,
           // X account connection
-          xConnected: user.twitterAccounts.length > 0,
-          xHandle: user.twitterAccounts[0]?.handle ?? null,
+          xConnected: fullUser.twitterAccounts.length > 0,
+          xHandle: fullUser.twitterAccounts[0]?.handle ?? null,
           // Recent bets
-          recentBets: user.bets.map((bet) => ({
+          recentBets: fullUser.bets.map((bet) => ({
             id: bet.id,
             predictionTitle: bet.prediction.title,
             option: bet.option,
@@ -143,13 +86,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'PATCH') {
-      if (!telegramId) {
-        return res.status(200).json({
-          error: 'Authentication required',
-          message: 'Please open this app from Telegram to update your profile',
-        });
-      }
-
       const { tier } = req.body || {};
 
       const updateData: { tier?: string } = {};
@@ -157,25 +93,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         updateData.tier = tier;
       }
 
-      const user = await prisma.user.update({
-        where: { telegramId },
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
         data: updateData,
       });
 
       return res.status(200).json({
+        ok: true,
         user: {
-          id: user.id,
-          tier: user.tier,
+          id: updatedUser.id,
+          tier: updatedUser.tier,
         },
       });
     }
 
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ ok: false, user: null, message: 'Method not allowed' });
   } catch (error: any) {
     console.error('Profile API error:', error);
     return res.status(500).json({
-      error: 'Internal server error',
-      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
+      ok: false,
+      user: null,
+      message: 'Server error',
     });
   }
 }

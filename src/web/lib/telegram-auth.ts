@@ -5,6 +5,8 @@
  */
 
 import crypto from 'crypto';
+import type { NextApiRequest } from 'next';
+import type { PrismaClient } from '@prisma/client';
 
 export interface TelegramUser {
   id: number;
@@ -97,9 +99,10 @@ export function parseTelegramInitData(initData: string): TelegramAuthData | null
 }
 
 /**
- * Get user from request (from init data or headers)
+ * Get Telegram user from request (from init data or headers)
+ * Returns the raw Telegram user object, not the DB user
  */
-export function getTelegramUserFromRequest(req: any): TelegramUser | null {
+export function getTelegramUserFromRequest(req: NextApiRequest): TelegramUser | null {
   // Try to get from query params (Telegram WebApp sends initData)
   const initData = req.query?.initData || req.headers?.['x-telegram-init-data'];
 
@@ -120,4 +123,102 @@ export function getTelegramUserFromRequest(req: any): TelegramUser | null {
 
   const authData = parseTelegramInitData(initData);
   return authData?.user || null;
+}
+
+/**
+ * Parse initData and return telegramId string (without full verification for internal use)
+ */
+function parseInitDataTelegramId(initData: string, botToken: string): string | null {
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return null;
+
+    params.delete('hash');
+    const dataCheckArr: string[] = [];
+    Array.from(params.keys())
+      .sort()
+      .forEach((key) => {
+        const value = params.get(key);
+        if (value !== null) {
+          dataCheckArr.push(`${key}=${value}`);
+        }
+      });
+
+    const dataCheckString = dataCheckArr.join('\n');
+    const secret = crypto.createHash('sha256').update(botToken).digest();
+    const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+
+    if (hmac !== hash) return null;
+
+    const userJson = params.get('user');
+    if (!userJson) return null;
+
+    const parsed = JSON.parse(userJson);
+    return String(parsed.id);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the current user from the request.
+ * 
+ * 1) First tries to authenticate via Telegram initData header
+ * 2) Falls back to ADMIN_TELEGRAM_ID for MVP (so admin can always use the app)
+ * 
+ * @param req - Next.js API request
+ * @param prisma - Prisma client instance
+ * @returns User from database or null if not found/authenticated
+ */
+export async function getUserFromRequest(
+  req: NextApiRequest,
+  prisma: PrismaClient
+) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+
+  // 1) Try to get telegramId from initData header
+  const initDataHeader =
+    (req.headers['x-telegram-init-data'] as string | undefined) ||
+    (typeof req.body === 'string' ? req.body : (req.body?.initData as string | undefined));
+
+  let telegramId: string | null = null;
+
+  if (initDataHeader && botToken) {
+    telegramId = parseInitDataTelegramId(initDataHeader, botToken);
+  }
+
+  // If we got a telegramId from initData, look up the user
+  if (telegramId) {
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+    });
+    if (user) {
+      return user;
+    }
+  }
+
+  // 2) Fall back to ADMIN_TELEGRAM_ID (for MVP)
+  const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
+  if (!adminTelegramId) {
+    return null;
+  }
+
+  // Look for existing user with that telegramId
+  let user = await prisma.user.findFirst({
+    where: { telegramId: adminTelegramId.toString() },
+  });
+
+  // If not found, create a basic user row for admin
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        telegramId: adminTelegramId.toString(),
+        username: 'MuazXinthi',
+        firstName: 'Muaz',
+      },
+    });
+  }
+
+  return user;
 }

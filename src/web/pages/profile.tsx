@@ -10,6 +10,7 @@ import { getWebApp } from '../lib/telegram-webapp';
 interface User {
   id: string;
   username?: string;
+  firstName?: string;
   points: number;
   tier?: string;
   credibilityScore: string;
@@ -24,6 +25,10 @@ interface User {
     pointsBet: number;
   }>;
 }
+
+type ProfileResponse =
+  | { ok: true; user: User }
+  | { ok: false; user: null; message: string };
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -61,20 +66,22 @@ export default function ProfilePage() {
         },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to load profile');
+      const data: ProfileResponse = await response.json();
+
+      if (data.ok && data.user) {
+        setUser(data.user);
+        setError(null);
+      } else {
+        // ok: false case
+        setUser(null);
+        setError(data.message || 'Failed to load profile');
       }
 
-      const data = await response.json();
-      if (data.user) {
-        setUser(data.user);
-      }
       setLoading(false);
-      setError(null);
     } catch (err: any) {
       console.error('Error loading profile:', err);
       setError(err.message || 'Failed to load data');
+      setUser(null);
       setLoading(false);
     }
   };
@@ -141,9 +148,8 @@ export default function ProfilePage() {
     );
   }
 
-  const showError = error && !user;
-
-  if (showError) {
+  // Show error state when no user
+  if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
         <header className="p-6 pb-4">
@@ -168,19 +174,11 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading profile...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
       <header className="p-6 pb-4">
         <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
-        <p className="text-purple-300">@{user.username || 'mystic'}</p>
+        <p className="text-purple-300">@{user.username || user.firstName || 'mystic'}</p>
       </header>
 
       {error && (

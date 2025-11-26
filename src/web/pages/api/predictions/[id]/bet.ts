@@ -2,12 +2,12 @@
  * Place Bet API
  *
  * POST: Place a bet on a prediction
- * Authenticate via Telegram initData header
+ * Authenticate via Telegram initData header or admin fallback
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import crypto from 'crypto';
 import { prisma } from '../../../../lib/prisma';
+import { getUserFromRequest } from '../../../../lib/telegram-auth';
 
 interface BetResponse {
   ok: boolean;
@@ -23,58 +23,15 @@ interface BetResponse {
   reason?: string;
 }
 
-/**
- * Verify Telegram initData and return parsed user
- */
-function verifyAndParseInitData(initData: string, botToken: string): { id: string } | null {
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-    if (!hash) return null;
-
-    params.delete('hash');
-    const dataCheckArr: string[] = [];
-    Array.from(params.keys())
-      .sort()
-      .forEach((key) => {
-        const value = params.get(key);
-        if (value !== null) {
-          dataCheckArr.push(`${key}=${value}`);
-        }
-      });
-
-    const dataCheckString = dataCheckArr.join('\n');
-    const secret = crypto.createHash('sha256').update(botToken).digest();
-    const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-
-    if (hmac !== hash) return null;
-
-    const userJson = params.get('user');
-    if (!userJson) return null;
-
-    const parsed = JSON.parse(userJson);
-    return { id: String(parsed.id) };
-  } catch {
-    return null;
-  }
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse<BetResponse>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, reason: 'Method not allowed' });
   }
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) {
-    return res.status(500).json({ ok: false, reason: 'Server misconfigured' });
-  }
-
-  // Authenticate via initData header
-  const initData = (req.headers['x-telegram-init-data'] as string) || '';
-  const telegramUser = verifyAndParseInitData(initData, botToken);
-
-  if (!telegramUser) {
-    return res.status(401).json({ ok: false, reason: 'Unauthorized' });
+  // Get authenticated user
+  const user = await getUserFromRequest(req, prisma);
+  if (!user) {
+    return res.status(401).json({ ok: false, reason: 'Not authenticated' });
   }
 
   const { id } = req.query;
@@ -89,15 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   try {
-    // Find user by telegramId
-    const user = await prisma.user.findUnique({
-      where: { telegramId: telegramUser.id },
-    });
-
-    if (!user) {
-      return res.status(404).json({ ok: false, reason: 'User not found' });
-    }
-
     // Get prediction
     const prediction = await prisma.prediction.findUnique({
       where: { id },
