@@ -14,7 +14,12 @@ import type { NextApiRequest } from 'next';
 import type { PrismaClient } from '@prisma/client';
 
 // Log env var status on module load (once per cold start)
-console.log('[TelegramAuth] Module loaded. TELEGRAM_BOT_TOKEN length:', process.env.TELEGRAM_BOT_TOKEN?.length ?? 0);
+const _botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+const _maskedToken = _botToken.length >= 14
+  ? `${_botToken.slice(0, 8)}...${_botToken.slice(-6)}`
+  : '(too short or missing)';
+console.log('[TelegramAuth] Module loaded. TELEGRAM_BOT_TOKEN length:', _botToken.length);
+console.log('[TelegramAuth] Using TELEGRAM_BOT_TOKEN:', _maskedToken);
 
 export interface TelegramUser {
   id: number;
