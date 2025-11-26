@@ -34,6 +34,28 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
 
+  // Telegram BackButton - navigate to campaigns list
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.BackButton) return;
+
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      router.push('/campaigns');
+    });
+
+    return () => {
+      try {
+        tg.BackButton.hide();
+        tg.BackButton.onClick(() => {});
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [router]);
+
   useEffect(() => {
     const WebApp = getWebApp();
     if (WebApp) {

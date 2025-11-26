@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 
 interface User {
@@ -31,10 +32,33 @@ type ProfileResponse =
   | { ok: false; user: null; message: string };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingX, setConnectingX] = useState(false);
+
+  // Telegram BackButton - navigate to home
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.BackButton) return;
+
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      router.push('/');
+    });
+
+    return () => {
+      try {
+        tg.BackButton.hide();
+        tg.BackButton.onClick(() => {});
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [router]);
 
   useEffect(() => {
     const WebApp = getWebApp();
@@ -90,21 +114,21 @@ export default function ProfilePage() {
     setConnectingX(true);
 
     try {
-      let initData = '';
-      if (typeof window !== 'undefined') {
-        const WebApp = getWebApp();
-        if (WebApp) {
-          // @ts-ignore - SDK types may vary
-          initData = (WebApp as any).initData || '';
-        }
+      // Get initData from Telegram WebApp
+      const tg = (window as any).Telegram?.WebApp;
+      const initData = tg?.initData || '';
+
+      if (!initData) {
+        console.error('No Telegram initData available for X auth');
+        alert('Please open this app from Telegram to connect your X account.');
+        setConnectingX(false);
+        return;
       }
 
-      // Open X OAuth in a new window/tab
-      // The start endpoint will redirect to X
-      const url = `/api/auth/x/start`;
+      // Pass initData via query parameter since window.open doesn't send headers
+      const url = `/api/auth/x/start?initData=${encodeURIComponent(initData)}`;
 
-      // For Telegram Mini App, we need to use window.open or location.href
-      // Using window.open for better UX
+      // Open X OAuth in a new window/tab
       const authWindow = window.open(url, '_blank');
 
       // Check if window opened successfully

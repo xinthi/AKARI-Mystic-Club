@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
+import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 type Data =
   | { ok: true; prediction: any }
@@ -35,6 +36,32 @@ export default async function handler(
         totalPoints: 0,
       }));
 
+      // Get user's existing bet if authenticated
+      let userBet: any = null;
+      const user = await getUserFromRequest(req, prisma);
+      if (user) {
+        const existingBet = await prisma.bet.findFirst({
+          where: {
+            predictionId: prediction.id,
+            userId: user.id,
+          },
+        });
+
+        if (existingBet) {
+          // Find the option index from the option string
+          const optionIndex = Array.isArray(prediction.options)
+            ? (prediction.options as string[]).indexOf(existingBet.option)
+            : -1;
+
+          userBet = {
+            optionIndex: optionIndex >= 0 ? optionIndex : 0,
+            option: existingBet.option,
+            starsBet: existingBet.starsBet,
+            pointsBet: existingBet.pointsBet,
+          };
+        }
+      }
+
       return res.status(200).json({
         ok: true,
         prediction: {
@@ -52,6 +79,7 @@ export default async function handler(
           createdAt: prediction.createdAt.toISOString(),
           updatedAt: prediction.updatedAt.toISOString(),
           optionStats,
+          userBet,
         },
       });
     }

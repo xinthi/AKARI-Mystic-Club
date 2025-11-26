@@ -51,8 +51,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ ok: false, reason: 'Server misconfigured' });
   }
 
-  // Authenticate via initData header
-  const initData = (req.headers['x-telegram-init-data'] as string) || '';
+  // Authenticate via initData - support both header and query parameter
+  // Query param is needed because window.open() doesn't send custom headers
+  const headerInitData =
+    (req.headers['x-telegram-init-data'] as string) ||
+    (req.headers['X-Telegram-Init-Data'] as string) ||
+    '';
+  const queryInitData = (req.query.initData as string) || '';
+  const initData = headerInitData || queryInitData;
+
   const telegramId = verifyAndParseInitData(initData, botToken);
 
   if (!telegramId) {

@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 
 interface LeaderboardEntry {
@@ -19,10 +20,33 @@ interface LeaderboardEntry {
 }
 
 export default function LeaderboardPage() {
+  const router = useRouter();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<'points' | 'tier'>('points');
+
+  // Telegram BackButton - navigate to home
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg?.BackButton) return;
+
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      router.push('/');
+    });
+
+    return () => {
+      try {
+        tg.BackButton.hide();
+        tg.BackButton.onClick(() => {});
+      } catch (_) {
+        // ignore
+      }
+    };
+  }, [router]);
 
   useEffect(() => {
     const WebApp = getWebApp();

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
+import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 type Data =
   | { ok: true; predictions: any[] }
@@ -90,7 +91,33 @@ export default async function handler(
     }
 
     if (req.method === 'POST') {
+      // Require authentication
+      const user = await getUserFromRequest(req, prisma);
+      if (!user) {
+        return res.status(401).json({ ok: false, predictions: [], reason: 'Unauthorized' });
+      }
+
+      // Admin-only check (if ADMIN_TELEGRAM_ID is set)
+      const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
+      if (adminTelegramId && user.telegramId !== adminTelegramId) {
+        return res.status(403).json({ ok: false, predictions: [], reason: 'Forbidden - Admin only' });
+      }
+
       const { title, description, options, entryFeeStars, entryFeePoints, endsAt } = req.body;
+
+      // Validate required fields
+      if (!title || typeof title !== 'string') {
+        return res.status(400).json({ ok: false, predictions: [], reason: 'Title is required' });
+      }
+
+      // Validate endsAt
+      const endsAtDate = new Date(endsAt);
+      if (!endsAt || isNaN(endsAtDate.getTime())) {
+        return res.status(400).json({ ok: false, predictions: [], reason: 'Invalid endsAt date' });
+      }
+      if (endsAtDate.getTime() <= Date.now()) {
+        return res.status(400).json({ ok: false, predictions: [], reason: 'endsAt must be in the future' });
+      }
 
       const created = await prisma.prediction.create({
         data: {
@@ -99,7 +126,7 @@ export default async function handler(
           options: options || ['Yes', 'No'],
           entryFeeStars: Number(entryFeeStars || 0),
           entryFeePoints: Number(entryFeePoints || 0),
-          endsAt: new Date(endsAt),
+          endsAt: endsAtDate,
         },
       });
 
