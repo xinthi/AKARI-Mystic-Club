@@ -42,108 +42,99 @@ export interface TelegramAuthData {
 /**
  * Verify Telegram WebApp initData signature
  * 
- * IMPORTANT: This follows the official Telegram docs exactly:
- * 1. Parse initData by splitting on '&' (NOT using URLSearchParams which decodes values)
- * 2. Extract the 'hash' field
- * 3. Sort remaining key=value pairs alphabetically by key
- * 4. Join with newline '\n'
- * 5. Compute secret = SHA256(botToken)
- * 6. Compute HMAC-SHA256(secret, checkString)
- * 7. Compare with hash (case-insensitive hex)
+ * CRITICAL: This follows the official Telegram docs EXACTLY:
+ * https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
  * 
- * @param initData - Raw init data string from Telegram WebApp (do NOT decode)
+ * 1. Split raw initData into key=value pairs WITHOUT any decoding
+ * 2. Extract the 'hash' field
+ * 3. Build checkString from sorted key=value pairs joined by '\n'
+ * 4. Compute secret = SHA256(botToken)
+ * 5. Compute HMAC-SHA256(secret, checkString)
+ * 6. Compare with hash
+ * 
+ * @param initData - Raw init data string from Telegram WebApp (do NOT decode!)
  * @param botToken - Telegram bot token from BotFather
  * @returns true if signature is valid
  */
 export function verifyTelegramWebAppData(initData: string, botToken: string): boolean {
-  try {
-    if (!initData || !botToken) {
-      console.error('[TelegramAuth] verifyTelegramWebAppData: Missing initData or botToken');
-      return false;
-    }
+  if (!initData || !botToken) {
+    console.error('[TelegramAuth] verifyTelegramWebAppData: Missing initData or botToken');
+    return false;
+  }
 
-    // Step 1: Parse initData by splitting on '&' - DO NOT use URLSearchParams
-    // URLSearchParams decodes values which changes the signature
-    const pairs = initData.split('&');
-    
-    let hash = '';
-    const dataEntries: string[] = [];
-    
-    for (const pair of pairs) {
-      const eqIndex = pair.indexOf('=');
-      if (eqIndex === -1) continue;
-      
-      const key = pair.substring(0, eqIndex);
-      const value = pair.substring(eqIndex + 1);
-      
-      if (key === 'hash') {
-        hash = value;
-      } else {
-        // Keep the raw key=value pair (not decoded)
-        dataEntries.push(pair);
-      }
-    }
+  // Step 1: Split raw initData into key=value pairs WITHOUT decodeURIComponent
+  const entries = initData
+    .split('&')
+    .map((p) => {
+      const idx = p.indexOf('=');
+      if (idx === -1) return [p, ''] as [string, string];
+      return [p.slice(0, idx), p.slice(idx + 1)] as [string, string];
+    })
+    .filter(([key]) => key.length > 0) as [string, string][];
 
-    if (!hash) {
-      console.error('[TelegramAuth] verifyTelegramWebAppData: No hash field in initData');
-      return false;
-    }
+  const data: Record<string, string> = {};
+  let hash = '';
 
-    // Step 2: Sort alphabetically by key
-    dataEntries.sort((a, b) => {
-      const keyA = a.substring(0, a.indexOf('='));
-      const keyB = b.substring(0, b.indexOf('='));
-      return keyA.localeCompare(keyB);
+  for (const [key, value] of entries) {
+    if (key === 'hash') {
+      hash = value;
+    } else {
+      // IMPORTANT: keep value AS-IS (raw), no decoding
+      data[key] = value;
+    }
+  }
+
+  if (!hash) {
+    console.error('[TelegramAuth] verifyTelegramWebAppData: no hash field in initData');
+    return false;
+  }
+
+  // Step 2: Build checkString from sorted raw key=value pairs
+  const checkString = Object.keys(data)
+    .sort()
+    .map((key) => `${key}=${data[key]}`)
+    .join('\n');
+
+  // Step 3: Compute HMAC according to Telegram docs
+  const secretKey = crypto.createHash('sha256').update(botToken).digest();
+  const computedHash = crypto
+    .createHmac('sha256', secretKey)
+    .update(checkString)
+    .digest('hex');
+
+  // Step 4: Compare hashes (case-insensitive)
+  const ok = computedHash.toLowerCase() === hash.toLowerCase();
+
+  if (!ok) {
+    console.log('[TelegramAuth] verifyTelegramWebAppData: signature mismatch', {
+      initDataLength: initData.length,
+      hasHash: true,
+      checkStringLength: checkString.length,
+      computedHashPrefix: computedHash.slice(0, 8),
+      providedHashPrefix: hash.slice(0, 8),
+      entriesCount: Object.keys(data).length,
     });
-
-    // Step 3: Join with newline
-    const checkString = dataEntries.join('\n');
-
-    // Step 4: Compute secret key = SHA256(botToken)
-    const secretKey = crypto.createHash('sha256').update(botToken).digest();
-
-    // Step 5: Compute HMAC-SHA256(secret, checkString)
-    const computedHash = crypto
-      .createHmac('sha256', secretKey)
-      .update(checkString)
-      .digest('hex');
-
-    // Step 6: Compare (case-insensitive)
-    const hashLower = hash.toLowerCase();
-    const computedLower = computedHash.toLowerCase();
-
-    if (computedLower !== hashLower) {
-      // Debug logging - safe, no secrets
-      console.log('[TelegramAuth] verifyTelegramWebAppData: signature mismatch', {
-        initDataLength: initData.length,
-        hasHash: Boolean(hash),
-        checkStringLength: checkString.length,
-        computedHashPrefix: computedHash.slice(0, 8),
-        providedHashPrefix: hash.slice(0, 8),
-        entriesCount: dataEntries.length,
-      });
-      return false;
-    }
-
-    // Success - extract user ID for logging
+  } else {
+    // Extract user ID for success logging (decode only for logging, after verification)
     let userId = 'unknown';
     try {
-      const userEntry = dataEntries.find(e => e.startsWith('user='));
-      if (userEntry) {
-        const userJson = decodeURIComponent(userEntry.substring(5));
+      if (data['user']) {
+        const userJson = decodeURIComponent(data['user']);
         const parsed = JSON.parse(userJson);
         userId = String(parsed.id);
       }
     } catch {
-      // ignore parse errors for logging
+      // ignore
     }
-
-    console.log('[TelegramAuth] verifyTelegramWebAppData: OK for telegram_id', userId);
-    return true;
-  } catch (error) {
-    console.error('[TelegramAuth] verifyTelegramWebAppData: Exception', error);
-    return false;
+    console.log('[TelegramAuth] verifyTelegramWebAppData: OK', {
+      initDataLength: initData.length,
+      checkStringLength: checkString.length,
+      entriesCount: Object.keys(data).length,
+      userId,
+    });
   }
+
+  return ok;
 }
 
 /**
