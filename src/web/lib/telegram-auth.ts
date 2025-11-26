@@ -62,6 +62,9 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
     return false;
   }
 
+  // Debug: show first 100 chars of initData (safe - just the structure)
+  console.log('[TelegramAuth] verifyTelegramWebAppData: initData preview:', initData.slice(0, 100) + '...');
+
   // Step 1: Split raw initData into key=value pairs WITHOUT decodeURIComponent
   const entries = initData
     .split('&')
@@ -84,6 +87,9 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
     }
   }
 
+  // Debug: show the keys we found
+  console.log('[TelegramAuth] verifyTelegramWebAppData: keys found:', Object.keys(data).sort().join(', '));
+
   if (!hash) {
     console.error('[TelegramAuth] verifyTelegramWebAppData: no hash field in initData');
     return false;
@@ -94,6 +100,9 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
     .sort()
     .map((key) => `${key}=${data[key]}`)
     .join('\n');
+
+  // Debug: show first 100 chars of checkString
+  console.log('[TelegramAuth] verifyTelegramWebAppData: checkString preview:', checkString.slice(0, 100) + '...');
 
   // Step 3: Compute HMAC according to Telegram docs
   const secretKey = crypto.createHash('sha256').update(botToken).digest();

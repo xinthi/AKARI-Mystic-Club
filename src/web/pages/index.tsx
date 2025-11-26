@@ -57,6 +57,11 @@ export default function Dashboard() {
 
   const authenticateUser = async (initData: string) => {
     try {
+      // Debug: log initData before sending
+      console.log('[Dashboard] Sending initData to /api/auth/telegram:');
+      console.log('[Dashboard]   - length:', initData?.length ?? 0);
+      console.log('[Dashboard]   - preview:', initData ? initData.slice(0, 80) + '...' : '(empty)');
+
       const response = await fetch('/api/auth/telegram', {
         method: 'POST',
         headers: {

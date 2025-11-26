@@ -88,6 +88,10 @@ export default function ProfilePage() {
 
       if (!initData) {
         console.warn('[Profile] No initData available - user may not be in Telegram');
+      } else {
+        console.log('[Profile] Sending initData to /api/profile:');
+        console.log('[Profile]   - length:', initData.length);
+        console.log('[Profile]   - preview:', initData.slice(0, 80) + '...');
       }
 
       const response = await fetch('/api/profile', {
