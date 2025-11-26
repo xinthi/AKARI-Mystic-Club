@@ -11,6 +11,7 @@ import { getUserFromRequest } from '../../../../lib/telegram-auth';
 
 interface BetResponse {
   ok: boolean;
+  betId?: string;
   bet?: {
     id: string;
     option: string;
@@ -24,49 +25,89 @@ interface BetResponse {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<BetResponse>) {
+  // Reject non-POST methods
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, reason: 'Method not allowed' });
-  }
-
-  // Get authenticated user
-  const user = await getUserFromRequest(req, prisma);
-  if (!user) {
-    return res.status(401).json({ ok: false, reason: 'Not authenticated' });
-  }
-
-  const { id } = req.query;
-  if (!id || typeof id !== 'string') {
-    return res.status(400).json({ ok: false, reason: 'Prediction ID is required' });
-  }
-
-  const { option, betAmount } = req.body as { option?: string; betAmount?: number };
-
-  if (!option) {
-    return res.status(400).json({ ok: false, reason: 'Option is required' });
+    res.setHeader('Allow', 'POST');
+    res.status(405).json({ ok: false, reason: 'Method not allowed' });
+    return;
   }
 
   try {
-    // Get prediction
+    // Get authenticated user via Telegram initData
+    const user = await getUserFromRequest(req, prisma);
+    if (!user) {
+      res.status(401).json({ ok: false, reason: 'Not authenticated via Telegram' });
+      return;
+    }
+
+    // Validate prediction ID
+    const { id } = req.query;
+    if (!id || typeof id !== 'string') {
+      res.status(400).json({ ok: false, reason: 'Prediction ID is required' });
+      return;
+    }
+
+    // Parse and validate optionIndex from body
+    const body = req.body ?? {};
+    const { optionIndex, option: optionString, betAmount } = body;
+
+    // Support both optionIndex (number) and option (string)
+    let index: number = NaN;
+
+    if (optionIndex !== undefined) {
+      // Parse optionIndex - can be number or string
+      index =
+        typeof optionIndex === 'number'
+          ? optionIndex
+          : typeof optionIndex === 'string'
+          ? parseInt(optionIndex, 10)
+          : NaN;
+    }
+
+    // Load prediction
     const prediction = await prisma.prediction.findUnique({
       where: { id },
     });
 
     if (!prediction) {
-      return res.status(404).json({ ok: false, reason: 'Prediction not found' });
+      res.status(404).json({ ok: false, reason: 'Prediction not found' });
+      return;
+    }
+
+    // Ensure options is a valid array
+    const safeOptions = Array.isArray(prediction.options) ? prediction.options : [];
+
+    // Resolve the option - either by index or by string
+    let resolvedOption: string | null = null;
+
+    if (!Number.isNaN(index)) {
+      // Validate index is in range
+      if (index < 0 || index >= safeOptions.length) {
+        res.status(400).json({ ok: false, reason: 'Option index out of range' });
+        return;
+      }
+      resolvedOption = safeOptions[index] as string;
+    } else if (typeof optionString === 'string' && optionString.length > 0) {
+      // Validate option string exists in options
+      if (!safeOptions.includes(optionString)) {
+        res.status(400).json({ ok: false, reason: 'Invalid option' });
+        return;
+      }
+      resolvedOption = optionString;
+    } else {
+      res.status(400).json({ ok: false, reason: 'Invalid option index' });
+      return;
     }
 
     // Check if prediction is still active
     if (prediction.resolved) {
-      return res.status(400).json({ ok: false, reason: 'Prediction is already resolved' });
+      res.status(400).json({ ok: false, reason: 'Prediction is already resolved' });
+      return;
     }
 
     if (new Date(prediction.endsAt) < new Date()) {
-      return res.status(400).json({ ok: false, reason: 'Prediction has ended' });
-    }
-
-    // Check option is valid
-    if (!prediction.options.includes(option)) {
-      return res.status(400).json({ ok: false, reason: 'Invalid option' });
+      res.status(400).json({ ok: false, reason: 'Prediction has ended' });
+      return;
     }
 
     // Check if user already placed a bet
@@ -78,7 +119,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
 
     if (existingBet) {
-      return res.status(400).json({ ok: false, reason: 'You have already placed a bet on this prediction' });
+      res.status(400).json({ ok: false, reason: 'You have already placed a bet on this prediction' });
+      return;
     }
 
     // Determine bet type (stars or points)
@@ -86,23 +128,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     let pointsBet = 0;
 
     if (prediction.entryFeeStars > 0) {
-      starsBet = betAmount || prediction.entryFeeStars;
+      starsBet = typeof betAmount === 'number' ? betAmount : prediction.entryFeeStars;
     } else {
-      pointsBet = betAmount || prediction.entryFeePoints;
+      pointsBet = typeof betAmount === 'number' ? betAmount : prediction.entryFeePoints;
     }
 
     // Check minimum entry fee
     if (prediction.entryFeeStars > 0 && starsBet < prediction.entryFeeStars) {
-      return res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeStars} Stars` });
+      res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeStars} Stars` });
+      return;
     }
 
     if (prediction.entryFeePoints > 0 && pointsBet < prediction.entryFeePoints) {
-      return res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeePoints} points` });
+      res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeePoints} points` });
+      return;
     }
 
     // Check user has enough points
     if (pointsBet > 0 && user.points < pointsBet) {
-      return res.status(400).json({ ok: false, reason: 'Insufficient points' });
+      res.status(400).json({ ok: false, reason: 'Insufficient points' });
+      return;
     }
 
     // Create bet, update prediction pot, and deduct user points
@@ -113,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         data: {
           userId: user.id,
           predictionId: id,
-          option,
+          option: resolvedOption,
           starsBet,
           pointsBet,
         },
@@ -135,8 +180,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         : prisma.user.findUnique({ where: { id: user.id } }),
     ]);
 
-    return res.status(201).json({
+    res.status(200).json({
       ok: true,
+      betId: bet.id,
       bet: {
         id: bet.id,
         option: bet.option,
@@ -147,8 +193,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       newPot: updatedPrediction.pot,
       newPoints: updatedUser?.points ?? user.points,
     });
-  } catch (error: any) {
-    console.error('Place bet API error:', error);
-    return res.status(500).json({ ok: false, reason: 'Server error' });
+  } catch (err) {
+    console.error('Bet API error:', err);
+    res.status(500).json({ ok: false, reason: 'Failed to place bet' });
   }
 }

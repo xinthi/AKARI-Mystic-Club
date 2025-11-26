@@ -43,10 +43,20 @@ export default function PredictionDetailPage() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [betAmount, setBetAmount] = useState<string>('');
   const [placingBet, setPlacingBet] = useState(false);
+  const [betError, setBetError] = useState<string | null>(null);
 
   // Safe array accessors
   const safeOptions = Array.isArray(prediction?.options) ? prediction!.options : [];
   const safeOptionStats = Array.isArray(prediction?.optionStats) ? prediction!.optionStats : [];
+
+  // Navigation helper
+  const goBack = useCallback(() => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/predictions');
+    }
+  }, [router]);
 
   const loadPrediction = useCallback(async (predictionId: string) => {
     try {
@@ -93,6 +103,7 @@ export default function PredictionDetailPage() {
     }
   }, []);
 
+  // Initialize and load prediction
   useEffect(() => {
     const WebApp = getWebApp();
     if (WebApp) {
@@ -111,27 +122,49 @@ export default function PredictionDetailPage() {
     loadPrediction(router.query.id);
   }, [router.isReady, router.query.id, loadPrediction]);
 
-  const placeBet = async () => {
-    // Defensive checks
-    if (!prediction) {
-      setError('Market is not loaded yet');
-      return;
-    }
+  // Telegram BackButton integration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-    if (selectedOption === null) {
-      setError('Please select an option');
-      return;
-    }
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg) return;
 
-    if (!betAmount || parseInt(betAmount) <= 0) {
-      setError('Please enter a valid bet amount');
-      return;
-    }
-
-    setPlacingBet(true);
-    setError(null);
+    const handleBack = () => {
+      if (window.history.length > 1) {
+        router.back();
+      } else {
+        router.push('/predictions');
+      }
+    };
 
     try {
+      tg.BackButton.show();
+      tg.BackButton.onClick(handleBack);
+    } catch (e) {
+      console.error('Failed to setup Telegram BackButton:', e);
+    }
+
+    return () => {
+      try {
+        tg.BackButton.offClick(handleBack);
+        tg.BackButton.hide();
+      } catch {
+        // Ignore cleanup errors
+      }
+    };
+  }, [router]);
+
+  // Robust bet handler
+  const handleBet = async (optionIndex: number) => {
+    if (!prediction) {
+      setBetError('Market is not loaded yet');
+      return;
+    }
+
+    try {
+      setPlacingBet(true);
+      setBetError(null);
+
       let initData = '';
       if (typeof window !== 'undefined') {
         const WebApp = getWebApp();
@@ -141,44 +174,52 @@ export default function PredictionDetailPage() {
         }
       }
 
-      // Get the option string from safeOptions
-      const optionString = safeOptions[selectedOption];
-      if (!optionString) {
-        setError('Invalid option selected');
-        setPlacingBet(false);
-        return;
-      }
-
-      const betData: { option: string; betAmount?: number } = {
-        option: optionString,
-        betAmount: parseInt(betAmount),
-      };
-
-      const response = await fetch(`/api/predictions/${prediction.id}/bet`, {
+      const res = await fetch(`/api/predictions/${prediction.id}/bet`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Telegram-Init-Data': initData,
         },
-        body: JSON.stringify(betData),
+        body: JSON.stringify({ optionIndex, betAmount: betAmount ? parseInt(betAmount) : undefined }),
       });
 
-      const data = await response.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        console.error('Bet failed:', data);
-        setError(data.reason ?? data.error ?? 'Failed to place bet');
-        setPlacingBet(false);
+      if (!res.ok || !data.ok) {
+        const reason =
+          data?.reason ||
+          (res.status === 401
+            ? 'Please open this Mini App from Telegram to place a bet.'
+            : 'Failed to place bet');
+
+        console.error('Bet failed', data);
+        setBetError(reason);
+
+        // Show Telegram alert if available
+        if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+          (window as any).Telegram.WebApp.showAlert(reason);
+        }
+
         return;
       }
 
-      // Success - reload prediction to show updated data
+      // Success - show alert and reload prediction
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.showAlert('Bet placed successfully!');
+      }
+
+      // Reload prediction to show updated data
       if (typeof router.query.id === 'string') {
         await loadPrediction(router.query.id);
       }
-    } catch (err: any) {
-      console.error('Bet exception:', err);
-      setError('Failed to place bet');
+    } catch (err) {
+      console.error('Bet exception', err);
+      const msg = 'Unexpected error while placing bet';
+      setBetError(msg);
+
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.showAlert(msg);
+      }
     } finally {
       setPlacingBet(false);
     }
@@ -203,7 +244,7 @@ export default function PredictionDetailPage() {
             <div>{error || 'Failed to load this market.'}</div>
             <div className="mt-2 text-red-300/70">Please close and reopen the Mini App.</div>
             <button
-              onClick={() => router.back()}
+              onClick={goBack}
               className="mt-4 px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 text-white"
             >
               ← Go Back
@@ -230,10 +271,11 @@ export default function PredictionDetailPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
       <header className="p-6 pb-4">
         <button
-          onClick={() => router.back()}
-          className="text-purple-300 mb-4 hover:text-white"
+          type="button"
+          className="mb-3 text-sm text-purple-100/80 hover:text-white"
+          onClick={goBack}
         >
-          ← Back
+          ← Back to markets
         </button>
         <h1 className="text-3xl font-bold mb-2">{prediction.title}</h1>
         {prediction.description && (
@@ -242,13 +284,6 @@ export default function PredictionDetailPage() {
       </header>
 
       <div className="px-6 pb-6 space-y-6">
-        {/* Error banner */}
-        {error && (
-          <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-4 border border-red-500/20">
-            <div className="text-sm text-red-200">{error}</div>
-          </div>
-        )}
-
         {/* Pot and Stats */}
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
           <div className="grid grid-cols-2 gap-4">
@@ -280,25 +315,24 @@ export default function PredictionDetailPage() {
                 const isWinner =
                   prediction.resolved &&
                   (prediction.winnerOption === index || prediction.winningOption === option);
+                const canBet = !prediction.resolved && !prediction.userBet;
 
                 return (
                   <div
                     key={index}
-                    onClick={() =>
-                      !prediction.resolved && !prediction.userBet && setSelectedOption(index)
-                    }
+                    onClick={() => canBet && setSelectedOption(index)}
                     className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border transition-colors ${
                       isSelected
                         ? 'border-purple-400 bg-purple-900/50'
                         : isWinner
                         ? 'border-green-400 bg-green-900/20'
                         : 'border-purple-500/20 hover:border-purple-400/40'
-                    } ${!prediction.resolved && !prediction.userBet ? 'cursor-pointer' : ''}`}
+                    } ${canBet ? 'cursor-pointer' : ''}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-semibold text-lg">{option}</div>
                       {isWinner && <span className="text-green-400">🏆 Winner</span>}
-                      {isSelected && !prediction.userBet && (
+                      {isSelected && canBet && (
                         <span className="text-purple-400">✓ Selected</span>
                       )}
                     </div>
@@ -308,11 +342,33 @@ export default function PredictionDetailPage() {
                         {prediction.entryFeeStars > 0 ? '⭐' : 'EP'}
                       </div>
                     )}
+
+                    {/* Bet button on each option */}
+                    {canBet && isSelected && (
+                      <button
+                        type="button"
+                        disabled={placingBet}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBet(index);
+                        }}
+                        className="mt-3 w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg py-2 text-sm font-semibold transition-colors"
+                      >
+                        {placingBet ? 'Placing bet…' : 'Bet on this'}
+                      </button>
+                    )}
                   </div>
                 );
               })
             )}
           </div>
+
+          {/* Bet Error */}
+          {betError && (
+            <div className="mt-3 rounded-xl bg-red-900/40 px-3 py-2 text-xs text-red-100">
+              {betError}
+            </div>
+          )}
         </div>
 
         {/* User Bet Status */}
@@ -327,13 +383,13 @@ export default function PredictionDetailPage() {
           </div>
         )}
 
-        {/* Place Bet Form */}
+        {/* Place Bet Form - Alternative entry with amount input */}
         {!prediction.resolved && !prediction.userBet && (
           <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
             <h3 className="text-lg font-semibold mb-4">Place Your Bet</h3>
 
             <div className="mb-4">
-              <label className="block text-sm text-purple-300 mb-2">Bet Amount</label>
+              <label className="block text-sm text-purple-300 mb-2">Bet Amount (optional)</label>
               <input
                 type="number"
                 value={betAmount}
@@ -346,15 +402,26 @@ export default function PredictionDetailPage() {
                 className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
                 min={prediction.entryFeeStars || prediction.entryFeePoints || 1}
               />
+              <p className="text-xs text-purple-400 mt-1">
+                Leave empty to bet the minimum amount
+              </p>
             </div>
 
             <button
-              onClick={placeBet}
-              disabled={placingBet || selectedOption === null || !betAmount}
+              type="button"
+              onClick={() => selectedOption !== null && handleBet(selectedOption)}
+              disabled={placingBet || selectedOption === null}
               className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg py-3 font-semibold transition-colors"
             >
-              {placingBet ? 'Placing Bet...' : 'Place Bet'}
+              {placingBet ? 'Placing Bet…' : selectedOption === null ? 'Select an option above' : 'Place Bet'}
             </button>
+
+            {/* Bet Error in form section */}
+            {betError && (
+              <div className="mt-3 rounded-xl bg-red-900/40 px-3 py-2 text-xs text-red-100">
+                {betError}
+              </div>
+            )}
           </div>
         )}
       </div>
