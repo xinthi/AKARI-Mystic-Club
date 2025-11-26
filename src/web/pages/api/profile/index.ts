@@ -7,13 +7,42 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
-import { getUserFromRequest } from '../../../lib/telegram-auth';
+import { getUserFromRequest, getTelegramUserFromRequest } from '../../../lib/telegram-auth';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const user = await getUserFromRequest(req, prisma);
+    // Debug: log what headers we received
+    const initDataHeader = req.headers['x-telegram-init-data'] as string | undefined;
+    console.log('[Profile API] initData header length:', initDataHeader?.length || 0);
+
+    let user = await getUserFromRequest(req, prisma);
+
+    // If no user but we have valid initData, create the user
+    if (!user && initDataHeader) {
+      const telegramUser = getTelegramUserFromRequest(req);
+      
+      if (telegramUser) {
+        console.log('[Profile API] Creating new user for telegramId:', telegramUser.id);
+        
+        // Create new user from Telegram data
+        user = await prisma.user.create({
+          data: {
+            telegramId: String(telegramUser.id),
+            username: telegramUser.username,
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            photoUrl: telegramUser.photo_url,
+          },
+        });
+        
+        console.log('[Profile API] Created user:', user.id);
+      } else {
+        console.warn('[Profile API] initData present but failed to parse/verify');
+      }
+    }
 
     if (!user) {
+      console.warn('[Profile API] No user resolved - returning auth error');
       return res.status(200).json({
         ok: false,
         user: null,

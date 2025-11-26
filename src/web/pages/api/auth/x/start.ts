@@ -6,68 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
-
-/**
- * Parse and verify Telegram initData, return parsed user data or null
- */
-function verifyAndParseInitData(
-  initData: string,
-  botToken: string
-): { telegramId: string; user: any } | null {
-  // Check if initData exists
-  if (!initData || initData.trim() === '') {
-    console.error('[X OAuth] Missing initData - empty string received');
-    return null;
-  }
-
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-
-    if (!hash) {
-      console.error('[X OAuth] initData invalid: no hash field found');
-      return null;
-    }
-
-    params.delete('hash');
-    const dataCheckArr: string[] = [];
-    Array.from(params.keys())
-      .sort()
-      .forEach((key) => {
-        const value = params.get(key);
-        if (value !== null) {
-          dataCheckArr.push(`${key}=${value}`);
-        }
-      });
-
-    const dataCheckString = dataCheckArr.join('\n');
-    const secret = crypto.createHash('sha256').update(botToken).digest();
-    const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-
-    if (hmac !== hash) {
-      console.error('[X OAuth] initData signature failed - HMAC mismatch');
-      console.error('[X OAuth] Expected hash:', hash.substring(0, 16) + '...');
-      console.error('[X OAuth] Computed hash:', hmac.substring(0, 16) + '...');
-      return null;
-    }
-
-    const userJson = params.get('user');
-    if (!userJson) {
-      console.error('[X OAuth] initData invalid: no user field found');
-      return null;
-    }
-
-    const parsed = JSON.parse(userJson);
-    const telegramId = String(parsed.id);
-
-    console.log('[X OAuth] initData parsed for user:', telegramId);
-
-    return { telegramId, user: parsed };
-  } catch (err) {
-    console.error('[X OAuth] initData parse error:', err);
-    return null;
-  }
-}
+import { verifyTelegramWebAppData, parseTelegramInitData } from '../../../../lib/telegram-auth';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('[X OAuth] Request received');
@@ -83,10 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Authenticate via initData - support both query and header
   // Query param is needed because window.open() doesn't send custom headers
   const queryInitData = (req.query.initData as string) || '';
-  const headerInitData =
-    (req.headers['x-telegram-init-data'] as string) ||
-    (req.headers['X-Telegram-Init-Data'] as string) ||
-    '';
+  const headerInitData = (req.headers['x-telegram-init-data'] as string) || '';
 
   const initData = queryInitData || headerInitData;
 
@@ -96,22 +32,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   console.log('[X OAuth]   - header length:', headerInitData.length);
   console.log('[X OAuth]   - using initData length:', initData.length);
 
-  // Parse and verify initData
-  let parsed: { telegramId: string; user: any } | null = null;
-
-  try {
-    parsed = verifyAndParseInitData(initData, botToken);
-
-    if (!parsed) {
-      console.error('[X OAuth] initData verification returned null');
-      return res.status(401).json({ ok: false, reason: 'Unauthorized' });
-    }
-  } catch (err) {
-    console.error('[X OAuth] initData parse exception:', err);
+  // Check if initData is present
+  if (!initData || initData.trim() === '') {
+    console.error('[X OAuth] Missing initData - empty string received');
     return res.status(401).json({ ok: false, reason: 'Unauthorized' });
   }
 
-  const { telegramId } = parsed;
+  // Verify signature using shared helper
+  if (!verifyTelegramWebAppData(initData, botToken)) {
+    console.error('[X OAuth] initData signature verification failed');
+    return res.status(401).json({ ok: false, reason: 'Unauthorized' });
+  }
+
+  // Parse the initData to get user info
+  const authData = parseTelegramInitData(initData);
+  if (!authData || !authData.user) {
+    console.error('[X OAuth] Failed to parse initData user');
+    return res.status(401).json({ ok: false, reason: 'Unauthorized' });
+  }
+
+  const telegramId = String(authData.user.id);
   console.log('[X OAuth] Proceeding with OAuth for telegramId:', telegramId);
 
   // Build OAuth 2.0 authorize URL

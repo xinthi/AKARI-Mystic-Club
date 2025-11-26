@@ -75,22 +75,30 @@ export default function ProfilePage() {
 
   const loadProfile = async () => {
     try {
+      // Get initData from Telegram WebApp
       let initData = '';
       if (typeof window !== 'undefined') {
-        const WebApp = getWebApp();
-        if (WebApp) {
-          // @ts-ignore - SDK types may vary
-          initData = (WebApp as any).initData || '';
-        }
+        const tg = (window as any).Telegram?.WebApp;
+        initData = tg?.initData || '';
+        
+        // Debug logging
+        console.log('[Profile] Telegram WebApp available:', !!tg);
+        console.log('[Profile] initData length:', initData?.length || 0);
+      }
+
+      if (!initData) {
+        console.warn('[Profile] No initData available - user may not be in Telegram');
       }
 
       const response = await fetch('/api/profile', {
         headers: {
-          'X-Telegram-Init-Data': initData,
+          'x-telegram-init-data': initData,
+          'Content-Type': 'application/json',
         },
       });
 
       const data: ProfileResponse = await response.json();
+      console.log('[Profile] API response ok:', data.ok);
 
       if (data.ok && data.user) {
         setUser(data.user);
@@ -103,7 +111,7 @@ export default function ProfilePage() {
 
       setLoading(false);
     } catch (err: any) {
-      console.error('Error loading profile:', err);
+      console.error('[Profile] Error loading profile:', err);
       setError(err.message || 'Failed to load data');
       setUser(null);
       setLoading(false);

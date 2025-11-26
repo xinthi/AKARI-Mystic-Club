@@ -9,7 +9,7 @@
  * No polling, no cron jobs, no long-running processes.
  */
 
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot } from 'grammy';
 
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN is required');
@@ -17,7 +17,7 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 
 // Get WebApp URL from environment
 const getWebAppUrl = (startParam?: string): string => {
-  const baseUrl = 'https://akari-mystic-club.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://akari-mystic-club.vercel.app';
   
   if (startParam) {
     return `${baseUrl}?startapp=${startParam}`;
@@ -34,16 +34,23 @@ bot.command('start', async (ctx) => {
   const startParam = ctx.match as string | undefined;
   const webAppUrl = getWebAppUrl(startParam);
   
-  const keyboard = new InlineKeyboard()
-    .webApp('🚀 Open AKARI Mystic Club', webAppUrl);
-  
+  // Use raw inline_keyboard format for WebApp button
   await ctx.reply(
     '🔮 *Welcome to AKARI Mystic Club*\n\n' +
     'Your gateway to prediction markets, campaigns, and rewards!\n\n' +
     'Tap the button below to open the Mini App:',
     {
       parse_mode: 'Markdown',
-      reply_markup: keyboard
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '🚀 Open AKARI Mystic Club',
+              web_app: { url: webAppUrl },
+            },
+          ],
+        ],
+      },
     }
   );
 });
@@ -51,9 +58,6 @@ bot.command('start', async (ctx) => {
 // Handle /help command
 bot.command('help', async (ctx) => {
   const webAppUrl = getWebAppUrl();
-  
-  const keyboard = new InlineKeyboard()
-    .webApp('🚀 Open Mini App', webAppUrl);
   
   await ctx.reply(
     '🔮 *AKARI Mystic Club Bot*\n\n' +
@@ -63,7 +67,16 @@ bot.command('help', async (ctx) => {
     'All features are available in the Mini App:',
     {
       parse_mode: 'Markdown',
-      reply_markup: keyboard
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '🚀 Open Mini App',
+              web_app: { url: webAppUrl },
+            },
+          ],
+        ],
+      },
     }
   );
 });
@@ -75,9 +88,6 @@ bot.on('message:text', async (ctx) => {
   if (text && !text.startsWith('/')) {
     const webAppUrl = getWebAppUrl();
     
-    const keyboard = new InlineKeyboard()
-      .webApp('🚀 Open Mini App', webAppUrl);
-    
     await ctx.reply(
       '👋 Hi! Open the Mini App to access all features:\n' +
       '• Prediction Markets\n' +
@@ -85,7 +95,16 @@ bot.on('message:text', async (ctx) => {
       '• Leaderboards\n' +
       '• Your Profile',
       {
-        reply_markup: keyboard
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🚀 Open Mini App',
+                web_app: { url: webAppUrl },
+              },
+            ],
+          ],
+        },
       }
     );
   }
