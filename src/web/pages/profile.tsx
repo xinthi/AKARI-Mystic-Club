@@ -118,15 +118,23 @@ export default function ProfilePage() {
       const tg = (window as any).Telegram?.WebApp;
       const initData = tg?.initData || '';
 
+      // Debug logging
+      console.log('[X Connect] Telegram WebApp available:', !!tg);
+      console.log('[X Connect] initData length:', initData?.length || 0);
+      console.log('[X Connect] initData preview:', initData ? initData.substring(0, 50) + '...' : '(empty)');
+
       if (!initData) {
-        console.error('No Telegram initData available for X auth');
+        console.error('[X Connect] No Telegram initData available for X auth');
         alert('Please open this app from Telegram to connect your X account.');
         setConnectingX(false);
         return;
       }
 
       // Pass initData via query parameter since window.open doesn't send headers
-      const url = `/api/auth/x/start?initData=${encodeURIComponent(initData)}`;
+      const encodedInitData = encodeURIComponent(initData);
+      const url = `/api/auth/x/start?initData=${encodedInitData}`;
+
+      console.log('[X Connect] Opening X OAuth with URL length:', url.length);
 
       // Open X OAuth in a new window/tab
       const authWindow = window.open(url, '_blank');
