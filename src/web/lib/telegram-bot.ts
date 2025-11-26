@@ -7,9 +7,18 @@
  * 
  * All serious logic lives in the Mini App and API routes.
  * No polling, no cron jobs, no long-running processes.
+ * 
+ * REQUIRED ENV VARS:
+ * - TELEGRAM_BOT_TOKEN: Bot token from @BotFather for @AKARIMystic_Bot
+ * - NEXT_PUBLIC_APP_URL: The deployed app URL (e.g. https://akari-mystic-club.vercel.app)
  */
 
 import { Bot } from 'grammy';
+
+// Log env var status on module load
+console.log('[TelegramBot] Module loaded.');
+console.log('[TelegramBot] TELEGRAM_BOT_TOKEN length:', process.env.TELEGRAM_BOT_TOKEN?.length ?? 0);
+console.log('[TelegramBot] NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL || '(not set, using fallback)');
 
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN is required');

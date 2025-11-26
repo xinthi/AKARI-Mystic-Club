@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import crypto from 'crypto';
 import { prisma } from '../../../lib/prisma';
+import { verifyTelegramWebAppData, parseTelegramInitData } from '../../../lib/telegram-auth';
 
 interface TelegramAuthResponse {
   ok: boolean;
@@ -18,49 +18,6 @@ interface TelegramAuthResponse {
   reason?: string;
 }
 
-/**
- * Verify Telegram WebApp initData according to:
- * https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
- */
-function verifyTelegramInitData(
-  initData: string,
-  botToken: string
-): { valid: boolean; data?: URLSearchParams } {
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
-    if (!hash) return { valid: false };
-
-    // Build data_check_string
-    params.delete('hash');
-    const dataCheckArr: string[] = [];
-    Array.from(params.keys())
-      .sort()
-      .forEach((key) => {
-        const value = params.get(key);
-        if (value !== null) {
-          dataCheckArr.push(`${key}=${value}`);
-        }
-      });
-
-    const dataCheckString = dataCheckArr.join('\n');
-
-    // secret = SHA256(botToken)
-    const secret = crypto.createHash('sha256').update(botToken).digest();
-
-    // hmac = HMAC-SHA256(secret, dataCheckString)
-    const hmac = crypto
-      .createHmac('sha256', secret)
-      .update(dataCheckString)
-      .digest('hex');
-
-    return { valid: hmac === hash, data: params };
-  } catch (e) {
-    console.error('verifyTelegramInitData error:', e);
-    return { valid: false };
-  }
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<TelegramAuthResponse>
@@ -72,7 +29,7 @@ export default async function handler(
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
-    console.error('Missing TELEGRAM_BOT_TOKEN in env');
+    console.error('[/api/auth/telegram] Missing TELEGRAM_BOT_TOKEN env var');
     return res.status(500).json({
       ok: false,
       user: null,
@@ -92,8 +49,10 @@ export default async function handler(
     initData = (req.headers['x-telegram-init-data'] as string | undefined) || '';
   }
 
+  console.log('[/api/auth/telegram] initData length:', initData?.length ?? 0);
+
   if (!initData) {
-    console.warn('No initData provided');
+    console.warn('[/api/auth/telegram] No initData provided - guest mode');
     return res.status(200).json({
       ok: true,
       user: null,
@@ -101,9 +60,9 @@ export default async function handler(
     });
   }
 
-  const { valid, data } = verifyTelegramInitData(initData, botToken);
-  if (!valid || !data) {
-    console.warn('Invalid Telegram initData signature');
+  // Use shared verification helper
+  if (!verifyTelegramWebAppData(initData, botToken)) {
+    console.error('[/api/auth/telegram] Signature verification failed');
     return res.status(401).json({
       ok: false,
       user: null,
@@ -111,9 +70,10 @@ export default async function handler(
     });
   }
 
-  const userJson = data.get('user');
-  if (!userJson) {
-    console.warn('No user object inside initData');
+  // Use shared parsing helper
+  const authData = parseTelegramInitData(initData);
+  if (!authData || !authData.user) {
+    console.warn('[/api/auth/telegram] Failed to parse user from initData');
     return res.status(200).json({
       ok: true,
       user: null,
@@ -121,29 +81,14 @@ export default async function handler(
     });
   }
 
-  let parsed: {
-    id: number | string;
-    username?: string;
-    first_name?: string;
-    last_name?: string;
-    photo_url?: string;
-  };
-  try {
-    parsed = JSON.parse(userJson);
-  } catch (e) {
-    console.error('Failed to parse Telegram user JSON:', e);
-    return res.status(400).json({
-      ok: false,
-      user: null,
-      reason: 'Malformed user JSON in initData',
-    });
-  }
+  const { user: tgUser } = authData;
+  const telegramId = String(tgUser.id);
+  const username = tgUser.username;
+  const firstName = tgUser.first_name;
+  const lastName = tgUser.last_name;
+  const photoUrl = tgUser.photo_url;
 
-  const telegramId = String(parsed.id);
-  const username = parsed.username as string | undefined;
-  const firstName = parsed.first_name as string | undefined;
-  const lastName = parsed.last_name as string | undefined;
-  const photoUrl = parsed.photo_url as string | undefined;
+  console.log('[/api/auth/telegram] Verified user:', telegramId);
 
   // Upsert user in the database
   const dbUser = await prisma.user.upsert({

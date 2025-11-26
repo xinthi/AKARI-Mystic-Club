@@ -2,11 +2,19 @@
  * Telegram Mini App Authentication Utilities
  *
  * Verifies Telegram init data and extracts user information
+ * 
+ * REQUIRED ENV VAR: TELEGRAM_BOT_TOKEN
+ * - Must be set in Vercel (Production, Preview, Development)
+ * - Get this token from @BotFather for your bot (e.g. @AKARIMystic_Bot)
+ * - Do NOT commit the token to the repo
  */
 
 import crypto from 'crypto';
 import type { NextApiRequest } from 'next';
 import type { PrismaClient } from '@prisma/client';
+
+// Log env var status on module load (once per cold start)
+console.log('[TelegramAuth] Module loaded. TELEGRAM_BOT_TOKEN length:', process.env.TELEGRAM_BOT_TOKEN?.length ?? 0);
 
 export interface TelegramUser {
   id: number;
@@ -31,10 +39,16 @@ export interface TelegramAuthData {
  */
 export function verifyTelegramWebAppData(initData: string, botToken: string): boolean {
   try {
+    if (!initData || !botToken) {
+      console.error('[TelegramAuth] Missing initData or botToken for verification');
+      return false;
+    }
+
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
 
     if (!hash) {
+      console.error('[TelegramAuth] No hash field in initData');
       return false;
     }
 
@@ -53,9 +67,14 @@ export function verifyTelegramWebAppData(initData: string, botToken: string): bo
     // Calculate hash
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-    return calculatedHash === hash;
+    if (calculatedHash !== hash) {
+      console.error('[TelegramAuth] Signature mismatch. initData length:', initData.length, 'botToken length:', botToken.length);
+      return false;
+    }
+
+    return true;
   } catch (error) {
-    console.error('Error verifying Telegram data:', error);
+    console.error('[TelegramAuth] Error verifying Telegram data:', error);
     return false;
   }
 }
@@ -103,36 +122,50 @@ export function parseTelegramInitData(initData: string): TelegramAuthData | null
  * Returns the raw Telegram user object, not the DB user
  */
 export function getTelegramUserFromRequest(req: NextApiRequest): TelegramUser | null {
-  // Try to get from query params (Telegram WebApp sends initData)
+  // Try to get from query params or header
   const initData = req.query?.initData || req.headers?.['x-telegram-init-data'];
 
   if (!initData || typeof initData !== 'string') {
+    console.warn('[TelegramAuth] getTelegramUserFromRequest: No initData found in request');
     return null;
   }
 
   // Verify signature
   if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.error('TELEGRAM_BOT_TOKEN not set');
+    console.error('[TelegramAuth] TELEGRAM_BOT_TOKEN env var not set!');
     return null;
   }
 
   if (!verifyTelegramWebAppData(initData, process.env.TELEGRAM_BOT_TOKEN)) {
-    console.error('Invalid Telegram init data signature');
+    // Error already logged in verifyTelegramWebAppData
     return null;
   }
 
   const authData = parseTelegramInitData(initData);
-  return authData?.user || null;
+  if (!authData?.user) {
+    console.warn('[TelegramAuth] Failed to parse user from initData');
+    return null;
+  }
+
+  return authData.user;
 }
 
 /**
- * Parse initData and return telegramId string (without full verification for internal use)
+ * Parse initData and return telegramId string (with full verification)
  */
 function parseInitDataTelegramId(initData: string, botToken: string): string | null {
   try {
+    if (!initData || !botToken) {
+      console.error('[TelegramAuth] parseInitDataTelegramId: Missing initData or botToken');
+      return null;
+    }
+
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    if (!hash) return null;
+    if (!hash) {
+      console.error('[TelegramAuth] parseInitDataTelegramId: No hash in initData');
+      return null;
+    }
 
     params.delete('hash');
     const dataCheckArr: string[] = [];
@@ -149,14 +182,21 @@ function parseInitDataTelegramId(initData: string, botToken: string): string | n
     const secret = crypto.createHash('sha256').update(botToken).digest();
     const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
 
-    if (hmac !== hash) return null;
+    if (hmac !== hash) {
+      console.error('[TelegramAuth] parseInitDataTelegramId: HMAC mismatch. initData length:', initData.length);
+      return null;
+    }
 
     const userJson = params.get('user');
-    if (!userJson) return null;
+    if (!userJson) {
+      console.error('[TelegramAuth] parseInitDataTelegramId: No user field in initData');
+      return null;
+    }
 
     const parsed = JSON.parse(userJson);
     return String(parsed.id);
-  } catch {
+  } catch (err) {
+    console.error('[TelegramAuth] parseInitDataTelegramId error:', err);
     return null;
   }
 }
@@ -165,7 +205,7 @@ function parseInitDataTelegramId(initData: string, botToken: string): string | n
  * Get the current user from the request.
  * 
  * 1) First tries to authenticate via Telegram initData header
- * 2) Falls back to ADMIN_TELEGRAM_ID for MVP (so admin can always use the app)
+ * 2) Falls back to ADMIN_TELEGRAM_ID for MVP (so admin can always use the app) - DEV ONLY
  * 
  * @param req - Next.js API request
  * @param prisma - Prisma client instance
@@ -177,15 +217,24 @@ export async function getUserFromRequest(
 ) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
+  if (!botToken) {
+    console.error('[TelegramAuth] getUserFromRequest: TELEGRAM_BOT_TOKEN not set!');
+  }
+
   // 1) Try to get telegramId from initData header
   const initDataHeader =
     (req.headers['x-telegram-init-data'] as string | undefined) ||
     (typeof req.body === 'string' ? req.body : (req.body?.initData as string | undefined));
 
+  console.log('[TelegramAuth] getUserFromRequest: initData length:', initDataHeader?.length ?? 0);
+
   let telegramId: string | null = null;
 
   if (initDataHeader && botToken) {
     telegramId = parseInitDataTelegramId(initDataHeader, botToken);
+    if (telegramId) {
+      console.log('[TelegramAuth] getUserFromRequest: Verified telegramId:', telegramId);
+    }
   }
 
   // If we got a telegramId from initData, look up the user
@@ -194,7 +243,10 @@ export async function getUserFromRequest(
       where: { telegramId },
     });
     if (user) {
+      console.log('[TelegramAuth] getUserFromRequest: Found user in DB:', user.id);
       return user;
+    } else {
+      console.log('[TelegramAuth] getUserFromRequest: No user found for telegramId:', telegramId);
     }
   }
 
@@ -203,6 +255,7 @@ export async function getUserFromRequest(
   if (process.env.NODE_ENV !== 'production') {
     const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
     if (adminTelegramId) {
+      console.log('[TelegramAuth] DEV MODE: Using ADMIN_TELEGRAM_ID fallback');
       // Look for existing user with that telegramId
       let user = await prisma.user.findFirst({
         where: { telegramId: adminTelegramId.toString() },
@@ -224,5 +277,6 @@ export async function getUserFromRequest(
   }
 
   // No valid auth - return null
+  console.warn('[TelegramAuth] getUserFromRequest: No valid auth - returning null');
   return null;
 }
