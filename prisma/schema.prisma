@@ -1,5 +1,5 @@
 // Prisma Schema for AKARI Mystic Club
-// Telegram Mini App - Prediction Marketplace with Tasks and Campaigns
+// Telegram Mini App - Prediction Marketplace with MYST Token Economy
 
 generator client {
   provider = "prisma-client-js"
@@ -10,6 +10,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER MODEL
+// ============================================
 model User {
   id               String   @id @default(cuid())
   telegramId       String   @unique
@@ -20,14 +23,29 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  // Legacy points (aXP - experience points, non-monetary)
   points           Int      @default(0)
-  tier             String?  // e.g. "Seeker", "Mystic"
+  tier             String?  // e.g. "Seeker", "Mystic", "Oracle"
   credibilityScore Float    @default(0)
   positiveReviews  Int      @default(0)
 
-  twitterAccounts  TwitterAccount[]
-  bets             Bet[]
+  // Referral system
+  referrerId       String?  // User ID who referred this user
+  referrer         User?    @relation("Referrals", fields: [referrerId], references: [id])
+  referrals        User[]   @relation("Referrals")
+  referralCode     String?  @unique // Unique code for sharing
+
+  // TON wallet for reward payouts
+  tonWallet        String?
+
+  // Relations
+  twitterAccounts   TwitterAccount[]
+  bets              Bet[]
   campaignsProgress CampaignUserProgress[]
+  mystTransactions  MystTransaction[]
+  referralEvents    ReferralEvent[]       // Events where this user spent MYST
+  referralRewards   ReferralEvent[]       @relation("ReferralRewards") // Rewards received
+  leaderboardRewards LeaderboardReward[]
 }
 
 model TwitterAccount {
@@ -43,14 +61,131 @@ model TwitterAccount {
   updatedAt         DateTime @updatedAt
 }
 
+// ============================================
+// MYST TOKEN ECONOMY
+// ============================================
+
+// MYST Transaction Ledger - all MYST movements are recorded here
+// Balance = SUM(amount) for a user
+model MystTransaction {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  
+  // Transaction type
+  type      String   // "stars_conversion", "bet", "win", "referral_reward", "burn_for_reward", "admin_grant", "campaign_fee", "boost"
+  
+  // Amount: positive = credit, negative = debit
+  amount    Float
+  
+  // Optional metadata (predictionId, weekId, referralEventId, etc.)
+  meta      Json?
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Referral Events - tracks when users spend MYST and referrers earn rewards
+model ReferralEvent {
+  id               String   @id @default(cuid())
+  
+  // The user who spent MYST
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  
+  // Level 1 referrer (direct)
+  referrerLevel1   User?    @relation("ReferralRewards", fields: [referrerLevel1Id], references: [id])
+  referrerLevel1Id String?
+  rewardLevel1     Float    @default(0) // MYST rewarded to level 1
+  
+  // Level 2 referrer (indirect)
+  referrerLevel2Id String?
+  rewardLevel2     Float    @default(0) // MYST rewarded to level 2
+  
+  // The MYST spent that triggered this event
+  mystSpent        Float
+  spendType        String   // "bet", "campaign_fee", "boost"
+  
+  // Reference to what was purchased (optional)
+  referenceId      String?  // predictionId, campaignId, etc.
+  
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([referrerLevel1Id])
+  @@index([createdAt])
+}
+
+// ============================================
+// WEEKLY LEADERBOARD REWARDS
+// ============================================
+model LeaderboardReward {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  
+  // Week identifier (e.g., "2025-W48" or "2025-11-25_2025-12-01")
+  weekId       String
+  
+  // Category: "top_spender", "top_referrer", "top_campaign"
+  category     String
+  
+  // Rank in that category for that week
+  rank         Int
+  
+  // Reward amount in USD (set by admin, hidden from user until paid)
+  rewardUsd    Float
+  
+  // MYST burn requirement (computed: rewardUsd / 2 * 1.1)
+  requiredMyst Float
+  
+  // Actual MYST burned by user
+  burnedMyst   Float    @default(0)
+  
+  // User's TON wallet at claim time
+  tonWallet    String?
+  
+  // Status flow: pending_burn -> ready_for_payout -> paid
+  status       String   @default("pending_burn") // "pending_burn", "ready_for_payout", "paid"
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  paidAt       DateTime?
+
+  @@unique([userId, weekId, category])
+  @@index([weekId])
+  @@index([status])
+}
+
+// ============================================
+// PREDICTIONS & BETTING
+// ============================================
 model Prediction {
   id              String   @id @default(cuid())
   title           String
   description     String?
   options         String[] // e.g. ["Yes","No"]
+  
+  // Legacy fee structure (kept for backwards compatibility)
   entryFeeStars   Int      @default(0)
   entryFeePoints  Int      @default(0)
+  
+  // MYST-based fee (new)
+  entryFeeMyst    Float    @default(0)
+  
+  // Pool totals in MYST
+  mystPoolYes     Float    @default(0)
+  mystPoolNo      Float    @default(0)
+  
+  // Platform fee rate (e.g., 0.08 = 8%)
+  feeRate         Float    @default(0.08)
+  
+  // Legacy pot (kept for backwards compatibility)
   pot             Int      @default(0)
+  
   resolved        Boolean  @default(false)
   winningOption   String?
   endsAt          DateTime
@@ -70,19 +205,35 @@ model Bet {
   predictionId String
 
   option       String
+  
+  // Legacy betting (kept for backwards compatibility)
   starsBet     Int         @default(0)
   pointsBet    Int         @default(0)
+  
+  // MYST betting (new)
+  mystBet      Float       @default(0)
+  
+  // Payout received (filled on resolution)
+  mystPayout   Float?
 
   createdAt    DateTime    @default(now())
+
+  @@unique([userId, predictionId]) // One bet per user per prediction
 }
 
+// ============================================
+// CAMPAIGNS
+// ============================================
 model Campaign {
   id           String    @id @default(cuid())
   name         String
   description  String?
   rewards      String
   endsAt       DateTime
+  
+  // Fee structure
   starsFee     Int       @default(0)
+  mystFee      Float     @default(0) // MYST fee for joining
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -123,4 +274,34 @@ model CampaignUserProgress {
   updatedAt    DateTime     @updatedAt
 
   @@unique([userId, taskId])
+}
+
+// ============================================
+// WEEKLY CONFIGURATION (Admin-managed)
+// ============================================
+model WeeklyConfig {
+  id              String   @id @default(cuid())
+  weekId          String   @unique // e.g., "2025-W48"
+  
+  // Week boundaries
+  startTime       DateTime // Tuesday 23:00 UTC
+  endTime         DateTime // Monday 12:00 UTC
+  
+  // Reward window
+  claimStartTime  DateTime // Monday 12:00 UTC
+  claimEndTime    DateTime // Tuesday 23:00 UTC
+  
+  // Budget allocations in USD
+  budgetTopSpenders  Float @default(0)
+  budgetTopReferrers Float @default(0)
+  budgetTopCampaign  Float @default(0)
+  
+  // Number of winners per category
+  winnersPerCategory Int   @default(10)
+  
+  // Status
+  snapshotTaken   Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -2,12 +2,15 @@
  * Place Bet API
  *
  * POST: Place a bet on a prediction
- * Authenticate via Telegram initData header or admin fallback
+ * Supports both legacy (points) and new (MYST) betting.
+ * 
+ * When MYST is used, referral rewards are automatically triggered.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { getUserFromRequest } from '../../../../lib/telegram-auth';
+import { getMystBalance, spendMyst } from '../../../../lib/myst-service';
 
 interface BetResponse {
   ok: boolean;
@@ -17,10 +20,16 @@ interface BetResponse {
     option: string;
     starsBet: number;
     pointsBet: number;
+    mystBet: number;
     createdAt: Date;
   };
   newPot?: number;
   newPoints?: number;
+  newMystBalance?: number;
+  referralRewards?: {
+    level1: number;
+    level2: number;
+  };
   reason?: string;
 }
 
@@ -49,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     // Parse and validate optionIndex from body
     const body = req.body ?? {};
-    const { optionIndex, option: optionString, betAmount } = body;
+    const { optionIndex, option: optionString, betAmount, mystAmount } = body;
 
     // Support both optionIndex (number) and option (string)
     let index: number = NaN;
@@ -79,6 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     // Resolve the option - either by index or by string
     let resolvedOption: string | null = null;
+    let optionIdx = 0;
 
     if (!Number.isNaN(index)) {
       // Validate index is in range
@@ -87,13 +97,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         return;
       }
       resolvedOption = safeOptions[index] as string;
+      optionIdx = index;
     } else if (typeof optionString === 'string' && optionString.length > 0) {
       // Validate option string exists in options
-      if (!safeOptions.includes(optionString)) {
+      const foundIdx = safeOptions.indexOf(optionString);
+      if (foundIdx === -1) {
         res.status(400).json({ ok: false, reason: 'Invalid option' });
         return;
       }
       resolvedOption = optionString;
+      optionIdx = foundIdx;
     } else {
       res.status(400).json({ ok: false, reason: 'Invalid option index' });
       return;
@@ -123,34 +136,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return;
     }
 
-    // Determine bet type (stars or points)
+    // Determine bet type (MYST, stars, or points)
     let starsBet = 0;
     let pointsBet = 0;
+    let mystBet = 0;
+    let referralLevel1Reward = 0;
+    let referralLevel2Reward = 0;
 
-    if (prediction.entryFeeStars > 0) {
+    // Check if using MYST
+    if (mystAmount && typeof mystAmount === 'number' && mystAmount > 0) {
+      // MYST betting
+      mystBet = mystAmount;
+
+      // Check minimum MYST entry fee
+      if (prediction.entryFeeMyst > 0 && mystBet < prediction.entryFeeMyst) {
+        res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeMyst} MYST` });
+        return;
+      }
+
+      // Check MYST balance
+      const mystBalance = await getMystBalance(prisma, user.id);
+      if (mystBalance < mystBet) {
+        res.status(400).json({ ok: false, reason: `Insufficient MYST. Have: ${mystBalance}, Need: ${mystBet}` });
+        return;
+      }
+
+      // Process MYST spend (includes referral rewards)
+      const spendResult = await spendMyst(prisma, user.id, mystBet, 'bet', id);
+      referralLevel1Reward = spendResult.referralLevel1Reward;
+      referralLevel2Reward = spendResult.referralLevel2Reward;
+
+    } else if (prediction.entryFeeStars > 0) {
+      // Legacy Stars betting
       starsBet = typeof betAmount === 'number' ? betAmount : prediction.entryFeeStars;
+
+      if (starsBet < prediction.entryFeeStars) {
+        res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeStars} Stars` });
+        return;
+      }
     } else {
+      // Legacy Points betting
       pointsBet = typeof betAmount === 'number' ? betAmount : prediction.entryFeePoints;
+
+      if (prediction.entryFeePoints > 0 && pointsBet < prediction.entryFeePoints) {
+        res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeePoints} points` });
+        return;
+      }
+
+      // Check user has enough points
+      if (pointsBet > 0 && user.points < pointsBet) {
+        res.status(400).json({ ok: false, reason: 'Insufficient points' });
+        return;
+      }
     }
 
-    // Check minimum entry fee
-    if (prediction.entryFeeStars > 0 && starsBet < prediction.entryFeeStars) {
-      res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeStars} Stars` });
-      return;
-    }
+    // Determine which pool to update (Yes = index 0, No = index 1)
+    const isYes = optionIdx === 0;
 
-    if (prediction.entryFeePoints > 0 && pointsBet < prediction.entryFeePoints) {
-      res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeePoints} points` });
-      return;
-    }
-
-    // Check user has enough points
-    if (pointsBet > 0 && user.points < pointsBet) {
-      res.status(400).json({ ok: false, reason: 'Insufficient points' });
-      return;
-    }
-
-    // Create bet, update prediction pot, and deduct user points
+    // Create bet, update prediction pools, and deduct user points
     const totalBetAmount = starsBet + pointsBet;
 
     const [bet, updatedPrediction, updatedUser] = await prisma.$transaction([
@@ -161,6 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           option: resolvedOption,
           starsBet,
           pointsBet,
+          mystBet,
         },
       }),
       prisma.prediction.update({
@@ -168,6 +212,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         data: {
           pot: { increment: totalBetAmount },
           participantCount: { increment: 1 },
+          // Update MYST pools
+          ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: mystBet } } : {}),
+          ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: mystBet } } : {}),
         },
       }),
       pointsBet > 0
@@ -180,6 +227,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         : prisma.user.findUnique({ where: { id: user.id } }),
     ]);
 
+    // Get new MYST balance if MYST was used
+    let newMystBalance: number | undefined;
+    if (mystBet > 0) {
+      newMystBalance = await getMystBalance(prisma, user.id);
+    }
+
     res.status(200).json({
       ok: true,
       betId: bet.id,
@@ -188,13 +241,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         option: bet.option,
         starsBet: bet.starsBet,
         pointsBet: bet.pointsBet,
+        mystBet: bet.mystBet,
         createdAt: bet.createdAt,
       },
       newPot: updatedPrediction.pot,
       newPoints: updatedUser?.points ?? user.points,
+      newMystBalance,
+      referralRewards:
+        referralLevel1Reward > 0 || referralLevel2Reward > 0
+          ? { level1: referralLevel1Reward, level2: referralLevel2Reward }
+          : undefined,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Bet API error:', err);
-    res.status(500).json({ ok: false, reason: 'Failed to place bet' });
+    res.status(500).json({ ok: false, reason: err.message || 'Failed to place bet' });
   }
 }

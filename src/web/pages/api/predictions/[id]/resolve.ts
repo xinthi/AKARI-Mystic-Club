@@ -2,12 +2,20 @@
  * Resolve Prediction API
  *
  * POST: Resolve a prediction (admin only)
- * Distributes pot to winners
+ * Distributes pot to winners using proper pool math.
+ * 
+ * Pool Math:
+ * - POOL = Y + N (total MYST on both sides)
+ * - FEE = POOL * feeRate (platform fee)
+ * - WIN_POOL = POOL - FEE
+ * - payout_per_MYST = WIN_POOL / winning_side_total
+ * - user_payout = user_stake * payout_per_MYST
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { getTelegramUserFromRequest } from '../../../../lib/telegram-auth';
+import { calculatePredictionPayout, creditWinningPayout } from '../../../../lib/myst-service';
 import { z } from 'zod';
 
 const resolvePredictionSchema = z.object({
@@ -67,18 +75,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid winning option' });
     }
 
+    // Determine winning side (Yes = index 0, No = index 1)
+    const winningOptionIndex = prediction.options.indexOf(validation.data.winningOption);
+    const isYesWinner = winningOptionIndex === 0;
+
+    // Get winning and losing pools
+    const winningSideTotal = isYesWinner ? prediction.mystPoolYes : prediction.mystPoolNo;
+    const losingSideTotal = isYesWinner ? prediction.mystPoolNo : prediction.mystPoolYes;
+
     // Get winning bets
     const winningBets = prediction.bets.filter(
       (bet) => bet.option === validation.data.winningOption
     );
 
-    // Calculate payout (95% of pot, 5% house fee)
-    const houseFeeRate = 0.05;
-    const houseFee = Math.floor(prediction.pot * houseFeeRate);
-    const payoutPot = prediction.pot - houseFee;
+    // Calculate fee rate
+    const feeRate = prediction.feeRate || 0.08;
 
-    // Calculate total bet amount for winners
-    const totalWinningBets = winningBets.reduce(
+    // Calculate total pools and fee for reporting
+    const totalPool = winningSideTotal + losingSideTotal;
+    const fee = totalPool * feeRate;
+    const winPool = totalPool - fee;
+
+    // Legacy payout calculation for points-based bets
+    const houseFee = Math.floor(prediction.pot * 0.05);
+    const legacyPayoutPot = prediction.pot - houseFee;
+
+    const totalLegacyWinningBets = winningBets.reduce(
       (sum, bet) => sum + (bet.starsBet || bet.pointsBet),
       0
     );
@@ -94,30 +116,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       });
 
-      // Distribute winnings proportionally (only if there are winners)
-      if (winningBets.length > 0 && totalWinningBets > 0) {
+      // Process MYST payouts
+      if (winningBets.length > 0 && winningSideTotal > 0) {
         for (const bet of winningBets) {
-          const betAmount = bet.starsBet || bet.pointsBet;
-          const share = (betAmount / totalWinningBets) * payoutPot;
-          const payout = Math.floor(share);
+          // MYST payout
+          if (bet.mystBet > 0) {
+            const { payout } = calculatePredictionPayout(
+              bet.mystBet,
+              winningSideTotal,
+              losingSideTotal,
+              feeRate
+            );
 
-          // Payout in points
-          await tx.user.update({
-            where: { id: bet.userId },
-            data: {
-              points: {
-                increment: payout,
-              },
-            },
-          });
+            if (payout > 0) {
+              // Credit MYST payout via transaction
+              await creditWinningPayout(prisma, bet.userId, payout, prediction.id);
+
+              // Update bet with payout amount
+              await tx.bet.update({
+                where: { id: bet.id },
+                data: { mystPayout: payout },
+              });
+            }
+          }
+
+          // Legacy points payout
+          if ((bet.starsBet > 0 || bet.pointsBet > 0) && totalLegacyWinningBets > 0) {
+            const betAmount = bet.starsBet || bet.pointsBet;
+            const share = (betAmount / totalLegacyWinningBets) * legacyPayoutPot;
+            const payout = Math.floor(share);
+
+            if (payout > 0) {
+              await tx.user.update({
+                where: { id: bet.userId },
+                data: {
+                  points: {
+                    increment: payout,
+                  },
+                },
+              });
+            }
+          }
         }
       }
     });
 
+    console.log(
+      `[Resolve] Prediction ${id} resolved. Winner: ${validation.data.winningOption}. ` +
+      `MYST Pool: ${totalPool}, Fee: ${fee}, Winners: ${winningBets.length}`
+    );
+
     return res.status(200).json({
       success: true,
       message: `Prediction resolved. Winner: ${validation.data.winningOption}`,
-      payoutPot,
+      mystPool: {
+        yes: prediction.mystPoolYes,
+        no: prediction.mystPoolNo,
+        total: totalPool,
+        fee,
+        winPool,
+      },
+      legacyPayoutPot,
       winners: winningBets.length,
     });
   } catch (error: any) {

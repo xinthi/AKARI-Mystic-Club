@@ -182,12 +182,12 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => router.push('/campaigns')}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+            onClick={() => router.push('/rewards')}
+            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl p-4 text-left transition-colors"
           >
-            <div className="text-2xl mb-2">📋</div>
-            <div className="font-semibold">Campaigns</div>
-            <div className="text-sm text-purple-200">Tasks & Rewards</div>
+            <div className="text-2xl mb-2">🎁</div>
+            <div className="font-semibold">Rewards</div>
+            <div className="text-sm text-amber-100">Weekly TON</div>
           </button>
 
           <button
@@ -197,6 +197,15 @@ export default function Dashboard() {
             <div className="text-2xl mb-2">🏆</div>
             <div className="font-semibold">Leaderboard</div>
             <div className="text-sm text-purple-200">Top Players</div>
+          </button>
+
+          <button
+            onClick={() => router.push('/campaigns')}
+            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+          >
+            <div className="text-2xl mb-2">📋</div>
+            <div className="font-semibold">Campaigns</div>
+            <div className="text-sm text-purple-200">Tasks & Rewards</div>
           </button>
 
           <button

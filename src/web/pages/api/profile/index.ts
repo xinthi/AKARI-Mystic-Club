@@ -1,13 +1,14 @@
 /**
  * User Profile API
  *
- * GET: Fetch user profile (including X account connection status)
+ * GET: Fetch user profile (including MYST balance, referral info, X connection)
  * PATCH: Update profile
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { getUserFromRequest, getTelegramUserFromRequest } from '../../../lib/telegram-auth';
+import { getMystBalance, generateReferralCode } from '../../../lib/myst-service';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -24,6 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (telegramUser) {
         console.log('[Profile API] Creating new user for telegramId:', telegramUser.id);
         
+        // Generate referral code
+        const referralCode = generateReferralCode(String(telegramUser.id));
+        
         // Create new user from Telegram data
         user = await prisma.user.create({
           data: {
@@ -32,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             firstName: telegramUser.first_name,
             lastName: telegramUser.last_name,
             photoUrl: telegramUser.photo_url,
+            referralCode,
           },
         });
         
@@ -74,6 +79,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             take: 10,
             orderBy: { createdAt: 'desc' },
           },
+          referrer: {
+            select: {
+              username: true,
+            },
+          },
         },
       });
 
@@ -85,6 +95,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
+      // Get MYST balance
+      const mystBalance = await getMystBalance(prisma, fullUser.id);
+
+      // Count referrals
+      const referralCount = await prisma.user.count({
+        where: { referrerId: fullUser.id },
+      });
+
+      // Generate referral code if not exists
+      let referralCode = fullUser.referralCode;
+      if (!referralCode) {
+        referralCode = generateReferralCode(fullUser.telegramId);
+        await prisma.user.update({
+          where: { id: fullUser.id },
+          data: { referralCode },
+        });
+      }
+
       return res.status(200).json({
         ok: true,
         user: {
@@ -92,15 +120,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           telegramId: fullUser.telegramId,
           username: fullUser.username,
           firstName: fullUser.firstName,
-          points: fullUser.points,
+          points: fullUser.points, // aXP
           tier: fullUser.tier,
           credibilityScore: (fullUser.credibilityScore ?? 0).toFixed(1),
           positiveReviews: fullUser.positiveReviews,
           createdAt: fullUser.createdAt,
           updatedAt: fullUser.updatedAt,
+          
+          // MYST Economy
+          mystBalance,
+          
+          // Referral system
+          referralCode,
+          referralLink: `https://t.me/AKARIMystic_Bot?start=ref_${referralCode}`,
+          referralCount,
+          referredBy: fullUser.referrer?.username || null,
+          
+          // TON wallet
+          tonWallet: fullUser.tonWallet,
+          
           // X account connection
           xConnected: fullUser.twitterAccounts.length > 0,
           xHandle: fullUser.twitterAccounts[0]?.handle ?? null,
+          
           // Recent bets
           recentBets: fullUser.bets.map((bet) => ({
             id: bet.id,
@@ -108,6 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             option: bet.option,
             starsBet: bet.starsBet,
             pointsBet: bet.pointsBet,
+            mystBet: bet.mystBet,
             createdAt: bet.createdAt,
           })),
         },
@@ -115,11 +158,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'PATCH') {
-      const { tier } = req.body || {};
+      const { tier, tonWallet } = req.body || {};
 
-      const updateData: { tier?: string } = {};
+      const updateData: { tier?: string; tonWallet?: string } = {};
       if (tier !== undefined) {
         updateData.tier = tier;
+      }
+      if (tonWallet !== undefined) {
+        // Basic TON wallet validation
+        if (tonWallet && !/^(EQ|UQ)[a-zA-Z0-9_-]{46}$/.test(tonWallet)) {
+          return res.status(400).json({ ok: false, user: null, message: 'Invalid TON wallet format' });
+        }
+        updateData.tonWallet = tonWallet || null;
       }
 
       const updatedUser = await prisma.user.update({
@@ -132,6 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         user: {
           id: updatedUser.id,
           tier: updatedUser.tier,
+          tonWallet: updatedUser.tonWallet,
         },
       });
     }
