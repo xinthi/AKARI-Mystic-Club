@@ -62,6 +62,28 @@ export default async function handler(
         }
       }
 
+      // Helper to derive category from prediction id/title
+      const deriveCategory = (id: string, title: string): string => {
+        const idLower = id.toLowerCase();
+        const titleLower = title.toLowerCase();
+        
+        if (idLower.includes('btc') || idLower.includes('eth') || 
+            titleLower.includes('bitcoin') || titleLower.includes('ethereum') ||
+            titleLower.includes('crypto') || titleLower.includes('btc') || titleLower.includes('eth')) {
+          return 'Crypto';
+        }
+        if (idLower.includes('trump') || idLower.includes('election') || idLower.includes('biden') ||
+            titleLower.includes('election') || titleLower.includes('president') || titleLower.includes('vote')) {
+          return 'Politics';
+        }
+        if (idLower.includes('fed') || idLower.includes('rate') || idLower.includes('stock') ||
+            titleLower.includes('fed') || titleLower.includes('rate') || titleLower.includes('market') ||
+            titleLower.includes('s&p') || titleLower.includes('nasdaq')) {
+          return 'Markets';
+        }
+        return 'Community';
+      };
+
       return res.status(200).json({
         ok: true,
         prediction: {
@@ -76,6 +98,7 @@ export default async function handler(
           winningOption: prediction.winningOption,
           endsAt: prediction.endsAt.toISOString(),
           participantCount: prediction._count.bets,
+          category: deriveCategory(prediction.id, prediction.title),
           createdAt: prediction.createdAt.toISOString(),
           updatedAt: prediction.updatedAt.toISOString(),
           optionStats,

@@ -1,10 +1,11 @@
 /**
- * Predictions Page
+ * Predictions Page - Polymarket-inspired UI
  *
- * Lists all active predictions with ability to view details and place bets
+ * Lists all active predictions with compact cards, category filters,
+ * and a market overview chart
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 
@@ -19,17 +20,25 @@ interface Prediction {
   resolved: boolean;
   endsAt: string;
   participantCount: number;
-  creator: {
-    username?: string;
-    tier?: string;
-  };
+  category?: string;
+  optionStats?: Array<{
+    option: string;
+    index: number;
+    betCount: number;
+    totalStars: number;
+    totalPoints: number;
+  }>;
 }
+
+const CATEGORIES = ['All', 'Crypto', 'Politics', 'Markets', 'Community'] as const;
+type Category = (typeof CATEGORIES)[number];
 
 export default function PredictionsPage() {
   const router = useRouter();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<Category>('All');
 
   // Telegram BackButton - wire it to go back to home
   useEffect(() => {
@@ -38,17 +47,14 @@ export default function PredictionsPage() {
     const tg = (window as any).Telegram?.WebApp;
     if (!tg?.BackButton) return;
 
-    // Show the back button and wire it to go home
     tg.BackButton.show();
-    tg.BackButton.onClick(() => {
-      router.push('/');
-    });
+    const handleBack = () => router.push('/');
+    tg.BackButton.onClick(handleBack);
 
-    // Cleanup on unmount
     return () => {
       try {
+        tg.BackButton.offClick(handleBack);
         tg.BackButton.hide();
-        tg.BackButton.onClick(() => {});
       } catch (_) {
         // ignore
       }
@@ -70,12 +76,10 @@ export default function PredictionsPage() {
 
   const loadPredictions = async () => {
     try {
-      // Get init data from Telegram
       let initData = '';
       if (typeof window !== 'undefined') {
         const WebApp = getWebApp();
         if (WebApp) {
-          // @ts-ignore - SDK types may vary
           initData = (WebApp as any).initData || '';
         }
       }
@@ -87,7 +91,6 @@ export default function PredictionsPage() {
       });
 
       if (!response.ok) {
-        // Still try to parse response - might have data even with non-200
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Failed to load predictions');
       }
@@ -95,17 +98,38 @@ export default function PredictionsPage() {
       const data = await response.json();
       setPredictions(data.predictions || []);
       setLoading(false);
-      setError(null); // Clear any previous errors
+      setError(null);
     } catch (err: any) {
       console.error('Error loading predictions:', err);
-      // Don't show critical error - just show empty state
       setPredictions([]);
       setError(err.message || 'Failed to load data');
       setLoading(false);
     }
   };
 
-  const formatTimeRemaining = (endsAt: string) => {
+  // Filter predictions by category
+  const visiblePredictions = useMemo(
+    () =>
+      activeCategory === 'All'
+        ? predictions
+        : predictions.filter((p) => p.category === activeCategory),
+    [predictions, activeCategory]
+  );
+
+  // Count predictions by category for the overview chart
+  const countsByCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of predictions) {
+      const cat = p.category || 'Community';
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [predictions]);
+
+  const maxCount = Math.max(1, ...Object.values(countsByCategory));
+
+  // Format time remaining
+  const formatTimeRemaining = (endsAt: string): string => {
     const end = new Date(endsAt);
     const now = new Date();
     const diff = end.getTime() - now.getTime();
@@ -114,98 +138,212 @@ export default function PredictionsPage() {
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
+    if (days > 0) return `${days}d`;
+    if (hours > 0) return `${hours}h`;
+    return '<1h';
+  };
+
+  // Compute implied probability for Yes option
+  const computeChance = (prediction: Prediction): string => {
+    // If we have optionStats, compute from that
+    if (prediction.optionStats && prediction.optionStats.length >= 2) {
+      const yesStats = prediction.optionStats.find((s) => s.option === 'Yes' || s.index === 0);
+      const noStats = prediction.optionStats.find((s) => s.option === 'No' || s.index === 1);
+
+      if (yesStats && noStats) {
+        const yesTotal = (yesStats.totalStars || 0) + (yesStats.totalPoints || 0);
+        const noTotal = (noStats.totalStars || 0) + (noStats.totalPoints || 0);
+        const total = yesTotal + noTotal;
+
+        if (total > 0) {
+          return `${Math.round((yesTotal / total) * 100)}%`;
+        }
+      }
+    }
+
+    // Default to 50% if no betting data
+    return '50%';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading predictions...</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          <div className="text-purple-200 text-sm">Loading markets...</div>
+        </div>
       </div>
     );
   }
 
-  // Show error message but still render the page
   const showError = error && predictions.length === 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
-      <header className="p-6 pb-4">
-        <h1 className="text-3xl font-bold mb-2">🎲 Predictions</h1>
-        <p className="text-purple-300">Bet on outcomes and win rewards</p>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 text-white">
+      <div className="px-4 pt-5 pb-6">
+        {/* Header */}
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-white">Predictions</h1>
+          <p className="text-xs text-purple-300 mt-1">
+            Browse markets across Crypto, Politics and more. Tap a card to see details and place a bet.
+          </p>
+        </div>
 
-      <div className="px-6 pb-6 space-y-4">
+        {/* Mini Overview Chart */}
+        {predictions.length > 0 && (
+          <div className="mb-4 bg-black/40 border border-white/5 rounded-2xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-purple-100">Market overview</span>
+              <span className="text-[10px] text-purple-300">{predictions.length} active</span>
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(countsByCategory).map(([category, count]) => (
+                <div key={category} className="flex items-center gap-2">
+                  <span className="text-[10px] text-purple-200 w-14 shrink-0 truncate">
+                    {category}
+                  </span>
+                  <div className="flex-1 h-1.5 rounded-full bg-purple-900/70 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-500"
+                      style={{ width: `${(count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-purple-100 w-4 text-right">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category Filter Chips */}
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+          {CATEGORIES.map((cat) => {
+            const isActive = activeCategory === cat;
+            const count = cat === 'All' ? predictions.length : (countsByCategory[cat] || 0);
+            
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap border transition-all ${
+                  isActive
+                    ? 'bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-500/20'
+                    : 'bg-black/40 text-purple-200 border-white/5 hover:border-purple-500/30'
+                }`}
+              >
+                {cat}
+                {count > 0 && (
+                  <span className={`ml-1.5 ${isActive ? 'text-purple-100' : 'text-purple-400'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Error State */}
         {showError && (
-          <div className="bg-red-900/30 backdrop-blur-lg rounded-xl p-4 border border-red-500/20 mb-4">
+          <div className="bg-red-900/30 rounded-xl p-4 border border-red-500/20 mb-4">
             <div className="text-sm text-red-200 mb-2">{error}</div>
             <button
               onClick={loadPredictions}
-              className="text-xs px-3 py-1 bg-red-600 rounded hover:bg-red-700"
+              className="text-xs px-3 py-1.5 bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
             >
               Retry
             </button>
           </div>
         )}
-        {predictions.length === 0 ? (
-          <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-8 text-center border border-purple-500/20">
-            <div className="text-4xl mb-4">🔮</div>
-            <div className="text-lg mb-2">No active predictions</div>
-            <div className="text-sm text-purple-300">Check back later for new markets</div>
-          </div>
-        ) : (
-          predictions.map((prediction) => (
-            <div
-              key={prediction.id}
-              onClick={() => router.push(`/predictions/${prediction.id}`)}
-              className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20 cursor-pointer hover:bg-purple-900/40 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-xl font-semibold flex-1">{prediction.title}</h3>
-                {prediction.resolved && (
-                  <span className="bg-green-600 text-xs px-2 py-1 rounded">Resolved</span>
-                )}
-              </div>
 
-              {prediction.description && (
-                <p className="text-purple-200 text-sm mb-4 line-clamp-2">
-                  {prediction.description}
-                </p>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <div className="text-xs text-purple-300 mb-1">Pot</div>
-                  <div className="text-lg font-semibold">
-                    {prediction.pot.toLocaleString()} {prediction.entryFeeStars > 0 ? '⭐' : 'EP'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-purple-300 mb-1">Participants</div>
-                  <div className="text-lg font-semibold">{prediction.participantCount}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-purple-500/20">
-                <div className="text-sm text-purple-300">
-                  {prediction.entryFeeStars > 0
-                    ? `Entry: ${prediction.entryFeeStars} ⭐`
-                    : prediction.entryFeePoints > 0
-                    ? `Entry: ${prediction.entryFeePoints} EP`
-                    : 'Free to enter'}
-                </div>
-                <div className="text-sm text-purple-300">
-                  {formatTimeRemaining(prediction.endsAt)} left
-                </div>
-              </div>
+        {/* Empty State */}
+        {visiblePredictions.length === 0 && !showError && (
+          <div className="bg-black/40 border border-white/5 rounded-2xl p-8 text-center">
+            <div className="text-3xl mb-3">🔮</div>
+            <div className="text-sm font-medium text-white mb-1">
+              {activeCategory === 'All' ? 'No active predictions' : `No ${activeCategory} predictions`}
             </div>
-          ))
+            <div className="text-xs text-purple-300">
+              {activeCategory === 'All' ? 'Check back later for new markets' : 'Try selecting a different category'}
+            </div>
+          </div>
+        )}
+
+        {/* Prediction Cards Grid */}
+        {visiblePredictions.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {visiblePredictions.map((prediction) => (
+              <PredictionCard
+                key={prediction.id}
+                prediction={prediction}
+                chance={computeChance(prediction)}
+                timeRemaining={formatTimeRemaining(prediction.endsAt)}
+                onClick={() => router.push(`/predictions/${prediction.id}`)}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+// Compact Polymarket-inspired prediction card
+interface PredictionCardProps {
+  prediction: Prediction;
+  chance: string;
+  timeRemaining: string;
+  onClick: () => void;
+}
+
+function PredictionCard({ prediction, chance, timeRemaining, onClick }: PredictionCardProps) {
+  // Parse chance to get numeric value for Yes/No split
+  const chanceNum = parseInt(chance) || 50;
+  const yesChance = chanceNum;
+  const noChance = 100 - chanceNum;
+
+  return (
+    <button
+      onClick={onClick}
+      className="bg-black/40 border border-white/5 rounded-2xl p-3 flex flex-col text-left hover:border-purple-500/30 hover:bg-black/50 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+    >
+      {/* Top row: Title + Chance */}
+      <div className="flex items-start justify-between gap-1.5 mb-2">
+        <h2 className="text-[11px] font-semibold text-white leading-snug line-clamp-2 flex-1">
+          {prediction.title}
+        </h2>
+        <div className="text-right shrink-0">
+          <div className="text-xs font-bold text-emerald-300">{chance}</div>
+          <div className="text-[8px] text-purple-300/70 uppercase tracking-wide">chance</div>
+        </div>
+      </div>
+
+      {/* Time remaining badge */}
+      <div className="mb-2">
+        <span className="inline-flex items-center text-[9px] text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded">
+          ⏱ {timeRemaining}
+        </span>
+      </div>
+
+      {/* Yes / No split row */}
+      <div className="flex text-[10px] font-medium gap-1 mb-2">
+        <div className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/20 text-emerald-200 py-1.5 px-2 text-center">
+          <div className="font-bold">{yesChance}%</div>
+          <div className="text-[8px] text-emerald-300/70">Yes</div>
+        </div>
+        <div className="flex-1 rounded-xl bg-rose-500/15 border border-rose-500/20 text-rose-200 py-1.5 px-2 text-center">
+          <div className="font-bold">{noChance}%</div>
+          <div className="text-[8px] text-rose-300/70">No</div>
+        </div>
+      </div>
+
+      {/* Footer: Pot + Participants */}
+      <div className="flex justify-between items-center text-[9px] text-purple-300/70 pt-1.5 border-t border-white/5">
+        <span className="truncate">
+          {prediction.pot.toLocaleString()} {prediction.entryFeeStars > 0 ? '⭐' : 'EP'}
+        </span>
+        <span className="shrink-0">{prediction.participantCount} 👤</span>
+      </div>
+    </button>
   );
 }

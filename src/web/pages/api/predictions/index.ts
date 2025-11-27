@@ -12,6 +12,8 @@ async function seedPredictions() {
 
   const btcEnds = new Date('2025-12-31T23:59:59Z');
   const ethEnds = new Date('2026-12-31T23:59:59Z');
+  const electionEnds = new Date('2025-11-05T23:59:59Z');
+  const fedEnds = new Date('2025-06-30T23:59:59Z');
 
   await prisma.prediction.createMany({
     data: [
@@ -39,6 +41,32 @@ async function seedPredictions() {
         pot: 0,
         resolved: false,
         endsAt: ethEnds,
+        participantCount: 0,
+      },
+      {
+        id: 'trump-2024',
+        title: 'Will Trump win 2024 US election?',
+        description:
+          'Market resolves based on official US election results.',
+        options: ['Yes', 'No'],
+        entryFeeStars: 0,
+        entryFeePoints: 75,
+        pot: 0,
+        resolved: false,
+        endsAt: electionEnds,
+        participantCount: 0,
+      },
+      {
+        id: 'fed-rate-cut',
+        title: 'Will Fed cut rates before July 2025?',
+        description:
+          'Resolves Yes if the Federal Reserve announces at least one interest rate cut before July 1, 2025.',
+        options: ['Yes', 'No'],
+        entryFeeStars: 0,
+        entryFeePoints: 50,
+        pot: 0,
+        resolved: false,
+        endsAt: fedEnds,
         participantCount: 0,
       },
     ],
@@ -70,6 +98,28 @@ export default async function handler(
         },
       });
 
+      // Helper to derive category from prediction id/title
+      const deriveCategory = (id: string, title: string): string => {
+        const idLower = id.toLowerCase();
+        const titleLower = title.toLowerCase();
+        
+        if (idLower.includes('btc') || idLower.includes('eth') || 
+            titleLower.includes('bitcoin') || titleLower.includes('ethereum') ||
+            titleLower.includes('crypto') || titleLower.includes('btc') || titleLower.includes('eth')) {
+          return 'Crypto';
+        }
+        if (idLower.includes('trump') || idLower.includes('election') || idLower.includes('biden') ||
+            titleLower.includes('election') || titleLower.includes('president') || titleLower.includes('vote')) {
+          return 'Politics';
+        }
+        if (idLower.includes('fed') || idLower.includes('rate') || idLower.includes('stock') ||
+            titleLower.includes('fed') || titleLower.includes('rate') || titleLower.includes('market') ||
+            titleLower.includes('s&p') || titleLower.includes('nasdaq')) {
+          return 'Markets';
+        }
+        return 'Community';
+      };
+
       // Map to return participantCount based on actual bets count
       const mapped = predictions.map((p) => ({
         id: p.id,
@@ -83,6 +133,7 @@ export default async function handler(
         winningOption: p.winningOption,
         endsAt: p.endsAt.toISOString(),
         participantCount: p._count.bets,
+        category: deriveCategory(p.id, p.title),
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),
       }));
