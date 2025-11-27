@@ -12,10 +12,14 @@ build/
 .next/
 out/
 
-# Environment
+# Environment (NEVER commit these)
 .env
+.env.*
 .env.local
+.env.development
 .env.production
+.env.staging
+*.env
 
 # Logs
 *.log
