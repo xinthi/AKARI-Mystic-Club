@@ -437,7 +437,7 @@ export async function claimRewardWithBurn(
 
   return {
     success: true,
-    burnedAmount,
+    burnedAmount: burnAmount,
   };
 }
 
