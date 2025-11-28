@@ -62,16 +62,26 @@ export type MystTransactionType =
 /**
  * Get user's current MYST balance from transaction ledger.
  * Balance = SUM(amount) for all transactions.
+ * 
+ * Returns 0 if the table doesn't exist or query fails.
  */
 export async function getMystBalance(
   prisma: PrismaClient,
   userId: string
 ): Promise<number> {
-  const result = await prisma.mystTransaction.aggregate({
-    where: { userId },
-    _sum: { amount: true },
-  });
-  return result._sum.amount ?? 0;
+  if (!userId) return 0;
+  
+  try {
+    const result = await prisma.mystTransaction.aggregate({
+      where: { userId },
+      _sum: { amount: true },
+    });
+    return result._sum.amount ?? 0;
+  } catch (e: any) {
+    // Table might not exist yet, or other DB error
+    console.warn('[MystService] getMystBalance failed:', e.message);
+    return 0;
+  }
 }
 
 /**
