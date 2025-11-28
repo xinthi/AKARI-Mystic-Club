@@ -8,51 +8,51 @@
  * - type: 'points' | 'myst_spent' | 'referrals' (default: 'points')
  * - period: 'all' | 'week' (default: 'all')
  * 
- * IMPORTANT: Does NOT expose future reward USD/TON amounts.
- * Only shows eligibility badges.
+ * Rankings:
+ * - myst_spent: Total MYST spent on bets, campaigns, boosts
+ * - referrals: MYST earned from referral rewards (L1 + L2)
+ * - points: aXP (experience points)
+ * 
+ * Note: Does NOT expose future reward amounts.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
-import { getUserSpentInPeriod, getUserReferralEarningsInPeriod } from '../../../lib/myst-service';
 
-type LeaderboardEntry = {
+interface LeaderboardEntry {
   rank: number;
   odIndex: string;
   username?: string;
   tier?: string;
-  points: number;          // aXP (experience points)
-  mystSpent?: number;      // MYST spent (for myst_spent leaderboard)
+  points: number;            // aXP (experience points)
+  mystSpent?: number;        // MYST spent (for myst_spent leaderboard)
   referralEarnings?: number; // MYST earned from referrals
   credibilityScore?: number;
   positiveReviews?: number;
   completions?: number;
-  rewardEligible?: boolean; // True if in top N for weekly rewards
-};
+  rewardEligible?: boolean;  // True if in top 10 for weekly recognition
+}
 
-type Data = {
+interface Data {
   ok: boolean;
   leaderboard: LeaderboardEntry[];
   type: string;
   period: string;
   reason?: string;
-};
+}
 
-// Get start of current week (Tuesday 23:00 UTC of previous week)
+// Get start of current week (Monday 00:00 UTC)
 function getWeekStart(): Date {
   const now = new Date();
   const dayOfWeek = now.getUTCDay();
-  const hoursUTC = now.getUTCHours();
+  const daysBack = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday = 0 days back
   
-  // Calculate days since last Tuesday 23:00 UTC
-  let daysBack = (dayOfWeek + 5) % 7; // Days since Tuesday
-  if (dayOfWeek === 2 && hoursUTC < 23) {
-    daysBack = 7; // Before Tuesday 23:00, go to previous week
-  }
-  
-  const weekStart = new Date(now);
-  weekStart.setUTCDate(now.getUTCDate() - daysBack);
-  weekStart.setUTCHours(23, 0, 0, 0);
+  const weekStart = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - daysBack,
+    0, 0, 0, 0
+  ));
   
   return weekStart;
 }
@@ -80,7 +80,7 @@ export default async function handler(
       const spentData = await prisma.mystTransaction.groupBy({
         by: ['userId'],
         where: {
-          type: { in: ['bet', 'campaign_fee', 'boost'] },
+          type: { in: ['spend_bet', 'spend_boost', 'spend_campaign', 'bet', 'campaign_fee', 'boost'] },
           amount: { lt: 0 },
           createdAt: { gte: startTime, lte: now },
         },
@@ -107,18 +107,18 @@ export default async function handler(
           tier: user?.tier ?? undefined,
           points: user?.points ?? 0,
           mystSpent: Math.abs(d._sum.amount ?? 0),
-          rewardEligible: idx < 10, // Top 10 are reward eligible
+          rewardEligible: idx < 10, // Top 10 are highlighted
         };
       });
 
     } else if (type === 'referrals') {
-      // Referral Earnings Leaderboard
+      // Referral Earnings Leaderboard (MYST earned from referral rewards)
       const startTime = period === 'week' ? weekStart : new Date(0);
       
       const referralData = await prisma.mystTransaction.groupBy({
         by: ['userId'],
         where: {
-          type: 'referral_reward',
+          type: { in: ['referral_reward_l1', 'referral_reward_l2', 'referral_reward'] },
           amount: { gt: 0 },
           createdAt: { gte: startTime, lte: now },
         },
@@ -185,8 +185,9 @@ export default async function handler(
       type: type as string,
       period: period as string,
     });
-  } catch (e: any) {
-    console.error('Leaderboard API error:', e);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.error('[Leaderboard] API error:', message);
     res.status(500).json({
       ok: false,
       leaderboard: [],

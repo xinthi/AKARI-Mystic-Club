@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
-import { getWheelPool } from '../../../../lib/myst-service';
+import { getWheelPoolBalance } from '../../../../lib/myst-service';
 
 interface StatsResponse {
   ok: boolean;
@@ -18,7 +18,9 @@ interface StatsResponse {
   recentSpins?: Array<{
     id: string;
     username?: string;
-    amountWon: number;
+    prizeType: string;
+    mystWon: number;
+    axpWon: number;
     createdAt: string;
   }>;
   message?: string;
@@ -40,16 +42,16 @@ export default async function handler(
 
   try {
     // Get pool balance
-    const pool = await getWheelPool(prisma);
+    const poolBalance = await getWheelPoolBalance(prisma);
 
     // Get total spins count
     const totalSpins = await prisma.wheelSpin.count();
 
-    // Get total won
+    // Get total MYST won
     const totalWonResult = await prisma.wheelSpin.aggregate({
-      _sum: { amountWon: true },
+      _sum: { mystWon: true },
     });
-    const totalWon = totalWonResult._sum.amountWon ?? 0;
+    const totalWon = totalWonResult._sum.mystWon ?? 0;
 
     // Get recent spins with user info
     const recentSpins = await prisma.wheelSpin.findMany({
@@ -64,19 +66,21 @@ export default async function handler(
 
     return res.status(200).json({
       ok: true,
-      poolBalance: pool.balance,
+      poolBalance,
       totalSpins,
       totalWon,
       recentSpins: recentSpins.map((spin) => ({
         id: spin.id,
         username: spin.user.username || spin.user.firstName || 'Anonymous',
-        amountWon: spin.amountWon,
+        prizeType: spin.prizeType,
+        mystWon: spin.mystWon,
+        axpWon: spin.axpWon,
         createdAt: spin.createdAt.toISOString(),
       })),
     });
-  } catch (error: any) {
-    console.error('[/api/admin/wheel/stats] Error:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Admin] wheel/stats failed:', message);
     return res.status(500).json({ ok: false, message: 'Server error' });
   }
 }
-

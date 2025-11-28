@@ -3,8 +3,8 @@
  * 
  * POST /api/wheel/spin
  * 
- * Allows users to spin the wheel once per UTC day.
- * Prize is randomly selected from tiers and deducted from WheelPool.
+ * Allows users to spin the wheel (2 spins per UTC day).
+ * Prizes include both MYST and aXP.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -12,63 +12,27 @@ import { prisma } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 import { 
   MYST_CONFIG, 
+  WHEEL_PRIZES,
   getMystBalance, 
-  getWheelPool, 
-  deductFromWheelPool,
-  creditMyst 
+  getWheelPoolBalance,
+  getUserSpinsToday,
+  selectWheelPrize,
+  POOL_IDS,
 } from '../../../lib/myst-service';
 
 interface SpinResponse {
   ok: boolean;
-  prize?: number;
-  newBalance?: number;
+  prize?: {
+    type: 'myst' | 'axp';
+    label: string;
+    mystWon: number;
+    axpWon: number;
+  };
+  newMystBalance?: number;
+  newAxp?: number;
   poolBalance?: number;
+  spinsRemaining?: number;
   message?: string;
-}
-
-// Prize weights (higher = more likely)
-// Index corresponds to MYST_CONFIG.WHEEL_PRIZES: [0, 0.1, 0.2, 0.5, 1, 3, 5, 10]
-const PRIZE_WEIGHTS = [40, 25, 15, 10, 5, 3, 1.5, 0.5]; // Total: 100
-
-/**
- * Select a random prize based on weights.
- * Will not select prizes higher than available pool balance.
- */
-function selectPrize(poolBalance: number): number {
-  const prizes = MYST_CONFIG.WHEEL_PRIZES;
-  const weights = [...PRIZE_WEIGHTS];
-  
-  // Zero out weights for prizes that exceed pool balance
-  for (let i = 0; i < prizes.length; i++) {
-    if (prizes[i] > poolBalance) {
-      weights[i] = 0;
-    }
-  }
-  
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-  
-  if (totalWeight <= 0) {
-    return 0; // Pool is empty, return 0
-  }
-  
-  let random = Math.random() * totalWeight;
-  
-  for (let i = 0; i < prizes.length; i++) {
-    random -= weights[i];
-    if (random <= 0) {
-      return prizes[i];
-    }
-  }
-  
-  return 0;
-}
-
-/**
- * Get start of current UTC day.
- */
-function getUTCDayStart(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
 export default async function handler(
@@ -86,89 +50,118 @@ export default async function handler(
       return res.status(401).json({ ok: false, message: 'Please open this app from Telegram' });
     }
 
-    // Check if user has already spun today
-    const dayStart = getUTCDayStart();
-    const existingSpin = await prisma.wheelSpin.findFirst({
-      where: {
-        userId: user.id,
-        createdAt: { gte: dayStart },
-      },
-    });
+    // Check spins remaining today
+    const spinsToday = await getUserSpinsToday(prisma, user.id);
+    const spinsRemaining = MYST_CONFIG.WHEEL_SPINS_PER_DAY - spinsToday;
 
-    if (existingSpin) {
-      const nextSpinTime = new Date(dayStart);
-      nextSpinTime.setUTCDate(nextSpinTime.getUTCDate() + 1);
+    if (spinsRemaining <= 0) {
+      const now = new Date();
+      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
       
       return res.status(200).json({
         ok: false,
-        message: `You've already spun today! Come back at ${nextSpinTime.toISOString()}`,
+        message: `No spins left today! Come back at ${tomorrow.toISOString()}`,
+        spinsRemaining: 0,
       });
     }
 
-    // Get wheel pool balance
-    const pool = await getWheelPool(prisma);
+    // Get pool balance
+    const poolBalance = await getWheelPoolBalance(prisma);
+
+    // Get smallest MYST prize to check if pool can pay anything
+    const smallestMystPrize = WHEEL_PRIZES
+      .filter(p => p.type === 'myst' && p.myst > 0)
+      .sort((a, b) => a.myst - b.myst)[0];
     
-    if (pool.balance <= 0) {
-      return res.status(200).json({
-        ok: false,
-        message: 'Wheel is currently empty. Try again later!',
-        poolBalance: 0,
-      });
-    }
+    const poolEffectivelyEmpty = smallestMystPrize && poolBalance < smallestMystPrize.myst;
 
     // Select prize
-    const prize = selectPrize(pool.balance);
+    const prize = selectWheelPrize(poolBalance);
 
-    // Execute spin atomically
-    await prisma.$transaction(async (tx) => {
-      // Record the spin
+    // Execute spin in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Record spin
       await tx.wheelSpin.create({
         data: {
           userId: user.id,
-          amountWon: prize,
+          prizeType: prize.type,
+          mystWon: prize.myst,
+          axpWon: prize.axp,
         },
       });
 
-      // Deduct from pool (if prize > 0)
-      if (prize > 0) {
-        await tx.wheelPool.update({
+      // If MYST prize, deduct from pool and credit user
+      if (prize.type === 'myst' && prize.myst > 0) {
+        // Deduct from pool
+        await tx.poolBalance.upsert({
+          where: { id: POOL_IDS.WHEEL },
+          update: { balance: { decrement: prize.myst } },
+          create: { id: POOL_IDS.WHEEL, balance: 0 },
+        });
+
+        // Also update legacy WheelPool
+        await tx.wheelPool.upsert({
           where: { id: 'main_pool' },
-          data: { balance: { decrement: prize } },
+          update: { balance: { decrement: prize.myst } },
+          create: { id: 'main_pool', balance: 0 },
         });
 
         // Credit user
         await tx.mystTransaction.create({
           data: {
             userId: user.id,
-            type: 'wheel_win',
-            amount: prize,
-            meta: { source: 'wheel_spin' },
+            type: 'wheel_prize',
+            amount: prize.myst,
+            meta: { source: 'wheel_spin', prizeLabel: prize.label },
           },
         });
       }
+
+      // If aXP prize, credit user points
+      if (prize.type === 'axp' && prize.axp > 0) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { points: { increment: prize.axp } },
+        });
+      }
+
+      // Get updated values
+      const updatedUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { points: true },
+      });
+
+      return { newAxp: updatedUser?.points ?? 0 };
     });
 
     // Get updated balances
-    const newBalance = await getMystBalance(prisma, user.id);
-    const updatedPool = await getWheelPool(prisma);
+    const newMystBalance = await getMystBalance(prisma, user.id);
+    const updatedPoolBalance = await getWheelPoolBalance(prisma);
 
-    const message = prize > 0 
-      ? `🎉 You won ${prize} MYST!`
-      : `Better luck next time!`;
+    const message = prize.type === 'myst' && prize.myst > 0
+      ? `🎉 You won ${prize.myst} MYST!`
+      : `✨ You gained +${prize.axp} aXP!`;
 
-    console.log(`[Wheel] User ${user.id} spun and won ${prize} MYST`);
+    console.log(`[Wheel] User ${user.id} spun: ${prize.label}`);
 
     return res.status(200).json({
       ok: true,
-      prize,
-      newBalance,
-      poolBalance: updatedPool.balance,
+      prize: {
+        type: prize.type,
+        label: prize.label,
+        mystWon: prize.myst,
+        axpWon: prize.axp,
+      },
+      newMystBalance,
+      newAxp: result.newAxp,
+      poolBalance: updatedPoolBalance,
+      spinsRemaining: spinsRemaining - 1,
       message,
     });
 
-  } catch (error: any) {
-    console.error('[/api/wheel/spin] Error:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Wheel] spin failed:', message);
     return res.status(500).json({ ok: false, message: 'Failed to spin the wheel' });
   }
 }
-

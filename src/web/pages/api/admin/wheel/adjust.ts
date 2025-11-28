@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
-import { getWheelPool } from '../../../../lib/myst-service';
+import { getWheelPoolBalance, POOL_IDS } from '../../../../lib/myst-service';
 
 interface AdjustResponse {
   ok: boolean;
@@ -37,24 +37,31 @@ export default async function handler(
       return res.status(400).json({ ok: false, message: 'Invalid amount' });
     }
 
-    // Get current pool
-    const pool = await getWheelPool(prisma);
-    const newBalance = pool.balance + amount;
+    // Get current pool balance
+    const currentBalance = await getWheelPoolBalance(prisma);
+    const newBalance = currentBalance + amount;
 
     // Don't allow negative pool balance
     if (newBalance < 0) {
       return res.status(400).json({ 
         ok: false, 
-        message: `Cannot reduce pool below 0. Current balance: ${pool.balance.toFixed(2)}` 
+        message: `Cannot reduce pool below 0. Current balance: ${currentBalance.toFixed(2)}` 
       });
     }
 
-    // Update pool
-    await prisma.wheelPool.upsert({
-      where: { id: 'main_pool' },
-      update: { balance: newBalance },
-      create: { id: 'main_pool', balance: newBalance },
-    });
+    // Update both WheelPool and PoolBalance
+    await prisma.$transaction([
+      prisma.wheelPool.upsert({
+        where: { id: 'main_pool' },
+        update: { balance: newBalance },
+        create: { id: 'main_pool', balance: newBalance },
+      }),
+      prisma.poolBalance.upsert({
+        where: { id: POOL_IDS.WHEEL },
+        update: { balance: newBalance },
+        create: { id: POOL_IDS.WHEEL, balance: newBalance },
+      }),
+    ]);
 
     console.log(`[Admin] Wheel pool adjusted by ${amount}. New balance: ${newBalance}`);
 
@@ -62,9 +69,9 @@ export default async function handler(
       ok: true,
       newBalance,
     });
-  } catch (error: any) {
-    console.error('[/api/admin/wheel/adjust] Error:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Admin] wheel/adjust failed:', message);
     return res.status(500).json({ ok: false, message: 'Server error' });
   }
 }
-

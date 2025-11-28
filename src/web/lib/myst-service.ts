@@ -3,69 +3,128 @@
  * 
  * Core economic logic for the AKARI Mystic Club token system.
  * 
- * Key concepts:
- * - 1 MYST = 100 Stars (internal accounting)
- * - 100 Stars ~ 2 USD, so 1 MYST ~ 2 USD
- * - Stars -> MYST is allowed (one-way in v1)
- * - MYST -> Stars is NOT allowed
+ * Economic Constants:
+ * - 1 USD = 50 MYST (MYST_PER_USD)
+ * - 1 MYST = 0.02 USD (USD_PER_MYST)
+ * - TON price from env: TON_PRICE_USD (default 5.0)
+ * - MYST_PER_TON = MYST_PER_USD * TON_PRICE_USD
  * 
- * Fee Distribution (on every MYST spend):
- * - 75% Platform fee (retained)
- * - 5% Wheel Pool (for Wheel of Fortune prizes)
- * - 20% Burned (removed from circulation)
+ * MYST Emission Sources (ONLY these):
+ * 1. TON deposits (external watcher credits MYST)
+ * 2. Admin grants via /admin/myst
+ * 3. Onboarding bonus: 5 MYST once per user (until 2026-01-01)
+ * 4. Referral milestone: 10 MYST when 5 referrals reached (until 2026-01-01)
  * 
- * Time-Limited Promos (until 2026-01-01):
- * - Onboarding bonus: 5 MYST for new users
- * - Referral milestone: 10 MYST when user refers 5 people
- * These promos are time-gated to prevent inflation beyond the period
- * where Stars revenue is guaranteed.
+ * Spending Splits (when user spends S MYST):
+ * - 15% → Leaderboard pool
+ * - 10% → Referral pool (funds L1/L2 rewards)
+ * - 5%  → Wheel pool
+ * - 70% → Platform treasury
  * 
- * Referral rates (from spend, not from promos):
- * - Level 1 (direct): 10% of downline MYST spent
- * - Level 2 (indirect): 2% of downline MYST spent
+ * Referral Rewards (from 10% referral pool):
+ * - Level 1 (direct referrer): 8% of spend
+ * - Level 2 (indirect referrer): 2% of spend
  */
 
-import { PrismaClient, User } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 // ============================================
-// CONFIGURATION
+// ECONOMIC CONSTANTS
 // ============================================
+
+/** 1 USD = 50 MYST */
+export const MYST_PER_USD = 50;
+
+/** 1 MYST = 0.02 USD */
+export const USD_PER_MYST = 1 / MYST_PER_USD;
+
+/** Get TON price in USD from env (default 5.0) */
+export function getTonPriceUsd(): number {
+  const envPrice = process.env.TON_PRICE_USD;
+  if (envPrice) {
+    const parsed = parseFloat(envPrice);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 5.0;
+}
+
+/** Get MYST per TON (dynamic based on TON price) */
+export function getMystPerTon(): number {
+  return MYST_PER_USD * getTonPriceUsd();
+}
 
 /**
  * Time limit for promotional MYST minting (onboarding + referral milestone).
- * After this date, no new promotional MYST will be minted to prevent inflation.
+ * After this date, no new promotional MYST will be minted.
  */
 export const MYST_TIME_LIMIT = new Date('2026-01-01T00:00:00Z');
 
 export const MYST_CONFIG = {
-  // Conversion rate: 100 Stars = 1 MYST
-  STARS_PER_MYST: 100,
-  
-  // USD value: 1 MYST = 2 USD (for reward calculations)
-  MYST_USD_PRICE: 2,
-  
-  // Referral reward rates (from spend)
-  REFERRAL_LEVEL_1_RATE: 0.10, // 10%
-  REFERRAL_LEVEL_2_RATE: 0.02, // 2%
+  // USD/MYST conversions
+  MYST_PER_USD,
+  USD_PER_MYST,
   
   // Prediction market fee rate
   DEFAULT_FEE_RATE: 0.08, // 8%
   
-  // Fee distribution on MYST spend
-  PLATFORM_FEE_RATE: 0.75, // 75% to platform
-  WHEEL_POOL_RATE: 0.05,   // 5% to wheel pool
-  BURN_RATE: 0.20,         // 20% burned
-  
   // Minimum bet amount in MYST
   MINIMUM_BET: 2,
+  
+  // Spending splits (must sum to 1.0)
+  SPLIT_LEADERBOARD: 0.15,  // 15% to leaderboard pool
+  SPLIT_REFERRAL: 0.10,     // 10% to referral pool
+  SPLIT_WHEEL: 0.05,        // 5% to wheel pool
+  SPLIT_TREASURY: 0.70,     // 70% to platform treasury
+  
+  // Referral reward rates (from the 10% referral pool)
+  REFERRAL_LEVEL_1_RATE: 0.08, // 8% of spend to L1
+  REFERRAL_LEVEL_2_RATE: 0.02, // 2% of spend to L2
   
   // Promotional amounts (time-limited until MYST_TIME_LIMIT)
   ONBOARDING_BONUS_AMOUNT: 5,
   REFERRAL_MILESTONE_AMOUNT: 10,
-  REFERRAL_MILESTONE_THRESHOLD: 5, // Number of referrals needed
+  REFERRAL_MILESTONE_THRESHOLD: 5,
   
-  // Wheel of Fortune prizes
-  WHEEL_PRIZES: [0, 0.1, 0.2, 0.5, 1, 3, 5, 10],
+  // Withdrawal settings
+  WITHDRAWAL_FEE_RATE: 0.02,  // 2% fee
+  WITHDRAWAL_MIN_USD: 50,     // Minimum $50 net withdrawal
+  
+  // Wheel of Fortune settings
+  WHEEL_SPINS_PER_DAY: 2,
+} as const;
+
+// ============================================
+// WHEEL PRIZES CONFIGURATION
+// ============================================
+
+export interface WheelPrize {
+  type: 'myst' | 'axp';
+  label: string;
+  myst: number;
+  axp: number;
+  weight: number;
+}
+
+export const WHEEL_PRIZES: WheelPrize[] = [
+  { type: 'axp',  label: 'aXP +5',    myst: 0,   axp: 5,  weight: 25 },
+  { type: 'axp',  label: 'aXP +10',   myst: 0,   axp: 10, weight: 20 },
+  { type: 'myst', label: '0.1 MYST',  myst: 0.1, axp: 0,  weight: 18 },
+  { type: 'myst', label: '0.2 MYST',  myst: 0.2, axp: 0,  weight: 12 },
+  { type: 'myst', label: '0.5 MYST',  myst: 0.5, axp: 0,  weight: 8 },
+  { type: 'myst', label: '1 MYST',    myst: 1,   axp: 0,  weight: 6 },
+  { type: 'myst', label: '3 MYST',    myst: 3,   axp: 0,  weight: 4 },
+  { type: 'myst', label: '10 MYST',   myst: 10,  axp: 0,  weight: 2 },
+];
+
+// ============================================
+// POOL IDS
+// ============================================
+
+export const POOL_IDS = {
+  LEADERBOARD: 'leaderboard',
+  REFERRAL: 'referral',
+  WHEEL: 'wheel',
+  TREASURY: 'treasury',
 } as const;
 
 // ============================================
@@ -73,16 +132,28 @@ export const MYST_CONFIG = {
 // ============================================
 
 export type MystTransactionType = 
-  | 'stars_conversion'    // Stars -> MYST
-  | 'bet'                 // Betting on prediction
-  | 'win'                 // Winning from prediction
-  | 'referral_reward'     // Reward from referral spend
-  | 'admin_grant'         // Admin-granted MYST
-  | 'campaign_fee'        // Campaign entry fee
-  | 'boost'               // Boost purchase
-  | 'onboarding_bonus'    // New user bonus (time-limited)
-  | 'referral_milestone'  // 5-referral bonus (time-limited)
-  | 'wheel_win';          // Wheel of Fortune win
+  // Credits
+  | 'ton_deposit'           // TON → MYST conversion
+  | 'admin_grant'           // Admin-granted MYST
+  | 'onboarding_bonus'      // New user bonus (time-limited)
+  | 'referral_milestone'    // 5-referral bonus (time-limited)
+  | 'wheel_prize'           // Wheel of Fortune win
+  | 'prediction_win'        // Winning from prediction
+  | 'referral_reward_l1'    // Referral reward level 1
+  | 'referral_reward_l2'    // Referral reward level 2
+  // Debits (spending)
+  | 'spend_bet'             // Betting on prediction
+  | 'spend_boost'           // Boost purchase
+  | 'spend_campaign'        // Campaign entry fee
+  // Pool allocations (internal)
+  | 'pool_leaderboard'      // Split to leaderboard pool
+  | 'pool_referral'         // Split to referral pool
+  | 'pool_wheel'            // Split to wheel pool
+  | 'pool_treasury'         // Split to treasury
+  // Withdrawals
+  | 'withdraw_request'      // User withdrawal request
+  | 'withdraw_fee'          // Fee retained on withdrawal
+  | 'withdraw_burn';        // Amount burned on withdrawal
 
 // ============================================
 // BALANCE FUNCTIONS
@@ -91,8 +162,6 @@ export type MystTransactionType =
 /**
  * Get user's current MYST balance from transaction ledger.
  * Balance = SUM(amount) for all transactions.
- * 
- * Returns 0 if the table doesn't exist or query fails.
  */
 export async function getMystBalance(
   prisma: PrismaClient,
@@ -106,25 +175,50 @@ export async function getMystBalance(
       _sum: { amount: true },
     });
     return result._sum.amount ?? 0;
-  } catch (e: any) {
-    console.warn('[MystService] getMystBalance failed:', e.message);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.warn('[MystService] getMystBalance failed:', message);
     return 0;
   }
 }
 
 /**
- * Get user's MYST balance by Telegram ID.
+ * Get a pool's balance from PoolBalance table.
  */
-export async function getMystBalanceByTelegramId(
+export async function getPoolBalance(
   prisma: PrismaClient,
-  telegramId: string
+  poolId: string
 ): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where: { telegramId },
-    select: { id: true },
-  });
-  if (!user) return 0;
-  return getMystBalance(prisma, user.id);
+  try {
+    const pool = await prisma.poolBalance.findUnique({
+      where: { id: poolId },
+    });
+    return pool?.balance ?? 0;
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.warn(`[MystService] getPoolBalance(${poolId}) failed:`, message);
+    return 0;
+  }
+}
+
+/**
+ * Update a pool's balance (add or subtract).
+ */
+export async function updatePoolBalance(
+  prisma: PrismaClient,
+  poolId: string,
+  delta: number
+): Promise<void> {
+  try {
+    await prisma.poolBalance.upsert({
+      where: { id: poolId },
+      update: { balance: { increment: delta } },
+      create: { id: poolId, balance: Math.max(0, delta) },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.error(`[MystService] updatePoolBalance(${poolId}) failed:`, message);
+  }
 }
 
 // ============================================
@@ -135,7 +229,7 @@ export async function getMystBalanceByTelegramId(
  * Grant onboarding MYST bonus to new users.
  * - 5 MYST bonus for new users
  * - Only available until 2026-01-01
- * - One-time per user (tracked via onboarding_bonus transaction type)
+ * - One-time per user
  */
 export async function grantOnboardingMystIfEligible(
   prisma: PrismaClient,
@@ -147,25 +241,18 @@ export async function grantOnboardingMystIfEligible(
 
   const now = new Date();
   if (now >= MYST_TIME_LIMIT) {
-    console.log('[MystService] Onboarding bonus cutoff reached (2026-01-01)');
     return { granted: false, reason: 'after-cutoff' };
   }
 
   try {
-    // Check if user already has an onboarding bonus transaction
     const existing = await prisma.mystTransaction.findFirst({
-      where: {
-        userId,
-        type: 'onboarding_bonus',
-      },
+      where: { userId, type: 'onboarding_bonus' },
     });
 
     if (existing) {
-      console.log(`[MystService] User ${userId} already received onboarding bonus`);
       return { granted: false, reason: 'already-granted' };
     }
 
-    // Grant the bonus
     await creditMyst(
       prisma,
       userId,
@@ -176,8 +263,9 @@ export async function grantOnboardingMystIfEligible(
 
     console.log(`[MystService] Granted ${MYST_CONFIG.ONBOARDING_BONUS_AMOUNT} MYST onboarding bonus to user ${userId}`);
     return { granted: true, reason: 'granted', amount: MYST_CONFIG.ONBOARDING_BONUS_AMOUNT };
-  } catch (e: any) {
-    console.error('[MystService] grantOnboardingMystIfEligible failed:', e.message);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.error('[MystService] grantOnboardingMystIfEligible failed:', message);
     return { granted: false, reason: 'error' };
   }
 }
@@ -201,26 +289,19 @@ export async function checkAndGrantReferralMilestone(
   }
 
   const now = new Date();
-  
-  // Time gate: no new referral milestone MYST after cutoff
   if (now >= MYST_TIME_LIMIT) {
     return { granted: false, reason: 'milestone_expired' };
   }
 
   try {
-    // Check if user already received the milestone
     const existingMilestone = await prisma.mystTransaction.findFirst({
-      where: {
-        userId,
-        type: 'referral_milestone',
-      },
+      where: { userId, type: 'referral_milestone' },
     });
 
     if (existingMilestone) {
       return { granted: false, reason: 'already-granted' };
     }
 
-    // Count referrals
     const referralCount = await prisma.user.count({
       where: { referrerId: userId },
     });
@@ -229,23 +310,19 @@ export async function checkAndGrantReferralMilestone(
       return { granted: false, reason: 'not-enough-referrals' };
     }
 
-    // Grant the milestone bonus
     await creditMyst(
       prisma,
       userId,
       MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT,
       'referral_milestone',
-      { 
-        source: 'referral_milestone',
-        referralCount,
-        grantedAt: now.toISOString(),
-      }
+      { source: 'referral_milestone', referralCount, grantedAt: now.toISOString() }
     );
 
-    console.log(`[MystService] Granted ${MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT} MYST referral milestone to user ${userId} (${referralCount} referrals)`);
+    console.log(`[MystService] Granted ${MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT} MYST referral milestone to user ${userId}`);
     return { granted: true, reason: 'granted', amount: MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT };
-  } catch (e: any) {
-    console.error('[MystService] checkAndGrantReferralMilestone failed:', e.message);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.error('[MystService] checkAndGrantReferralMilestone failed:', message);
     return { granted: false, reason: 'error' };
   }
 }
@@ -256,200 +333,82 @@ export async function checkAndGrantReferralMilestone(
 
 /**
  * Credit MYST to a user's account.
- * Creates a transaction record.
- * 
- * @param type - Transaction type (e.g., 'admin_grant', 'win')
- * @param meta - Optional metadata
  */
 export async function creditMyst(
   prisma: PrismaClient,
   userId: string,
   amount: number,
   type: string,
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 ): Promise<{ credited: number; newBalance: number }> {
-  if (!userId) {
-    throw new Error('userId is required');
-  }
-  if (amount <= 0) {
-    throw new Error('Credit amount must be positive');
-  }
+  if (!userId) throw new Error('userId is required');
+  if (amount <= 0) throw new Error('Credit amount must be positive');
 
-  try {
-    await prisma.mystTransaction.create({
-      data: {
-        userId,
-        type,
-        amount,
-        ...(meta ? { meta } : {}),
-      },
-    });
-
-    const newBalance = await getMystBalance(prisma, userId);
-    console.log(`[MystService] Credited ${amount} MYST to user ${userId}. New balance: ${newBalance}`);
-    
-    return { credited: amount, newBalance };
-  } catch (e: any) {
-    console.error('[MystService] creditMyst failed:', e.message);
-    throw e;
-  }
-}
-
-// ============================================
-// CONVERSION FUNCTIONS
-// ============================================
-
-/**
- * Convert Stars to MYST.
- * Rate: 100 Stars = 1 MYST
- * 
- * @param stars - Number of Stars to convert
- * @returns MYST amount received
- */
-export function starsToMyst(stars: number): number {
-  return stars / MYST_CONFIG.STARS_PER_MYST;
-}
-
-/**
- * Process Stars -> MYST conversion for a user.
- * Creates a transaction record and returns the new balance.
- */
-export async function convertStarsToMyst(
-  prisma: PrismaClient,
-  userId: string,
-  starsAmount: number
-): Promise<{ mystReceived: number; newBalance: number }> {
-  if (starsAmount <= 0) {
-    throw new Error('Stars amount must be positive');
-  }
-
-  const mystReceived = starsToMyst(starsAmount);
+  // Cast meta to unknown to satisfy Prisma's InputJsonValue type
+  const metaValue = meta ? JSON.parse(JSON.stringify(meta)) : undefined;
 
   await prisma.mystTransaction.create({
     data: {
       userId,
-      type: 'stars_conversion',
-      amount: mystReceived,
-      meta: { starsConverted: starsAmount },
+      type,
+      amount,
+      meta: metaValue,
     },
   });
 
   const newBalance = await getMystBalance(prisma, userId);
-  return { mystReceived, newBalance };
+  return { credited: amount, newBalance };
 }
 
 // ============================================
-// WHEEL POOL FUNCTIONS
+// SPENDING FUNCTIONS WITH POOL SPLITS
 // ============================================
 
-/**
- * Get or create the wheel pool.
- */
-export async function getWheelPool(prisma: PrismaClient): Promise<{ id: string; balance: number }> {
-  try {
-    let pool = await prisma.wheelPool.findUnique({
-      where: { id: 'main_pool' },
-    });
+export type SpendType = 'spend_bet' | 'spend_boost' | 'spend_campaign';
 
-    if (!pool) {
-      pool = await prisma.wheelPool.create({
-        data: { id: 'main_pool', balance: 0 },
-      });
-    }
-
-    return { id: pool.id, balance: pool.balance };
-  } catch (e: any) {
-    console.warn('[MystService] getWheelPool failed:', e.message);
-    return { id: 'main_pool', balance: 0 };
-  }
+interface SpendResult {
+  spent: number;
+  splits: {
+    leaderboard: number;
+    referral: number;
+    wheel: number;
+    treasury: number;
+  };
+  referralRewards: {
+    level1UserId: string | null;
+    level1Amount: number;
+    level2UserId: string | null;
+    level2Amount: number;
+  };
 }
 
 /**
- * Add MYST to the wheel pool.
- */
-export async function addToWheelPool(
-  prisma: PrismaClient,
-  amount: number
-): Promise<void> {
-  if (amount <= 0) return;
-
-  try {
-    await prisma.wheelPool.upsert({
-      where: { id: 'main_pool' },
-      update: { balance: { increment: amount } },
-      create: { id: 'main_pool', balance: amount },
-    });
-  } catch (e: any) {
-    console.error('[MystService] addToWheelPool failed:', e.message);
-  }
-}
-
-/**
- * Deduct from wheel pool (for payouts).
- */
-export async function deductFromWheelPool(
-  prisma: PrismaClient,
-  amount: number
-): Promise<boolean> {
-  if (amount <= 0) return true;
-
-  try {
-    const pool = await getWheelPool(prisma);
-    if (pool.balance < amount) {
-      return false;
-    }
-
-    await prisma.wheelPool.update({
-      where: { id: 'main_pool' },
-      data: { balance: { decrement: amount } },
-    });
-
-    return true;
-  } catch (e: any) {
-    console.error('[MystService] deductFromWheelPool failed:', e.message);
-    return false;
-  }
-}
-
-// ============================================
-// SPENDING FUNCTIONS
-// ============================================
-
-/**
- * Spend MYST and process referral rewards + fee distribution.
+ * Spend MYST with proper pool splits and referral rewards.
  * 
- * Fee Distribution:
- * - 75% Platform fee (retained as negative balance in ecosystem)
- * - 5% Wheel Pool (added to wheel fund)
- * - 20% Burned (removed from circulation)
+ * Given spend amount S:
+ * - 15% → Leaderboard pool
+ * - 10% → Referral pool (funds L1 8% + L2 2%)
+ * - 5%  → Wheel pool
+ * - 70% → Platform treasury
  * 
- * Referral Rewards (from the platform's portion):
- * - Level 1 (direct): 10% of spend
- * - Level 2 (indirect): 2% of spend
- * 
- * @param spendType - Type of spend (bet, campaign_fee, boost)
- * @param referenceId - Optional reference (predictionId, campaignId, etc.)
+ * Referral rewards come from the 10% referral split:
+ * - L1 gets 8% of S
+ * - L2 gets 2% of S
+ * - If no referrer, that portion goes to treasury
  */
 export async function spendMyst(
   prisma: PrismaClient,
   userId: string,
   amount: number,
-  spendType: 'bet' | 'campaign_fee' | 'boost',
+  spendType: SpendType,
   referenceId?: string
-): Promise<{
-  spent: number;
-  referralLevel1Reward: number;
-  referralLevel2Reward: number;
-  wheelPoolContribution: number;
-}> {
-  if (amount <= 0) {
-    throw new Error('Spend amount must be positive');
-  }
+): Promise<SpendResult> {
+  if (amount <= 0) throw new Error('Spend amount must be positive');
 
   // Check balance
   const balance = await getMystBalance(prisma, userId);
   if (balance < amount) {
-    throw new Error(`Insufficient MYST balance. Have: ${balance}, Need: ${amount}`);
+    throw new Error(`Insufficient MYST balance. Have: ${balance.toFixed(2)}, Need: ${amount.toFixed(2)}`);
   }
 
   // Get user with referrer info
@@ -457,38 +416,39 @@ export async function spendMyst(
     where: { id: userId },
     include: {
       referrer: {
-        include: {
-          referrer: true, // Level 2 referrer
-        },
+        include: { referrer: true },
       },
     },
   });
 
-  if (!user) {
-    throw new Error('User not found');
-  }
+  if (!user) throw new Error('User not found');
 
-  // Calculate fee distribution
-  const wheelPoolContribution = amount * MYST_CONFIG.WHEEL_POOL_RATE;
-  // Platform keeps 75%, 20% is burned (just not credited anywhere)
+  // Calculate pool splits
+  const leaderboardSplit = amount * MYST_CONFIG.SPLIT_LEADERBOARD;
+  const referralPoolSplit = amount * MYST_CONFIG.SPLIT_REFERRAL;
+  const wheelSplit = amount * MYST_CONFIG.SPLIT_WHEEL;
+  const treasurySplit = amount * MYST_CONFIG.SPLIT_TREASURY;
 
-  // Calculate referral rewards
-  let referralLevel1Reward = 0;
-  let referralLevel2Reward = 0;
-  let referrerLevel1Id: string | null = null;
-  let referrerLevel2Id: string | null = null;
+  // Calculate referral rewards (from the referral pool split)
+  let level1UserId: string | null = null;
+  let level1Amount = 0;
+  let level2UserId: string | null = null;
+  let level2Amount = 0;
+  let unusedReferralToTreasury = referralPoolSplit;
 
   if (user.referrer) {
-    referrerLevel1Id = user.referrer.id;
-    referralLevel1Reward = amount * MYST_CONFIG.REFERRAL_LEVEL_1_RATE;
+    level1UserId = user.referrer.id;
+    level1Amount = amount * MYST_CONFIG.REFERRAL_LEVEL_1_RATE;
+    unusedReferralToTreasury -= level1Amount;
 
     if (user.referrer.referrer) {
-      referrerLevel2Id = user.referrer.referrer.id;
-      referralLevel2Reward = amount * MYST_CONFIG.REFERRAL_LEVEL_2_RATE;
+      level2UserId = user.referrer.referrer.id;
+      level2Amount = amount * MYST_CONFIG.REFERRAL_LEVEL_2_RATE;
+      unusedReferralToTreasury -= level2Amount;
     }
   }
 
-  // Execute all transactions atomically
+  // Execute all in transaction
   await prisma.$transaction(async (tx) => {
     // 1. Debit the spender
     await tx.mystTransaction.create({
@@ -500,72 +460,158 @@ export async function spendMyst(
       },
     });
 
-    // 2. Credit Level 1 referrer
-    if (referrerLevel1Id && referralLevel1Reward > 0) {
+    // 2. Credit referral rewards
+    if (level1UserId && level1Amount > 0) {
       await tx.mystTransaction.create({
         data: {
-          userId: referrerLevel1Id,
-          type: 'referral_reward',
-          amount: referralLevel1Reward,
-          meta: {
-            fromUserId: userId,
-            level: 1,
-            originalSpend: amount,
-            spendType,
-            referenceId,
-          },
+          userId: level1UserId,
+          type: 'referral_reward_l1',
+          amount: level1Amount,
+          meta: { fromUserId: userId, originalSpend: amount, spendType, referenceId },
         },
       });
     }
 
-    // 3. Credit Level 2 referrer
-    if (referrerLevel2Id && referralLevel2Reward > 0) {
+    if (level2UserId && level2Amount > 0) {
       await tx.mystTransaction.create({
         data: {
-          userId: referrerLevel2Id,
-          type: 'referral_reward',
-          amount: referralLevel2Reward,
-          meta: {
-            fromUserId: userId,
-            level: 2,
-            originalSpend: amount,
-            spendType,
-            referenceId,
-          },
+          userId: level2UserId,
+          type: 'referral_reward_l2',
+          amount: level2Amount,
+          meta: { fromUserId: userId, originalSpend: amount, spendType, referenceId },
         },
       });
     }
 
-    // 4. Record the referral event
+    // 3. Record referral event
     await tx.referralEvent.create({
       data: {
         userId,
-        referrerLevel1Id,
-        rewardLevel1: referralLevel1Reward,
-        referrerLevel2Id,
-        rewardLevel2: referralLevel2Reward,
+        referrerLevel1Id: level1UserId,
+        rewardLevel1: level1Amount,
+        referrerLevel2Id: level2UserId,
+        rewardLevel2: level2Amount,
         mystSpent: amount,
         spendType,
         referenceId,
       },
     });
 
-    // 5. Add to wheel pool
-    if (wheelPoolContribution > 0) {
-      await tx.wheelPool.upsert({
-        where: { id: 'main_pool' },
-        update: { balance: { increment: wheelPoolContribution } },
-        create: { id: 'main_pool', balance: wheelPoolContribution },
-      });
-    }
+    // 4. Update pool balances
+    await tx.poolBalance.upsert({
+      where: { id: POOL_IDS.LEADERBOARD },
+      update: { balance: { increment: leaderboardSplit } },
+      create: { id: POOL_IDS.LEADERBOARD, balance: leaderboardSplit },
+    });
+
+    await tx.poolBalance.upsert({
+      where: { id: POOL_IDS.WHEEL },
+      update: { balance: { increment: wheelSplit } },
+      create: { id: POOL_IDS.WHEEL, balance: wheelSplit },
+    });
+
+    // Also update the legacy WheelPool for backwards compatibility
+    await tx.wheelPool.upsert({
+      where: { id: 'main_pool' },
+      update: { balance: { increment: wheelSplit } },
+      create: { id: 'main_pool', balance: wheelSplit },
+    });
+
+    // Treasury gets its split plus any unused referral portion
+    const totalTreasury = treasurySplit + unusedReferralToTreasury;
+    await tx.poolBalance.upsert({
+      where: { id: POOL_IDS.TREASURY },
+      update: { balance: { increment: totalTreasury } },
+      create: { id: POOL_IDS.TREASURY, balance: totalTreasury },
+    });
   });
 
   return {
     spent: amount,
-    referralLevel1Reward,
-    referralLevel2Reward,
-    wheelPoolContribution,
+    splits: {
+      leaderboard: leaderboardSplit,
+      referral: referralPoolSplit,
+      wheel: wheelSplit,
+      treasury: treasurySplit,
+    },
+    referralRewards: {
+      level1UserId,
+      level1Amount,
+      level2UserId,
+      level2Amount,
+    },
   };
+}
+
+// ============================================
+// WHEEL OF FORTUNE FUNCTIONS
+// ============================================
+
+/**
+ * Get wheel pool balance (from both WheelPool and PoolBalance).
+ */
+export async function getWheelPoolBalance(prisma: PrismaClient): Promise<number> {
+  try {
+    // Try new PoolBalance first
+    const poolBalance = await prisma.poolBalance.findUnique({
+      where: { id: POOL_IDS.WHEEL },
+    });
+    if (poolBalance) return poolBalance.balance;
+
+    // Fallback to legacy WheelPool
+    const wheelPool = await prisma.wheelPool.findUnique({
+      where: { id: 'main_pool' },
+    });
+    return wheelPool?.balance ?? 0;
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    console.warn('[MystService] getWheelPoolBalance failed:', message);
+    return 0;
+  }
+}
+
+/**
+ * Count user's spins today (UTC).
+ */
+export async function getUserSpinsToday(
+  prisma: PrismaClient,
+  userId: string
+): Promise<number> {
+  const now = new Date();
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  
+  const count = await prisma.wheelSpin.count({
+    where: {
+      userId,
+      createdAt: { gte: dayStart },
+    },
+  });
+  
+  return count;
+}
+
+/**
+ * Select a random prize using weighted selection.
+ * If MYST prize exceeds pool balance, downgrade to aXP.
+ */
+export function selectWheelPrize(poolBalance: number): WheelPrize {
+  const totalWeight = WHEEL_PRIZES.reduce((sum, p) => sum + p.weight, 0);
+  let random = Math.random() * totalWeight;
+  
+  for (const prize of WHEEL_PRIZES) {
+    random -= prize.weight;
+    if (random <= 0) {
+      // If MYST prize but pool insufficient, convert to aXP
+      if (prize.type === 'myst' && prize.myst > poolBalance) {
+        // Return a fallback aXP prize
+        return { type: 'axp', label: 'aXP +5', myst: 0, axp: 5, weight: 0 };
+      }
+      return prize;
+    }
+  }
+  
+  // Fallback
+  return WHEEL_PRIZES[0];
 }
 
 // ============================================
@@ -574,13 +620,6 @@ export async function spendMyst(
 
 /**
  * Calculate payout for winning bets in a prediction market.
- * 
- * Formula:
- * - POOL = Y + N (total MYST on both sides)
- * - FEE = POOL * feeRate
- * - WIN_POOL = POOL - FEE
- * - payout_per_MYST = WIN_POOL / winning_side_total
- * - user_payout = user_stake * payout_per_MYST
  */
 export function calculatePredictionPayout(
   userStake: number,
@@ -592,9 +631,7 @@ export function calculatePredictionPayout(
   const fee = totalPool * feeRate;
   const winPool = totalPool - fee;
   
-  if (winningSideTotal <= 0) {
-    return { payout: 0, fee };
-  }
+  if (winningSideTotal <= 0) return { payout: 0, fee };
   
   const payoutPerMyst = winPool / winningSideTotal;
   const payout = userStake * payoutPerMyst;
@@ -616,11 +653,122 @@ export async function creditWinningPayout(
   await prisma.mystTransaction.create({
     data: {
       userId,
-      type: 'win',
+      type: 'prediction_win',
       amount: payout,
       meta: { predictionId },
     },
   });
+}
+
+// ============================================
+// WITHDRAWAL FUNCTIONS
+// ============================================
+
+interface WithdrawalResult {
+  success: boolean;
+  withdrawalId?: string;
+  mystFee?: number;
+  mystBurn?: number;
+  usdNet?: number;
+  tonAmount?: number;
+  error?: string;
+}
+
+/**
+ * Create a withdrawal request (Model A - manual payout).
+ */
+export async function createWithdrawalRequest(
+  prisma: PrismaClient,
+  userId: string,
+  amountMyst: number
+): Promise<WithdrawalResult> {
+  if (amountMyst <= 0) {
+    return { success: false, error: 'Amount must be positive' };
+  }
+
+  // Get user with TON address
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, tonAddress: true },
+  });
+
+  if (!user) {
+    return { success: false, error: 'User not found' };
+  }
+
+  if (!user.tonAddress) {
+    return { success: false, error: 'TON wallet not linked' };
+  }
+
+  // Check balance
+  const balance = await getMystBalance(prisma, userId);
+  if (balance < amountMyst) {
+    return { success: false, error: `Insufficient balance. Have: ${balance.toFixed(2)}, Need: ${amountMyst.toFixed(2)}` };
+  }
+
+  // Calculate amounts
+  const feeMyst = amountMyst * MYST_CONFIG.WITHDRAWAL_FEE_RATE;
+  const burnMyst = amountMyst - feeMyst;
+  const netUsd = burnMyst * USD_PER_MYST;
+
+  // Enforce minimum
+  if (netUsd < MYST_CONFIG.WITHDRAWAL_MIN_USD) {
+    return { 
+      success: false, 
+      error: `Minimum withdrawal is $${MYST_CONFIG.WITHDRAWAL_MIN_USD}. Your net: $${netUsd.toFixed(2)}` 
+    };
+  }
+
+  const tonPriceUsd = getTonPriceUsd();
+  const tonAmount = netUsd / tonPriceUsd;
+
+  // Create withdrawal in transaction
+  const withdrawal = await prisma.$transaction(async (tx) => {
+    // Debit user
+    await tx.mystTransaction.create({
+      data: {
+        userId,
+        type: 'withdraw_request',
+        amount: -amountMyst,
+        meta: { purpose: 'withdrawal' },
+      },
+    });
+
+    // Credit fee to treasury
+    await tx.poolBalance.upsert({
+      where: { id: POOL_IDS.TREASURY },
+      update: { balance: { increment: feeMyst } },
+      create: { id: POOL_IDS.TREASURY, balance: feeMyst },
+    });
+
+    // Create withdrawal request
+    const req = await tx.withdrawalRequest.create({
+      data: {
+        userId,
+        tonAddress: user.tonAddress!,
+        mystRequested: amountMyst,
+        mystFee: feeMyst,
+        mystBurn: burnMyst,
+        usdNet: netUsd,
+        tonAmount,
+        tonPriceUsd,
+        status: 'pending',
+      },
+    });
+
+    return req;
+  });
+
+  console.log(`[MystService] Withdrawal request created: ${withdrawal.id}, ${amountMyst} MYST → ${tonAmount.toFixed(4)} TON`);
+
+  return {
+    success: true,
+    withdrawalId: withdrawal.id,
+    mystFee: feeMyst,
+    mystBurn: burnMyst,
+    usdNet: netUsd,
+    tonAmount,
+  };
 }
 
 // ============================================
@@ -638,14 +786,12 @@ export function generateReferralCode(telegramId: string): string {
 
 /**
  * Apply a referral code to a new user.
- * Also checks for referral milestone after applying.
  */
 export async function applyReferralCode(
   prisma: PrismaClient,
   userId: string,
   referralCode: string
 ): Promise<{ success: boolean; referrerUsername?: string; error?: string }> {
-  // Find referrer by code
   const referrer = await prisma.user.findUnique({
     where: { referralCode },
     select: { id: true, username: true },
@@ -659,7 +805,6 @@ export async function applyReferralCode(
     return { success: false, error: 'Cannot refer yourself' };
   }
 
-  // Check if user already has a referrer
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { referrerId: true },
@@ -669,7 +814,6 @@ export async function applyReferralCode(
     return { success: false, error: 'Already have a referrer' };
   }
 
-  // Apply referral
   await prisma.user.update({
     where: { id: userId },
     data: { referrerId: referrer.id },
@@ -678,10 +822,42 @@ export async function applyReferralCode(
   // Check and grant referral milestone if applicable
   await checkAndGrantReferralMilestone(prisma, referrer.id);
 
-  return {
-    success: true,
-    referrerUsername: referrer.username || undefined,
-  };
+  return { success: true, referrerUsername: referrer.username ?? undefined };
+}
+
+// ============================================
+// STARS TO MYST CONVERSION
+// ============================================
+
+/** Stars to MYST conversion rate: 100 Stars = 1 MYST */
+export const STARS_PER_MYST = 100;
+
+/**
+ * Convert Telegram Stars to MYST.
+ * Rate: 100 Stars = 1 MYST
+ * 
+ * Note: This should only be called after verifying Stars payment.
+ */
+export async function convertStarsToMyst(
+  prisma: PrismaClient,
+  userId: string,
+  starsAmount: number
+): Promise<{ mystReceived: number; newBalance: number }> {
+  if (starsAmount <= 0) throw new Error('Stars amount must be positive');
+
+  const mystReceived = starsAmount / STARS_PER_MYST;
+
+  await prisma.mystTransaction.create({
+    data: {
+      userId,
+      type: 'stars_conversion',
+      amount: mystReceived,
+      meta: JSON.parse(JSON.stringify({ starsAmount, rate: STARS_PER_MYST })),
+    },
+  });
+
+  const newBalance = await getMystBalance(prisma, userId);
+  return { mystReceived, newBalance };
 }
 
 // ============================================
@@ -700,15 +876,12 @@ export async function getTopSpenders(
   const result = await prisma.mystTransaction.groupBy({
     by: ['userId'],
     where: {
-      type: { in: ['bet', 'campaign_fee', 'boost'] },
-      amount: { lt: 0 }, // Only debits (negative amounts)
-      createdAt: {
-        gte: startTime,
-        lte: endTime,
-      },
+      type: { in: ['spend_bet', 'spend_boost', 'spend_campaign'] },
+      amount: { lt: 0 },
+      createdAt: { gte: startTime, lte: endTime },
     },
     _sum: { amount: true },
-    orderBy: { _sum: { amount: 'asc' } }, // Most negative = most spent
+    orderBy: { _sum: { amount: 'asc' } },
     take: limit,
   });
 
@@ -719,7 +892,7 @@ export async function getTopSpenders(
 }
 
 /**
- * Get top referrers for a time period.
+ * Get top referrers by referral rewards earned in a time period.
  */
 export async function getTopReferrers(
   prisma: PrismaClient,
@@ -730,12 +903,9 @@ export async function getTopReferrers(
   const result = await prisma.mystTransaction.groupBy({
     by: ['userId'],
     where: {
-      type: 'referral_reward',
+      type: { in: ['referral_reward_l1', 'referral_reward_l2'] },
       amount: { gt: 0 },
-      createdAt: {
-        gte: startTime,
-        lte: endTime,
-      },
+      createdAt: { gte: startTime, lte: endTime },
     },
     _sum: { amount: true },
     orderBy: { _sum: { amount: 'desc' } },
@@ -746,54 +916,4 @@ export async function getTopReferrers(
     userId: r.userId,
     totalRewards: r._sum.amount ?? 0,
   }));
-}
-
-/**
- * Get user's total MYST spent in a time period.
- */
-export async function getUserSpentInPeriod(
-  prisma: PrismaClient,
-  userId: string,
-  startTime: Date,
-  endTime: Date
-): Promise<number> {
-  const result = await prisma.mystTransaction.aggregate({
-    where: {
-      userId,
-      type: { in: ['bet', 'campaign_fee', 'boost'] },
-      amount: { lt: 0 },
-      createdAt: {
-        gte: startTime,
-        lte: endTime,
-      },
-    },
-    _sum: { amount: true },
-  });
-
-  return Math.abs(result._sum.amount ?? 0);
-}
-
-/**
- * Get user's total referral earnings in a time period.
- */
-export async function getUserReferralEarningsInPeriod(
-  prisma: PrismaClient,
-  userId: string,
-  startTime: Date,
-  endTime: Date
-): Promise<number> {
-  const result = await prisma.mystTransaction.aggregate({
-    where: {
-      userId,
-      type: 'referral_reward',
-      amount: { gt: 0 },
-      createdAt: {
-        gte: startTime,
-        lte: endTime,
-      },
-    },
-    _sum: { amount: true },
-  });
-
-  return result._sum.amount ?? 0;
 }

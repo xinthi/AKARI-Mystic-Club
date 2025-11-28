@@ -167,10 +167,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         return;
       }
 
-      // Process MYST spend (includes referral rewards)
-      const spendResult = await spendMyst(prisma, user.id, mystBet, 'bet', id);
-      referralLevel1Reward = spendResult.referralLevel1Reward;
-      referralLevel2Reward = spendResult.referralLevel2Reward;
+      // Process MYST spend (includes pool splits and referral rewards)
+      const spendResult = await spendMyst(prisma, user.id, mystBet, 'spend_bet', id);
+      referralLevel1Reward = spendResult.referralRewards.level1Amount;
+      referralLevel2Reward = spendResult.referralRewards.level2Amount;
 
     } else if (prediction.entryFeeStars > 0) {
       // Legacy Stars betting

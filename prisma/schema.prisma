@@ -35,6 +35,10 @@ model User {
   referrals        User[]   @relation("Referrals")
   referralCode     String?  @unique // Unique code for sharing
 
+  // TON wallet (for withdrawals)
+  tonAddress         String?   // TON wallet address
+  tonLinkedAt        DateTime? // When the wallet was linked
+
   // Relations
   twitterAccounts      TwitterAccount[]
   bets                 Bet[]
@@ -46,6 +50,8 @@ model User {
   campaignRequests     CampaignRequest[]
   predictionRequests   PredictionRequest[]
   wheelSpins           WheelSpin[]
+  withdrawalRequests   WithdrawalRequest[]
+  deposits             Deposit[]
 }
 
 model TwitterAccount {
@@ -368,9 +374,83 @@ model WheelSpin {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
-  amountWon Float    @default(0)
+  prizeType String   @default("myst") // "myst" or "axp"
+  mystWon   Float    @default(0)
+  axpWon    Int      @default(0)
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ============================================
+// TON INTEGRATION (Model A Withdrawals)
+// ============================================
+
+// Withdrawal requests - manual payout by admin
+model WithdrawalRequest {
+  id            String   @id @default(cuid())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  
+  // TON address at time of request
+  tonAddress    String
+  
+  // MYST amounts
+  mystRequested Float    // Total MYST requested
+  mystFee       Float    // 2% fee retained
+  mystBurn      Float    // Amount burned (mystRequested - mystFee)
+  
+  // USD/TON conversion
+  usdNet        Float    // Net USD value after fee
+  tonAmount     Float    // TON to send
+  tonPriceUsd   Float    // TON price at time of request
+  
+  // Status: pending -> paid | rejected
+  status        String   @default("pending")
+  txHash        String?  // TON transaction hash when paid
+  rejectionReason String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  paidAt        DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Deposits - TON received (populated by external watcher)
+model Deposit {
+  id            String   @id @default(cuid())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  
+  // TON received
+  tonAmount     Float
+  tonPriceUsd   Float    // TON price at time of deposit
+  usdAmount     Float    // tonAmount * tonPriceUsd
+  
+  // MYST credited
+  mystCredited  Float    // usdAmount * MYST_PER_USD
+  
+  // Transaction details
+  txHash        String   @unique
+  memo          String?  // Comment/memo from transaction
+  
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([txHash])
+}
+
+// ============================================
+// POOL BALANCES (System accounts)
+// ============================================
+
+// Tracks various pool balances
+model PoolBalance {
+  id        String   @id // "leaderboard", "referral", "wheel", "treasury"
+  balance   Float    @default(0)
+  updatedAt DateTime @updatedAt
 }
