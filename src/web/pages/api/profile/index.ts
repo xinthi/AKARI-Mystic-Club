@@ -57,35 +57,66 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'GET') {
       // Fetch full user data with relations
-      const fullUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        include: {
-          twitterAccounts: {
-            select: {
-              id: true,
-              twitterUserId: true,
-              handle: true,
-              createdAt: true,
-            },
-          },
-          bets: {
-            include: {
-              prediction: {
-                select: {
-                  title: true,
-                },
+      // Use try-catch to handle missing columns/relations gracefully
+      let fullUser: any = null;
+      try {
+        fullUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            twitterAccounts: {
+              select: {
+                id: true,
+                twitterUserId: true,
+                handle: true,
+                createdAt: true,
               },
             },
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-          },
-          referrer: {
-            select: {
-              username: true,
+            bets: {
+              include: {
+                prediction: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+            },
+            referrer: {
+              select: {
+                username: true,
+              },
             },
           },
-        },
-      });
+        });
+      } catch (includeError) {
+        console.warn('[Profile API] Full query failed, trying without new relations:', includeError);
+        // Fallback: query without new relations
+        fullUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            twitterAccounts: {
+              select: {
+                id: true,
+                twitterUserId: true,
+                handle: true,
+                createdAt: true,
+              },
+            },
+            bets: {
+              include: {
+                prediction: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        });
+      }
 
       if (!fullUser) {
         return res.status(200).json({
@@ -95,22 +126,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      // Get MYST balance
-      const mystBalance = await getMystBalance(prisma, fullUser.id);
+      // Get MYST balance (safe - may fail if tables don't exist yet)
+      let mystBalance = 0;
+      try {
+        mystBalance = await getMystBalance(prisma, fullUser.id);
+      } catch (e) {
+        console.warn('[Profile API] getMystBalance failed (table may not exist):', e);
+      }
 
-      // Count referrals
-      const referralCount = await prisma.user.count({
-        where: { referrerId: fullUser.id },
-      });
+      // Count referrals (safe - may fail if column doesn't exist)
+      let referralCount = 0;
+      try {
+        referralCount = await prisma.user.count({
+          where: { referrerId: fullUser.id },
+        });
+      } catch (e) {
+        console.warn('[Profile API] referralCount failed:', e);
+      }
 
       // Generate referral code if not exists
-      let referralCode = fullUser.referralCode;
+      let referralCode = fullUser.referralCode || null;
       if (!referralCode) {
-        referralCode = generateReferralCode(fullUser.telegramId);
-        await prisma.user.update({
-          where: { id: fullUser.id },
-          data: { referralCode },
-        });
+        try {
+          referralCode = generateReferralCode(fullUser.telegramId);
+          await prisma.user.update({
+            where: { id: fullUser.id },
+            data: { referralCode },
+          });
+        } catch (e) {
+          console.warn('[Profile API] referralCode update failed:', e);
+          referralCode = null;
+        }
       }
 
       return res.status(200).json({
@@ -134,23 +180,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           referralCode,
           referralLink: `https://t.me/AKARIMystic_Bot?start=ref_${referralCode}`,
           referralCount,
-          referredBy: fullUser.referrer?.username || null,
+          referredBy: (fullUser as any).referrer?.username || null,
           
           // TON wallet
-          tonWallet: fullUser.tonWallet,
+          tonWallet: (fullUser as any).tonWallet ?? null,
           
           // X account connection
           xConnected: fullUser.twitterAccounts.length > 0,
           xHandle: fullUser.twitterAccounts[0]?.handle ?? null,
           
           // Recent bets
-          recentBets: fullUser.bets.map((bet) => ({
+          recentBets: (fullUser.bets || []).map((bet: any) => ({
             id: bet.id,
             predictionTitle: bet.prediction.title,
             option: bet.option,
-            starsBet: bet.starsBet,
-            pointsBet: bet.pointsBet,
-            mystBet: bet.mystBet,
+            starsBet: bet.starsBet ?? 0,
+            pointsBet: bet.pointsBet ?? 0,
+            mystBet: (bet as any).mystBet ?? 0, // Safe access - field may not exist yet
             createdAt: bet.createdAt,
           })),
         },
