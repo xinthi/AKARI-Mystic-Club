@@ -10,7 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { getUserFromRequest } from '../../../../lib/telegram-auth';
-import { getMystBalance, spendMyst } from '../../../../lib/myst-service';
+import { getMystBalance, spendMyst, MYST_CONFIG } from '../../../../lib/myst-service';
 
 interface BetResponse {
   ok: boolean;
@@ -148,7 +148,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       // MYST betting
       mystBet = mystAmount;
 
-      // Check minimum MYST entry fee
+      // Enforce global minimum bet (2 MYST)
+      if (mystBet < MYST_CONFIG.MINIMUM_BET) {
+        res.status(400).json({ ok: false, reason: `Minimum bet is ${MYST_CONFIG.MINIMUM_BET} MYST` });
+        return;
+      }
+
+      // Check prediction-specific minimum entry fee (if higher than global)
       if (prediction.entryFeeMyst > 0 && mystBet < prediction.entryFeeMyst) {
         res.status(400).json({ ok: false, reason: `Minimum bet is ${prediction.entryFeeMyst} MYST` });
         return;

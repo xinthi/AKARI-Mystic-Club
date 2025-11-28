@@ -2,12 +2,13 @@
  * AKARI Mystic Club - Mini App Dashboard
  * 
  * Main entry point for the Telegram Mini App
- * Shows user stats, quick links, and active predictions/campaigns
+ * Shows user stats, Wheel of Fortune, quick links, and active predictions/campaigns
  */
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
+import WheelOfFortune from '../components/WheelOfFortune';
 
 interface User {
   id: string;
@@ -16,6 +17,7 @@ interface User {
   tier?: string;
   credibilityScore: string;
   positiveReviews: number;
+  mystBalance?: number;
 }
 
 export default function Dashboard() {
@@ -91,6 +93,7 @@ export default function Dashboard() {
           tier: data.user.tier,
           credibilityScore: data.user.credibilityScore || '0',
           positiveReviews: data.user.positiveReviews || 0,
+          mystBalance: data.user.mystBalance || 0,
         });
       }
       
@@ -99,6 +102,12 @@ export default function Dashboard() {
       console.error('Auth error:', err);
       // Don't show error - just continue loading
       setLoading(false);
+    }
+  };
+
+  const handleBalanceUpdate = (newBalance: number) => {
+    if (user) {
+      setUser({ ...user, mystBalance: newBalance });
     }
   };
 
@@ -131,6 +140,7 @@ export default function Dashboard() {
     tier: undefined,
     credibilityScore: '0',
     positiveReviews: 0,
+    mystBalance: 0,
   };
 
   return (
@@ -142,30 +152,41 @@ export default function Dashboard() {
       </header>
 
       {/* User Stats Card */}
-      <div className="px-6 mb-6">
-        <div className="bg-purple-900/30 backdrop-blur-lg rounded-2xl p-6 border border-purple-500/20">
+      <div className="px-6 mb-4">
+        <div className="bg-purple-900/30 backdrop-blur-lg rounded-2xl p-5 border border-purple-500/20">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-sm text-purple-300 mb-1">Your Points</div>
-              <div className="text-3xl font-bold">{displayUser.points.toLocaleString()} EP</div>
+              <div className="text-sm text-purple-300 mb-1">MYST Balance</div>
+              <div className="text-3xl font-bold text-amber-400">
+                {(displayUser.mystBalance ?? 0).toLocaleString()} <span className="text-lg">MYST</span>
+              </div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-purple-300 mb-1">Tier</div>
-              <div className="text-xl font-semibold">{displayUser.tier || 'None'}</div>
+              <div className="text-sm text-purple-300 mb-1">Experience</div>
+              <div className="text-xl font-semibold">{displayUser.points.toLocaleString()} EP</div>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-purple-500/20">
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-purple-500/20">
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Tier</div>
+              <div className="text-sm font-semibold">{displayUser.tier || 'None'}</div>
+            </div>
             <div>
               <div className="text-xs text-purple-300 mb-1">Credibility</div>
-              <div className="text-lg font-semibold">{displayUser.credibilityScore}/10</div>
+              <div className="text-sm font-semibold">{displayUser.credibilityScore}/10</div>
             </div>
             <div>
               <div className="text-xs text-purple-300 mb-1">Reviews</div>
-              <div className="text-lg font-semibold">{displayUser.positiveReviews} 🛡️</div>
+              <div className="text-sm font-semibold">{displayUser.positiveReviews} 🛡️</div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Wheel of Fortune */}
+      <div className="px-6 mb-4">
+        <WheelOfFortune onBalanceUpdate={handleBalanceUpdate} />
       </div>
 
       {/* Quick Actions */}
@@ -182,21 +203,12 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => router.push('/rewards')}
-            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl p-4 text-left transition-colors"
-          >
-            <div className="text-2xl mb-2">🎁</div>
-            <div className="font-semibold">Rewards</div>
-            <div className="text-sm text-amber-100">Weekly TON</div>
-          </button>
-
-          <button
             onClick={() => router.push('/leaderboard')}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl p-4 text-left transition-colors"
           >
             <div className="text-2xl mb-2">🏆</div>
             <div className="font-semibold">Leaderboard</div>
-            <div className="text-sm text-purple-200">Top Players</div>
+            <div className="text-sm text-amber-100">Weekly Rankings</div>
           </button>
 
           <button

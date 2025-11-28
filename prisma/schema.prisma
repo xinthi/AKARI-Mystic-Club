@@ -35,9 +35,6 @@ model User {
   referrals        User[]   @relation("Referrals")
   referralCode     String?  @unique // Unique code for sharing
 
-  // TON wallet for reward payouts
-  tonWallet        String?
-
   // Relations
   twitterAccounts      TwitterAccount[]
   bets                 Bet[]
@@ -48,6 +45,7 @@ model User {
   leaderboardRewards   LeaderboardReward[]
   campaignRequests     CampaignRequest[]
   predictionRequests   PredictionRequest[]
+  wheelSpins           WheelSpin[]
 }
 
 model TwitterAccount {
@@ -352,4 +350,27 @@ model WeeklyConfig {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// WHEEL OF FORTUNE
+// ============================================
+
+// Wheel Pool - accumulates 5% of all MYST spent
+model WheelPool {
+  id        String   @id @default("main_pool")
+  balance   Float    @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Individual wheel spins
+model WheelSpin {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  amountWon Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
         <div className="mb-4">
           <h1 className="text-xl font-bold text-white">🏆 Leaderboard</h1>
           <p className="text-xs text-purple-300 mt-1">
-            Top 10 players earn weekly TON rewards. Burn MYST to claim.
+            🌟 Weekly Recognition - Top 10 players are highlighted every Tuesday.
           </p>
         </div>
 
@@ -195,17 +195,17 @@ export default function LeaderboardPage() {
           </div>
         )}
 
-        {/* Reward Info Banner */}
+        {/* Recognition Info Banner */}
         {period === 'week' && (type === 'myst_spent' || type === 'referrals') && (
-          <div className="mb-4 bg-gradient-to-r from-amber-900/30 to-amber-800/20 border border-amber-500/20 rounded-xl p-3">
+          <div className="mb-4 bg-gradient-to-r from-purple-900/30 to-purple-800/20 border border-purple-500/20 rounded-xl p-3">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🎁</span>
+              <span className="text-lg">🌟</span>
               <div>
-                <div className="text-xs font-medium text-amber-200">
-                  Weekly TON Rewards
+                <div className="text-xs font-medium text-purple-200">
+                  Weekly Recognition
                 </div>
-                <div className="text-[10px] text-amber-300/70">
-                  Top 10 qualify for TON rewards. Rankings reset every Tuesday.
+                <div className="text-[10px] text-purple-300/70">
+                  Top 10 players are highlighted every Tuesday. Keep playing to stay on top!
                 </div>
               </div>
             </div>

@@ -9,7 +9,18 @@
  * - Stars -> MYST is allowed (one-way in v1)
  * - MYST -> Stars is NOT allowed
  * 
- * Referral rates:
+ * Fee Distribution (on every MYST spend):
+ * - 75% Platform fee (retained)
+ * - 5% Wheel Pool (for Wheel of Fortune prizes)
+ * - 20% Burned (removed from circulation)
+ * 
+ * Time-Limited Promos (until 2026-01-01):
+ * - Onboarding bonus: 5 MYST for new users
+ * - Referral milestone: 10 MYST when user refers 5 people
+ * These promos are time-gated to prevent inflation beyond the period
+ * where Stars revenue is guaranteed.
+ * 
+ * Referral rates (from spend, not from promos):
  * - Level 1 (direct): 10% of downline MYST spent
  * - Level 2 (indirect): 2% of downline MYST spent
  */
@@ -20,6 +31,12 @@ import { PrismaClient, User } from '@prisma/client';
 // CONFIGURATION
 // ============================================
 
+/**
+ * Time limit for promotional MYST minting (onboarding + referral milestone).
+ * After this date, no new promotional MYST will be minted to prevent inflation.
+ */
+export const MYST_TIME_LIMIT = new Date('2026-01-01T00:00:00Z');
+
 export const MYST_CONFIG = {
   // Conversion rate: 100 Stars = 1 MYST
   STARS_PER_MYST: 100,
@@ -27,18 +44,28 @@ export const MYST_CONFIG = {
   // USD value: 1 MYST = 2 USD (for reward calculations)
   MYST_USD_PRICE: 2,
   
-  // Referral reward rates
+  // Referral reward rates (from spend)
   REFERRAL_LEVEL_1_RATE: 0.10, // 10%
   REFERRAL_LEVEL_2_RATE: 0.02, // 2%
   
   // Prediction market fee rate
   DEFAULT_FEE_RATE: 0.08, // 8%
   
-  // Weekly reward burn multiplier (10% extra burn required)
-  BURN_MULTIPLIER: 1.1,
+  // Fee distribution on MYST spend
+  PLATFORM_FEE_RATE: 0.75, // 75% to platform
+  WHEEL_POOL_RATE: 0.05,   // 5% to wheel pool
+  BURN_RATE: 0.20,         // 20% burned
   
-  // Minimum MYST to burn for rewards
-  MIN_BURN_AMOUNT: 1,
+  // Minimum bet amount in MYST
+  MINIMUM_BET: 2,
+  
+  // Promotional amounts (time-limited until MYST_TIME_LIMIT)
+  ONBOARDING_BONUS_AMOUNT: 5,
+  REFERRAL_MILESTONE_AMOUNT: 10,
+  REFERRAL_MILESTONE_THRESHOLD: 5, // Number of referrals needed
+  
+  // Wheel of Fortune prizes
+  WHEEL_PRIZES: [0, 0.1, 0.2, 0.5, 1, 3, 5, 10],
 } as const;
 
 // ============================================
@@ -49,11 +76,13 @@ export type MystTransactionType =
   | 'stars_conversion'    // Stars -> MYST
   | 'bet'                 // Betting on prediction
   | 'win'                 // Winning from prediction
-  | 'referral_reward'     // Reward from referral
-  | 'burn_for_reward'     // Burned for weekly TON reward
+  | 'referral_reward'     // Reward from referral spend
   | 'admin_grant'         // Admin-granted MYST
   | 'campaign_fee'        // Campaign entry fee
-  | 'boost';              // Boost purchase
+  | 'boost'               // Boost purchase
+  | 'onboarding_bonus'    // New user bonus (time-limited)
+  | 'referral_milestone'  // 5-referral bonus (time-limited)
+  | 'wheel_win';          // Wheel of Fortune win
 
 // ============================================
 // BALANCE FUNCTIONS
@@ -78,7 +107,6 @@ export async function getMystBalance(
     });
     return result._sum.amount ?? 0;
   } catch (e: any) {
-    // Table might not exist yet, or other DB error
     console.warn('[MystService] getMystBalance failed:', e.message);
     return 0;
   }
@@ -100,17 +128,14 @@ export async function getMystBalanceByTelegramId(
 }
 
 // ============================================
-// ONBOARDING BONUS
+// ONBOARDING BONUS (Time-Limited)
 // ============================================
-
-const ONBOARDING_BONUS_AMOUNT = 5;
-const ONBOARDING_BONUS_CUTOFF = new Date('2026-01-01T00:00:00Z');
 
 /**
  * Grant onboarding MYST bonus to new users.
  * - 5 MYST bonus for new users
  * - Only available until 2026-01-01
- * - One-time per user (tracked via ONBOARDING_BONUS transaction type)
+ * - One-time per user (tracked via onboarding_bonus transaction type)
  */
 export async function grantOnboardingMystIfEligible(
   prisma: PrismaClient,
@@ -121,7 +146,7 @@ export async function grantOnboardingMystIfEligible(
   }
 
   const now = new Date();
-  if (now >= ONBOARDING_BONUS_CUTOFF) {
+  if (now >= MYST_TIME_LIMIT) {
     console.log('[MystService] Onboarding bonus cutoff reached (2026-01-01)');
     return { granted: false, reason: 'after-cutoff' };
   }
@@ -144,15 +169,83 @@ export async function grantOnboardingMystIfEligible(
     await creditMyst(
       prisma,
       userId,
-      ONBOARDING_BONUS_AMOUNT,
+      MYST_CONFIG.ONBOARDING_BONUS_AMOUNT,
       'onboarding_bonus',
       { source: 'onboarding', grantedAt: now.toISOString() }
     );
 
-    console.log(`[MystService] Granted ${ONBOARDING_BONUS_AMOUNT} MYST onboarding bonus to user ${userId}`);
-    return { granted: true, reason: 'granted', amount: ONBOARDING_BONUS_AMOUNT };
+    console.log(`[MystService] Granted ${MYST_CONFIG.ONBOARDING_BONUS_AMOUNT} MYST onboarding bonus to user ${userId}`);
+    return { granted: true, reason: 'granted', amount: MYST_CONFIG.ONBOARDING_BONUS_AMOUNT };
   } catch (e: any) {
     console.error('[MystService] grantOnboardingMystIfEligible failed:', e.message);
+    return { granted: false, reason: 'error' };
+  }
+}
+
+// ============================================
+// REFERRAL MILESTONE (Time-Limited)
+// ============================================
+
+/**
+ * Check and grant referral milestone bonus when user reaches 5 referrals.
+ * - 10 MYST bonus when user has referred 5 unique users
+ * - Only available until 2026-01-01
+ * - One-time per user
+ */
+export async function checkAndGrantReferralMilestone(
+  prisma: PrismaClient,
+  userId: string
+): Promise<{ granted: boolean; reason: string; amount?: number }> {
+  if (!userId) {
+    return { granted: false, reason: 'no-user' };
+  }
+
+  const now = new Date();
+  
+  // Time gate: no new referral milestone MYST after cutoff
+  if (now >= MYST_TIME_LIMIT) {
+    return { granted: false, reason: 'milestone_expired' };
+  }
+
+  try {
+    // Check if user already received the milestone
+    const existingMilestone = await prisma.mystTransaction.findFirst({
+      where: {
+        userId,
+        type: 'referral_milestone',
+      },
+    });
+
+    if (existingMilestone) {
+      return { granted: false, reason: 'already-granted' };
+    }
+
+    // Count referrals
+    const referralCount = await prisma.user.count({
+      where: { referrerId: userId },
+    });
+
+    if (referralCount < MYST_CONFIG.REFERRAL_MILESTONE_THRESHOLD) {
+      return { granted: false, reason: 'not-enough-referrals' };
+    }
+
+    // Grant the milestone bonus
+    await creditMyst(
+      prisma,
+      userId,
+      MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT,
+      'referral_milestone',
+      { 
+        source: 'referral_milestone',
+        referralCount,
+        grantedAt: now.toISOString(),
+      }
+    );
+
+    console.log(`[MystService] Granted ${MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT} MYST referral milestone to user ${userId} (${referralCount} referrals)`);
+    return { granted: true, reason: 'granted', amount: MYST_CONFIG.REFERRAL_MILESTONE_AMOUNT };
+  } catch (e: any) {
+    console.error('[MystService] checkAndGrantReferralMilestone failed:', e.message);
     return { granted: false, reason: 'error' };
   }
 }
@@ -165,7 +258,7 @@ export async function grantOnboardingMystIfEligible(
  * Credit MYST to a user's account.
  * Creates a transaction record.
  * 
- * @param type - Transaction type (e.g., 'admin_grant', 'demo_credit', 'win')
+ * @param type - Transaction type (e.g., 'admin_grant', 'win')
  * @param meta - Optional metadata
  */
 export async function creditMyst(
@@ -199,40 +292,6 @@ export async function creditMyst(
   } catch (e: any) {
     console.error('[MystService] creditMyst failed:', e.message);
     throw e;
-  }
-}
-
-/**
- * Check if user has claimed demo credit within the last 24 hours.
- */
-export async function canClaimDemoCredit(
-  prisma: PrismaClient,
-  userId: string
-): Promise<{ canClaim: boolean; nextClaimAt?: Date }> {
-  if (!userId) return { canClaim: false };
-
-  try {
-    const lastDemo = await prisma.mystTransaction.findFirst({
-      where: {
-        userId,
-        type: 'demo_credit',
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!lastDemo) {
-      return { canClaim: true };
-    }
-
-    const hoursSinceLast = (Date.now() - lastDemo.createdAt.getTime()) / (1000 * 60 * 60);
-    const canClaim = hoursSinceLast >= 24;
-    
-    const nextClaimAt = new Date(lastDemo.createdAt.getTime() + 24 * 60 * 60 * 1000);
-
-    return { canClaim, nextClaimAt };
-  } catch (e: any) {
-    console.warn('[MystService] canClaimDemoCredit failed:', e.message);
-    return { canClaim: false };
   }
 }
 
@@ -280,17 +339,93 @@ export async function convertStarsToMyst(
 }
 
 // ============================================
+// WHEEL POOL FUNCTIONS
+// ============================================
+
+/**
+ * Get or create the wheel pool.
+ */
+export async function getWheelPool(prisma: PrismaClient): Promise<{ id: string; balance: number }> {
+  try {
+    let pool = await prisma.wheelPool.findUnique({
+      where: { id: 'main_pool' },
+    });
+
+    if (!pool) {
+      pool = await prisma.wheelPool.create({
+        data: { id: 'main_pool', balance: 0 },
+      });
+    }
+
+    return { id: pool.id, balance: pool.balance };
+  } catch (e: any) {
+    console.warn('[MystService] getWheelPool failed:', e.message);
+    return { id: 'main_pool', balance: 0 };
+  }
+}
+
+/**
+ * Add MYST to the wheel pool.
+ */
+export async function addToWheelPool(
+  prisma: PrismaClient,
+  amount: number
+): Promise<void> {
+  if (amount <= 0) return;
+
+  try {
+    await prisma.wheelPool.upsert({
+      where: { id: 'main_pool' },
+      update: { balance: { increment: amount } },
+      create: { id: 'main_pool', balance: amount },
+    });
+  } catch (e: any) {
+    console.error('[MystService] addToWheelPool failed:', e.message);
+  }
+}
+
+/**
+ * Deduct from wheel pool (for payouts).
+ */
+export async function deductFromWheelPool(
+  prisma: PrismaClient,
+  amount: number
+): Promise<boolean> {
+  if (amount <= 0) return true;
+
+  try {
+    const pool = await getWheelPool(prisma);
+    if (pool.balance < amount) {
+      return false;
+    }
+
+    await prisma.wheelPool.update({
+      where: { id: 'main_pool' },
+      data: { balance: { decrement: amount } },
+    });
+
+    return true;
+  } catch (e: any) {
+    console.error('[MystService] deductFromWheelPool failed:', e.message);
+    return false;
+  }
+}
+
+// ============================================
 // SPENDING FUNCTIONS
 // ============================================
 
 /**
- * Spend MYST and process referral rewards.
+ * Spend MYST and process referral rewards + fee distribution.
  * 
- * This is the core function that should be called whenever a user spends MYST.
- * It handles:
- * 1. Deducting MYST from user's balance
- * 2. Calculating and crediting referral rewards (L1 and L2)
- * 3. Recording the referral event
+ * Fee Distribution:
+ * - 75% Platform fee (retained as negative balance in ecosystem)
+ * - 5% Wheel Pool (added to wheel fund)
+ * - 20% Burned (removed from circulation)
+ * 
+ * Referral Rewards (from the platform's portion):
+ * - Level 1 (direct): 10% of spend
+ * - Level 2 (indirect): 2% of spend
  * 
  * @param spendType - Type of spend (bet, campaign_fee, boost)
  * @param referenceId - Optional reference (predictionId, campaignId, etc.)
@@ -305,6 +440,7 @@ export async function spendMyst(
   spent: number;
   referralLevel1Reward: number;
   referralLevel2Reward: number;
+  wheelPoolContribution: number;
 }> {
   if (amount <= 0) {
     throw new Error('Spend amount must be positive');
@@ -331,6 +467,10 @@ export async function spendMyst(
   if (!user) {
     throw new Error('User not found');
   }
+
+  // Calculate fee distribution
+  const wheelPoolContribution = amount * MYST_CONFIG.WHEEL_POOL_RATE;
+  // Platform keeps 75%, 20% is burned (just not credited anywhere)
 
   // Calculate referral rewards
   let referralLevel1Reward = 0;
@@ -409,12 +549,22 @@ export async function spendMyst(
         referenceId,
       },
     });
+
+    // 5. Add to wheel pool
+    if (wheelPoolContribution > 0) {
+      await tx.wheelPool.upsert({
+        where: { id: 'main_pool' },
+        update: { balance: { increment: wheelPoolContribution } },
+        create: { id: 'main_pool', balance: wheelPoolContribution },
+      });
+    }
   });
 
   return {
     spent: amount,
     referralLevel1Reward,
     referralLevel2Reward,
+    wheelPoolContribution,
   };
 }
 
@@ -474,121 +624,6 @@ export async function creditWinningPayout(
 }
 
 // ============================================
-// WEEKLY REWARD FUNCTIONS
-// ============================================
-
-/**
- * Calculate required MYST burn for a USD reward.
- * Formula: (rewardUsd / MYST_USD_PRICE) * BURN_MULTIPLIER
- */
-export function calculateRequiredBurn(rewardUsd: number): number {
-  const baseMyst = rewardUsd / MYST_CONFIG.MYST_USD_PRICE;
-  return baseMyst * MYST_CONFIG.BURN_MULTIPLIER;
-}
-
-/**
- * Process reward claim with MYST burn.
- * 
- * Rules:
- * - User must burn min(balance, requiredMyst)
- * - If balance < requiredMyst, user burns everything and still gets reward
- * - At least MIN_BURN_AMOUNT MYST must be burned if user has any balance
- */
-export async function claimRewardWithBurn(
-  prisma: PrismaClient,
-  userId: string,
-  rewardId: string,
-  tonWallet?: string
-): Promise<{
-  success: boolean;
-  burnedAmount: number;
-  error?: string;
-}> {
-  // Get the reward
-  const reward = await prisma.leaderboardReward.findUnique({
-    where: { id: rewardId },
-  });
-
-  if (!reward) {
-    return { success: false, burnedAmount: 0, error: 'Reward not found' };
-  }
-
-  if (reward.userId !== userId) {
-    return { success: false, burnedAmount: 0, error: 'Unauthorized' };
-  }
-
-  if (reward.status === 'paid') {
-    return { success: false, burnedAmount: 0, error: 'Reward already paid' };
-  }
-
-  // Get current balance
-  const balance = await getMystBalance(prisma, userId);
-
-  // Recompute required MYST (to prevent tampering)
-  const requiredMyst = calculateRequiredBurn(reward.rewardUsd);
-
-  // Calculate burn amount
-  const burnAmount = Math.min(balance, requiredMyst);
-
-  if (burnAmount < MYST_CONFIG.MIN_BURN_AMOUNT && balance > 0) {
-    return {
-      success: false,
-      burnedAmount: 0,
-      error: `Minimum burn amount is ${MYST_CONFIG.MIN_BURN_AMOUNT} MYST`,
-    };
-  }
-
-  if (burnAmount <= 0 && balance <= 0) {
-    return {
-      success: false,
-      burnedAmount: 0,
-      error: 'You have no MYST to burn for this reward',
-    };
-  }
-
-  // Execute burn and update reward atomically
-  await prisma.$transaction(async (tx) => {
-    // 1. Create burn transaction
-    await tx.mystTransaction.create({
-      data: {
-        userId,
-        type: 'burn_for_reward',
-        amount: -burnAmount,
-        meta: {
-          rewardId,
-          weekId: reward.weekId,
-          category: reward.category,
-          requiredMyst,
-        },
-      },
-    });
-
-    // 2. Update reward status
-    await tx.leaderboardReward.update({
-      where: { id: rewardId },
-      data: {
-        burnedMyst: { increment: burnAmount },
-        status: 'ready_for_payout',
-        tonWallet: tonWallet || reward.tonWallet,
-      },
-    });
-
-    // 3. Update user's TON wallet if provided
-    if (tonWallet) {
-      await tx.user.update({
-        where: { id: userId },
-        data: { tonWallet },
-      });
-    }
-  });
-
-  return {
-    success: true,
-    burnedAmount: burnAmount,
-  };
-}
-
-// ============================================
 // REFERRAL CODE FUNCTIONS
 // ============================================
 
@@ -603,6 +638,7 @@ export function generateReferralCode(telegramId: string): string {
 
 /**
  * Apply a referral code to a new user.
+ * Also checks for referral milestone after applying.
  */
 export async function applyReferralCode(
   prisma: PrismaClient,
@@ -638,6 +674,9 @@ export async function applyReferralCode(
     where: { id: userId },
     data: { referrerId: referrer.id },
   });
+
+  // Check and grant referral milestone if applicable
+  await checkAndGrantReferralMilestone(prisma, referrer.id);
 
   return {
     success: true,
@@ -758,4 +797,3 @@ export async function getUserReferralEarningsInPeriod(
 
   return result._sum.amount ?? 0;
 }
-

@@ -43,11 +43,6 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [connectingX, setConnectingX] = useState(false);
   
-  // Get MYST modal state
-  const [showMystModal, setShowMystModal] = useState(false);
-  const [claimingMyst, setClaimingMyst] = useState(false);
-  const [claimMessage, setClaimMessage] = useState<string | null>(null);
-  
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -124,41 +119,6 @@ export default function ProfilePage() {
       setError(err.message || 'Failed to load data');
       setUser(null);
       setLoading(false);
-    }
-  };
-
-  // Claim demo MYST
-  const claimDemoMyst = async () => {
-    setClaimingMyst(true);
-    setClaimMessage(null);
-
-    try {
-      const tg = (window as any).Telegram?.WebApp;
-      const initData = tg?.initData || '';
-
-      const response = await fetch('/api/myst/demo-credit', {
-        method: 'POST',
-        headers: {
-          'x-telegram-init-data': initData,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.ok) {
-        showToast(`You received ${data.mystGranted} MYST!`, 'success');
-        setShowMystModal(false);
-        // Refresh profile to update balance
-        loadProfile();
-      } else {
-        setClaimMessage(data.message || 'Failed to claim MYST');
-      }
-    } catch (err: any) {
-      console.error('[Profile] Error claiming MYST:', err);
-      setClaimMessage('Failed to claim MYST. Please try again.');
-    } finally {
-      setClaimingMyst(false);
     }
   };
 
@@ -287,47 +247,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Get MYST Modal */}
-      {showMystModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-purple-900/90 rounded-2xl p-6 max-w-sm w-full border border-purple-500/30">
-            <div className="text-center mb-4">
-              <div className="text-4xl mb-2">💎</div>
-              <h3 className="text-xl font-bold">Get MYST</h3>
-            </div>
-            
-            <p className="text-sm text-purple-200 mb-4 text-center">
-              MYST is the in-game chip used for predictions, boosts, and rewards.
-            </p>
-            
-            <div className="bg-purple-800/30 rounded-lg p-3 mb-4 text-xs text-purple-300 text-center">
-              Demo mode: In the future, you will get MYST by spending Telegram Stars.
-            </div>
-
-            {claimMessage && (
-              <div className="bg-amber-900/30 rounded-lg p-3 mb-4 text-sm text-amber-200 text-center">
-                {claimMessage}
-              </div>
-            )}
-
-            <button
-              onClick={claimDemoMyst}
-              disabled={claimingMyst}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-gray-600 disabled:to-gray-700 rounded-xl font-semibold transition-all mb-3"
-            >
-              {claimingMyst ? 'Claiming...' : 'Claim 10 MYST (Demo)'}
-            </button>
-
-            <button
-              onClick={() => setShowMystModal(false)}
-              className="w-full py-2 text-purple-300 hover:text-white text-sm"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       <header className="p-6 pb-4">
         <h1 className="text-3xl font-bold mb-2">👤 Profile</h1>
         <p className="text-purple-300">@{user.username || user.firstName || 'mystic'}</p>
@@ -343,12 +262,12 @@ export default function ProfilePage() {
                 {(user.mystBalance ?? 0).toLocaleString()} <span className="text-lg">MYST</span>
               </div>
             </div>
-            <button
-              onClick={() => setShowMystModal(true)}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg font-semibold text-sm transition-colors"
-            >
-              Get MYST
-            </button>
+            <div className="text-4xl">💎</div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-amber-500/20">
+            <p className="text-xs text-amber-200/70">
+              Earn MYST by winning predictions, referring friends, and spinning the wheel daily
+            </p>
           </div>
         </div>
 
@@ -380,8 +299,11 @@ export default function ProfilePage() {
             <span className="text-lg">👥</span>
             <h2 className="text-lg font-semibold">Invite Friends</h2>
           </div>
-          <p className="text-sm text-purple-300 mb-4">
-            Earn MYST when your friends play on AKARI Mystic Club.
+          <p className="text-sm text-purple-300 mb-2">
+            Earn 10% of your friends&apos; MYST spending as referral rewards!
+          </p>
+          <p className="text-xs text-amber-400 mb-4">
+            🎁 Refer 5 friends and earn 10 MYST bonus! (Limited time)
           </p>
 
           {/* Referral Link */}
@@ -416,8 +338,13 @@ export default function ProfilePage() {
               </button>
 
               {(user.referralCount ?? 0) > 0 && (
-                <div className="mt-3 text-center text-sm text-purple-300">
-                  {user.referralCount} friend{user.referralCount === 1 ? '' : 's'} joined
+                <div className="mt-3 text-center">
+                  <span className="text-sm text-purple-300">
+                    {user.referralCount} friend{user.referralCount === 1 ? '' : 's'} joined
+                  </span>
+                  {(user.referralCount ?? 0) >= 5 && (
+                    <span className="ml-2 text-xs text-amber-400">🎉 Milestone reached!</span>
+                  )}
                 </div>
               )}
             </>
