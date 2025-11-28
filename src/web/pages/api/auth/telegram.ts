@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { verifyTelegramWebAppData, parseTelegramInitData } from '../../../lib/telegram-auth';
+import { grantOnboardingMystIfEligible } from '../../../lib/myst-service';
 
 interface TelegramAuthResponse {
   ok: boolean;
@@ -107,6 +108,20 @@ export default async function handler(
       photoUrl,
     },
   });
+
+  // Try to grant onboarding MYST bonus (5 MYST until 2026-01-01)
+  // This is fire-and-forget - auth should succeed even if bonus fails
+  try {
+    const bonusResult = await grantOnboardingMystIfEligible(prisma, dbUser.id);
+    if (bonusResult.granted) {
+      console.log('[Auth] Granted onboarding MYST bonus', {
+        userId: dbUser.id,
+        amount: bonusResult.amount,
+      });
+    }
+  } catch (e) {
+    console.error('[Auth] Failed to grant onboarding MYST bonus', e);
+  }
 
   return res.status(200).json({
     ok: true,

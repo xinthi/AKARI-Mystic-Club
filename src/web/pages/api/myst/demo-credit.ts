@@ -38,6 +38,15 @@ export default async function handler(
     });
   }
 
+  // Check if demo credit is enabled via env flag
+  if (process.env.MYST_DEMO_ENABLED !== 'true') {
+    console.log('[/api/myst/demo-credit] Demo credit disabled (MYST_DEMO_ENABLED !== true)');
+    return res.status(403).json({
+      ok: false,
+      message: 'Demo MYST credit is disabled.',
+    });
+  }
+
   try {
     // Authenticate user via Telegram initData
     const user = await getUserFromRequest(req, prisma);

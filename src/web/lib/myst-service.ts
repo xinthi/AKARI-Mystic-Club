@@ -100,6 +100,64 @@ export async function getMystBalanceByTelegramId(
 }
 
 // ============================================
+// ONBOARDING BONUS
+// ============================================
+
+const ONBOARDING_BONUS_AMOUNT = 5;
+const ONBOARDING_BONUS_CUTOFF = new Date('2026-01-01T00:00:00Z');
+
+/**
+ * Grant onboarding MYST bonus to new users.
+ * - 5 MYST bonus for new users
+ * - Only available until 2026-01-01
+ * - One-time per user (tracked via ONBOARDING_BONUS transaction type)
+ */
+export async function grantOnboardingMystIfEligible(
+  prisma: PrismaClient,
+  userId: string
+): Promise<{ granted: boolean; reason: string; amount?: number }> {
+  if (!userId) {
+    return { granted: false, reason: 'no-user' };
+  }
+
+  const now = new Date();
+  if (now >= ONBOARDING_BONUS_CUTOFF) {
+    console.log('[MystService] Onboarding bonus cutoff reached (2026-01-01)');
+    return { granted: false, reason: 'after-cutoff' };
+  }
+
+  try {
+    // Check if user already has an onboarding bonus transaction
+    const existing = await prisma.mystTransaction.findFirst({
+      where: {
+        userId,
+        type: 'onboarding_bonus',
+      },
+    });
+
+    if (existing) {
+      console.log(`[MystService] User ${userId} already received onboarding bonus`);
+      return { granted: false, reason: 'already-granted' };
+    }
+
+    // Grant the bonus
+    await creditMyst(
+      prisma,
+      userId,
+      ONBOARDING_BONUS_AMOUNT,
+      'onboarding_bonus',
+      { source: 'onboarding', grantedAt: now.toISOString() }
+    );
+
+    console.log(`[MystService] Granted ${ONBOARDING_BONUS_AMOUNT} MYST onboarding bonus to user ${userId}`);
+    return { granted: true, reason: 'granted', amount: ONBOARDING_BONUS_AMOUNT };
+  } catch (e: any) {
+    console.error('[MystService] grantOnboardingMystIfEligible failed:', e.message);
+    return { granted: false, reason: 'error' };
+  }
+}
+
+// ============================================
 // CREDIT FUNCTIONS
 // ============================================
 

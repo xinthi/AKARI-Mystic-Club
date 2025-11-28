@@ -39,13 +39,15 @@ model User {
   tonWallet        String?
 
   // Relations
-  twitterAccounts   TwitterAccount[]
-  bets              Bet[]
-  campaignsProgress CampaignUserProgress[]
-  mystTransactions  MystTransaction[]
-  referralEvents    ReferralEvent[]       // Events where this user spent MYST
-  referralRewards   ReferralEvent[]       @relation("ReferralRewards") // Rewards received
-  leaderboardRewards LeaderboardReward[]
+  twitterAccounts      TwitterAccount[]
+  bets                 Bet[]
+  campaignsProgress    CampaignUserProgress[]
+  mystTransactions     MystTransaction[]
+  referralEvents       ReferralEvent[]       // Events where this user spent MYST
+  referralRewards      ReferralEvent[]       @relation("ReferralRewards") // Rewards received
+  leaderboardRewards   LeaderboardReward[]
+  campaignRequests     CampaignRequest[]
+  predictionRequests   PredictionRequest[]
 }
 
 model TwitterAccount {
@@ -167,6 +169,7 @@ model Prediction {
   id              String   @id @default(cuid())
   title           String
   description     String?
+  category        String?  // e.g., "CRYPTO", "POLITICS", "SPORTS", "ENTERTAINMENT"
   options         String[] // e.g. ["Yes","No"]
   
   // Legacy fee structure (kept for backwards compatibility)
@@ -195,6 +198,24 @@ model Prediction {
   updatedAt       DateTime @updatedAt
 
   bets            Bet[]
+}
+
+// Prediction Request from community
+model PredictionRequest {
+  id              String    @id @default(cuid())
+  question        String    // The prediction question
+  category        String?   // e.g., "CRYPTO", "POLITICS", "SPORTS"
+  proposedExpiry  DateTime?
+  details         String?   // Extra context
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdById     String?
+  createdBy       User?     @relation(fields: [createdById], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([status])
 }
 
 model Bet {
@@ -229,6 +250,8 @@ model Campaign {
   name         String
   description  String?
   rewards      String
+  status       String    @default("DRAFT") // DRAFT, ACTIVE, ARCHIVED
+  startAt      DateTime?
   endsAt       DateTime
   
   // Fee structure
@@ -249,13 +272,38 @@ model CampaignTask {
 
   title        String
   description  String?
-  type         String    // e.g. "follow_x", "retweet", "join_telegram"
+  type         String    // e.g. "X_LIKE", "X_FOLLOW", "JOIN_TELEGRAM", "QUOTE_REPOST", "CUSTOM"
+  targetUrl    String?   // URL for the task (e.g., tweet to like, account to follow)
+  proofType    String?   // "LINK", "SCREENSHOT", "TWEET_URL"
+  rewardPoints Int       @default(0) // Points/aXP reward for completing task
   metadata     Json?
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   progress     CampaignUserProgress[]
+}
+
+// Campaign Request from projects/community
+model CampaignRequest {
+  id              String    @id @default(cuid())
+  projectName     String
+  contactHandle   String    // Primary contact (e.g., @handle)
+  contactTelegram String?   // Telegram username
+  contactX        String?   // X/Twitter handle
+  goal            String?   // What they want to achieve
+  requestedStart  DateTime?
+  requestedEnd    DateTime?
+  details         String?   // Long description
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdById     String?
+  createdBy       User?     @relation(fields: [createdById], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([status])
 }
 
 model CampaignUserProgress {
