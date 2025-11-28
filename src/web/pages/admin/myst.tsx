@@ -184,6 +184,7 @@ export default function AdminMystPage() {
         </div>
 
         <div className="mt-8 text-center">
+          <Link href="/admin/leaderboard" className="text-purple-400 hover:underline mr-4">Analytics</Link>
           <Link href="/admin/wheel" className="text-purple-400 hover:underline mr-4">Wheel Pool</Link>
           <Link href="/admin/campaigns" className="text-purple-400 hover:underline mr-4">Campaigns</Link>
           <Link href="/admin/campaign-requests" className="text-purple-400 hover:underline mr-4">Campaign Requests</Link>

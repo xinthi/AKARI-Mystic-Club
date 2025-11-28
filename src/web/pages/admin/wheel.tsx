@@ -252,6 +252,7 @@ export default function AdminWheelPage() {
 
         {/* Navigation */}
         <div className="mt-8 text-center">
+          <Link href="/admin/leaderboard" className="text-purple-400 hover:underline mr-4">Analytics</Link>
           <Link href="/admin/myst" className="text-purple-400 hover:underline mr-4">MYST Grant</Link>
           <Link href="/admin/campaigns" className="text-purple-400 hover:underline mr-4">Campaigns</Link>
           <Link href="/admin/campaign-requests" className="text-purple-400 hover:underline mr-4">Campaign Requests</Link>
