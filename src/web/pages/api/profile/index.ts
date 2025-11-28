@@ -216,7 +216,9 @@ export default async function handler(
         
         // Referral system (new)
         referralCode,
-        referralLink: referralCode ? `https://t.me/AKARIMystic_Bot?start=ref_${referralCode}` : null,
+        referralLink: referralCode 
+          ? `https://t.me/${process.env.TELEGRAM_BOT_USERNAME || 'AKARIMystic_Bot'}?start=ref_${referralCode}` 
+          : null,
         referralCount,
         referredBy: referrerUsername,
         

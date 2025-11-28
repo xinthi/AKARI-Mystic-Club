@@ -100,6 +100,85 @@ export async function getMystBalanceByTelegramId(
 }
 
 // ============================================
+// CREDIT FUNCTIONS
+// ============================================
+
+/**
+ * Credit MYST to a user's account.
+ * Creates a transaction record.
+ * 
+ * @param type - Transaction type (e.g., 'admin_grant', 'demo_credit', 'win')
+ * @param meta - Optional metadata
+ */
+export async function creditMyst(
+  prisma: PrismaClient,
+  userId: string,
+  amount: number,
+  type: string,
+  meta?: Record<string, any>
+): Promise<{ credited: number; newBalance: number }> {
+  if (!userId) {
+    throw new Error('userId is required');
+  }
+  if (amount <= 0) {
+    throw new Error('Credit amount must be positive');
+  }
+
+  try {
+    await prisma.mystTransaction.create({
+      data: {
+        userId,
+        type,
+        amount,
+        ...(meta ? { meta } : {}),
+      },
+    });
+
+    const newBalance = await getMystBalance(prisma, userId);
+    console.log(`[MystService] Credited ${amount} MYST to user ${userId}. New balance: ${newBalance}`);
+    
+    return { credited: amount, newBalance };
+  } catch (e: any) {
+    console.error('[MystService] creditMyst failed:', e.message);
+    throw e;
+  }
+}
+
+/**
+ * Check if user has claimed demo credit within the last 24 hours.
+ */
+export async function canClaimDemoCredit(
+  prisma: PrismaClient,
+  userId: string
+): Promise<{ canClaim: boolean; nextClaimAt?: Date }> {
+  if (!userId) return { canClaim: false };
+
+  try {
+    const lastDemo = await prisma.mystTransaction.findFirst({
+      where: {
+        userId,
+        type: 'demo_credit',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!lastDemo) {
+      return { canClaim: true };
+    }
+
+    const hoursSinceLast = (Date.now() - lastDemo.createdAt.getTime()) / (1000 * 60 * 60);
+    const canClaim = hoursSinceLast >= 24;
+    
+    const nextClaimAt = new Date(lastDemo.createdAt.getTime() + 24 * 60 * 60 * 1000);
+
+    return { canClaim, nextClaimAt };
+  } catch (e: any) {
+    console.warn('[MystService] canClaimDemoCredit failed:', e.message);
+    return { canClaim: false };
+  }
+}
+
+// ============================================
 // CONVERSION FUNCTIONS
 // ============================================
 
