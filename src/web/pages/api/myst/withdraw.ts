@@ -3,37 +3,37 @@
  * 
  * POST /api/myst/withdraw
  * 
- * Creates a withdrawal request (Model A - manual payout by admin).
- * Does NOT send TON automatically - just prepares accounting.
+ * Allows users to withdraw MYST by burning it in exchange for TON.
+ * Uses live TON price from Binance.
  * 
- * Uses live TON/USD price from price oracle.
- * 
- * Fee: 2% retained
- * Minimum: $50 USD net value
+ * Economic model:
+ * - 1 USD = 50 MYST (fixed)
+ * - 1 MYST = 0.02 USD (fixed)
+ * - TON price: live from Binance
+ * - Fee: 2% of USD value
+ * - Minimum: $50 USD gross
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getTonPriceUsd } from '../../../lib/ton-price';
+import { MYST_PER_USD, USD_PER_MYST, getMystBalance, POOL_IDS } from '../../../lib/myst-service';
 import { prisma } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
-import { 
-  getMystBalance,
-  MYST_CONFIG,
-  USD_PER_MYST,
-  POOL_IDS,
-} from '../../../lib/myst-service';
-import { getTonPriceUsd } from '../../../lib/myst-price';
+
+// Withdrawal constants
+const WITHDRAW_FEE_RATE = 0.02;  // 2%
+const MIN_WITHDRAW_USD = 50;     // minimum 50 USD
 
 interface WithdrawResponse {
   ok: boolean;
-  withdrawalId?: string;
-  mystRequested?: number;
-  mystFee?: number;
-  mystBurn?: number;
-  usdNet?: number;
-  tonAmount?: number;
-  tonPriceUsd?: number;
-  priceSource?: string;
-  newBalance?: number;
+  summary?: {
+    mystBurned: number;
+    tonPriceUsd: number;
+    usdGross: number;
+    usdFee: number;
+    usdNet: number;
+    tonAmount: number;
+  };
   message?: string;
 }
 
@@ -41,18 +41,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<WithdrawResponse>
 ) {
+  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, message: 'Method not allowed' });
   }
 
   try {
-    // Authenticate user
+    // Get authenticated user
     const user = await getUserFromRequest(req, prisma);
     if (!user) {
       return res.status(401).json({ ok: false, message: 'Unauthorized' });
     }
 
-    // Get user with TON address
+    // Get user's TON address
     const fullUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { tonAddress: true },
@@ -65,75 +66,79 @@ export default async function handler(
       });
     }
 
-    const { amountMyst } = req.body as { amountMyst?: number };
+    // Read mystAmount from body
+    const { mystAmount } = req.body as { mystAmount?: number };
 
-    if (!amountMyst || typeof amountMyst !== 'number' || amountMyst <= 0) {
-      return res.status(400).json({ ok: false, message: 'Invalid amount' });
+    // Validate mystAmount
+    if (!mystAmount || typeof mystAmount !== 'number' || mystAmount <= 0) {
+      return res.status(400).json({ ok: false, message: 'Invalid MYST amount' });
     }
 
-    // Check balance
+    // Check user's MYST balance
     const balance = await getMystBalance(prisma, user.id);
-    if (balance < amountMyst) {
+    if (balance < mystAmount) {
       return res.status(400).json({ 
         ok: false, 
-        message: `Insufficient balance. Have: ${balance.toFixed(2)}, Need: ${amountMyst.toFixed(2)}` 
+        message: `Insufficient MYST balance. Have: ${balance.toFixed(2)}, Need: ${mystAmount.toFixed(2)}` 
       });
     }
 
-    // Get live TON price
-    const { priceUsd: tonPriceUsd, source: priceSource } = await getTonPriceUsd();
+    // Calculate USD value (1 MYST = 0.02 USD)
+    const usdGross = mystAmount * USD_PER_MYST;
 
-    // Calculate amounts
-    const feeMyst = amountMyst * MYST_CONFIG.WITHDRAWAL_FEE_RATE;
-    const burnMyst = amountMyst - feeMyst;
-    const usdNet = burnMyst * USD_PER_MYST;
-
-    // Check minimum before proceeding
-    if (usdNet < MYST_CONFIG.WITHDRAWAL_MIN_USD) {
-      const minMyst = Math.ceil(MYST_CONFIG.WITHDRAWAL_MIN_USD / USD_PER_MYST / (1 - MYST_CONFIG.WITHDRAWAL_FEE_RATE));
-      return res.status(400).json({ 
-        ok: false, 
-        message: `Minimum withdrawal is $${MYST_CONFIG.WITHDRAWAL_MIN_USD} (${minMyst} MYST). Your request: $${usdNet.toFixed(2)}` 
+    // Enforce minimum USD
+    if (usdGross < MIN_WITHDRAW_USD) {
+      return res.status(400).json({
+        ok: false,
+        message: `Minimum withdrawal is ${MIN_WITHDRAW_USD} USD (requested ≈ ${usdGross.toFixed(2)} USD)`,
       });
     }
 
-    // Calculate TON amount using live price
+    // Apply 2% fee
+    const usdFee = usdGross * WITHDRAW_FEE_RATE;
+    const usdNet = usdGross - usdFee;
+
+    // Fetch live TON price
+    const tonPriceUsd = await getTonPriceUsd();
     const tonAmount = usdNet / tonPriceUsd;
 
     // Create withdrawal in transaction
     const withdrawal = await prisma.$transaction(async (tx) => {
-      // Debit user
+      // Burn the full mystAmount from user's ledger
       await tx.mystTransaction.create({
         data: {
           userId: user.id,
-          type: 'withdraw_request',
-          amount: -amountMyst,
-          meta: JSON.parse(JSON.stringify({ 
+          type: 'withdraw_burn',
+          amount: -mystAmount,
+          meta: JSON.parse(JSON.stringify({
             purpose: 'withdrawal',
+            usdGross,
+            usdFee,
+            usdNet,
             tonPriceUsd,
-            priceSource,
+            tonAmount,
           })),
         },
       });
 
-      // Credit fee to treasury
+      // Credit fee to treasury pool
       await tx.poolBalance.upsert({
         where: { id: POOL_IDS.TREASURY },
-        update: { balance: { increment: feeMyst } },
-        create: { id: POOL_IDS.TREASURY, balance: feeMyst },
+        update: { balance: { increment: usdFee * MYST_PER_USD } }, // Convert fee back to MYST for pool
+        create: { id: POOL_IDS.TREASURY, balance: usdFee * MYST_PER_USD },
       });
 
-      // Create withdrawal request with live price stored
+      // Create withdrawal request record
       const req = await tx.withdrawalRequest.create({
         data: {
           userId: user.id,
           tonAddress: fullUser.tonAddress!,
-          mystRequested: amountMyst,
-          mystFee: feeMyst,
-          mystBurn: burnMyst,
+          mystRequested: mystAmount,
+          mystFee: usdFee * MYST_PER_USD, // Fee in MYST terms
+          mystBurn: mystAmount,
           usdNet,
           tonAmount,
-          tonPriceUsd, // Store the price used at time of request
+          tonPriceUsd,
           status: 'pending',
         },
       });
@@ -141,23 +146,19 @@ export default async function handler(
       return req;
     });
 
-    // Get updated balance
-    const newBalance = await getMystBalance(prisma, user.id);
-
-    console.log(`[Withdraw] Created request ${withdrawal.id}: ${amountMyst} MYST → ${tonAmount.toFixed(4)} TON @ $${tonPriceUsd.toFixed(2)}/TON`);
+    console.log(`[Withdraw] Created: ${withdrawal.id} | ${mystAmount} MYST → ${tonAmount.toFixed(4)} TON @ $${tonPriceUsd.toFixed(2)}/TON`);
 
     return res.status(200).json({
       ok: true,
-      withdrawalId: withdrawal.id,
-      mystRequested: amountMyst,
-      mystFee: feeMyst,
-      mystBurn: burnMyst,
-      usdNet,
-      tonAmount,
-      tonPriceUsd,
-      priceSource,
-      newBalance,
-      message: `Withdrawal request created. ${tonAmount.toFixed(4)} TON will be sent to your wallet.`,
+      summary: {
+        mystBurned: mystAmount,
+        tonPriceUsd,
+        usdGross,
+        usdFee,
+        usdNet,
+        tonAmount,
+      },
+      message: 'Withdrawal request created. Admin will process your TON payout manually.',
     });
 
   } catch (error: unknown) {

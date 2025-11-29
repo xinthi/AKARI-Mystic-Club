@@ -6,8 +6,7 @@
  * Economic Constants:
  * - 1 USD = 50 MYST (MYST_PER_USD)
  * - 1 MYST = 0.02 USD (USD_PER_MYST)
- * - TON price from env: TON_PRICE_USD (default 5.0)
- * - MYST_PER_TON = MYST_PER_USD * TON_PRICE_USD
+ * - TON price: fetched live from Binance via getTonPriceUsd()
  * 
  * MYST Emission Sources (ONLY these):
  * 1. TON deposits (external watcher credits MYST)
@@ -27,38 +26,29 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { getTonPriceUsd } from './ton-price';
 
 // ============================================
 // ECONOMIC CONSTANTS
 // ============================================
 
-/** 1 USD = 50 MYST */
+/** 1 USD = 50 MYST (fixed rate) */
 export const MYST_PER_USD = 50;
 
-/** 1 MYST = 0.02 USD */
+/** 1 MYST = 0.02 USD (fixed rate) */
 export const USD_PER_MYST = 1 / MYST_PER_USD;
 
 /**
- * Get TON price in USD (synchronous fallback).
- * 
- * For live prices, use getTonPriceUsd() from myst-price.ts instead.
- * This function is kept for backward compatibility and uses env fallback.
- * 
- * @deprecated Use getTonPriceUsd from myst-price.ts for live prices
+ * Get MYST per TON using live TON price.
+ * Since 1 USD = 50 MYST, if TON = $5.00 then 1 TON = 250 MYST.
  */
-export function getTonPriceUsdSync(): number {
-  const envPrice = process.env.TON_PRICE_USD;
-  if (envPrice) {
-    const parsed = parseFloat(envPrice);
-    if (!isNaN(parsed) && parsed > 0) return parsed;
-  }
-  return 5.0;
+export async function getMystPerTon(): Promise<number> {
+  const tonPriceUsd = await getTonPriceUsd();
+  return MYST_PER_USD * tonPriceUsd;
 }
 
-/** Get MYST per TON (using sync price - prefer async version in myst-price.ts) */
-export function getMystPerTonSync(): number {
-  return MYST_PER_USD * getTonPriceUsdSync();
-}
+// Re-export getTonPriceUsd for convenience
+export { getTonPriceUsd };
 
 /**
  * Time limit for promotional MYST minting (onboarding + referral milestone).
@@ -726,7 +716,7 @@ export async function createWithdrawalRequest(
     };
   }
 
-  const tonPriceUsd = getTonPriceUsdSync();
+  const tonPriceUsd = await getTonPriceUsd();
   const tonAmount = netUsd / tonPriceUsd;
 
   // Create withdrawal in transaction

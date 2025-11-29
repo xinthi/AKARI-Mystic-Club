@@ -11,7 +11,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
-import { getTonPriceUsd } from '../../../../lib/myst-price';
+import { getTonPriceUsd } from '../../../../lib/ton-price';
 import { USD_PER_MYST } from '../../../../lib/myst-service';
 
 interface UpdateResponse {
@@ -62,7 +62,7 @@ export default async function handler(
       }
 
       // Get live price
-      const { priceUsd: currentTonPrice } = await getTonPriceUsd();
+      const currentTonPrice = await getTonPriceUsd();
       const currentTonAmount = withdrawal.usdNet / currentTonPrice;
 
       const priceDiff = ((currentTonPrice - withdrawal.tonPriceUsd) / withdrawal.tonPriceUsd) * 100;
@@ -109,7 +109,7 @@ export default async function handler(
 
     // Handle recalculation request (admin tool)
     if (recalculatePrice && current.status === 'pending') {
-      const { priceUsd: newTonPrice } = await getTonPriceUsd();
+      const newTonPrice = await getTonPriceUsd();
       const newTonAmount = current.usdNet / newTonPrice;
 
       const updated = await prisma.withdrawalRequest.update({

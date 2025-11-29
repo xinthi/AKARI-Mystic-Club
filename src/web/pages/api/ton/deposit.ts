@@ -11,7 +11,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 import { MYST_PER_USD, getMystBalance } from '../../../lib/myst-service';
-import { getTonPriceUsd } from '../../../lib/myst-price';
+import { getTonPriceUsd } from '../../../lib/ton-price';
 
 interface DepositResponse {
   ok: boolean;
@@ -21,7 +21,6 @@ interface DepositResponse {
     tonPriceUsd: number;
     mystPerUsd: number;
     mystPerTon: number;
-    priceSource: string;
   };
   preview?: {
     ton1: { usd: number; myst: number };
@@ -61,7 +60,7 @@ export default async function handler(
     const memo = `AKARI:${user.id}`;
 
     // Get live TON price
-    const { priceUsd: tonPriceUsd, source: priceSource } = await getTonPriceUsd();
+    const tonPriceUsd = await getTonPriceUsd();
     const mystPerTon = tonPriceUsd * MYST_PER_USD;
 
     // Get current balance
@@ -91,7 +90,6 @@ export default async function handler(
         tonPriceUsd,
         mystPerUsd: MYST_PER_USD,
         mystPerTon,
-        priceSource,
       },
       preview,
       currentBalance,
