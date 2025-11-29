@@ -7,7 +7,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
+import {
+  isAdminLoggedIn,
+  adminFetch,
+  clearAdminToken,
+} from '../../lib/admin-client';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 interface Withdrawal {
   id: string;
@@ -35,8 +41,7 @@ interface LivePrice {
 type StatusFilter = 'all' | 'pending' | 'paid' | 'rejected';
 
 export default function AdminWithdrawalsPage() {
-  const [adminToken, setAdminToken] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
@@ -53,12 +58,10 @@ export default function AdminWithdrawalsPage() {
   const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('adminToken');
-    if (stored) {
-      setAdminToken(stored);
-      setIsAuthenticated(true);
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
     }
-  }, []);
+  }, [router]);
 
   // Load live price
   const loadLivePrice = useCallback(async () => {
@@ -74,16 +77,16 @@ export default function AdminWithdrawalsPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAdminLoggedIn()) {
       loadLivePrice();
+      loadWithdrawals();
       // Refresh price every 30 seconds
       const interval = setInterval(loadLivePrice, 30000);
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, loadLivePrice]);
+  }, [loadLivePrice]);
 
   const loadWithdrawals = useCallback(async () => {
-    if (!adminToken) return;
     setLoading(true);
     setMessage(null);
 
@@ -92,9 +95,14 @@ export default function AdminWithdrawalsPage() {
         ? '/api/admin/withdrawals'
         : `/api/admin/withdrawals?status=${statusFilter}`;
 
-      const response = await fetch(url, {
-        headers: { 'x-admin-token': adminToken },
-      });
+      const response = await adminFetch(url);
+
+      if (response.status === 401 || response.status === 403) {
+        setMessage({ type: 'error', text: 'Unauthorized - please login again' });
+        clearAdminToken();
+        setTimeout(() => router.push('/admin'), 2000);
+        return;
+      }
 
       const data = await response.json();
 
@@ -108,39 +116,21 @@ export default function AdminWithdrawalsPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminToken, statusFilter]);
+  }, [statusFilter, router]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAdminLoggedIn()) {
       loadWithdrawals();
     }
-  }, [isAuthenticated, statusFilter, loadWithdrawals]);
-
-  const handleLogin = () => {
-    if (adminToken.trim()) {
-      localStorage.setItem('adminToken', adminToken.trim());
-      setIsAuthenticated(true);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    setAdminToken('');
-    setIsAuthenticated(false);
-    setWithdrawals([]);
-  };
+  }, [statusFilter, loadWithdrawals]);
 
   const handleRecalculate = async () => {
     if (!selectedWithdrawal) return;
     setRecalculating(true);
 
     try {
-      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
+      const response = await adminFetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({ recalculatePrice: true }),
       });
 
@@ -170,12 +160,8 @@ export default function AdminWithdrawalsPage() {
     setProcessing(true);
 
     try {
-      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
+      const response = await adminFetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({ status: 'paid', txHash: txHash.trim() }),
       });
 
@@ -201,12 +187,8 @@ export default function AdminWithdrawalsPage() {
     setProcessing(true);
 
     try {
-      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
+      const response = await adminFetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({ status: 'rejected', rejectionReason: rejectionReason.trim() || 'No reason provided' }),
       });
 
@@ -237,51 +219,9 @@ export default function AdminWithdrawalsPage() {
       : { diff, color: 'text-green-400' }; // Price down = need more TON = good for user
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
-          <div className="space-y-4">
-            <input
-              type="password"
-              placeholder="Admin Token"
-              value={adminToken}
-              onChange={(e) => setAdminToken(e.target.value)}
-              className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg"
-            />
-            <button
-              onClick={handleLogin}
-              className="w-full p-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold"
-            >
-              Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-2xl font-bold">Withdrawal Requests</h1>
-            <p className="text-gray-400 text-sm mt-1">
-              Process withdrawal requests manually. Send TON from treasury wallet.
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
-          >
-            Logout
-          </button>
-        </div>
-
-        {/* Live Price Banner */}
+    <AdminLayout title="Withdrawal Requests" subtitle="Process withdrawal requests manually. Send TON from treasury wallet.">
+      {/* Live Price Banner */}
         <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -550,14 +490,6 @@ export default function AdminWithdrawalsPage() {
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="mt-8 text-center">
-          <Link href="/admin/leaderboard" className="text-purple-400 hover:underline mr-4">Analytics</Link>
-          <Link href="/admin/myst" className="text-purple-400 hover:underline mr-4">MYST Grant</Link>
-          <Link href="/admin/wheel" className="text-purple-400 hover:underline mr-4">Wheel Pool</Link>
-          <Link href="/admin/campaigns" className="text-purple-400 hover:underline">Campaigns</Link>
-        </div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }
