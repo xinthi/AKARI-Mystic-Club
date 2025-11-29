@@ -222,8 +222,8 @@ export default async function handler(
         referralCount,
         referredBy: referrerUsername,
         
-        // TON wallet (new)
-        tonWallet: fullUser.tonWallet || null,
+        // TON wallet (for withdrawals)
+        tonAddress: fullUser.tonAddress || null,
         
         // X account connection
         xConnected: twitterAccounts.length > 0,
@@ -251,7 +251,7 @@ export default async function handler(
     // PATCH: Update profile
     // ============================================
     if (req.method === 'PATCH') {
-      const { tier, tonWallet } = req.body || {};
+      const { tier, tonAddress } = req.body || {};
 
       const updateData: Record<string, any> = {};
       
@@ -259,16 +259,16 @@ export default async function handler(
         updateData.tier = tier;
       }
       
-      if (tonWallet !== undefined) {
+      if (tonAddress !== undefined) {
         // Basic TON wallet validation (EQ/UQ prefix + 46 chars)
-        if (tonWallet && !/^(EQ|UQ)[a-zA-Z0-9_-]{46}$/.test(tonWallet)) {
+        if (tonAddress && !/^(EQ|UQ)[a-zA-Z0-9_-]{46}$/.test(tonAddress)) {
           return res.status(400).json({
             ok: false,
             user: null,
             message: 'Invalid TON wallet format',
           });
         }
-        updateData.tonWallet = tonWallet || null;
+        updateData.tonAddress = tonAddress || null;
       }
 
       try {
@@ -282,7 +282,7 @@ export default async function handler(
           user: {
             id: updatedUser.id,
             tier: updatedUser.tier,
-            tonWallet: (updatedUser as any).tonWallet || null,
+            tonAddress: updatedUser.tonAddress || null,
           },
         });
       } catch (updateErr: any) {

@@ -1,7 +1,7 @@
 /**
  * Profile Page
  *
- * Shows user profile, MYST balance, referral sharing, X connection, and stats
+ * Shows user profile, MYST balance, TON wallet, withdrawals, referral sharing, X connection, and stats
  */
 
 import { useEffect, useState } from 'react';
@@ -22,6 +22,7 @@ interface User {
   referralCount?: number;
   xConnected?: boolean;
   xHandle?: string;
+  tonAddress?: string;
   recentBets?: Array<{
     id: string;
     predictionTitle: string;
@@ -36,6 +37,15 @@ type ProfileResponse =
   | { ok: true; user: User }
   | { ok: false; user: null; message: string };
 
+interface WithdrawSummary {
+  mystBurned: number;
+  tonPriceUsd: number;
+  usdGross: number;
+  usdFee: number;
+  usdNet: number;
+  tonAmount: number;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -46,10 +56,29 @@ export default function ProfilePage() {
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // TON Wallet state
+  const [tonInput, setTonInput] = useState('');
+  const [showTonInput, setShowTonInput] = useState(false);
+  const [savingTon, setSavingTon] = useState(false);
+  const [tonMessage, setTonMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Withdrawal state
+  const [mystAmountInput, setMystAmountInput] = useState('');
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawMessage, setWithdrawMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [withdrawSummary, setWithdrawSummary] = useState<WithdrawSummary | null>(null);
+
   // Show toast helper
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // Get initData helper
+  const getInitData = (): string => {
+    if (typeof window === 'undefined') return '';
+    const tg = (window as any).Telegram?.WebApp;
+    return tg?.initData || '';
   };
 
   // Telegram BackButton - navigate to home
@@ -89,12 +118,7 @@ export default function ProfilePage() {
 
   const loadProfile = async () => {
     try {
-      // Get initData from Telegram WebApp
-      let initData = '';
-      if (typeof window !== 'undefined') {
-        const tg = (window as any).Telegram?.WebApp;
-        initData = tg?.initData || '';
-      }
+      const initData = getInitData();
 
       const response = await fetch('/api/profile', {
         headers: {
@@ -202,6 +226,102 @@ export default function ProfilePage() {
     }
   };
 
+  // ========================================
+  // TON Wallet Functions
+  // ========================================
+
+  const saveTonWallet = async () => {
+    if (!tonInput.trim()) {
+      setTonMessage({ text: 'Please enter a TON address', type: 'error' });
+      return;
+    }
+
+    setSavingTon(true);
+    setTonMessage(null);
+
+    try {
+      const initData = getInitData();
+
+      const response = await fetch('/api/ton/link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ tonAddress: tonInput.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setTonMessage({ text: 'TON wallet linked successfully!', type: 'success' });
+        setShowTonInput(false);
+        setTonInput('');
+        // Reload profile to get updated tonAddress
+        loadProfile();
+      } else {
+        setTonMessage({ text: data.message || 'Failed to link wallet', type: 'error' });
+      }
+    } catch (err: any) {
+      console.error('[Profile] TON link error:', err);
+      setTonMessage({ text: 'Network error. Please try again.', type: 'error' });
+    } finally {
+      setSavingTon(false);
+    }
+  };
+
+  const maskTonAddress = (address: string): string => {
+    if (address.length <= 10) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // ========================================
+  // Withdrawal Functions
+  // ========================================
+
+  const requestWithdrawal = async () => {
+    const mystAmount = parseFloat(mystAmountInput);
+
+    if (isNaN(mystAmount) || mystAmount <= 0) {
+      setWithdrawMessage({ text: 'Please enter a valid MYST amount', type: 'error' });
+      return;
+    }
+
+    setWithdrawing(true);
+    setWithdrawMessage(null);
+    setWithdrawSummary(null);
+
+    try {
+      const initData = getInitData();
+
+      const response = await fetch('/api/myst/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ mystAmount }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.summary) {
+        setWithdrawSummary(data.summary);
+        setWithdrawMessage({ text: 'Withdrawal request submitted!', type: 'success' });
+        setMystAmountInput('');
+        // Reload profile to update balance
+        loadProfile();
+      } else {
+        setWithdrawMessage({ text: data.message || 'Withdrawal failed', type: 'error' });
+      }
+    } catch (err: any) {
+      console.error('[Profile] Withdrawal error:', err);
+      setWithdrawMessage({ text: 'Network error. Please try again.', type: 'error' });
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
@@ -236,6 +356,9 @@ export default function ProfilePage() {
     );
   }
 
+  const hasTonWallet = !!user.tonAddress;
+  const mystBalance = user.mystBalance ?? 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
       {/* Toast */}
@@ -259,7 +382,7 @@ export default function ProfilePage() {
             <div>
               <div className="text-xs text-amber-300 mb-1">MYST Balance</div>
               <div className="text-3xl font-bold text-amber-100">
-                {(user.mystBalance ?? 0).toLocaleString()} <span className="text-lg">MYST</span>
+                {mystBalance.toLocaleString()} <span className="text-lg">MYST</span>
               </div>
             </div>
             <div className="text-4xl">💎</div>
@@ -268,6 +391,161 @@ export default function ProfilePage() {
             <p className="text-xs text-amber-200/70">
               Earn MYST by winning predictions, referring friends, and spinning the wheel daily
             </p>
+          </div>
+        </div>
+
+        {/* ========================================
+            TON Wallet Section
+        ======================================== */}
+        <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-5 border border-purple-500/20">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">💰</span>
+            <h2 className="text-lg font-semibold">TON Wallet</h2>
+          </div>
+
+          {/* Message */}
+          {tonMessage && (
+            <div className={`mb-3 p-2 rounded-lg text-sm ${
+              tonMessage.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+            }`}>
+              {tonMessage.text}
+            </div>
+          )}
+
+          {!hasTonWallet || showTonInput ? (
+            // Show input form
+            <div className="space-y-3">
+              <p className="text-sm text-purple-300">
+                Link your TON wallet to receive withdrawals.
+              </p>
+              <input
+                type="text"
+                value={tonInput}
+                onChange={(e) => setTonInput(e.target.value)}
+                placeholder="Paste your TON address (e.g. EQB...)"
+                className="w-full bg-purple-800/30 border border-purple-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-purple-400 focus:outline-none focus:border-purple-400"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={saveTonWallet}
+                  disabled={savingTon}
+                  className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                >
+                  {savingTon ? 'Saving...' : 'Save'}
+                </button>
+                {hasTonWallet && (
+                  <button
+                    onClick={() => {
+                      setShowTonInput(false);
+                      setTonInput('');
+                      setTonMessage(null);
+                    }}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            // Show connected wallet
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-purple-400 mb-1">Connected TON wallet</div>
+                  <div className="font-mono text-sm text-white">
+                    {maskTonAddress(user.tonAddress!)}
+                  </div>
+                </div>
+                <span className="text-green-400 text-sm">✓</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTonInput(true);
+                  setTonInput(user.tonAddress || '');
+                }}
+                className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+              >
+                Change wallet
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ========================================
+            Withdraw MYST Section
+        ======================================== */}
+        <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-5 border border-purple-500/20">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🏧</span>
+            <h2 className="text-lg font-semibold">Withdraw MYST</h2>
+          </div>
+
+          <p className="text-sm text-purple-300 mb-2">
+            Minimum withdrawal is 50 USD. A 2% fee applies.
+          </p>
+          <p className="text-sm text-amber-300 mb-4">
+            You have <strong>{mystBalance.toLocaleString()}</strong> MYST
+          </p>
+
+          {/* Warning if no TON wallet */}
+          {!hasTonWallet && (
+            <div className="bg-amber-900/30 border border-amber-500/30 rounded-lg p-3 mb-4">
+              <p className="text-sm text-amber-200">
+                ⚠️ Please connect your TON wallet first to enable withdrawals.
+              </p>
+            </div>
+          )}
+
+          {/* Withdraw Message */}
+          {withdrawMessage && (
+            <div className={`mb-3 p-2 rounded-lg text-sm ${
+              withdrawMessage.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+            }`}>
+              {withdrawMessage.text}
+            </div>
+          )}
+
+          {/* Withdraw Summary */}
+          {withdrawSummary && (
+            <div className="mb-4 p-3 bg-green-900/30 border border-green-500/30 rounded-lg space-y-1 text-sm">
+              <div className="text-green-200 font-semibold mb-2">✅ Withdrawal Request Submitted</div>
+              <div className="text-green-300">You burned: <strong>{withdrawSummary.mystBurned.toFixed(2)}</strong> MYST</div>
+              <div className="text-green-300">Approx value: <strong>${withdrawSummary.usdGross.toFixed(2)}</strong> USD</div>
+              <div className="text-green-300">Fee (2%): <strong>${withdrawSummary.usdFee.toFixed(2)}</strong> USD</div>
+              <div className="text-green-300">
+                You will receive: <strong>{withdrawSummary.tonAmount.toFixed(4)}</strong> TON @ ${withdrawSummary.tonPriceUsd.toFixed(2)}/TON
+              </div>
+              <div className="mt-2 pt-2 border-t border-green-500/30 text-green-200 text-xs">
+                Admin will send TON to your linked wallet soon.
+              </div>
+            </div>
+          )}
+
+          {/* Withdraw Form */}
+          <div className="space-y-3">
+            <input
+              type="number"
+              value={mystAmountInput}
+              onChange={(e) => setMystAmountInput(e.target.value)}
+              placeholder="Enter MYST amount"
+              disabled={!hasTonWallet || mystBalance === 0}
+              className="w-full bg-purple-800/30 border border-purple-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-purple-400 focus:outline-none focus:border-purple-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <button
+              onClick={requestWithdrawal}
+              disabled={!hasTonWallet || mystBalance === 0 || withdrawing}
+              title={
+                !hasTonWallet 
+                  ? 'Connect your TON wallet first' 
+                  : mystBalance === 0 
+                    ? 'You need MYST to withdraw' 
+                    : ''
+              }
+              className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 disabled:from-gray-600 disabled:to-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-semibold text-sm transition-all"
+            >
+              {withdrawing ? 'Processing...' : 'Request Withdrawal'}
+            </button>
           </div>
         </div>
 
