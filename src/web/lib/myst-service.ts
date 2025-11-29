@@ -617,24 +617,62 @@ export function selectWheelPrize(poolBalance: number): WheelPrize {
 // ============================================
 
 /**
+ * Platform fee rate: 10% of LOSING SIDE only
+ */
+export const PREDICTION_FEE_RATE = 0.10;
+
+/**
+ * Fee distribution splits (must sum to 1.0)
+ */
+export const FEE_DISTRIBUTION = {
+  LEADERBOARD: 0.15,  // 15%
+  REFERRAL: 0.10,     // 10%
+  WHEEL: 0.05,        // 5%
+  TREASURY: 0.70,     // 70%
+} as const;
+
+/**
  * Calculate payout for winning bets in a prediction market.
+ * 
+ * ECONOMIC MODEL:
+ * - Fee = 10% of LOSING SIDE only (NOT total pool)
+ * - Winners receive: (total pool - fee) distributed proportionally by stake
  */
 export function calculatePredictionPayout(
   userStake: number,
   winningSideTotal: number,
   losingSideTotal: number,
-  feeRate: number = MYST_CONFIG.DEFAULT_FEE_RATE
-): { payout: number; fee: number } {
+  feeRate: number = PREDICTION_FEE_RATE
+): { payout: number; fee: number; winPool: number; totalPool: number } {
   const totalPool = winningSideTotal + losingSideTotal;
-  const fee = totalPool * feeRate;
+  
+  // Fee is 10% of LOSING side only
+  const fee = losingSideTotal * feeRate;
   const winPool = totalPool - fee;
   
-  if (winningSideTotal <= 0) return { payout: 0, fee };
+  if (winningSideTotal <= 0) return { payout: 0, fee, winPool, totalPool };
   
   const payoutPerMyst = winPool / winningSideTotal;
   const payout = userStake * payoutPerMyst;
   
-  return { payout, fee };
+  return { payout, fee, winPool, totalPool };
+}
+
+/**
+ * Calculate fee distribution for pools.
+ */
+export function calculateFeeDistribution(fee: number): {
+  leaderboard: number;
+  referral: number;
+  wheel: number;
+  treasury: number;
+} {
+  return {
+    leaderboard: fee * FEE_DISTRIBUTION.LEADERBOARD,
+    referral: fee * FEE_DISTRIBUTION.REFERRAL,
+    wheel: fee * FEE_DISTRIBUTION.WHEEL,
+    treasury: fee * FEE_DISTRIBUTION.TREASURY,
+  };
 }
 
 /**

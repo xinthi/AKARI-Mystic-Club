@@ -4,13 +4,16 @@
  * POST: Place a bet on a prediction
  * Supports both legacy (points) and new (MYST) betting.
  * 
- * When MYST is used, referral rewards are automatically triggered.
+ * ECONOMIC MODEL:
+ * - The ENTIRE bet amount goes into the prediction pool
+ * - NO tax or fee is applied at bet time
+ * - Fees are only applied when the prediction is RESOLVED (10% of losing side)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { getUserFromRequest } from '../../../../lib/telegram-auth';
-import { getMystBalance, spendMyst, MYST_CONFIG } from '../../../../lib/myst-service';
+import { getMystBalance, creditMyst, MYST_CONFIG } from '../../../../lib/myst-service';
 
 interface BetResponse {
   ok: boolean;
@@ -26,10 +29,6 @@ interface BetResponse {
   newPot?: number;
   newPoints?: number;
   newMystBalance?: number;
-  referralRewards?: {
-    level1: number;
-    level2: number;
-  };
   reason?: string;
 }
 
@@ -140,8 +139,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     let starsBet = 0;
     let pointsBet = 0;
     let mystBet = 0;
-    let referralLevel1Reward = 0;
-    let referralLevel2Reward = 0;
 
     // Check if using MYST
     if (mystAmount && typeof mystAmount === 'number' && mystAmount > 0) {
@@ -167,10 +164,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         return;
       }
 
-      // Process MYST spend (includes pool splits and referral rewards)
-      const spendResult = await spendMyst(prisma, user.id, mystBet, 'spend_bet', id);
-      referralLevel1Reward = spendResult.referralRewards.level1Amount;
-      referralLevel2Reward = spendResult.referralRewards.level2Amount;
+      // ECONOMIC MODEL: Debit FULL bet amount - NO SPLITS AT BET TIME
+      // The entire bet goes into the pool. Fees are taken only on resolution.
+      await prisma.mystTransaction.create({
+        data: {
+          userId: user.id,
+          type: 'spend_bet',
+          amount: -mystBet,
+          meta: { predictionId: id, option: resolvedOption },
+        },
+      });
 
     } else if (prediction.entryFeeStars > 0) {
       // Legacy Stars betting
@@ -218,7 +221,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         data: {
           pot: { increment: totalBetAmount },
           participantCount: { increment: 1 },
-          // Update MYST pools
+          // Update MYST pools - FULL BET AMOUNT goes to pool
           ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: mystBet } } : {}),
           ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: mystBet } } : {}),
         },
@@ -253,10 +256,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       newPot: updatedPrediction.pot,
       newPoints: updatedUser?.points ?? user.points,
       newMystBalance,
-      referralRewards:
-        referralLevel1Reward > 0 || referralLevel2Reward > 0
-          ? { level1: referralLevel1Reward, level2: referralLevel2Reward }
-          : undefined,
     });
   } catch (err: any) {
     console.error('Bet API error:', err);
