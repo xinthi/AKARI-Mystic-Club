@@ -561,7 +561,7 @@ export default function ProfilePage() {
           </div>
 
           <p className="text-sm text-purple-300 mb-2">
-            Minimum withdrawal is 50 USD. A 2% fee applies.
+            Minimum withdrawal is 50 USD. A 5% fee applies.
           </p>
           <p className="text-sm text-amber-300 mb-4">
             You have <strong>{mystBalance.toLocaleString()}</strong> MYST
@@ -591,7 +591,7 @@ export default function ProfilePage() {
               <div className="text-green-200 font-semibold mb-2">✅ Withdrawal Request Submitted</div>
               <div className="text-green-300">You burned: <strong>{withdrawSummary.mystBurned.toFixed(2)}</strong> MYST</div>
               <div className="text-green-300">Approx value: <strong>${withdrawSummary.usdGross.toFixed(2)}</strong> USD</div>
-              <div className="text-green-300">Fee (2%): <strong>${withdrawSummary.usdFee.toFixed(2)}</strong> USD</div>
+              <div className="text-green-300">Fee (5%): <strong>${withdrawSummary.usdFee.toFixed(2)}</strong> USD</div>
               <div className="text-green-300">
                 You will receive: <strong>{withdrawSummary.tonAmount.toFixed(4)}</strong> TON @ ${withdrawSummary.tonPriceUsd.toFixed(2)}/TON
               </div>

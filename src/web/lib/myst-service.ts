@@ -83,7 +83,7 @@ export const MYST_CONFIG = {
   REFERRAL_MILESTONE_THRESHOLD: 5,
   
   // Withdrawal settings
-  WITHDRAWAL_FEE_RATE: 0.02,  // 2% fee
+  WITHDRAWAL_FEE_RATE: 0.05,  // 5% fee
   WITHDRAWAL_MIN_USD: 50,     // Minimum $50 net withdrawal
   
   // Wheel of Fortune settings

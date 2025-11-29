@@ -10,7 +10,7 @@
  * - Platform fee = 10% of LOSING SIDE only
  * - Fee split: 15% Leaderboard, 10% Referral, 5% Wheel, 70% Treasury
  * - No fee at bet time (full bet goes to pool)
- * - Withdraw fee = 2%
+ * - Withdraw fee = 5%
  * - Min withdrawal = $50 net
  * 
  * Run with: npx ts-node src/scripts/simulations/prediction_simulation.ts
@@ -26,7 +26,7 @@ const FEE_SPLIT = {
   WHEEL: 0.05,
   TREASURY: 0.70,
 };
-const WITHDRAW_FEE_RATE = 0.02;
+const WITHDRAW_FEE_RATE = 0.05;
 const MIN_WITHDRAW_USD = 50;
 
 interface Bet {
@@ -245,7 +245,7 @@ function simulateWithdrawal(mystAmount: number): void {
 
   console.log(`   MYST Amount:    ${formatNumber(mystAmount)} MYST`);
   console.log(`   Gross USD:      $${formatNumber(grossUsd)}`);
-  console.log(`   Fee (2%):       $${formatNumber(feeUsd)}`);
+  console.log(`   Fee (${WITHDRAW_FEE_RATE * 100}%):       $${formatNumber(feeUsd)}`);
   console.log(`   Net USD:        $${formatNumber(netUsd)}`);
   console.log(`   Min Required:   $${MIN_WITHDRAW_USD}`);
   console.log(`   Eligible:       ${netUsd >= MIN_WITHDRAW_USD ? '✓ YES' : '✗ NO (below minimum)'}`);
