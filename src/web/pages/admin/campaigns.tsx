@@ -1,11 +1,17 @@
 /**
  * Admin Campaigns Page
  * 
- * Simple admin UI to manage campaigns and tasks.
+ * Manage campaigns and tasks.
  */
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import {
+  isAdminLoggedIn,
+  adminFetch,
+  clearAdminToken,
+} from '../../lib/admin-client';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 interface Campaign {
   id: string;
@@ -20,8 +26,7 @@ interface Campaign {
 }
 
 export default function AdminCampaignsPage() {
-  const [adminToken, setAdminToken] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -39,32 +44,25 @@ export default function AdminCampaignsPage() {
   const [newTaskReward, setNewTaskReward] = useState('10');
 
   useEffect(() => {
-    const stored = localStorage.getItem('adminToken');
-    if (stored) {
-      setAdminToken(stored);
-      setIsAuthenticated(true);
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
     }
-  }, []);
+    loadCampaigns();
+  }, [router]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadCampaigns();
-    }
-  }, [isAuthenticated]);
-
-  const handleLogin = () => {
-    if (adminToken.trim()) {
-      localStorage.setItem('adminToken', adminToken.trim());
-      setIsAuthenticated(true);
-    }
-  };
-
-  const loadCampaigns = async () => {
+  const loadCampaigns = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/campaigns', {
-        headers: { 'x-admin-token': adminToken },
-      });
+      const response = await adminFetch('/api/admin/campaigns');
+      
+      if (response.status === 401 || response.status === 403) {
+        setMessage({ type: 'error', text: 'Unauthorized - please login again' });
+        clearAdminToken();
+        setTimeout(() => router.push('/admin'), 2000);
+        return;
+      }
+
       const data = await response.json();
       if (data.ok) {
         setCampaigns(data.campaigns);
@@ -74,18 +72,14 @@ export default function AdminCampaignsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   const createCampaign = async () => {
     if (!newName.trim()) return;
     
     try {
-      const response = await fetch('/api/admin/campaigns', {
+      const response = await adminFetch('/api/admin/campaigns', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({
           name: newName,
           description: newDescription,
@@ -110,12 +104,8 @@ export default function AdminCampaignsPage() {
     if (!selectedCampaignId || !newTaskTitle.trim()) return;
     
     try {
-      const response = await fetch(`/api/admin/campaigns/${selectedCampaignId}/tasks`, {
+      const response = await adminFetch(`/api/admin/campaigns/${selectedCampaignId}/tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({
           title: newTaskTitle,
           type: newTaskType,
@@ -139,12 +129,8 @@ export default function AdminCampaignsPage() {
 
   const updateStatus = async (id: string, status: string) => {
     try {
-      const response = await fetch(`/api/admin/campaigns/${id}`, {
+      const response = await adminFetch(`/api/admin/campaigns/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({ status }),
       });
       const data = await response.json();
@@ -156,175 +142,248 @@ export default function AdminCampaignsPage() {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
-          <input
-            type="password"
-            placeholder="Admin Token"
-            value={adminToken}
-            onChange={(e) => setAdminToken(e.target.value)}
-            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg mb-4"
-          />
-          <button onClick={handleLogin} className="w-full p-3 bg-purple-600 rounded-lg">Login</button>
-        </div>
-      </div>
-    );
-  }
+  // Export campaigns as CSV
+  const exportCampaignsCSV = () => {
+    if (campaigns.length === 0) {
+      setMessage({ type: 'error', text: 'No campaigns to export' });
+      return;
+    }
+
+    const headers = ['ID', 'Name', 'Status', 'Participants', 'Tasks', 'End Date'];
+    const rows = campaigns.map(c => [
+      c.id,
+      `"${c.name}"`,
+      c.status,
+      c.participantCount.toString(),
+      c.tasks?.length?.toString() || '0',
+      c.endsAt ? new Date(c.endsAt).toLocaleDateString() : 'N/A',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campaigns-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusColors: Record<string, string> = {
+    DRAFT: 'bg-gray-600',
+    ACTIVE: 'bg-green-600',
+    PAUSED: 'bg-yellow-600',
+    ENDED: 'bg-red-600',
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Admin: Campaigns</h1>
-          <Link href="/admin/myst" className="text-purple-400 hover:underline">← Back to Admin</Link>
+    <AdminLayout title="Campaigns" subtitle="Create and manage campaigns">
+      {/* Message */}
+      {message && (
+        <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+          {message.text}
         </div>
+      )}
 
-        {message && (
-          <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50' : 'bg-red-900/50'}`}>
-            {message.text}
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-sm text-gray-400">Total Campaigns</div>
+          <div className="text-2xl font-bold">{campaigns.length}</div>
+        </div>
+        <div className="bg-green-900/30 rounded-xl p-4 border border-green-500/30">
+          <div className="text-sm text-green-400">Active</div>
+          <div className="text-2xl font-bold text-green-300">
+            {campaigns.filter(c => c.status === 'ACTIVE').length}
           </div>
-        )}
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-sm text-gray-400">Draft</div>
+          <div className="text-2xl font-bold">
+            {campaigns.filter(c => c.status === 'DRAFT').length}
+          </div>
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-sm text-gray-400">Total Participants</div>
+          <div className="text-2xl font-bold">
+            {campaigns.reduce((sum, c) => sum + c.participantCount, 0)}
+          </div>
+        </div>
+      </div>
 
-        {/* Create Campaign */}
-        <div className="bg-gray-800 rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">Create Campaign</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Campaign Name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="p-3 bg-gray-700 rounded-lg"
-            />
-            <select
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              className="p-3 bg-gray-700 rounded-lg"
-            >
-              <option value="DRAFT">DRAFT</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="ARCHIVED">ARCHIVED</option>
-            </select>
-            <textarea
-              placeholder="Description"
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              className="p-3 bg-gray-700 rounded-lg md:col-span-2"
-              rows={2}
-            />
-          </div>
-          <button
-            onClick={createCampaign}
-            className="mt-4 px-6 py-2 bg-purple-600 rounded-lg"
+      {/* Create Campaign */}
+      <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
+        <h2 className="text-lg font-semibold mb-4">📋 Create New Campaign</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Campaign Name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+          <input
+            type="text"
+            placeholder="Description (optional)"
+            value={newDescription}
+            onChange={(e) => setNewDescription(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+          <select
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
           >
-            Create Campaign
-          </button>
+            <option value="DRAFT">Draft</option>
+            <option value="ACTIVE">Active</option>
+          </select>
+        </div>
+        <button
+          onClick={createCampaign}
+          disabled={!newName.trim()}
+          className="px-6 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded-lg font-semibold"
+        >
+          Create Campaign
+        </button>
+      </div>
+
+      {/* Add Task to Campaign */}
+      <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
+        <h2 className="text-lg font-semibold mb-4">✅ Add Task to Campaign</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <select
+            value={selectedCampaignId || ''}
+            onChange={(e) => setSelectedCampaignId(e.target.value || null)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          >
+            <option value="">Select Campaign</option>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Task Title"
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+          <select
+            value={newTaskType}
+            onChange={(e) => setNewTaskType(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          >
+            <option value="X_FOLLOW">X Follow</option>
+            <option value="X_LIKE">X Like</option>
+            <option value="X_RETWEET">X Retweet</option>
+            <option value="TELEGRAM_JOIN">Telegram Join</option>
+            <option value="VISIT_URL">Visit URL</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Target URL (optional)"
+            value={newTaskUrl}
+            onChange={(e) => setNewTaskUrl(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+          <input
+            type="number"
+            placeholder="Reward Points"
+            value={newTaskReward}
+            onChange={(e) => setNewTaskReward(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+        </div>
+        <button
+          onClick={addTask}
+          disabled={!selectedCampaignId || !newTaskTitle.trim()}
+          className="px-6 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded-lg font-semibold"
+        >
+          Add Task
+        </button>
+      </div>
+
+      {/* Campaigns List */}
+      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">📊 All Campaigns</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={exportCampaignsCSV}
+              disabled={campaigns.length === 0}
+              className="px-3 py-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded text-sm"
+            >
+              📥 Export CSV
+            </button>
+            <button
+              onClick={loadCampaigns}
+              disabled={loading}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+            >
+              {loading ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
         </div>
 
-        {/* Campaigns List */}
-        <h2 className="text-lg font-semibold mb-4">Campaigns ({campaigns.length})</h2>
-        {loading ? (
-          <div>Loading...</div>
+        {campaigns.length === 0 ? (
+          <div className="text-center text-gray-400 py-8">
+            No campaigns yet. Create one above!
+          </div>
         ) : (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
-              <div key={campaign.id} className="bg-gray-800 rounded-xl p-6">
-                <div className="flex justify-between items-start mb-4">
+              <div key={campaign.id} className="bg-gray-700/50 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-2">
                   <div>
                     <h3 className="font-semibold text-lg">{campaign.name}</h3>
-                    <p className="text-gray-400 text-sm">{campaign.description || 'No description'}</p>
-                    <p className="text-gray-500 text-xs mt-1">
-                      {campaign.participantCount} participants • {campaign.tasks.length} tasks
-                    </p>
+                    {campaign.description && (
+                      <p className="text-sm text-gray-400">{campaign.description}</p>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    {['DRAFT', 'ACTIVE', 'ARCHIVED'].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => updateStatus(campaign.id, s)}
-                        className={`px-3 py-1 rounded text-xs ${
-                          campaign.status === s ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[campaign.status] || 'bg-gray-600'}`}>
+                      {campaign.status}
+                    </span>
+                    <select
+                      value={campaign.status}
+                      onChange={(e) => updateStatus(campaign.id, e.target.value)}
+                      className="p-1 bg-gray-600 border border-gray-500 rounded text-sm"
+                    >
+                      <option value="DRAFT">Draft</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="PAUSED">Paused</option>
+                      <option value="ENDED">Ended</option>
+                    </select>
                   </div>
                 </div>
-
-                {/* Tasks */}
-                <div className="border-t border-gray-700 pt-4 mt-4">
-                  <h4 className="text-sm font-semibold mb-2">Tasks:</h4>
-                  <div className="space-y-2">
-                    {campaign.tasks.map((task: any) => (
-                      <div key={task.id} className="text-sm bg-gray-700/50 p-2 rounded">
-                        <span className="text-purple-400">[{task.type}]</span> {task.title}
-                        {task.targetUrl && <span className="text-gray-500 ml-2">→ {task.targetUrl}</span>}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add Task */}
-                  {selectedCampaignId === campaign.id ? (
-                    <div className="mt-4 p-4 bg-gray-700/30 rounded-lg">
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <input
-                          type="text"
-                          placeholder="Task title"
-                          value={newTaskTitle}
-                          onChange={(e) => setNewTaskTitle(e.target.value)}
-                          className="p-2 bg-gray-700 rounded text-sm"
-                        />
-                        <select
-                          value={newTaskType}
-                          onChange={(e) => setNewTaskType(e.target.value)}
-                          className="p-2 bg-gray-700 rounded text-sm"
-                        >
-                          <option value="X_FOLLOW">X_FOLLOW</option>
-                          <option value="X_LIKE">X_LIKE</option>
-                          <option value="X_RETWEET">X_RETWEET</option>
-                          <option value="JOIN_TELEGRAM">JOIN_TELEGRAM</option>
-                          <option value="QUOTE_REPOST">QUOTE_REPOST</option>
-                          <option value="CUSTOM">CUSTOM</option>
-                        </select>
-                        <input
-                          type="text"
-                          placeholder="Target URL"
-                          value={newTaskUrl}
-                          onChange={(e) => setNewTaskUrl(e.target.value)}
-                          className="p-2 bg-gray-700 rounded text-sm"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Reward Points"
-                          value={newTaskReward}
-                          onChange={(e) => setNewTaskReward(e.target.value)}
-                          className="p-2 bg-gray-700 rounded text-sm"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={addTask} className="px-4 py-1 bg-green-600 rounded text-sm">Add Task</button>
-                        <button onClick={() => setSelectedCampaignId(null)} className="px-4 py-1 bg-gray-600 rounded text-sm">Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedCampaignId(campaign.id)}
-                      className="mt-2 text-sm text-purple-400 hover:underline"
-                    >
-                      + Add Task
-                    </button>
+                <div className="flex gap-4 text-sm text-gray-400">
+                  <span>👥 {campaign.participantCount} participants</span>
+                  <span>✅ {campaign.tasks?.length || 0} tasks</span>
+                  {campaign.endsAt && (
+                    <span>📅 Ends: {new Date(campaign.endsAt).toLocaleDateString()}</span>
                   )}
                 </div>
+                {campaign.tasks && campaign.tasks.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-600">
+                    <div className="text-xs text-gray-400 mb-2">Tasks:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {campaign.tasks.map((task: any) => (
+                        <span key={task.id} className="px-2 py-1 bg-gray-600 rounded text-xs">
+                          {task.title} (+{task.rewardPoints}pts)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }
-

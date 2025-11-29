@@ -29,11 +29,30 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 // ADMIN IDS
 // ============================================
 
-// Hardcoded list of admin Telegram user IDs
-// Add your admin IDs here
-const ADMIN_IDS: number[] = [
-  6022649318, // Primary admin - replace with actual admin IDs
-];
+/**
+ * Get list of admin Telegram user IDs.
+ * Can be set via TELEGRAM_ADMIN_IDS env var (comma-separated)
+ * or defaults to hardcoded list.
+ */
+function getAdminIds(): number[] {
+  // Try to get from environment variable first
+  const envAdminIds = process.env.TELEGRAM_ADMIN_IDS;
+  if (envAdminIds) {
+    const ids = envAdminIds.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+    if (ids.length > 0) {
+      console.log('[TelegramBot] Admin IDs loaded from env:', ids.length, 'admins');
+      return ids;
+    }
+  }
+  
+  // Fallback to hardcoded list
+  // Add your admin Telegram IDs here
+  return [
+    6022649318, // Muaz - Primary admin
+  ];
+}
+
+const ADMIN_IDS = getAdminIds();
 
 // ============================================
 // URL HELPERS
@@ -99,23 +118,30 @@ bot.command('start', async (ctx) => {
   );
 });
 
-// Handle /admin command - only for admin IDs
+// Handle /admin command - RESTRICTED to admin IDs only
 bot.command('admin', async (ctx) => {
   const userId = ctx.from?.id;
+  const username = ctx.from?.username || ctx.from?.first_name || 'Unknown';
   
   if (!userId) {
-    await ctx.reply('❌ Could not identify your user ID.');
+    await ctx.reply('Could not identify your user ID.');
     return;
   }
   
-  // Check if user is an admin
+  // SECURITY: Check if user is an authorized admin
   if (!ADMIN_IDS.includes(userId)) {
+    // Log unauthorized access attempt
+    console.warn(`[TelegramBot] UNAUTHORIZED /admin attempt by user ${userId} (@${username})`);
+    
+    // Don't reveal that this is an admin command - just say command not found
     await ctx.reply(
-      '❌ You are not an admin.\n\n' +
-      'If you believe this is an error, please contact the bot owner.'
+      'This command is not available.\n\n' +
+      'Use /start to open the Mini App or /help for available commands.'
     );
     return;
   }
+  
+  console.log(`[TelegramBot] Admin access granted to user ${userId} (@${username})`);
   
   // User is an admin - show admin panel links
   const treasuryUrl = getAdminUrl('/admin/treasury');

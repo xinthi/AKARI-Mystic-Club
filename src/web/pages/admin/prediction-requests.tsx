@@ -1,205 +1,238 @@
 /**
  * Admin Prediction Requests Page
  * 
- * Review and approve/reject prediction market requests from community.
+ * Review and approve/reject community prediction submissions.
  */
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import {
+  isAdminLoggedIn,
+  adminFetch,
+  clearAdminToken,
+} from '../../lib/admin-client';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 interface PredictionRequest {
   id: string;
-  question: string;
-  category?: string;
-  proposedExpiry?: string;
-  details?: string;
+  title: string;
+  description: string;
+  category: string;
+  options: string[];
+  suggestedEndDate?: string;
   status: string;
-  createdBy?: { username?: string; telegramId: string };
   createdAt: string;
+  user?: {
+    username?: string;
+    telegramId: string;
+  };
 }
 
 export default function AdminPredictionRequestsPage() {
-  const [adminToken, setAdminToken] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   const [requests, setRequests] = useState<PredictionRequest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('PENDING');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('adminToken');
-    if (stored) {
-      setAdminToken(stored);
-      setIsAuthenticated(true);
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
     }
-  }, []);
+    loadRequests();
+  }, [router]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadRequests();
-    }
-  }, [isAuthenticated, filter]);
-
-  const handleLogin = () => {
-    if (adminToken.trim()) {
-      localStorage.setItem('adminToken', adminToken.trim());
-      setIsAuthenticated(true);
-    }
-  };
-
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/prediction-requests?status=${filter}`, {
-        headers: { 'x-admin-token': adminToken },
-      });
+      const response = await adminFetch('/api/admin/prediction-requests');
+      
+      if (response.status === 401 || response.status === 403) {
+        setMessage({ type: 'error', text: 'Unauthorized - please login again' });
+        clearAdminToken();
+        setTimeout(() => router.push('/admin'), 2000);
+        return;
+      }
+
       const data = await response.json();
       if (data.ok) {
         setRequests(data.requests);
       }
     } catch (error) {
-      console.error('Failed to load requests');
+      setMessage({ type: 'error', text: 'Failed to load requests' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  const handleAction = async (requestId: string, action: 'APPROVE' | 'REJECT', createPrediction = false) => {
+  const updateStatus = async (id: string, status: string, notes?: string) => {
     try {
-      const response = await fetch('/api/admin/prediction-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
-        body: JSON.stringify({ requestId, action, createPrediction }),
+      const response = await adminFetch(`/api/admin/prediction-requests`, {
+        method: 'PATCH',
+        body: JSON.stringify({ id, status, adminNotes: notes }),
       });
       const data = await response.json();
       if (data.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: `${action === 'APPROVE' ? 'Approved' : 'Rejected'}${data.prediction ? ` - Prediction market created` : ''}` 
-        });
+        setMessage({ type: 'success', text: `Request ${status.toLowerCase()}` });
         loadRequests();
       } else {
-        setMessage({ type: 'error', text: data.message });
+        setMessage({ type: 'error', text: data.message || 'Failed to update' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to process request' });
+      setMessage({ type: 'error', text: 'Network error' });
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
-          <input
-            type="password"
-            placeholder="Admin Token"
-            value={adminToken}
-            onChange={(e) => setAdminToken(e.target.value)}
-            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg mb-4"
-          />
-          <button onClick={handleLogin} className="w-full p-3 bg-purple-600 rounded-lg">Login</button>
-        </div>
-      </div>
-    );
-  }
+  // Export as CSV
+  const exportCSV = () => {
+    if (requests.length === 0) {
+      setMessage({ type: 'error', text: 'No data to export' });
+      return;
+    }
+
+    const headers = ['ID', 'Title', 'Category', 'Status', 'Options', 'Date'];
+    const rows = requests.map(r => [
+      r.id,
+      `"${r.title}"`,
+      r.category,
+      r.status,
+      `"${r.options.join('; ')}"`,
+      new Date(r.createdAt).toLocaleDateString(),
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `prediction-requests-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusColors: Record<string, string> = {
+    PENDING: 'bg-yellow-600',
+    APPROVED: 'bg-green-600',
+    REJECTED: 'bg-red-600',
+    CREATED: 'bg-blue-600',
+  };
+
+  const categoryColors: Record<string, string> = {
+    crypto: 'text-orange-400',
+    sports: 'text-green-400',
+    politics: 'text-blue-400',
+    entertainment: 'text-pink-400',
+    other: 'text-gray-400',
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Prediction Requests</h1>
-          <Link href="/admin/myst" className="text-purple-400 hover:underline">← Back to Admin</Link>
+    <AdminLayout title="Prediction Requests" subtitle="Review community prediction market submissions">
+      {/* Message */}
+      {message && (
+        <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+          {message.text}
         </div>
+      )}
 
-        {message && (
-          <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50' : 'bg-red-900/50'}`}>
-            {message.text}
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-yellow-900/30 rounded-xl p-4 border border-yellow-500/30">
+          <div className="text-sm text-yellow-400">Pending</div>
+          <div className="text-2xl font-bold text-yellow-300">
+            {requests.filter(r => r.status === 'PENDING').length}
           </div>
-        )}
+        </div>
+        <div className="bg-green-900/30 rounded-xl p-4 border border-green-500/30">
+          <div className="text-sm text-green-400">Approved</div>
+          <div className="text-2xl font-bold text-green-300">
+            {requests.filter(r => r.status === 'APPROVED' || r.status === 'CREATED').length}
+          </div>
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+          <div className="text-sm text-gray-400">Total</div>
+          <div className="text-2xl font-bold">{requests.length}</div>
+        </div>
+      </div>
 
-        {/* Filter */}
-        <div className="flex gap-2 mb-6">
-          {['PENDING', 'APPROVED', 'REJECTED'].map((s) => (
+      {/* Requests List */}
+      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">🎯 All Requests</h2>
+          <div className="flex gap-2">
             <button
-              key={s}
-              onClick={() => setFilter(s)}
-              className={`px-4 py-2 rounded-lg ${filter === s ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+              onClick={exportCSV}
+              disabled={requests.length === 0}
+              className="px-3 py-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded text-sm"
             >
-              {s}
+              📥 Export CSV
             </button>
-          ))}
+            <button
+              onClick={loadRequests}
+              disabled={loading}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+            >
+              {loading ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
         </div>
 
-        {loading ? (
-          <div>Loading...</div>
-        ) : requests.length === 0 ? (
-          <div className="text-gray-500">No {filter.toLowerCase()} requests</div>
+        {requests.length === 0 ? (
+          <div className="text-center text-gray-400 py-8">
+            No prediction requests yet
+          </div>
         ) : (
           <div className="space-y-4">
             {requests.map((req) => (
-              <div key={req.id} className="bg-gray-800 rounded-xl p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{req.question}</h3>
-                    {req.category && (
-                      <span className="inline-block px-2 py-1 bg-purple-900/50 text-purple-300 text-xs rounded mt-1">
-                        {req.category}
-                      </span>
-                    )}
+              <div key={req.id} className="bg-gray-700/50 rounded-lg p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-semibold text-lg">{req.title}</h3>
+                    <span className={`text-sm ${categoryColors[req.category] || 'text-gray-400'}`}>
+                      {req.category}
+                    </span>
                   </div>
-                  <span className={`px-3 py-1 rounded text-xs ${
-                    req.status === 'PENDING' ? 'bg-yellow-600' :
-                    req.status === 'APPROVED' ? 'bg-green-600' : 'bg-red-600'
-                  }`}>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[req.status] || 'bg-gray-600'}`}>
                     {req.status}
                   </span>
                 </div>
-
-                {req.details && (
-                  <div className="mb-2">
-                    <span className="text-gray-500 text-sm">Details:</span>
-                    <p className="text-sm text-gray-300">{req.details}</p>
+                <p className="text-sm text-gray-300 mb-3">{req.description}</p>
+                <div className="mb-3">
+                  <div className="text-xs text-gray-400 mb-1">Options:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {req.options.map((opt, i) => (
+                      <span key={i} className="px-2 py-1 bg-gray-600 rounded text-xs">
+                        {opt}
+                      </span>
+                    ))}
                   </div>
-                )}
-
-                <div className="text-xs text-gray-500 mb-4">
-                  Proposed expiry: {req.proposedExpiry ? new Date(req.proposedExpiry).toLocaleDateString() : 'Not specified'}
-                  {req.createdBy && ` • By: @${req.createdBy.username || req.createdBy.telegramId}`}
-                  {' • '}{new Date(req.createdAt).toLocaleDateString()}
                 </div>
-
-                {req.status === 'PENDING' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleAction(req.id, 'APPROVE', true)}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
-                    >
-                      Approve + Create Market
-                    </button>
-                    <button
-                      onClick={() => handleAction(req.id, 'APPROVE', false)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
-                    >
-                      Approve Only
-                    </button>
-                    <button
-                      onClick={() => handleAction(req.id, 'REJECT')}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm"
-                    >
-                      Reject
-                    </button>
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-400">
+                    📅 {new Date(req.createdAt).toLocaleDateString()}
+                    {req.user && <span className="ml-2">by @{req.user.username || req.user.telegramId}</span>}
                   </div>
-                )}
+                  {req.status === 'PENDING' && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateStatus(req.id, 'APPROVED')}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-sm font-medium"
+                      >
+                        ✅ Approve
+                      </button>
+                      <button
+                        onClick={() => updateStatus(req.id, 'REJECTED')}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-medium"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }
-

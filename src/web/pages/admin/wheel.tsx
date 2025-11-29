@@ -5,7 +5,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
+import {
+  isAdminLoggedIn,
+  adminFetch,
+  clearAdminToken,
+} from '../../lib/admin-client';
+import AdminLayout from '../../components/admin/AdminLayout';
 
 interface WheelStats {
   poolBalance: number;
@@ -20,8 +26,7 @@ interface WheelStats {
 }
 
 export default function AdminWheelPage() {
-  const [adminToken, setAdminToken] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   
   // Stats state
   const [stats, setStats] = useState<WheelStats | null>(null);
@@ -34,25 +39,25 @@ export default function AdminWheelPage() {
   // UI state
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Load token from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('adminToken');
-    if (stored) {
-      setAdminToken(stored);
-      setIsAuthenticated(true);
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
     }
-  }, []);
+    loadStats();
+  }, [router]);
 
   const loadStats = useCallback(async () => {
-    if (!adminToken) return;
-    
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/wheel/stats', {
-        headers: {
-          'x-admin-token': adminToken,
-        },
-      });
+      const response = await adminFetch('/api/admin/wheel/stats');
+
+      if (response.status === 401 || response.status === 403) {
+        setMessage({ type: 'error', text: 'Unauthorized - please login again' });
+        clearAdminToken();
+        setTimeout(() => router.push('/admin'), 2000);
+        return;
+      }
 
       const data = await response.json();
       if (data.ok) {
@@ -65,27 +70,7 @@ export default function AdminWheelPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminToken]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadStats();
-    }
-  }, [isAuthenticated, loadStats]);
-
-  const handleLogin = () => {
-    if (adminToken.trim()) {
-      localStorage.setItem('adminToken', adminToken.trim());
-      setIsAuthenticated(true);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    setAdminToken('');
-    setIsAuthenticated(false);
-    setStats(null);
-  };
+  }, [router]);
 
   const handleAdjust = async () => {
     if (!adjustAmount) return;
@@ -94,12 +79,8 @@ export default function AdminWheelPage() {
     setMessage(null);
 
     try {
-      const response = await fetch('/api/admin/wheel/adjust', {
+      const response = await adminFetch('/api/admin/wheel/adjust', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': adminToken,
-        },
         body: JSON.stringify({
           amount: Number(adjustAmount),
         }),
@@ -121,145 +102,137 @@ export default function AdminWheelPage() {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
-          <div className="space-y-4">
-            <input
-              type="password"
-              placeholder="Admin Token"
-              value={adminToken}
-              onChange={(e) => setAdminToken(e.target.value)}
-              className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg"
-            />
-            <button
-              onClick={handleLogin}
-              className="w-full p-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold"
-            >
-              Login
-            </button>
+  // Export spins data as CSV
+  const exportSpinsCSV = () => {
+    if (!stats?.recentSpins || stats.recentSpins.length === 0) {
+      setMessage({ type: 'error', text: 'No data to export' });
+      return;
+    }
+
+    const headers = ['ID', 'Username', 'Amount Won', 'Date'];
+    const rows = stats.recentSpins.map(spin => [
+      spin.id,
+      spin.username || 'Anonymous',
+      spin.amountWon.toString(),
+      new Date(spin.createdAt).toLocaleString(),
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wheel-spins-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <AdminLayout title="Wheel of Fortune" subtitle="View and manage the Wheel prize pool">
+      {/* Message */}
+      {message && (
+        <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+          {message.text}
+        </div>
+      )}
+
+      {/* Pool Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-6 border border-purple-500/30">
+          <div className="text-sm text-purple-300 mb-1">🎡 Pool Balance</div>
+          <div className="text-3xl font-bold text-purple-100">
+            {loading ? '...' : (stats?.poolBalance ?? 0).toFixed(2)} MYST
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <div className="text-sm text-gray-400 mb-1">Total Spins (All Time)</div>
+          <div className="text-3xl font-bold">
+            {loading ? '...' : stats?.totalSpins ?? 0}
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <div className="text-sm text-gray-400 mb-1">Total Won (All Time)</div>
+          <div className="text-3xl font-bold text-amber-400">
+            {loading ? '...' : (stats?.totalWon ?? 0).toFixed(2)} MYST
           </div>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">Admin: Wheel of Fortune</h1>
+      {/* Adjust Pool */}
+      <div className="bg-gray-800 rounded-xl p-6 mb-8 border border-gray-700">
+        <h2 className="text-lg font-semibold mb-4">💰 Adjust Pool Balance</h2>
+        <div className="flex gap-4">
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Amount (+ to add, - to remove)"
+            value={adjustAmount}
+            onChange={(e) => setAdjustAmount(e.target.value)}
+            className="flex-1 p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
           <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+            onClick={handleAdjust}
+            disabled={adjusting || !adjustAmount}
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold"
           >
-            Logout
+            {adjusting ? 'Adjusting...' : 'Adjust'}
           </button>
         </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Use positive numbers to add MYST to the pool, negative to remove. For larger adjustments, use Treasury → Transfer.
+        </p>
+      </div>
 
-        {message && (
-          <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50' : 'bg-red-900/50'}`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Pool Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-amber-900/50 to-amber-800/30 rounded-xl p-6 border border-amber-500/30">
-            <div className="text-sm text-amber-300 mb-1">Pool Balance</div>
-            <div className="text-3xl font-bold text-amber-100">
-              {loading ? '...' : (stats?.poolBalance ?? 0).toFixed(2)} MYST
-            </div>
-          </div>
-          
-          <div className="bg-gray-800 rounded-xl p-6">
-            <div className="text-sm text-gray-400 mb-1">Total Spins (All Time)</div>
-            <div className="text-3xl font-bold">
-              {loading ? '...' : stats?.totalSpins ?? 0}
-            </div>
-          </div>
-          
-          <div className="bg-gray-800 rounded-xl p-6">
-            <div className="text-sm text-gray-400 mb-1">Total Won (All Time)</div>
-            <div className="text-3xl font-bold text-purple-400">
-              {loading ? '...' : (stats?.totalWon ?? 0).toFixed(2)} MYST
-            </div>
-          </div>
-        </div>
-
-        {/* Adjust Pool */}
-        <div className="bg-gray-800 rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-semibold mb-4">Adjust Pool Balance</h2>
-          <div className="flex gap-4">
-            <input
-              type="number"
-              step="0.1"
-              placeholder="Amount (+ to add, - to remove)"
-              value={adjustAmount}
-              onChange={(e) => setAdjustAmount(e.target.value)}
-              className="flex-1 p-3 bg-gray-700 border border-gray-600 rounded-lg"
-            />
+      {/* Recent Spins */}
+      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">🎰 Recent Spins</h2>
+          <div className="flex gap-2">
             <button
-              onClick={handleAdjust}
-              disabled={adjusting || !adjustAmount}
-              className="px-6 py-3 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold"
+              onClick={exportSpinsCSV}
+              disabled={!stats?.recentSpins || stats.recentSpins.length === 0}
+              className="px-3 py-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded text-sm"
             >
-              {adjusting ? 'Adjusting...' : 'Adjust'}
+              📥 Export CSV
             </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Use positive numbers to add MYST to the pool, negative to remove.
-          </p>
-        </div>
-
-        {/* Recent Spins */}
-        <div className="bg-gray-800 rounded-xl p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Recent Spins</h2>
             <button
               onClick={loadStats}
               disabled={loading}
-              className="text-sm text-purple-400 hover:text-purple-300"
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
             >
-              {loading ? 'Loading...' : 'Refresh'}
+              {loading ? 'Loading...' : '🔄 Refresh'}
             </button>
           </div>
-          
-          {stats?.recentSpins && stats.recentSpins.length > 0 ? (
-            <div className="space-y-2">
-              {stats.recentSpins.map((spin) => (
-                <div key={spin.id} className="flex justify-between items-center p-3 bg-gray-700/50 rounded-lg">
-                  <div>
-                    <span className="font-medium">{spin.username || 'Anonymous'}</span>
-                    <span className="text-xs text-gray-400 ml-2">
-                      {new Date(spin.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className={`font-semibold ${spin.amountWon > 0 ? 'text-amber-400' : 'text-gray-400'}`}>
-                    {spin.amountWon > 0 ? `+${spin.amountWon}` : '0'} MYST
-                  </div>
+        </div>
+        
+        {stats?.recentSpins && stats.recentSpins.length > 0 ? (
+          <div className="space-y-2">
+            {stats.recentSpins.map((spin) => (
+              <div key={spin.id} className="flex justify-between items-center p-3 bg-gray-700/50 rounded-lg">
+                <div>
+                  <span className="font-medium">{spin.username || 'Anonymous'}</span>
+                  <span className="text-xs text-gray-400 ml-2">
+                    {new Date(spin.createdAt).toLocaleString()}
+                  </span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-gray-400 py-8">
-              No spins yet
-            </div>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <div className="mt-8 text-center">
-          <Link href="/admin/leaderboard" className="text-purple-400 hover:underline mr-4">Analytics</Link>
-          <Link href="/admin/myst" className="text-purple-400 hover:underline mr-4">MYST Grant</Link>
-          <Link href="/admin/campaigns" className="text-purple-400 hover:underline mr-4">Campaigns</Link>
-          <Link href="/admin/campaign-requests" className="text-purple-400 hover:underline mr-4">Campaign Requests</Link>
-          <Link href="/admin/prediction-requests" className="text-purple-400 hover:underline">Prediction Requests</Link>
-        </div>
+                <div className={`font-semibold ${spin.amountWon > 0 ? 'text-amber-400' : 'text-gray-400'}`}>
+                  {spin.amountWon > 0 ? `+${spin.amountWon}` : '0'} MYST
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center text-gray-400 py-8">
+            No spins yet
+          </div>
+        )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }
-
