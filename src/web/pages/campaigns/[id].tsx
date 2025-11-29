@@ -3,6 +3,7 @@
  * 
  * Shows campaign tasks and allows completing them.
  * Tasks redirect users to the appropriate destinations (X, Telegram, etc.)
+ * Users can share/invite friends to participate.
  */
 
 import { useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ interface Campaign {
   rewards: string;
   tasksWithStatus: Task[];
   endsAt: string;
+  shareUrl?: string;
 }
 
 export default function CampaignDetailPage() {
@@ -36,6 +38,7 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
+  const [openedTasks, setOpenedTasks] = useState<Set<string>>(new Set()); // Track which tasks user has opened
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Show toast helper
@@ -130,72 +133,60 @@ export default function CampaignDetailPage() {
     }
   };
 
-  // Get the button label based on task type
-  const getButtonLabel = (type: string): string => {
+  // Get the action button label based on task type
+  const getActionLabel = (type: string): string => {
     switch (type) {
       case 'X_FOLLOW':
-        return 'Follow on X';
+        return 'Go to X Profile';
       case 'X_LIKE':
-        return 'Like on X';
+        return 'Go to Tweet';
       case 'X_RETWEET':
-        return 'Repost on X';
+        return 'Go to Tweet';
       case 'TELEGRAM_JOIN':
-        return 'Join Telegram';
+        return 'Open Telegram';
       case 'VISIT_URL':
         return 'Visit Link';
       default:
-        return 'Complete Task';
+        return 'Open Link';
     }
   };
 
-  // Open the task URL in appropriate way
+  // Open the task URL
   const openTaskUrl = (task: Task) => {
-    if (!task.targetUrl) return;
+    if (!task.targetUrl) {
+      showToast('No link configured for this task', 'error');
+      return;
+    }
 
     const tg = (window as any).Telegram?.WebApp;
+    const url = task.targetUrl;
+
+    console.log('[Campaign] Opening URL:', url);
+
+    // Mark this task as opened
+    setOpenedTasks(prev => new Set(prev).add(task.taskId));
 
     // For Telegram links, use openTelegramLink
-    if (task.type === 'TELEGRAM_JOIN' && task.targetUrl.includes('t.me')) {
+    if (task.type === 'TELEGRAM_JOIN' && url.includes('t.me')) {
       if (tg?.openTelegramLink) {
-        tg.openTelegramLink(task.targetUrl);
+        tg.openTelegramLink(url);
       } else {
-        window.open(task.targetUrl, '_blank');
+        window.open(url, '_blank');
       }
     } 
-    // For X/Twitter links, open externally
-    else if (task.type.startsWith('X_') && (task.targetUrl.includes('twitter.com') || task.targetUrl.includes('x.com'))) {
-      if (tg?.openLink) {
-        tg.openLink(task.targetUrl);
-      } else {
-        window.open(task.targetUrl, '_blank');
-      }
-    }
-    // For other URLs
+    // For external links (X/Twitter, etc)
     else {
       if (tg?.openLink) {
-        tg.openLink(task.targetUrl);
+        tg.openLink(url);
       } else {
-        window.open(task.targetUrl, '_blank');
+        window.open(url, '_blank');
       }
     }
   };
 
-  const completeTask = async (task: Task) => {
+  // Verify/complete the task
+  const verifyTask = async (task: Task) => {
     const taskIdentifier = task.taskId || (task as any).id;
-    
-    // If task has a URL, open it first
-    if (task.targetUrl && !task.completed) {
-      openTaskUrl(task);
-      
-      // For X tasks (which can't be verified), mark complete after opening
-      if (task.type.startsWith('X_')) {
-        // Small delay to let the user see they're being redirected
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // For Telegram tasks, the backend will verify
-    }
-
     setCompletingTask(taskIdentifier);
 
     try {
@@ -230,6 +221,23 @@ export default function CampaignDetailPage() {
       showToast(err.message || 'Failed to complete task', 'error');
     } finally {
       setCompletingTask(null);
+    }
+  };
+
+  // Share campaign with friends
+  const shareCampaign = () => {
+    if (!campaign) return;
+
+    const tg = (window as any).Telegram?.WebApp;
+    const shareText = `🔮 Join me in "${campaign.name}" on AKARI Mystic Club!\n\n${campaign.description || 'Complete tasks to earn rewards!'}\n\n🎁 Rewards: ${campaign.rewards}`;
+    const shareUrl = `https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || 'AKARIMystic_Bot'}?start=campaign_${campaign.id}`;
+
+    if (tg?.openTelegramLink) {
+      const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+      tg.openTelegramLink(telegramShareUrl);
+    } else {
+      const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+      window.open(telegramShareUrl, '_blank');
     }
   };
 
@@ -309,68 +317,127 @@ export default function CampaignDetailPage() {
           <div className="text-purple-200">{campaign.rewards}</div>
         </div>
 
+        {/* Invite Friends */}
+        <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 backdrop-blur-lg rounded-xl p-4 border border-blue-500/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold flex items-center gap-2">
+                <span>👥</span> Invite Friends
+              </div>
+              <div className="text-sm text-blue-300 mt-1">
+                Earn bonus points for each friend who joins!
+              </div>
+            </div>
+            <button
+              onClick={shareCampaign}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold text-sm transition-colors"
+            >
+              Share 🔗
+            </button>
+          </div>
+        </div>
+
         {/* Tasks */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Tasks</h2>
           <div className="space-y-3">
-            {campaign.tasksWithStatus.map((task, index) => (
-              <div
-                key={task.taskId}
-                className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border transition-all ${
-                  task.completed
-                    ? 'border-green-500/30 bg-green-900/10'
-                    : 'border-purple-500/20'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <div className="font-semibold flex items-center gap-2">
-                      <span className="text-lg">{getTaskIcon(task.type)}</span>
-                      <span className={task.completed ? 'text-green-300' : ''}>
-                        {index + 1}. {task.title || `Task ${index + 1}`}
-                      </span>
-                      {task.completed && (
-                        <span className="text-green-400">✓</span>
+            {campaign.tasksWithStatus.map((task, index) => {
+              const hasUrl = !!task.targetUrl;
+              const hasOpened = openedTasks.has(task.taskId);
+              const isVerifying = completingTask === (task.taskId || (task as any).id);
+
+              return (
+                <div
+                  key={task.taskId}
+                  className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border transition-all ${
+                    task.completed
+                      ? 'border-green-500/30 bg-green-900/10'
+                      : 'border-purple-500/20'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="font-semibold flex items-center gap-2">
+                        <span className="text-lg">{getTaskIcon(task.type)}</span>
+                        <span className={task.completed ? 'text-green-300' : ''}>
+                          {index + 1}. {task.title || `Task ${index + 1}`}
+                        </span>
+                        {task.completed && (
+                          <span className="text-green-400">✓</span>
+                        )}
+                      </div>
+                      {task.description && (
+                        <div className="text-sm text-purple-300 mt-1 ml-7">{task.description}</div>
+                      )}
+                      {task.rewardPoints && task.rewardPoints > 0 && (
+                        <div className="text-xs text-amber-400 mt-1 ml-7">
+                          +{task.rewardPoints} aXP
+                        </div>
                       )}
                     </div>
-                    {task.description && (
-                      <div className="text-sm text-purple-300 mt-1 ml-7">{task.description}</div>
-                    )}
-                    {task.rewardPoints && task.rewardPoints > 0 && (
-                      <div className="text-xs text-amber-400 mt-1 ml-7">
-                        +{task.rewardPoints} aXP
-                      </div>
-                    )}
                   </div>
-                </div>
 
-                {task.completed ? (
-                  <div className="mt-3 flex items-center justify-center gap-2 py-2 bg-green-600/20 rounded-lg text-green-400 font-semibold">
-                    <span>✓</span>
-                    <span>Completed</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => completeTask(task)}
-                    disabled={completingTask === (task.taskId || (task as any).id)}
-                    className="mt-3 w-full bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:from-purple-800 disabled:to-purple-800 disabled:opacity-50 rounded-lg py-3 font-semibold transition-all flex items-center justify-center gap-2"
-                  >
-                    {completingTask === (task.taskId || (task as any).id) ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Verifying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{getTaskIcon(task.type)}</span>
-                        <span>{getButtonLabel(task.type)}</span>
-                        {task.targetUrl && <span>→</span>}
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            ))}
+                  {task.completed ? (
+                    <div className="mt-3 flex items-center justify-center gap-2 py-2 bg-green-600/20 rounded-lg text-green-400 font-semibold">
+                      <span>✓</span>
+                      <span>Completed</span>
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {/* Step 1: Open the link */}
+                      {hasUrl && (
+                        <button
+                          onClick={() => openTaskUrl(task)}
+                          className={`w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                            hasOpened
+                              ? 'bg-gray-600 text-gray-300'
+                              : 'bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white'
+                          }`}
+                        >
+                          {hasOpened ? (
+                            <>
+                              <span>✓</span>
+                              <span>Opened - {getActionLabel(task.type)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>{getTaskIcon(task.type)}</span>
+                              <span>{getActionLabel(task.type)}</span>
+                              <span>→</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Step 2: Verify completion */}
+                      <button
+                        onClick={() => verifyTask(task)}
+                        disabled={isVerifying || (hasUrl && !hasOpened)}
+                        className={`w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                          hasUrl && !hasOpened
+                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            : 'bg-green-600 hover:bg-green-500 text-white'
+                        } ${isVerifying ? 'opacity-50' : ''}`}
+                      >
+                        {isVerifying ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Verifying...</span>
+                          </>
+                        ) : hasUrl && !hasOpened ? (
+                          <span>Complete step above first ↑</span>
+                        ) : (
+                          <>
+                            <span>✓</span>
+                            <span>Verify & Complete</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

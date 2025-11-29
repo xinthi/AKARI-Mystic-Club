@@ -52,6 +52,11 @@ model User {
   wheelSpins           WheelSpin[]
   withdrawalRequests   WithdrawalRequest[]
   deposits             Deposit[]
+  
+  // Campaign relations
+  campaignReferralsGiven    CampaignReferral[] @relation("CampaignReferrer")
+  campaignReferralsReceived CampaignReferral[] @relation("CampaignReferred")
+  campaignWins              CampaignWinner[]
 }
 
 model TwitterAccount {
@@ -260,19 +265,61 @@ model Campaign {
   name         String
   description  String?
   rewards      String
-  status       String    @default("DRAFT") // DRAFT, ACTIVE, ARCHIVED
+  status       String    @default("DRAFT") // DRAFT, ACTIVE, PAUSED, ENDED
   startAt      DateTime?
   endsAt       DateTime
   
   // Fee structure
   starsFee     Int       @default(0)
   mystFee      Float     @default(0) // MYST fee for joining
-
+  
+  // Winner settings
+  winnerCount      Int       @default(25) // 25, 50, or 100 winners
+  referralBonus    Int       @default(5)  // Bonus aXP per referral
+  winnersSelected  Boolean   @default(false)
+  
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   tasks        CampaignTask[]
   progress     CampaignUserProgress[]
+  referrals    CampaignReferral[]
+  winners      CampaignWinner[]
+}
+
+// Track campaign-specific referrals
+model CampaignReferral {
+  id           String    @id @default(cuid())
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId   String
+  referrer     User      @relation("CampaignReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referrerId   String
+  referred     User      @relation("CampaignReferred", fields: [referredId], references: [id], onDelete: Cascade)
+  referredId   String
+  bonusAwarded Boolean   @default(false)
+  
+  createdAt    DateTime  @default(now())
+  
+  @@unique([campaignId, referredId]) // Each user can only be referred once per campaign
+  @@index([campaignId, referrerId])
+}
+
+// Campaign winners
+model CampaignWinner {
+  id           String    @id @default(cuid())
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId   String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  rank         Int       // 1-100
+  totalPoints  Int       // Points earned in this campaign
+  tasksCompleted Int     // Number of tasks completed
+  referralCount Int      @default(0) // Number of friends referred
+  
+  createdAt    DateTime  @default(now())
+  
+  @@unique([campaignId, userId])
+  @@index([campaignId, rank])
 }
 
 model CampaignTask {

@@ -108,9 +108,25 @@ export default async function handler(
         });
       }
 
+      // Get campaigns from the last 6 months (for closed) plus all active
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
       const campaigns = await prisma.campaign.findMany({
+        where: {
+          OR: [
+            { status: { in: ['ACTIVE', 'PAUSED'] } },
+            { 
+              status: 'ENDED',
+              endsAt: { gte: sixMonthsAgo }
+            },
+          ],
+        },
         include: {
           tasks: true,
+          _count: {
+            select: { progress: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -131,11 +147,14 @@ export default async function handler(
         name: c.name,
         description: c.description,
         rewards: c.rewards,
+        status: c.status,
         tasks: c.tasks.map((t) => ({
           id: t.id,
           title: t.title,
           description: t.description,
           type: t.type,
+          targetUrl: t.targetUrl,
+          rewardPoints: t.rewardPoints,
           metadata: t.metadata,
         })),
         tasksWithStatus: c.tasks.map((t) => ({
@@ -143,10 +162,14 @@ export default async function handler(
           title: t.title,
           description: t.description,
           type: t.type,
+          targetUrl: t.targetUrl,
+          rewardPoints: t.rewardPoints,
           completed: userProgressMap.get(t.id) || false,
         })),
         endsAt: c.endsAt.toISOString(),
         starsFee: c.starsFee,
+        winnerCount: (c as any).winnerCount ?? 25,
+        participantCount: c._count.progress,
       }));
 
       return res.status(200).json({ ok: true, campaigns: shaped });
