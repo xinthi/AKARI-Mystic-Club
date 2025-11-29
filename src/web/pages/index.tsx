@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 import WheelOfFortune from '../components/WheelOfFortune';
+import OnboardingOverlay from '../components/OnboardingOverlay';
 
 interface User {
   id: string;
@@ -18,6 +19,7 @@ interface User {
   credibilityScore: string;
   positiveReviews: number;
   mystBalance?: number;
+  hasSeenOnboardingGuide?: boolean;
 }
 
 export default function Dashboard() {
@@ -26,6 +28,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initData, setInitData] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     // Initialize Telegram WebApp
@@ -86,7 +89,7 @@ export default function Dashboard() {
       // Store user if available, but don't require it
       if (data.user) {
         // Map the response to our User interface
-        setUser({
+        const newUser: User = {
           id: String(data.user.id || ''),
           username: data.user.username,
           points: data.user.points || 0,
@@ -94,7 +97,14 @@ export default function Dashboard() {
           credibilityScore: data.user.credibilityScore || '0',
           positiveReviews: data.user.positiveReviews || 0,
           mystBalance: data.user.mystBalance || 0,
-        });
+          hasSeenOnboardingGuide: data.user.hasSeenOnboardingGuide || false,
+        };
+        setUser(newUser);
+        
+        // Show onboarding if user hasn't seen it
+        if (!newUser.hasSeenOnboardingGuide) {
+          setShowOnboarding(true);
+        }
       }
       
       setLoading(false);
@@ -108,6 +118,31 @@ export default function Dashboard() {
   const handleBalanceUpdate = (newBalance: number) => {
     if (user) {
       setUser({ ...user, mystBalance: newBalance });
+    }
+  };
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboarding(false);
+    
+    // Mark onboarding as seen in the backend
+    try {
+      const WebApp = getWebApp();
+      const telegramInitData = (WebApp as any)?.initData || '';
+      
+      await fetch('/api/user/onboarding-seen', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': telegramInitData,
+        },
+      });
+      
+      // Update local state
+      if (user) {
+        setUser({ ...user, hasSeenOnboardingGuide: true });
+      }
+    } catch (err) {
+      console.error('Failed to mark onboarding as seen:', err);
     }
   };
 
@@ -145,6 +180,11 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+      {/* Onboarding Overlay */}
+      {showOnboarding && (
+        <OnboardingOverlay onComplete={handleOnboardingComplete} />
+      )}
+      
       {/* Header */}
       <header className="p-6 pb-4">
         <h1 className="text-3xl font-bold mb-2">🔮 AKARI Mystic Club</h1>

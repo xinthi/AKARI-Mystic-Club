@@ -2,14 +2,22 @@
  * Get Reviews for a User
  * 
  * GET /api/reviews/[id] - List reviews for a given user (reviewee)
+ * Also returns the current user's existing review if they have one
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
+import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 interface ReviewListResponse {
   ok: boolean;
   reviews?: any[];
+  currentUserReview?: {
+    id: string;
+    score: number;
+    comment: string;
+    link?: string;
+  } | null;
   summary?: {
     credibilityScore: number;
     positiveReviews: number;
@@ -32,6 +40,14 @@ export default async function handler(
   }
 
   try {
+    // Get current user if authenticated (optional)
+    let currentUser = null;
+    try {
+      currentUser = await getUserFromRequest(req, prisma);
+    } catch {
+      // Not authenticated - that's okay for viewing reviews
+    }
+
     // Get user info
     const user = await prisma.user.findUnique({
       where: { id },
@@ -64,6 +80,34 @@ export default async function handler(
       },
     });
 
+    // Check if current user has an existing review for this user
+    let currentUserReview = null;
+    if (currentUser && currentUser.id !== id) {
+      const existingReview = await prisma.review.findUnique({
+        where: {
+          reviewerId_revieweeId: {
+            reviewerId: currentUser.id,
+            revieweeId: id,
+          },
+        },
+        select: {
+          id: true,
+          score: true,
+          comment: true,
+          link: true,
+        },
+      });
+      
+      if (existingReview) {
+        currentUserReview = {
+          id: existingReview.id,
+          score: existingReview.score,
+          comment: existingReview.comment,
+          link: existingReview.link || undefined,
+        };
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       reviews: reviews.map((r) => ({
@@ -79,6 +123,7 @@ export default async function handler(
         link: r.link,
         createdAt: r.createdAt.toISOString(),
       })),
+      currentUserReview,
       summary: {
         credibilityScore: user.credibilityScore,
         positiveReviews: user.positiveReviews,
@@ -90,4 +135,3 @@ export default async function handler(
     return res.status(500).json({ ok: false, message: 'Server error' });
   }
 }
-

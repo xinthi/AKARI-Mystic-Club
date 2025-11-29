@@ -62,6 +62,10 @@ model User {
   // Reviews (credibility system)
   reviewsGiven    Review[] @relation("ReviewerReviews")
   reviewsReceived Review[] @relation("RevieweeReviews")
+  
+  // Onboarding flags
+  hasSeenBotWelcome      Boolean @default(false)
+  hasSeenOnboardingGuide Boolean @default(false)
 }
 
 model TwitterAccount {
@@ -553,12 +557,16 @@ model Review {
 // ============================================
 
 model TgGroup {
-  id        String   @id // chatId as string
-  title     String
-  username  String?  // @groupname if public
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id // chatId as string
+  title      String
+  username   String?  // @groupname if public
+  isActive   Boolean  @default(true)
+  isAdmin    Boolean  @default(false) // Bot is admin in this group
+  allowPromo Boolean  @default(true)  // Allow promotional messages
+  introSent  Boolean  @default(false) // Intro message sent
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   
   @@index([isActive])
+  @@index([isAdmin])
 }

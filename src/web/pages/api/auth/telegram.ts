@@ -16,6 +16,7 @@ interface TelegramAuthResponse {
     credibilityScore: string;
     positiveReviews: number;
     mystBalance: number;
+    hasSeenOnboardingGuide: boolean;
   } | null;
   reason?: string;
 }
@@ -132,19 +133,37 @@ export default async function handler(
     console.error('[Auth] Failed to get MYST balance', e);
   }
 
+  // Fetch user with hasSeenOnboardingGuide
+  const fullUser = await prisma.user.findUnique({
+    where: { id: dbUser.id },
+    select: {
+      id: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      photoUrl: true,
+      points: true,
+      tier: true,
+      credibilityScore: true,
+      positiveReviews: true,
+      hasSeenOnboardingGuide: true,
+    },
+  });
+
   return res.status(200).json({
     ok: true,
     user: {
-      id: dbUser.id,
-      username: dbUser.username ?? undefined,
-      first_name: firstName ?? undefined,
-      last_name: lastName ?? undefined,
-      photo_url: photoUrl ?? undefined,
-      points: dbUser.points,
-      tier: dbUser.tier ?? undefined,
-      credibilityScore: (dbUser.credibilityScore ?? 0).toString(),
-      positiveReviews: dbUser.positiveReviews,
+      id: fullUser?.id || dbUser.id,
+      username: fullUser?.username ?? undefined,
+      first_name: fullUser?.firstName ?? firstName ?? undefined,
+      last_name: fullUser?.lastName ?? lastName ?? undefined,
+      photo_url: fullUser?.photoUrl ?? photoUrl ?? undefined,
+      points: fullUser?.points || 0,
+      tier: fullUser?.tier ?? undefined,
+      credibilityScore: (fullUser?.credibilityScore ?? 0).toString(),
+      positiveReviews: fullUser?.positiveReviews || 0,
       mystBalance,
+      hasSeenOnboardingGuide: fullUser?.hasSeenOnboardingGuide ?? false,
     },
     reason: 'Authenticated via Telegram WebApp',
   });

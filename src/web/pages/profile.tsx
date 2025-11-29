@@ -730,33 +730,44 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* Stats Card */}
+        {/* Credibility & Stats Card */}
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-5 border border-purple-500/20">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs text-purple-300 mb-1">Experience Points</div>
-              <div className="text-2xl font-bold">{user.points.toLocaleString()} EP</div>
-            </div>
-            <div>
-              <div className="text-xs text-purple-300 mb-1">Tier</div>
-              <div className="text-xl font-semibold">{user.tier || 'None'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-purple-300 mb-1">Credibility Score</div>
-              <div className={`text-lg font-semibold ${
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">📊 Stats & Credibility</h2>
+            <button
+              onClick={() => router.push(`/profile/${user.id}`)}
+              className="text-xs text-purple-300 hover:text-white underline"
+            >
+              View public profile →
+            </button>
+          </div>
+          
+          {/* Credibility Display */}
+          <div className="bg-purple-800/30 rounded-lg p-4 mb-4">
+            <div className="text-center">
+              <div className={`text-4xl font-bold mb-1 ${
                 user.credibilityScore > 0 ? 'text-green-400' : 
                 user.credibilityScore < 0 ? 'text-red-400' : 'text-gray-400'
               }`}>
                 {user.credibilityScore > 0 ? '+' : ''}{user.credibilityScore}
               </div>
+              <div className="text-purple-300 text-sm mb-3">Credibility Score</div>
+              <div className="flex justify-center gap-6 text-sm">
+                <span className="text-green-400">+{user.positiveReviews} positive</span>
+                <span className="text-red-400">-{user.negativeReviews} negative</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Other Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs text-purple-300 mb-1">Experience Points</div>
+              <div className="text-2xl font-bold">{user.points.toLocaleString()} aXP</div>
             </div>
             <div>
-              <div className="text-xs text-purple-300 mb-1">Reviews</div>
-              <div className="text-lg font-semibold flex items-center gap-2">
-                <span className="text-green-400">+{user.positiveReviews}</span>
-                <span className="text-gray-400">/</span>
-                <span className="text-red-400">-{user.negativeReviews}</span>
-              </div>
+              <div className="text-xs text-purple-300 mb-1">Tier</div>
+              <div className="text-xl font-semibold">{user.tier || 'Newcomer'}</div>
             </div>
           </div>
         </div>
