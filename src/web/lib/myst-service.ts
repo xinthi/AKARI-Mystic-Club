@@ -38,8 +38,15 @@ export const MYST_PER_USD = 50;
 /** 1 MYST = 0.02 USD */
 export const USD_PER_MYST = 1 / MYST_PER_USD;
 
-/** Get TON price in USD from env (default 5.0) */
-export function getTonPriceUsd(): number {
+/**
+ * Get TON price in USD (synchronous fallback).
+ * 
+ * For live prices, use getTonPriceUsd() from myst-price.ts instead.
+ * This function is kept for backward compatibility and uses env fallback.
+ * 
+ * @deprecated Use getTonPriceUsd from myst-price.ts for live prices
+ */
+export function getTonPriceUsdSync(): number {
   const envPrice = process.env.TON_PRICE_USD;
   if (envPrice) {
     const parsed = parseFloat(envPrice);
@@ -48,9 +55,9 @@ export function getTonPriceUsd(): number {
   return 5.0;
 }
 
-/** Get MYST per TON (dynamic based on TON price) */
-export function getMystPerTon(): number {
-  return MYST_PER_USD * getTonPriceUsd();
+/** Get MYST per TON (using sync price - prefer async version in myst-price.ts) */
+export function getMystPerTonSync(): number {
+  return MYST_PER_USD * getTonPriceUsdSync();
 }
 
 /**
@@ -719,7 +726,7 @@ export async function createWithdrawalRequest(
     };
   }
 
-  const tonPriceUsd = getTonPriceUsd();
+  const tonPriceUsd = getTonPriceUsdSync();
   const tonAmount = netUsd / tonPriceUsd;
 
   // Create withdrawal in transaction

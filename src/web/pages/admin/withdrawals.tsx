@@ -3,6 +3,7 @@
  * 
  * View and process withdrawal requests manually.
  * Admin sends TON from treasury wallet and records txHash.
+ * Shows the TON price used at request time and allows recalculation.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -26,6 +27,11 @@ interface Withdrawal {
   paidAt: string | null;
 }
 
+interface LivePrice {
+  priceUsd: number;
+  source: string;
+}
+
 type StatusFilter = 'all' | 'pending' | 'paid' | 'rejected';
 
 export default function AdminWithdrawalsPage() {
@@ -36,11 +42,15 @@ export default function AdminWithdrawalsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
+  // Live price
+  const [livePrice, setLivePrice] = useState<LivePrice | null>(null);
+  
   // Process modal state
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
   const [txHash, setTxHash] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('adminToken');
@@ -49,6 +59,28 @@ export default function AdminWithdrawalsPage() {
       setIsAuthenticated(true);
     }
   }, []);
+
+  // Load live price
+  const loadLivePrice = useCallback(async () => {
+    try {
+      const response = await fetch('/api/price/ton');
+      const data = await response.json();
+      if (data.ok) {
+        setLivePrice({ priceUsd: data.priceUsd, source: data.source });
+      }
+    } catch (err) {
+      console.error('Failed to load live price');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadLivePrice();
+      // Refresh price every 30 seconds
+      const interval = setInterval(loadLivePrice, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, loadLivePrice]);
 
   const loadWithdrawals = useCallback(async () => {
     if (!adminToken) return;
@@ -96,6 +128,41 @@ export default function AdminWithdrawalsPage() {
     setAdminToken('');
     setIsAuthenticated(false);
     setWithdrawals([]);
+  };
+
+  const handleRecalculate = async () => {
+    if (!selectedWithdrawal) return;
+    setRecalculating(true);
+
+    try {
+      const response = await fetch(`/api/admin/withdrawals/${selectedWithdrawal.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': adminToken,
+        },
+        body: JSON.stringify({ recalculatePrice: true }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.withdrawal) {
+        // Update the selected withdrawal with new values
+        setSelectedWithdrawal({
+          ...selectedWithdrawal,
+          tonAmount: data.withdrawal.tonAmount,
+          tonPriceUsd: data.withdrawal.tonPriceUsd,
+        });
+        setMessage({ type: 'success', text: data.message });
+        loadWithdrawals();
+      } else {
+        setMessage({ type: 'error', text: data.message ?? 'Failed to recalculate' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setRecalculating(false);
+    }
   };
 
   const handleMarkPaid = async () => {
@@ -160,6 +227,16 @@ export default function AdminWithdrawalsPage() {
     }
   };
 
+  // Calculate price difference for a withdrawal
+  const getPriceDiff = (w: Withdrawal): { diff: number; color: string } => {
+    if (!livePrice) return { diff: 0, color: 'text-gray-400' };
+    const diff = ((livePrice.priceUsd - w.tonPriceUsd) / w.tonPriceUsd) * 100;
+    if (Math.abs(diff) < 1) return { diff, color: 'text-gray-400' };
+    return diff > 0 
+      ? { diff, color: 'text-red-400' }  // Price up = need less TON = bad for user
+      : { diff, color: 'text-green-400' }; // Price down = need more TON = good for user
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -204,6 +281,32 @@ export default function AdminWithdrawalsPage() {
           </button>
         </div>
 
+        {/* Live Price Banner */}
+        <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📊</span>
+              <div>
+                <div className="font-semibold text-blue-200">Live TON Price</div>
+                <div className="text-sm text-blue-300/70">
+                  Source: {livePrice?.source ?? 'loading...'}
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-blue-400">
+                ${livePrice?.priceUsd.toFixed(2) ?? '---'}
+              </div>
+              <button
+                onClick={loadLivePrice}
+                className="text-xs text-blue-400 hover:underline"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Treasury Info Banner */}
         <div className="bg-amber-900/30 border border-amber-500/30 rounded-xl p-4 mb-6">
           <div className="flex items-center gap-3">
@@ -212,7 +315,6 @@ export default function AdminWithdrawalsPage() {
               <div className="font-semibold text-amber-200">Treasury Wallet</div>
               <div className="text-sm text-amber-300/70">
                 Send TON from your treasury wallet to process pending withdrawals.
-                Set TON_TREASURY_ADDRESS in env if you want to display it here.
               </div>
             </div>
           </div>
@@ -259,66 +361,78 @@ export default function AdminWithdrawalsPage() {
                 <th className="text-right py-3 px-4 text-gray-300 font-medium text-sm">MYST</th>
                 <th className="text-right py-3 px-4 text-gray-300 font-medium text-sm">USD</th>
                 <th className="text-right py-3 px-4 text-gray-300 font-medium text-sm">TON</th>
+                <th className="text-right py-3 px-4 text-gray-300 font-medium text-sm">Price Used</th>
                 <th className="text-center py-3 px-4 text-gray-300 font-medium text-sm">Status</th>
                 <th className="text-center py-3 px-4 text-gray-300 font-medium text-sm">Action</th>
               </tr>
             </thead>
             <tbody>
-              {withdrawals.map((w) => (
-                <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
-                  <td className="py-3 px-4">
-                    <div className="font-medium">{w.username ?? 'Anonymous'}</div>
-                    <div className="text-xs text-gray-500">{w.telegramId}</div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="font-mono text-xs text-gray-400 max-w-[150px] truncate">
-                      {w.tonAddress}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div>{w.mystRequested.toFixed(2)}</div>
-                    <div className="text-xs text-gray-500">-{w.mystFee.toFixed(2)} fee</div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-medium text-green-400">
-                    ${w.usdNet.toFixed(2)}
-                  </td>
-                  <td className="py-3 px-4 text-right font-medium text-blue-400">
-                    {w.tonAmount.toFixed(4)}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      w.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                      w.status === 'paid' ? 'bg-green-500/20 text-green-300' :
-                      'bg-red-500/20 text-red-300'
-                    }`}>
-                      {w.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {w.status === 'pending' && (
-                      <button
-                        onClick={() => setSelectedWithdrawal(w)}
-                        className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-sm"
-                      >
-                        Process
-                      </button>
-                    )}
-                    {w.status === 'paid' && w.txHash && (
-                      <a
-                        href={`https://tonscan.org/tx/${w.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline text-xs"
-                      >
-                        View TX
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {withdrawals.map((w) => {
+                const { diff, color } = getPriceDiff(w);
+                return (
+                  <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                    <td className="py-3 px-4">
+                      <div className="font-medium">{w.username ?? 'Anonymous'}</div>
+                      <div className="text-xs text-gray-500">{w.telegramId}</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-mono text-xs text-gray-400 max-w-[120px] truncate">
+                        {w.tonAddress}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div>{w.mystRequested.toFixed(2)}</div>
+                      <div className="text-xs text-gray-500">-{w.mystFee.toFixed(2)} fee</div>
+                    </td>
+                    <td className="py-3 px-4 text-right font-medium text-green-400">
+                      ${w.usdNet.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-4 text-right font-medium text-blue-400">
+                      {w.tonAmount.toFixed(4)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="text-sm">${w.tonPriceUsd.toFixed(2)}</div>
+                      {w.status === 'pending' && livePrice && Math.abs(diff) >= 1 && (
+                        <div className={`text-xs ${color}`}>
+                          {diff > 0 ? '+' : ''}{diff.toFixed(1)}%
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        w.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                        w.status === 'paid' ? 'bg-green-500/20 text-green-300' :
+                        'bg-red-500/20 text-red-300'
+                      }`}>
+                        {w.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {w.status === 'pending' && (
+                        <button
+                          onClick={() => setSelectedWithdrawal(w)}
+                          className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-sm"
+                        >
+                          Process
+                        </button>
+                      )}
+                      {w.status === 'paid' && w.txHash && (
+                        <a
+                          href={`https://tonscan.org/tx/${w.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline text-xs"
+                        >
+                          View TX
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {withdrawals.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                  <td colSpan={8} className="py-8 text-center text-gray-500">
                     No withdrawals found
                   </td>
                 </tr>
@@ -330,7 +444,7 @@ export default function AdminWithdrawalsPage() {
         {/* Process Modal */}
         {selectedWithdrawal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold mb-4">Process Withdrawal</h2>
               
               <div className="space-y-3 mb-6">
@@ -346,6 +460,16 @@ export default function AdminWithdrawalsPage() {
                   <span className="text-gray-400">USD Value:</span>
                   <span className="text-green-400">${selectedWithdrawal.usdNet.toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Price at Request:</span>
+                  <span>${selectedWithdrawal.tonPriceUsd.toFixed(2)}</span>
+                </div>
+                {livePrice && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Live Price:</span>
+                    <span className="text-blue-400">${livePrice.priceUsd.toFixed(2)}</span>
+                  </div>
+                )}
                 <div>
                   <span className="text-gray-400 text-sm">Send to:</span>
                   <div className="bg-gray-900 rounded p-2 mt-1 font-mono text-xs break-all">
@@ -353,6 +477,25 @@ export default function AdminWithdrawalsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Recalculate Section */}
+              {livePrice && Math.abs(((livePrice.priceUsd - selectedWithdrawal.tonPriceUsd) / selectedWithdrawal.tonPriceUsd) * 100) >= 1 && (
+                <div className="bg-yellow-900/30 border border-yellow-500/30 rounded-lg p-3 mb-4">
+                  <div className="text-sm text-yellow-200 mb-2">
+                    Price has changed since request. Current rate would be{' '}
+                    <span className="font-bold">
+                      {(selectedWithdrawal.usdNet / livePrice.priceUsd).toFixed(4)} TON
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRecalculate}
+                    disabled={recalculating}
+                    className="w-full py-1.5 bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-600 rounded text-sm font-medium"
+                  >
+                    {recalculating ? 'Recalculating...' : 'Recalculate with Live Price'}
+                  </button>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
@@ -418,4 +561,3 @@ export default function AdminWithdrawalsPage() {
     </div>
   );
 }
-
