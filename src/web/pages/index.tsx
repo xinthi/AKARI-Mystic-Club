@@ -212,14 +212,25 @@ export default function Dashboard() {
               <div className="text-xs text-purple-300 mb-1">Tier</div>
               <div className="text-sm font-semibold">{displayUser.tier || 'None'}</div>
             </div>
-            <div>
-              <div className="text-xs text-purple-300 mb-1">Credibility</div>
-              <div className="text-sm font-semibold">{displayUser.credibilityScore}/10</div>
-            </div>
-            <div>
-              <div className="text-xs text-purple-300 mb-1">Reviews</div>
-              <div className="text-sm font-semibold">{displayUser.positiveReviews} 🛡️</div>
-            </div>
+            {/* Clickable Credibility & Reviews - Opens Find Users Page */}
+            <button
+              onClick={() => router.push('/users')}
+              className="col-span-2 bg-purple-800/30 hover:bg-purple-700/40 rounded-lg p-2 -m-2 transition-all border border-transparent hover:border-purple-500/30"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-left">
+                  <div className="text-xs text-purple-300 mb-1">Credibility</div>
+                  <div className="text-sm font-semibold">{displayUser.credibilityScore}/10</div>
+                </div>
+                <div className="text-left">
+                  <div className="text-xs text-purple-300 mb-1">Reviews</div>
+                  <div className="text-sm font-semibold">{displayUser.positiveReviews} 🛡️</div>
+                </div>
+              </div>
+              <div className="text-[10px] text-purple-400 mt-1 text-center">
+                Tap to find & review users →
+              </div>
+            </button>
           </div>
         </div>
       </div>
