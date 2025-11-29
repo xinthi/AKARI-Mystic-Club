@@ -14,6 +14,7 @@ interface Deposit {
   userId: string;
   username?: string;
   firstName?: string;
+  userWallet?: string;
   tonAmount: number;
   tonPriceUsd: number;
   usdAmount: number;
@@ -75,6 +76,20 @@ export default function AdminDepositsPage() {
 
   return (
     <AdminLayout title="Deposits" subtitle="Manage pending TON deposits">
+      {/* Important Notice */}
+      <div className="mb-4 p-4 bg-blue-900/30 border border-blue-500/40 rounded-lg">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">💡</span>
+          <div>
+            <div className="font-semibold text-blue-300 mb-1">Bookkeeping Tip</div>
+            <p className="text-sm text-blue-200/80">
+              Users should fund their account using the <strong>same TON wallet</strong> they have connected to their profile. 
+              Check the &quot;User Wallet&quot; column below to verify the sender address matches.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {message && (
         <div className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
           {message.text}
@@ -142,6 +157,7 @@ export default function AdminDepositsPage() {
               <thead className="bg-gray-900/50">
                 <tr>
                   <th className="px-4 py-3 text-left text-gray-400">User</th>
+                  <th className="px-4 py-3 text-left text-gray-400">User Wallet</th>
                   <th className="px-4 py-3 text-center text-gray-400">TON</th>
                   <th className="px-4 py-3 text-center text-gray-400">USD</th>
                   <th className="px-4 py-3 text-center text-gray-400">MYST</th>
@@ -157,6 +173,28 @@ export default function AdminDepositsPage() {
                     <td className="px-4 py-3">
                       <div className="text-white">{d.username ? `@${d.username}` : d.firstName || 'Unknown'}</div>
                       <div className="text-xs text-gray-500">{d.userId.slice(0, 8)}...</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {d.userWallet ? (
+                        <div className="flex items-center gap-1">
+                          <code className="text-xs text-cyan-300 bg-cyan-900/30 px-2 py-1 rounded">
+                            {d.userWallet.slice(0, 6)}...{d.userWallet.slice(-4)}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(d.userWallet!);
+                              setMessage({ type: 'success', text: 'Wallet copied!' });
+                              setTimeout(() => setMessage(null), 2000);
+                            }}
+                            className="text-gray-400 hover:text-white text-xs"
+                            title="Copy full address"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-red-400">Not connected</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center text-blue-400">{d.tonAmount.toFixed(2)}</td>
                     <td className="px-4 py-3 text-center text-gray-300">${d.usdAmount.toFixed(2)}</td>

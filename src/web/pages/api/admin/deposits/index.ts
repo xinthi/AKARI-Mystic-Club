@@ -38,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           select: {
             username: true,
             firstName: true,
+            tonAddress: true,
           },
         },
       },
@@ -52,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userId: d.userId,
         username: d.user.username,
         firstName: d.user.firstName,
+        userWallet: d.user.tonAddress,
         tonAmount: d.tonAmount,
         tonPriceUsd: d.tonPriceUsd,
         usdAmount: d.usdAmount,
