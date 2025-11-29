@@ -35,18 +35,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return res.status(200).json({
         ok: true,
-        campaigns: campaigns.map((c) => ({
+        campaigns: campaigns.map((c: any) => ({
           id: c.id,
           name: c.name,
           description: c.description,
-          status: c.status,
+          status: c.status || 'ACTIVE', // Default for old records without status
           rewards: c.rewards,
           startAt: c.startAt,
           endsAt: c.endsAt,
-          starsFee: c.starsFee,
-          mystFee: c.mystFee,
-          tasks: c.tasks,
-          participantCount: c._count.progress,
+          starsFee: c.starsFee || 0,
+          mystFee: c.mystFee || 0,
+          tasks: c.tasks || [],
+          participantCount: c._count?.progress || 0,
           createdAt: c.createdAt,
         })),
       });
@@ -60,31 +60,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ ok: false, message: 'Name is required' });
       }
 
-      const campaign = await prisma.campaign.create({
-        data: {
-          name,
-          description: description || null,
-          rewards: rewards || '',
-          status: status || 'DRAFT',
-          startAt: startAt ? new Date(startAt) : null,
-          endsAt: endsAt ? new Date(endsAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
-          starsFee: starsFee || 0,
-          mystFee: mystFee || 0,
-        },
-      });
+      // Build data object without status if we're not sure it exists
+      const campaignData: any = {
+        name,
+        description: description || null,
+        rewards: rewards || '',
+        startAt: startAt ? new Date(startAt) : null,
+        endsAt: endsAt ? new Date(endsAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
+        starsFee: starsFee || 0,
+        mystFee: mystFee || 0,
+      };
+
+      // Try with status first, then without if it fails
+      let campaign;
+      try {
+        campaignData.status = status || 'DRAFT';
+        campaign = await prisma.campaign.create({ data: campaignData });
+      } catch (statusError) {
+        // Status field might not exist, try without it
+        console.warn('[Admin/Campaigns] Status field not available, creating without status');
+        delete campaignData.status;
+        campaign = await prisma.campaign.create({ data: campaignData });
+      }
 
       console.log(`[Admin/Campaigns] Created campaign: ${campaign.id} - ${campaign.name}`);
 
       return res.status(201).json({
         ok: true,
-        campaign,
+        campaign: {
+          ...campaign,
+          status: (campaign as any).status || 'DRAFT',
+        },
       });
     }
 
     return res.status(405).json({ ok: false, message: 'Method not allowed' });
   } catch (error: any) {
-    console.error('[Admin/Campaigns] Error:', error);
-    return res.status(500).json({ ok: false, message: 'Server error' });
+    console.error('[Admin/Campaigns] Error:', error?.message || error);
+    return res.status(500).json({ ok: false, message: error?.message || 'Server error' });
   }
 }
-
