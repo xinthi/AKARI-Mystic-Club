@@ -496,12 +496,17 @@ model Deposit {
   // Deposit memo for matching
   memo          String   // AKARI:<userId>
   
-  // Status: pending -> confirmed -> credited | expired
+  // Status: pending -> confirmed | declined
   status        String   @default("pending")
   
   // Transaction details (filled when confirmed)
   txHash        String?  @unique
   confirmedAt   DateTime?
+  
+  // Decline details (filled when declined)
+  declinedReason String?
+  declinedAt     DateTime?
+  declinedBy     String?  // Admin who declined
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -509,6 +514,7 @@ model Deposit {
   @@index([userId])
   @@index([status])
   @@index([memo])
+  @@index([createdAt])
 }
 
 // ============================================

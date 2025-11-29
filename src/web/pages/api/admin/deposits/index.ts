@@ -1,7 +1,13 @@
 /**
  * Admin Deposits API
  * 
- * GET /api/admin/deposits - List all deposits
+ * GET /api/admin/deposits - List all deposits with filters
+ * 
+ * Query params:
+ * - status: 'pending' | 'confirmed' | 'declined' | 'all'
+ * - from: ISO date string (filter createdAt >= from)
+ * - to: ISO date string (filter createdAt <= to)
+ * - limit: number (default 100)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -24,12 +30,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { status } = req.query;
+    const { status, from, to, limit } = req.query;
 
     const where: any = {};
+    
+    // Status filter
     if (status && status !== 'all') {
       where.status = status;
     }
+
+    // Date range filter
+    if (from || to) {
+      where.createdAt = {};
+      if (from && typeof from === 'string') {
+        where.createdAt.gte = new Date(from);
+      }
+      if (to && typeof to === 'string') {
+        // Add 1 day to include the end date fully
+        const toDate = new Date(to);
+        toDate.setDate(toDate.getDate() + 1);
+        where.createdAt.lte = toDate;
+      }
+    }
+
+    const takeLimit = limit ? parseInt(limit as string, 10) : 100;
 
     const deposits = await prisma.deposit.findMany({
       where,
@@ -39,11 +63,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             username: true,
             firstName: true,
             tonAddress: true,
+            telegramId: true,
           },
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: Math.min(takeLimit, 500), // Max 500
     });
 
     return res.status(200).json({
@@ -51,6 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       deposits: deposits.map((d) => ({
         id: d.id,
         userId: d.userId,
+        telegramId: d.user.telegramId,
         username: d.user.username,
         firstName: d.user.firstName,
         userWallet: d.user.tonAddress,
@@ -58,15 +84,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         tonPriceUsd: d.tonPriceUsd,
         usdAmount: d.usdAmount,
         mystEstimate: d.mystEstimate,
+        mystCredited: d.mystCredited,
         memo: d.memo,
         status: d.status,
         txHash: d.txHash,
+        confirmedAt: d.confirmedAt?.toISOString(),
+        declinedReason: (d as any).declinedReason || null,
+        declinedAt: (d as any).declinedAt?.toISOString() || null,
+        declinedBy: (d as any).declinedBy || null,
         createdAt: d.createdAt.toISOString(),
       })),
+      count: deposits.length,
     });
   } catch (error: any) {
     console.error('[Admin/Deposits] Error:', error?.message || error);
     return res.status(500).json({ ok: false, message: 'Server error' });
   }
 }
-
