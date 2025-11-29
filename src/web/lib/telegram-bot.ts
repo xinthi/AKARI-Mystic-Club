@@ -118,6 +118,7 @@ bot.command('admin', async (ctx) => {
   }
   
   // User is an admin - show admin panel links
+  const treasuryUrl = getAdminUrl('/admin/treasury');
   const campaignsUrl = getAdminUrl('/admin/campaigns');
   const predictionsUrl = getAdminUrl('/admin/prediction-requests');
   const withdrawalsUrl = getAdminUrl('/admin/withdrawals');
@@ -128,6 +129,7 @@ bot.command('admin', async (ctx) => {
   await ctx.reply(
     '🔐 *Admin Panel*\n\n' +
     'Welcome, admin! Here are your management tools:\n\n' +
+    `🏦 [Treasury](${treasuryUrl})\n` +
     `📋 [Campaigns](${campaignsUrl})\n` +
     `🎯 [Prediction Requests](${predictionsUrl})\n` +
     `💸 [Withdrawals](${withdrawalsUrl})\n` +
@@ -141,15 +143,18 @@ bot.command('admin', async (ctx) => {
       reply_markup: {
         inline_keyboard: [
           [
+            { text: '🏦 Treasury', url: treasuryUrl },
+            { text: '💸 Withdrawals', url: withdrawalsUrl },
+          ],
+          [
             { text: '📋 Campaigns', url: campaignsUrl },
             { text: '🎯 Predictions', url: predictionsUrl },
           ],
           [
-            { text: '💸 Withdrawals', url: withdrawalsUrl },
             { text: '💎 MYST', url: mystUrl },
+            { text: '🎡 Wheel', url: wheelUrl },
           ],
           [
-            { text: '🎡 Wheel', url: wheelUrl },
             { text: '📊 Analytics', url: leaderboardUrl },
           ],
           [
