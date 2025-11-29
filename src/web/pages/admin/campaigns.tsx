@@ -501,11 +501,19 @@ export default function AdminCampaignsPage() {
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-4 text-sm text-gray-400">
+                <div className="flex flex-wrap gap-4 text-sm text-gray-400 items-center">
                   <span>👥 {campaign.participantCount} participants</span>
                   <span>✅ {campaign.tasks?.length || 0} tasks</span>
                   {campaign.endsAt && (
                     <span>📅 Ends: {new Date(campaign.endsAt).toLocaleDateString()}</span>
+                  )}
+                  {campaign.participantCount > 0 && (
+                    <a
+                      href={`/admin/campaigns/${campaign.id}/participants`}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded-lg font-medium"
+                    >
+                      🏆 View Participants & Winners
+                    </a>
                   )}
                 </div>
                 {campaign.tasks && campaign.tasks.length > 0 && (
