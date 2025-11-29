@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { verifyTelegramWebAppData, parseTelegramInitData } from '../../../lib/telegram-auth';
-import { grantOnboardingMystIfEligible } from '../../../lib/myst-service';
+import { grantOnboardingMystIfEligible, getMystBalance } from '../../../lib/myst-service';
 
 interface TelegramAuthResponse {
   ok: boolean;
@@ -15,6 +15,7 @@ interface TelegramAuthResponse {
     tier?: string;
     credibilityScore: string;
     positiveReviews: number;
+    mystBalance: number;
   } | null;
   reason?: string;
 }
@@ -123,6 +124,14 @@ export default async function handler(
     console.error('[Auth] Failed to grant onboarding MYST bonus', e);
   }
 
+  // Get MYST balance
+  let mystBalance = 0;
+  try {
+    mystBalance = await getMystBalance(prisma, dbUser.id);
+  } catch (e) {
+    console.error('[Auth] Failed to get MYST balance', e);
+  }
+
   return res.status(200).json({
     ok: true,
     user: {
@@ -135,6 +144,7 @@ export default async function handler(
       tier: dbUser.tier ?? undefined,
       credibilityScore: (dbUser.credibilityScore ?? 0).toString(),
       positiveReviews: dbUser.positiveReviews,
+      mystBalance,
     },
     reason: 'Authenticated via Telegram WebApp',
   });

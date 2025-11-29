@@ -118,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return;
     }
 
-    if (new Date(prediction.endsAt) < new Date()) {
+    if (prediction.endsAt && new Date(prediction.endsAt) < new Date()) {
       res.status(400).json({ ok: false, reason: 'Prediction has ended' });
       return;
     }

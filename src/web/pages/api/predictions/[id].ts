@@ -96,7 +96,7 @@ export default async function handler(
           pot: prediction.pot,
           resolved: prediction.resolved,
           winningOption: prediction.winningOption,
-          endsAt: prediction.endsAt.toISOString(),
+          endsAt: prediction.endsAt?.toISOString() ?? null,
           participantCount: prediction._count.bets,
           category: deriveCategory(prediction.id, prediction.title),
           createdAt: prediction.createdAt.toISOString(),

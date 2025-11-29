@@ -131,7 +131,7 @@ export default async function handler(
         pot: p.pot,
         resolved: p.resolved,
         winningOption: p.winningOption,
-        endsAt: p.endsAt.toISOString(),
+        endsAt: p.endsAt?.toISOString() ?? null,
         participantCount: p._count.bets,
         category: deriveCategory(p.id, p.title),
         createdAt: p.createdAt.toISOString(),

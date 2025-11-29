@@ -102,15 +102,16 @@ export interface WheelPrize {
   weight: number;
 }
 
+// More aXP prizes (5), fewer MYST prizes (3) to control token distribution
 export const WHEEL_PRIZES: WheelPrize[] = [
-  { type: 'axp',  label: 'aXP +5',    myst: 0,   axp: 5,  weight: 25 },
-  { type: 'axp',  label: 'aXP +10',   myst: 0,   axp: 10, weight: 20 },
-  { type: 'myst', label: '0.1 MYST',  myst: 0.1, axp: 0,  weight: 18 },
-  { type: 'myst', label: '0.2 MYST',  myst: 0.2, axp: 0,  weight: 12 },
-  { type: 'myst', label: '0.5 MYST',  myst: 0.5, axp: 0,  weight: 8 },
-  { type: 'myst', label: '1 MYST',    myst: 1,   axp: 0,  weight: 6 },
-  { type: 'myst', label: '3 MYST',    myst: 3,   axp: 0,  weight: 4 },
-  { type: 'myst', label: '10 MYST',   myst: 10,  axp: 0,  weight: 2 },
+  { type: 'axp',  label: 'aXP +5',    myst: 0,    axp: 5,  weight: 22 },   // Common
+  { type: 'myst', label: '0.1 MYST',  myst: 0.1,  axp: 0,  weight: 15 },   // MYST
+  { type: 'axp',  label: 'aXP +10',   myst: 0,    axp: 10, weight: 18 },   // Uncommon
+  { type: 'myst', label: '0.5 MYST',  myst: 0.5,  axp: 0,  weight: 10 },   // MYST
+  { type: 'axp',  label: 'aXP +15',   myst: 0,    axp: 15, weight: 14 },   // Uncommon
+  { type: 'axp',  label: 'aXP +20',   myst: 0,    axp: 20, weight: 10 },   // Rare
+  { type: 'axp',  label: 'aXP +25',   myst: 0,    axp: 25, weight: 6 },    // Rare
+  { type: 'myst', label: '1 MYST',    myst: 1,    axp: 0,  weight: 5 },    // MYST Jackpot
 ];
 
 // ============================================

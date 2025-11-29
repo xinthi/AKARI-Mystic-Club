@@ -2,10 +2,10 @@
  * Wheel of Fortune Component
  * 
  * A beautiful, animated wheel with 2 free spins daily.
- * Prizes include both MYST and aXP.
+ * More aXP options than MYST to encourage engagement.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface WheelProps {
   onBalanceUpdate?: (newMystBalance: number, newAxp: number) => void;
@@ -27,16 +27,16 @@ interface WheelStatus {
   poolEmpty: boolean;
 }
 
-// Vibrant GenZ-friendly colors for wheel segments
+// Colors match the prize types: purple/violet for aXP, amber/orange for MYST
 const SEGMENT_COLORS = [
-  'from-violet-500 to-purple-600',   // aXP +5
-  'from-fuchsia-500 to-pink-600',    // aXP +10
-  'from-amber-400 to-orange-500',    // 0.1 MYST
-  'from-cyan-400 to-blue-500',       // 0.2 MYST
-  'from-lime-400 to-green-500',      // 0.5 MYST
-  'from-yellow-400 to-amber-500',    // 1 MYST
-  'from-rose-400 to-red-500',        // 3 MYST
-  'from-yellow-300 to-yellow-500',   // 10 MYST (jackpot)
+  '#9333ea', // purple - aXP +5
+  '#f97316', // orange - 0.1 MYST
+  '#8b5cf6', // violet - aXP +10
+  '#eab308', // yellow - 0.5 MYST
+  '#a855f7', // fuchsia - aXP +15
+  '#7c3aed', // indigo - aXP +20
+  '#6366f1', // purple - aXP +25
+  '#f59e0b', // amber - 1 MYST jackpot
 ];
 
 export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
@@ -46,6 +46,8 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<{ prize: Prize; message: string } | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const spinSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -88,6 +90,12 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
     setShowResult(false);
     setResult(null);
 
+    // Haptic feedback on Telegram
+    try {
+      const tg = (window as any).Telegram?.WebApp;
+      tg?.HapticFeedback?.impactOccurred?.('medium');
+    } catch (e) {}
+
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
@@ -111,16 +119,22 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
           p => p.label === data.prize.label
         );
         
-        // Calculate rotation (5 full spins + land on prize)
+        // Calculate rotation (6-8 full spins + land on prize)
         const segmentAngle = 360 / status.prizes.length;
         const targetAngle = prizeIndex >= 0 ? prizeIndex * segmentAngle : 0;
-        const fullRotations = 5;
+        const fullRotations = 6 + Math.random() * 2; // 6-8 full spins
         const finalRotation = rotation + (360 * fullRotations) + (360 - targetAngle) + (segmentAngle / 2);
         
         setRotation(finalRotation);
 
-        // Wait for animation
+        // Wait for animation to complete
         setTimeout(() => {
+          // Haptic feedback on win
+          try {
+            const tg = (window as any).Telegram?.WebApp;
+            tg?.HapticFeedback?.notificationOccurred?.('success');
+          } catch (e) {}
+
           setResult({ prize: data.prize, message: data.message });
           setShowResult(true);
           setSpinning(false);
@@ -136,7 +150,7 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
           if (onBalanceUpdate) {
             onBalanceUpdate(data.newMystBalance ?? 0, data.newAxp ?? 0);
           }
-        }, 4000);
+        }, 5000); // 5 second spin
       } else {
         setResult({ 
           prize: { type: 'none', label: 'Error', myst: 0, axp: 0 }, 
@@ -175,7 +189,7 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
     return (
       <div className="bg-gradient-to-br from-purple-900/50 to-fuchsia-900/30 backdrop-blur-lg rounded-2xl p-4 border border-purple-500/20">
         <div className="flex items-center justify-center h-32">
-          <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-3 border-purple-400 border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -219,76 +233,129 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
       )}
 
       {/* Wheel Container */}
-      <div className="relative w-52 h-52 mx-auto mb-4">
-        {/* Pointer */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-10">
-          <div className="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[18px] border-t-yellow-400 drop-shadow-lg" />
+      <div className="relative w-56 h-56 mx-auto mb-4">
+        {/* Outer glow effect */}
+        <div className="absolute -inset-2 bg-gradient-to-r from-purple-600 via-amber-500 to-purple-600 rounded-full opacity-30 blur-lg animate-pulse" />
+        
+        {/* Pointer / Arrow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-20">
+          <div className="relative">
+            <div className="w-0 h-0 border-l-[14px] border-l-transparent border-r-[14px] border-r-transparent border-t-[22px] border-t-yellow-400 drop-shadow-lg" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[16px] border-t-yellow-300" />
+          </div>
         </div>
 
         {/* Wheel */}
         <div
-          className="w-full h-full rounded-full border-4 border-yellow-400 overflow-hidden shadow-2xl transition-transform"
+          ref={wheelRef}
+          className="w-full h-full rounded-full border-4 border-yellow-400 overflow-hidden shadow-2xl relative"
           style={{
             transform: `rotate(${rotation}deg)`,
-            transitionDuration: spinning ? '4s' : '0s',
-            transitionTimingFunction: 'cubic-bezier(0.17, 0.67, 0.12, 0.99)',
+            transition: spinning 
+              ? 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)' 
+              : 'none',
+            boxShadow: '0 0 30px rgba(234, 179, 8, 0.3), inset 0 0 20px rgba(0,0,0,0.3)',
           }}
         >
-          {prizes.map((prize, index) => {
-            const angle = (360 / prizes.length) * index;
-            const skew = 90 - (360 / prizes.length);
-            
-            return (
-              <div
-                key={index}
-                className={`absolute w-1/2 h-1/2 origin-bottom-right bg-gradient-to-br ${SEGMENT_COLORS[index % SEGMENT_COLORS.length]} border-r border-purple-900/30`}
-                style={{
-                  transform: `rotate(${angle}deg) skewY(${skew}deg)`,
-                  transformOrigin: 'bottom right',
-                  top: 0,
-                  right: '50%',
-                }}
-              >
-                <span
-                  className="absolute text-white font-bold text-[10px] drop-shadow-lg whitespace-nowrap"
-                  style={{
-                    transform: `skewY(-${skew}deg) rotate(${360 / prizes.length / 2}deg)`,
-                    left: '35%',
-                    top: '25%',
-                  }}
-                >
-                  {prize.type === 'myst' ? `${prize.myst}` : `+${prize.axp}`}
-                </span>
-              </div>
-            );
-          })}
+          {/* SVG Wheel for proper pie slices */}
+          <svg viewBox="0 0 200 200" className="w-full h-full">
+            {prizes.map((prize, index) => {
+              const angle = 360 / prizes.length;
+              const startAngle = index * angle - 90; // -90 to start from top
+              const endAngle = startAngle + angle;
+              
+              // Calculate arc path
+              const startRad = (startAngle * Math.PI) / 180;
+              const endRad = (endAngle * Math.PI) / 180;
+              const x1 = 100 + 100 * Math.cos(startRad);
+              const y1 = 100 + 100 * Math.sin(startRad);
+              const x2 = 100 + 100 * Math.cos(endRad);
+              const y2 = 100 + 100 * Math.sin(endRad);
+              const largeArc = angle > 180 ? 1 : 0;
+              
+              const path = `M 100 100 L ${x1} ${y1} A 100 100 0 ${largeArc} 1 ${x2} ${y2} Z`;
+              
+              // Text position (middle of slice)
+              const midAngle = ((startAngle + endAngle) / 2 * Math.PI) / 180;
+              const textX = 100 + 60 * Math.cos(midAngle);
+              const textY = 100 + 60 * Math.sin(midAngle);
+              const textRotation = (startAngle + endAngle) / 2 + 90;
+              
+              return (
+                <g key={index}>
+                  <path
+                    d={path}
+                    fill={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
+                    stroke="#1a1a2e"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={textX}
+                    y={textY}
+                    fill="white"
+                    fontSize="11"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    transform={`rotate(${textRotation}, ${textX}, ${textY})`}
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                  >
+                    {prize.type === 'myst' ? `${prize.myst} 💎` : `+${prize.axp} ⭐`}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
           
           {/* Center circle */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-14 h-14 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-              <span className="text-2xl">🔮</span>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-full border-4 border-white shadow-xl flex items-center justify-center">
+              <span className="text-3xl">🔮</span>
             </div>
           </div>
+        </div>
+
+        {/* Decorative lights around wheel */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className={`absolute w-2 h-2 rounded-full ${spinning ? 'animate-pulse' : ''}`}
+              style={{
+                backgroundColor: i % 2 === 0 ? '#fbbf24' : '#fff',
+                top: `${50 + 48 * Math.sin((i * 30 * Math.PI) / 180)}%`,
+                left: `${50 + 48 * Math.cos((i * 30 * Math.PI) / 180)}%`,
+                transform: 'translate(-50%, -50%)',
+                boxShadow: spinning ? '0 0 8px rgba(251, 191, 36, 0.8)' : 'none',
+                animationDelay: `${i * 0.1}s`,
+              }}
+            />
+          ))}
         </div>
       </div>
 
       {/* Result Modal */}
       {showResult && result && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl z-20">
-          <div className="text-center p-6">
-            <div className="text-6xl mb-4">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 rounded-2xl z-30 backdrop-blur-sm">
+          <div className="text-center p-6 animate-bounce-in">
+            <div className="text-7xl mb-4 animate-pulse">
               {result.prize.type === 'myst' ? '💎' : '⭐'}
             </div>
-            <div className="text-xl font-bold text-white mb-2">
+            <div className="text-2xl font-bold text-white mb-2">
               {result.prize.type === 'myst' 
                 ? `You won ${result.prize.myst} MYST!`
                 : `You gained +${result.prize.axp} aXP!`}
             </div>
+            <p className="text-purple-300 text-sm mb-4">
+              {result.prize.type === 'myst' 
+                ? 'MYST added to your balance!' 
+                : 'Experience points earned!'}
+            </p>
             <button
               onClick={() => setShowResult(false)}
-              className="mt-3 px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg font-semibold transition-colors"
+              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 rounded-xl font-bold text-lg transition-all shadow-lg"
             >
-              Continue
+              Awesome! 🎉
             </button>
           </div>
         </div>
@@ -298,21 +365,26 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
       <button
         onClick={handleSpin}
         disabled={!canSpin}
-        className={`w-full py-3 rounded-xl font-bold text-lg transition-all ${
+        className={`w-full py-4 rounded-xl font-bold text-lg transition-all relative overflow-hidden ${
           canSpin
-            ? 'bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-white shadow-lg shadow-amber-500/30'
+            ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 hover:from-yellow-400 hover:via-amber-400 hover:to-yellow-500 text-white shadow-lg shadow-amber-500/30'
             : 'bg-gray-700 text-gray-400 cursor-not-allowed'
         }`}
       >
+        {spinning && (
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+        )}
         {spinning ? (
-          <span className="flex items-center justify-center gap-2">
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="flex items-center justify-center gap-2 relative z-10">
+            <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
             Spinning...
           </span>
         ) : status?.spinsRemaining === 0 ? (
           <span>Next spin in {formatTimeUntilReset()}</span>
         ) : (
-          <span>🎰 SPIN ({status?.spinsRemaining ?? 0} left)</span>
+          <span className="flex items-center justify-center gap-2">
+            🎰 SPIN NOW ({status?.spinsRemaining ?? 0} left)
+          </span>
         )}
       </button>
 
@@ -322,13 +394,33 @@ export default function WheelOfFortune({ onBalanceUpdate }: WheelProps) {
           <div 
             key={i} 
             className={`text-[9px] px-1 py-0.5 rounded ${
-              prize.type === 'myst' ? 'text-amber-300' : 'text-purple-300'
+              prize.type === 'myst' ? 'bg-amber-900/30 text-amber-300' : 'bg-purple-900/30 text-purple-300'
             }`}
           >
             {prize.label}
           </div>
         ))}
       </div>
+
+      {/* Shimmer animation style */}
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 1s ease-in-out infinite;
+        }
+        @keyframes bounce-in {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.05); }
+          70% { transform: scale(0.9); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in {
+          animation: bounce-in 0.5s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

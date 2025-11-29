@@ -176,6 +176,9 @@ model Prediction {
   category        String?  // e.g., "CRYPTO", "POLITICS", "SPORTS", "ENTERTAINMENT"
   options         String[] // e.g. ["Yes","No"]
   
+  // Status: DRAFT, ACTIVE, PAUSED, RESOLVED, CANCELLED
+  status          String   @default("ACTIVE")
+  
   // Legacy fee structure (kept for backwards compatibility)
   entryFeeStars   Int      @default(0)
   entryFeePoints  Int      @default(0)
@@ -195,13 +198,16 @@ model Prediction {
   
   resolved        Boolean  @default(false)
   winningOption   String?
-  endsAt          DateTime
+  resolvedAt      DateTime?
+  endsAt          DateTime?
   participantCount Int     @default(0)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   bets            Bet[]
+  
+  @@index([status])
 }
 
 // Prediction Request from community
