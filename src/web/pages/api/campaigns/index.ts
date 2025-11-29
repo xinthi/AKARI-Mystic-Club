@@ -46,17 +46,30 @@ async function seedCampaigns() {
   const count = await prisma.campaign.count();
   if (count > 0) return;
 
-  const endsAt = new Date('2025-12-31T23:59:59Z');
+  const endsAt = new Date('2026-01-01T23:59:59Z');
 
+  // Create campaign with backward-compatible fields only
   const campaign = await prisma.campaign.create({
     data: {
       name: 'Akari OG Quest',
       description: 'Complete the OG tasks to become an early Akari Mystic.',
-      rewards: 'Akari OG role + bonus EP',
+      rewards: 'Akari OG role + 500 EP',
       endsAt,
       starsFee: 0,
+      // Note: status defaults to DRAFT in schema, will be set to ACTIVE below if field exists
     },
   });
+
+  // Try to update status if the field exists (new schema)
+  try {
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: { status: 'ACTIVE' } as any,
+    });
+  } catch (e) {
+    // Field doesn't exist yet, that's fine
+    console.log('[Campaigns] Status field not available in seed');
+  }
 
   await prisma.campaignTask.createMany({
     data: [
@@ -108,28 +121,48 @@ export default async function handler(
         });
       }
 
-      // Get campaigns from the last 6 months (for closed) plus all active
+      // Get all campaigns (backward compatible - no status filter if column doesn't exist yet)
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      const campaigns = await prisma.campaign.findMany({
-        where: {
-          OR: [
-            { status: { in: ['ACTIVE', 'PAUSED'] } },
-            { 
-              status: 'ENDED',
-              endsAt: { gte: sixMonthsAgo }
-            },
-          ],
-        },
-        include: {
-          tasks: true,
-          _count: {
-            select: { progress: true },
+      let campaigns: any[] = [];
+      
+      try {
+        // Try with status filter first (new schema)
+        campaigns = await prisma.campaign.findMany({
+          where: {
+            OR: [
+              { status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
+              { 
+                status: 'ENDED',
+                endsAt: { gte: sixMonthsAgo }
+              },
+            ],
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          include: {
+            tasks: true,
+            _count: {
+              select: { progress: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch (statusError) {
+        // Fallback: query without status filter (old schema)
+        console.warn('[Campaigns] Status field not available, using fallback query');
+        campaigns = await prisma.campaign.findMany({
+          where: {
+            endsAt: { gte: sixMonthsAgo },
+          },
+          include: {
+            tasks: true,
+            _count: {
+              select: { progress: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
 
       // Get user progress if authenticated
       let userProgressMap: Map<string, boolean> = new Map();
@@ -142,34 +175,34 @@ export default async function handler(
         });
       }
 
-      const shaped = campaigns.map((c) => ({
+      const shaped = campaigns.map((c: any) => ({
         id: c.id,
         name: c.name,
         description: c.description,
         rewards: c.rewards,
-        status: c.status,
-        tasks: c.tasks.map((t) => ({
+        status: c.status || 'ACTIVE', // Default to ACTIVE for old records
+        tasks: c.tasks.map((t: any) => ({
           id: t.id,
           title: t.title,
           description: t.description,
           type: t.type,
-          targetUrl: t.targetUrl,
-          rewardPoints: t.rewardPoints,
+          targetUrl: t.targetUrl || null,
+          rewardPoints: t.rewardPoints || 0,
           metadata: t.metadata,
         })),
-        tasksWithStatus: c.tasks.map((t) => ({
+        tasksWithStatus: c.tasks.map((t: any) => ({
           taskId: t.id,
           title: t.title,
           description: t.description,
           type: t.type,
-          targetUrl: t.targetUrl,
-          rewardPoints: t.rewardPoints,
+          targetUrl: t.targetUrl || null,
+          rewardPoints: t.rewardPoints || 0,
           completed: userProgressMap.get(t.id) || false,
         })),
         endsAt: c.endsAt.toISOString(),
-        starsFee: c.starsFee,
-        winnerCount: (c as any).winnerCount ?? 25,
-        participantCount: c._count.progress,
+        starsFee: c.starsFee || 0,
+        winnerCount: c.winnerCount ?? 25,
+        participantCount: c._count?.progress || 0,
       }));
 
       return res.status(200).json({ ok: true, campaigns: shaped });
