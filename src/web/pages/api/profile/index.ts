@@ -204,8 +204,9 @@ export default async function handler(
         // Legacy aXP / Points system
         points: fullUser.points ?? 0,
         tier: fullUser.tier || null,
-        credibilityScore: String((fullUser.credibilityScore ?? 0).toFixed(1)),
+        credibilityScore: fullUser.credibilityScore ?? 0,
         positiveReviews: fullUser.positiveReviews ?? 0,
+        negativeReviews: fullUser.negativeReviews ?? 0,
         
         // Timestamps
         createdAt: fullUser.createdAt,

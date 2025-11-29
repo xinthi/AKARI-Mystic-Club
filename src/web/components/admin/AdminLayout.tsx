@@ -20,6 +20,7 @@ const ADMIN_NAV_ITEMS = [
   { href: '/admin/treasury', label: 'Treasury', icon: '🏦' },
   { href: '/admin/myst', label: 'MYST Grant', icon: '💎' },
   { href: '/admin/wheel', label: 'Wheel Pool', icon: '🎡' },
+  { href: '/admin/deposits', label: 'Deposits', icon: '📥' },
   { href: '/admin/withdrawals', label: 'Withdrawals', icon: '💸' },
   { href: '/admin/predictions', label: 'Predictions', icon: '🎲' },
   { href: '/admin/campaigns', label: 'Campaigns', icon: '📋' },

@@ -1,49 +1,87 @@
+/**
+ * Get User Profile by ID
+ * 
+ * GET /api/profile/[userId] - Get a specific user's public profile
+ */
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
-import { getTierConfig } from '../../../lib/tiers';
+import { getUserFromRequest } from '../../../lib/telegram-auth';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+interface ProfileResponse {
+  ok: boolean;
+  user?: {
+    id: string;
+    username?: string;
+    firstName?: string;
+    points: number;
+    tier?: string;
+    credibilityScore: number;
+    positiveReviews: number;
+    negativeReviews: number;
+  };
+  currentUserId?: string;
+  message?: string;
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ProfileResponse>
+) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ ok: false, message: 'Method not allowed' });
+  }
+
+  const { userId } = req.query;
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ ok: false, message: 'Invalid user ID' });
   }
 
   try {
-    const { userId } = req.query;
-
-    // Try to find by ID first, then by telegramId
-    let user = await prisma.user.findUnique({
-      where: { id: userId as string },
-    });
-
-    // If not found by ID, try telegramId
-    if (!user && /^\d+$/.test(userId as string)) {
-      user = await prisma.user.findUnique({
-        where: { telegramId: userId as string },
-      });
+    // Get current user if authenticated
+    let currentUserId: string | undefined;
+    try {
+      const currentUser = await getUserFromRequest(req, prisma);
+      currentUserId = currentUser?.id;
+    } catch (_) {
+      // Not authenticated, that's ok for viewing profiles
     }
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Get tier config from static configuration
-    const tierConfig = getTierConfig(user.tier);
-
-    res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        points: user.points,
-        tier: user.tier,
-        tierConfig,
-        credibilityScore: user.credibilityScore || 0,
-        positiveReviews: user.positiveReviews,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+    // Get the requested user's profile
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        firstName: true,
+        points: true,
+        tier: true,
+        credibilityScore: true,
+        positiveReviews: true,
+        negativeReviews: true,
       },
     });
+
+    if (!user) {
+      return res.status(404).json({ ok: false, message: 'User not found' });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      user: {
+        id: user.id,
+        username: user.username || undefined,
+        firstName: user.firstName || undefined,
+        points: user.points,
+        tier: user.tier || undefined,
+        credibilityScore: user.credibilityScore,
+        positiveReviews: user.positiveReviews,
+        negativeReviews: user.negativeReviews,
+      },
+      currentUserId,
+    });
   } catch (error: any) {
-    console.error('Profile API error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('[Profile] Error:', error?.message || error);
+    return res.status(500).json({ ok: false, message: 'Server error' });
   }
 }

@@ -16,6 +16,7 @@ out/
 .env
 .env.*
 .env.local
+.env.*.local
 .env.development
 .env.production
 .env.staging
@@ -41,7 +42,20 @@ Thumbs.db
 
 # Prisma
 prisma/migrations/
+prisma/*.db
+prisma/*.db-journal
 
 # Vercel
 .vercel
+
+# Next.js
+.next/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+*.bak
+*.tmp
 

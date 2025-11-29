@@ -14,8 +14,9 @@ interface User {
   firstName?: string;
   points: number;
   tier?: string;
-  credibilityScore: string;
+  credibilityScore: number;
   positiveReviews: number;
+  negativeReviews: number;
   mystBalance?: number;
   referralCode?: string;
   referralLink?: string;
@@ -67,6 +68,17 @@ export default function ProfilePage() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawMessage, setWithdrawMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [withdrawSummary, setWithdrawSummary] = useState<WithdrawSummary | null>(null);
+
+  // Buy MYST state
+  const [buyTonAmount, setBuyTonAmount] = useState('');
+  const [tonPriceUsd, setTonPriceUsd] = useState<number | null>(null);
+  const [buyingMyst, setBuyingMyst] = useState(false);
+  const [buyMessage, setBuyMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [depositInfo, setDepositInfo] = useState<{
+    treasuryAddress: string;
+    memo: string;
+    mystEstimate: number;
+  } | null>(null);
 
   // Show toast helper
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -278,6 +290,73 @@ export default function ProfilePage() {
   // ========================================
   // Withdrawal Functions
   // ========================================
+
+  // Fetch TON price on load
+  useEffect(() => {
+    fetch('/api/price/ton')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.priceUsd) {
+          setTonPriceUsd(data.priceUsd);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Calculate MYST estimate for buy section
+  const buyTonNum = parseFloat(buyTonAmount) || 0;
+  const buyUsdEstimate = buyTonNum * (tonPriceUsd || 0);
+  const buyMystEstimate = buyUsdEstimate * 50; // MYST_PER_USD
+
+  const submitDepositIntent = async () => {
+    const tonAmount = parseFloat(buyTonAmount);
+    if (isNaN(tonAmount) || tonAmount < 0.1) {
+      setBuyMessage({ text: 'Minimum deposit is 0.1 TON', type: 'error' });
+      return;
+    }
+
+    setBuyingMyst(true);
+    setBuyMessage(null);
+
+    try {
+      const initData = getInitData();
+      const response = await fetch('/api/ton/deposit-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ tonAmount }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.deposit) {
+        setDepositInfo({
+          treasuryAddress: data.deposit.treasuryAddress,
+          memo: data.deposit.memo,
+          mystEstimate: data.deposit.mystEstimate,
+        });
+        setBuyMessage({ text: 'Deposit intent recorded!', type: 'success' });
+        setBuyTonAmount('');
+      } else {
+        setBuyMessage({ text: data.message || 'Failed to create deposit', type: 'error' });
+      }
+    } catch (err) {
+      setBuyMessage({ text: 'Network error', type: 'error' });
+    } finally {
+      setBuyingMyst(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(`${label} copied!`, 'success');
+    } catch {
+      showToast('Failed to copy', 'error');
+    }
+  };
 
   const requestWithdrawal = async () => {
     const mystAmount = parseFloat(mystAmountInput);
@@ -549,6 +628,108 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* ========================================
+            Buy MYST with TON Section
+        ======================================== */}
+        <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-lg rounded-xl p-5 border border-blue-500/30">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">💎</span>
+            <h2 className="text-lg font-semibold">Buy MYST with TON</h2>
+          </div>
+
+          {buyMessage && (
+            <div className={`mb-3 p-2 rounded-lg text-sm ${
+              buyMessage.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+            }`}>
+              {buyMessage.text}
+            </div>
+          )}
+
+          {depositInfo ? (
+            // Show deposit instructions
+            <div className="space-y-4">
+              <div className="bg-gray-900/50 p-4 rounded-lg space-y-3">
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Treasury TON Address</div>
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm text-blue-300 break-all">{depositInfo.treasuryAddress}</code>
+                    <button
+                      onClick={() => copyToClipboard(depositInfo.treasuryAddress, 'Address')}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">Your Deposit Memo (REQUIRED)</div>
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm text-amber-300 font-bold">{depositInfo.memo}</code>
+                    <button
+                      onClick={() => copyToClipboard(depositInfo.memo, 'Memo')}
+                      className="px-2 py-1 bg-amber-600 hover:bg-amber-500 rounded text-xs"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-gray-700">
+                  <div className="text-green-300">
+                    You will receive: <strong>{depositInfo.mystEstimate.toFixed(0)} MYST</strong>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                ⚠️ Include the memo when sending! MYST will be credited after on-chain confirmation.
+              </p>
+              <button
+                onClick={() => setDepositInfo(null)}
+                className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+              >
+                Create New Deposit
+              </button>
+            </div>
+          ) : (
+            // Show input form
+            <div className="space-y-3">
+              <p className="text-sm text-purple-300">
+                Send TON to our treasury and receive MYST tokens. Rate: 1 USD = 50 MYST
+              </p>
+              
+              <div>
+                <input
+                  type="number"
+                  value={buyTonAmount}
+                  onChange={(e) => setBuyTonAmount(e.target.value)}
+                  placeholder="Enter TON amount (min 0.1)"
+                  step="0.1"
+                  min="0.1"
+                  className="w-full bg-purple-800/30 border border-purple-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-purple-400 focus:outline-none focus:border-purple-400"
+                />
+                {buyTonNum > 0 && tonPriceUsd && (
+                  <div className="mt-2 text-sm text-purple-300">
+                    ≈ ${buyUsdEstimate.toFixed(2)} USD → <span className="text-amber-300 font-semibold">{buyMystEstimate.toFixed(0)} MYST</span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={submitDepositIntent}
+                disabled={buyingMyst || buyTonNum < 0.1}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-600 disabled:to-gray-600 disabled:opacity-50 rounded-xl font-semibold text-sm transition-all"
+              >
+                {buyingMyst ? 'Processing...' : "I'm Ready to Send TON"}
+              </button>
+
+              {tonPriceUsd && (
+                <p className="text-xs text-center text-gray-500">
+                  Current TON price: ${tonPriceUsd.toFixed(2)} USD
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Stats Card */}
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-5 border border-purple-500/20">
           <div className="grid grid-cols-2 gap-4">
@@ -561,12 +742,21 @@ export default function ProfilePage() {
               <div className="text-xl font-semibold">{user.tier || 'None'}</div>
             </div>
             <div>
-              <div className="text-xs text-purple-300 mb-1">Credibility</div>
-              <div className="text-lg font-semibold">{user.credibilityScore}/10</div>
+              <div className="text-xs text-purple-300 mb-1">Credibility Score</div>
+              <div className={`text-lg font-semibold ${
+                user.credibilityScore > 0 ? 'text-green-400' : 
+                user.credibilityScore < 0 ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {user.credibilityScore > 0 ? '+' : ''}{user.credibilityScore}
+              </div>
             </div>
             <div>
               <div className="text-xs text-purple-300 mb-1">Reviews</div>
-              <div className="text-lg font-semibold">{user.positiveReviews} 🛡️</div>
+              <div className="text-lg font-semibold flex items-center gap-2">
+                <span className="text-green-400">+{user.positiveReviews}</span>
+                <span className="text-gray-400">/</span>
+                <span className="text-red-400">-{user.negativeReviews}</span>
+              </div>
             </div>
           </div>
         </div>

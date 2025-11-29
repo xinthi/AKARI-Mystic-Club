@@ -255,6 +255,83 @@ bot.on('message:text', async (ctx) => {
 });
 
 // ============================================
+// GROUP MEMBERSHIP HANDLERS
+// ============================================
+
+// Handle bot being added/removed from groups
+bot.on('my_chat_member', async (ctx) => {
+  const chat = ctx.chat;
+  const newStatus = ctx.myChatMember.new_chat_member.status;
+  
+  // Only handle group/supergroup
+  if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+  
+  const chatId = String(chat.id);
+  const title = chat.title || 'Unknown Group';
+  const username = 'username' in chat ? chat.username : undefined;
+  
+  console.log(`[TelegramBot] Bot status in group ${chatId}: ${newStatus}`);
+  
+  // Import prisma dynamically to avoid circular imports
+  try {
+    const { prisma } = await import('./prisma');
+    
+    if (newStatus === 'administrator' || newStatus === 'member') {
+      // Bot added to group - upsert TgGroup
+      await prisma.tgGroup.upsert({
+        where: { id: chatId },
+        update: {
+          title,
+          username: username || null,
+          isActive: true,
+        },
+        create: {
+          id: chatId,
+          title,
+          username: username || null,
+          isActive: true,
+        },
+      });
+      console.log(`[TelegramBot] Registered group: ${title} (${chatId})`);
+    } else if (newStatus === 'left' || newStatus === 'kicked') {
+      // Bot removed from group
+      await prisma.tgGroup.update({
+        where: { id: chatId },
+        data: { isActive: false },
+      }).catch(() => {
+        // Group might not exist in DB yet
+      });
+      console.log(`[TelegramBot] Deactivated group: ${title} (${chatId})`);
+    }
+  } catch (err) {
+    console.error('[TelegramBot] Error handling group update:', err);
+  }
+});
+
+// ============================================
+// GROUP VERIFICATION HELPER
+// ============================================
+
+/**
+ * Check if a user is a member of a specific group/channel
+ */
+export async function hasUserJoinedGroup(userTelegramId: string, groupChatId: string): Promise<boolean> {
+  try {
+    const member = await bot.api.getChatMember(groupChatId, parseInt(userTelegramId, 10));
+    
+    // User is a member if status is one of these
+    const validStatuses = ['member', 'administrator', 'creator', 'restricted'];
+    return validStatuses.includes(member.status);
+  } catch (err: any) {
+    // Common errors:
+    // - 400 Bad Request: user not found (never was in the chat)
+    // - 403 Forbidden: bot doesn't have access to member list
+    console.warn(`[TelegramBot] getChatMember failed for user ${userTelegramId} in ${groupChatId}:`, err.message);
+    return false;
+  }
+}
+
+// ============================================
 // ERROR HANDLER
 // ============================================
 
