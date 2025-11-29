@@ -99,6 +99,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             title: t.title,
             description: t.description,
             type: t.type,
+            targetUrl: t.targetUrl,
+            rewardPoints: t.rewardPoints,
             completed: progressMap.get(t.id) || false,
           })),
           endsAt: campaign.endsAt.toISOString(),

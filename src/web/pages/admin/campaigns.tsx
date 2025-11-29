@@ -1,7 +1,7 @@
 /**
  * Admin Campaigns Page
  * 
- * Manage campaigns and tasks.
+ * Manage campaigns and tasks with proper URL support.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,6 +13,15 @@ import {
 } from '../../lib/admin-client';
 import AdminLayout from '../../components/admin/AdminLayout';
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  type: string;
+  targetUrl?: string;
+  rewardPoints: number;
+}
+
 interface Campaign {
   id: string;
   name: string;
@@ -21,9 +30,48 @@ interface Campaign {
   rewards: string;
   startAt?: string;
   endsAt: string;
-  tasks: any[];
+  tasks: Task[];
   participantCount: number;
 }
+
+// Task type configuration with descriptions and URL placeholders
+const TASK_TYPES = {
+  X_FOLLOW: {
+    label: 'Follow on X',
+    icon: '👤',
+    urlPlaceholder: 'https://x.com/AkariMystic',
+    urlLabel: 'X Profile URL',
+    description: 'Follow an X account',
+  },
+  X_LIKE: {
+    label: 'Like on X',
+    icon: '❤️',
+    urlPlaceholder: 'https://x.com/AkariMystic/status/123456789',
+    urlLabel: 'Tweet URL to like',
+    description: 'Like a specific tweet',
+  },
+  X_RETWEET: {
+    label: 'Repost on X',
+    icon: '🔄',
+    urlPlaceholder: 'https://x.com/AkariMystic/status/123456789',
+    urlLabel: 'Tweet URL to repost',
+    description: 'Repost/retweet a specific post',
+  },
+  TELEGRAM_JOIN: {
+    label: 'Join Telegram',
+    icon: '📱',
+    urlPlaceholder: 'https://t.me/AkariMysticClub',
+    urlLabel: 'Telegram Group/Channel URL',
+    description: 'Join a Telegram group or channel (verified)',
+  },
+  VISIT_URL: {
+    label: 'Visit Link',
+    icon: '🔗',
+    urlPlaceholder: 'https://example.com/page',
+    urlLabel: 'URL to visit',
+    description: 'Visit any external link',
+  },
+};
 
 export default function AdminCampaignsPage() {
   const router = useRouter();
@@ -34,12 +82,14 @@ export default function AdminCampaignsPage() {
   // New campaign form
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newRewards, setNewRewards] = useState('');
   const [newStatus, setNewStatus] = useState('DRAFT');
 
   // New task form
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskType, setNewTaskType] = useState('X_FOLLOW');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [newTaskType, setNewTaskType] = useState<keyof typeof TASK_TYPES>('X_FOLLOW');
   const [newTaskUrl, setNewTaskUrl] = useState('');
   const [newTaskReward, setNewTaskReward] = useState('10');
 
@@ -83,6 +133,7 @@ export default function AdminCampaignsPage() {
         body: JSON.stringify({
           name: newName,
           description: newDescription,
+          rewards: newRewards || 'aXP rewards',
           status: newStatus,
         }),
       });
@@ -91,6 +142,7 @@ export default function AdminCampaignsPage() {
         setMessage({ type: 'success', text: 'Campaign created!' });
         setNewName('');
         setNewDescription('');
+        setNewRewards('');
         loadCampaigns();
       } else {
         setMessage({ type: 'error', text: data.message });
@@ -101,13 +153,23 @@ export default function AdminCampaignsPage() {
   };
 
   const addTask = async () => {
-    if (!selectedCampaignId || !newTaskTitle.trim()) return;
+    if (!selectedCampaignId || !newTaskTitle.trim()) {
+      setMessage({ type: 'error', text: 'Please select a campaign and enter a task title' });
+      return;
+    }
+
+    // Validate URL for tasks that need it
+    if (['X_FOLLOW', 'X_LIKE', 'X_RETWEET', 'TELEGRAM_JOIN'].includes(newTaskType) && !newTaskUrl.trim()) {
+      setMessage({ type: 'error', text: `Please provide a ${TASK_TYPES[newTaskType].urlLabel}` });
+      return;
+    }
     
     try {
       const response = await adminFetch(`/api/admin/campaigns/${selectedCampaignId}/tasks`, {
         method: 'POST',
         body: JSON.stringify({
           title: newTaskTitle,
+          description: newTaskDescription || null,
           type: newTaskType,
           targetUrl: newTaskUrl || null,
           rewardPoints: Number(newTaskReward) || 10,
@@ -117,6 +179,7 @@ export default function AdminCampaignsPage() {
       if (data.ok) {
         setMessage({ type: 'success', text: 'Task added!' });
         setNewTaskTitle('');
+        setNewTaskDescription('');
         setNewTaskUrl('');
         loadCampaigns();
       } else {
@@ -124,6 +187,25 @@ export default function AdminCampaignsPage() {
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to add task' });
+    }
+  };
+
+  const deleteTask = async (campaignId: string, taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+      const response = await adminFetch(`/api/admin/campaigns/${campaignId}/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (data.ok) {
+        setMessage({ type: 'success', text: 'Task deleted' });
+        loadCampaigns();
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to delete task' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to delete task' });
     }
   };
 
@@ -180,8 +262,10 @@ export default function AdminCampaignsPage() {
     ENDED: 'bg-red-600',
   };
 
+  const currentTaskType = TASK_TYPES[newTaskType];
+
   return (
-    <AdminLayout title="Campaigns" subtitle="Create and manage campaigns">
+    <AdminLayout title="Campaigns" subtitle="Create and manage campaigns with tasks">
       {/* Message */}
       {message && (
         <div className={`p-4 rounded-lg mb-6 ${message.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
@@ -218,10 +302,10 @@ export default function AdminCampaignsPage() {
       {/* Create Campaign */}
       <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
         <h2 className="text-lg font-semibold mb-4">📋 Create New Campaign</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <input
             type="text"
-            placeholder="Campaign Name"
+            placeholder="Campaign Name *"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
@@ -231,6 +315,13 @@ export default function AdminCampaignsPage() {
             placeholder="Description (optional)"
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
+            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
+          />
+          <input
+            type="text"
+            placeholder="Rewards (e.g., '500 aXP + OG Role')"
+            value={newRewards}
+            onChange={(e) => setNewRewards(e.target.value)}
             className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
           />
           <select
@@ -254,50 +345,97 @@ export default function AdminCampaignsPage() {
       {/* Add Task to Campaign */}
       <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
         <h2 className="text-lg font-semibold mb-4">✅ Add Task to Campaign</h2>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <select
-            value={selectedCampaignId || ''}
-            onChange={(e) => setSelectedCampaignId(e.target.value || null)}
-            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
-          >
-            <option value="">Select Campaign</option>
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Task Title"
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
-          />
-          <select
-            value={newTaskType}
-            onChange={(e) => setNewTaskType(e.target.value)}
-            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
-          >
-            <option value="X_FOLLOW">X Follow</option>
-            <option value="X_LIKE">X Like</option>
-            <option value="X_RETWEET">X Retweet</option>
-            <option value="TELEGRAM_JOIN">Telegram Join</option>
-            <option value="VISIT_URL">Visit URL</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Target URL (optional)"
-            value={newTaskUrl}
-            onChange={(e) => setNewTaskUrl(e.target.value)}
-            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
-          />
-          <input
-            type="number"
-            placeholder="Reward Points"
-            value={newTaskReward}
-            onChange={(e) => setNewTaskReward(e.target.value)}
-            className="p-3 bg-gray-700 border border-gray-600 rounded-lg"
-          />
+          {/* Campaign Selection */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Campaign *</label>
+            <select
+              value={selectedCampaignId || ''}
+              onChange={(e) => setSelectedCampaignId(e.target.value || null)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            >
+              <option value="">Select Campaign</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.status})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Task Title */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Task Title *</label>
+            <input
+              type="text"
+              placeholder="e.g., Follow Akari on X"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            />
+          </div>
+
+          {/* Task Type */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Task Type *</label>
+            <select
+              value={newTaskType}
+              onChange={(e) => setNewTaskType(e.target.value as keyof typeof TASK_TYPES)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            >
+              {Object.entries(TASK_TYPES).map(([key, config]) => (
+                <option key={key} value={key}>
+                  {config.icon} {config.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">{currentTaskType.description}</p>
+          </div>
+
+          {/* Target URL */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              {currentTaskType.urlLabel} {['X_FOLLOW', 'X_LIKE', 'X_RETWEET', 'TELEGRAM_JOIN'].includes(newTaskType) ? '*' : '(optional)'}
+            </label>
+            <input
+              type="text"
+              placeholder={currentTaskType.urlPlaceholder}
+              value={newTaskUrl}
+              onChange={(e) => setNewTaskUrl(e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            />
+            {newTaskType === 'TELEGRAM_JOIN' && (
+              <p className="text-xs text-blue-400 mt-1">✓ Telegram tasks are automatically verified</p>
+            )}
+            {newTaskType.startsWith('X_') && (
+              <p className="text-xs text-yellow-400 mt-1">⚠ X tasks cannot be verified (basic API)</p>
+            )}
+          </div>
+
+          {/* Task Description */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Task Description (optional)</label>
+            <input
+              type="text"
+              placeholder="Additional instructions for users"
+              value={newTaskDescription}
+              onChange={(e) => setNewTaskDescription(e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            />
+          </div>
+
+          {/* Reward Points */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Reward (aXP)</label>
+            <input
+              type="number"
+              placeholder="10"
+              value={newTaskReward}
+              onChange={(e) => setNewTaskReward(e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+            />
+          </div>
         </div>
+
         <button
           onClick={addTask}
           disabled={!selectedCampaignId || !newTaskTitle.trim()}
@@ -343,6 +481,9 @@ export default function AdminCampaignsPage() {
                     {campaign.description && (
                       <p className="text-sm text-gray-400">{campaign.description}</p>
                     )}
+                    {campaign.rewards && (
+                      <p className="text-sm text-amber-400">🎁 {campaign.rewards}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[campaign.status] || 'bg-gray-600'}`}>
@@ -370,12 +511,37 @@ export default function AdminCampaignsPage() {
                 {campaign.tasks && campaign.tasks.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-600">
                     <div className="text-xs text-gray-400 mb-2">Tasks:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {campaign.tasks.map((task: any) => (
-                        <span key={task.id} className="px-2 py-1 bg-gray-600 rounded text-xs">
-                          {task.title} (+{task.rewardPoints}pts)
-                        </span>
-                      ))}
+                    <div className="space-y-2">
+                      {campaign.tasks.map((task) => {
+                        const taskConfig = TASK_TYPES[task.type as keyof typeof TASK_TYPES] || { icon: '✨', label: task.type };
+                        return (
+                          <div key={task.id} className="flex items-center justify-between bg-gray-600/50 px-3 py-2 rounded">
+                            <div className="flex items-center gap-2">
+                              <span>{taskConfig.icon}</span>
+                              <span className="font-medium">{task.title}</span>
+                              <span className="text-amber-400 text-xs">+{task.rewardPoints} aXP</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {task.targetUrl && (
+                                <a
+                                  href={task.targetUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:underline text-xs"
+                                >
+                                  🔗 URL
+                                </a>
+                              )}
+                              <button
+                                onClick={() => deleteTask(campaign.id, task.id)}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

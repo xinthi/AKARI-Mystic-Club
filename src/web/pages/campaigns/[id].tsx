@@ -1,7 +1,8 @@
 /**
  * Campaign Detail Page
  * 
- * Shows campaign tasks and allows completing them
+ * Shows campaign tasks and allows completing them.
+ * Tasks redirect users to the appropriate destinations (X, Telegram, etc.)
  */
 
 import { useEffect, useState } from 'react';
@@ -14,6 +15,8 @@ interface Task {
   type: string;
   title: string;
   description?: string;
+  targetUrl?: string;
+  rewardPoints?: number;
   [key: string]: any;
 }
 
@@ -33,6 +36,13 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Show toast helper
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Telegram BackButton - navigate to campaigns list
   useEffect(() => {
@@ -102,8 +112,90 @@ export default function CampaignDetailPage() {
     }
   };
 
+  // Get the appropriate icon for task type
+  const getTaskIcon = (type: string): string => {
+    switch (type) {
+      case 'X_FOLLOW':
+        return '👤';
+      case 'X_LIKE':
+        return '❤️';
+      case 'X_RETWEET':
+        return '🔄';
+      case 'TELEGRAM_JOIN':
+        return '📱';
+      case 'VISIT_URL':
+        return '🔗';
+      default:
+        return '✨';
+    }
+  };
+
+  // Get the button label based on task type
+  const getButtonLabel = (type: string): string => {
+    switch (type) {
+      case 'X_FOLLOW':
+        return 'Follow on X';
+      case 'X_LIKE':
+        return 'Like on X';
+      case 'X_RETWEET':
+        return 'Repost on X';
+      case 'TELEGRAM_JOIN':
+        return 'Join Telegram';
+      case 'VISIT_URL':
+        return 'Visit Link';
+      default:
+        return 'Complete Task';
+    }
+  };
+
+  // Open the task URL in appropriate way
+  const openTaskUrl = (task: Task) => {
+    if (!task.targetUrl) return;
+
+    const tg = (window as any).Telegram?.WebApp;
+
+    // For Telegram links, use openTelegramLink
+    if (task.type === 'TELEGRAM_JOIN' && task.targetUrl.includes('t.me')) {
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(task.targetUrl);
+      } else {
+        window.open(task.targetUrl, '_blank');
+      }
+    } 
+    // For X/Twitter links, open externally
+    else if (task.type.startsWith('X_') && (task.targetUrl.includes('twitter.com') || task.targetUrl.includes('x.com'))) {
+      if (tg?.openLink) {
+        tg.openLink(task.targetUrl);
+      } else {
+        window.open(task.targetUrl, '_blank');
+      }
+    }
+    // For other URLs
+    else {
+      if (tg?.openLink) {
+        tg.openLink(task.targetUrl);
+      } else {
+        window.open(task.targetUrl, '_blank');
+      }
+    }
+  };
+
   const completeTask = async (task: Task) => {
     const taskIdentifier = task.taskId || (task as any).id;
+    
+    // If task has a URL, open it first
+    if (task.targetUrl && !task.completed) {
+      openTaskUrl(task);
+      
+      // For X tasks (which can't be verified), mark complete after opening
+      if (task.type.startsWith('X_')) {
+        // Small delay to let the user see they're being redirected
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // For Telegram tasks, the backend will verify
+    }
+
     setCompletingTask(taskIdentifier);
 
     try {
@@ -125,17 +217,17 @@ export default function CampaignDetailPage() {
         body: JSON.stringify({ taskId: taskIdentifier }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to complete task');
+        throw new Error(data.error || data.message || 'Failed to complete task');
       }
 
-      const data = await response.json();
-      alert(data.message);
+      showToast(data.message || 'Task completed!', 'success');
       loadCampaign(); // Reload to show updated progress
     } catch (err: any) {
       console.error('Error completing task:', err);
-      alert(err.message || 'Failed to complete task');
+      showToast(err.message || 'Failed to complete task', 'error');
     } finally {
       setCompletingTask(null);
     }
@@ -163,9 +255,19 @@ export default function CampaignDetailPage() {
   const completedCount = campaign.tasksWithStatus.filter(t => t.completed).length;
   const totalTasks = campaign.tasksWithStatus.length;
   const progress = totalTasks > 0 ? (completedCount / totalTasks) * 100 : 0;
+  const allCompleted = completedCount === totalTasks && totalTasks > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       <header className="p-6 pb-4">
         <button
           onClick={() => router.back()}
@@ -188,10 +290,17 @@ export default function CampaignDetailPage() {
           </div>
           <div className="w-full bg-purple-800/30 rounded-full h-3">
             <div
-              className="bg-purple-500 h-3 rounded-full transition-all"
+              className={`h-3 rounded-full transition-all ${
+                allCompleted ? 'bg-green-500' : 'bg-purple-500'
+              }`}
               style={{ width: `${progress}%` }}
             />
           </div>
+          {allCompleted && (
+            <div className="mt-3 text-green-400 text-sm font-semibold">
+              🎉 All tasks completed! Rewards claimed.
+            </div>
+          )}
         </div>
 
         {/* Rewards */}
@@ -207,7 +316,7 @@ export default function CampaignDetailPage() {
             {campaign.tasksWithStatus.map((task, index) => (
               <div
                 key={task.taskId}
-                className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border ${
+                className={`bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border transition-all ${
                   task.completed
                     ? 'border-green-500/30 bg-green-900/10'
                     : 'border-purple-500/20'
@@ -216,24 +325,48 @@ export default function CampaignDetailPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <div className="font-semibold flex items-center gap-2">
-                      {task.completed ? '✓' : `${index + 1}.`} {task.title || `Task ${index + 1}`}
+                      <span className="text-lg">{getTaskIcon(task.type)}</span>
+                      <span className={task.completed ? 'text-green-300' : ''}>
+                        {index + 1}. {task.title || `Task ${index + 1}`}
+                      </span>
+                      {task.completed && (
+                        <span className="text-green-400">✓</span>
+                      )}
                     </div>
                     {task.description && (
-                      <div className="text-sm text-purple-300 mt-1">{task.description}</div>
+                      <div className="text-sm text-purple-300 mt-1 ml-7">{task.description}</div>
+                    )}
+                    {task.rewardPoints && task.rewardPoints > 0 && (
+                      <div className="text-xs text-amber-400 mt-1 ml-7">
+                        +{task.rewardPoints} aXP
+                      </div>
                     )}
                   </div>
-                  {task.completed && (
-                    <span className="text-green-400 text-sm">Completed</span>
-                  )}
                 </div>
 
-                {!task.completed && (
+                {task.completed ? (
+                  <div className="mt-3 flex items-center justify-center gap-2 py-2 bg-green-600/20 rounded-lg text-green-400 font-semibold">
+                    <span>✓</span>
+                    <span>Completed</span>
+                  </div>
+                ) : (
                   <button
                     onClick={() => completeTask(task)}
                     disabled={completingTask === (task.taskId || (task as any).id)}
-                    className="mt-3 w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:opacity-50 rounded-lg py-2 text-sm font-semibold transition-colors"
+                    className="mt-3 w-full bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:from-purple-800 disabled:to-purple-800 disabled:opacity-50 rounded-lg py-3 font-semibold transition-all flex items-center justify-center gap-2"
                   >
-                    {completingTask === (task.taskId || (task as any).id) ? 'Completing...' : 'Complete Task'}
+                    {completingTask === (task.taskId || (task as any).id) ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{getTaskIcon(task.type)}</span>
+                        <span>{getButtonLabel(task.type)}</span>
+                        {task.targetUrl && <span>→</span>}
+                      </>
+                    )}
                   </button>
                 )}
               </div>
@@ -244,4 +377,3 @@ export default function CampaignDetailPage() {
     </div>
   );
 }
-
