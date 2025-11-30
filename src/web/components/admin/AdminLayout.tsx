@@ -24,6 +24,7 @@ const ADMIN_NAV_ITEMS = [
   { href: '/admin/withdrawals', label: 'Withdrawals', icon: '💸' },
   { href: '/admin/predictions', label: 'Predictions', icon: '🎲' },
   { href: '/admin/campaigns', label: 'Campaigns', icon: '📋' },
+  { href: '/admin/broadcast', label: 'Broadcast', icon: '📢' },
   { href: '/admin/leaderboard', label: 'Analytics', icon: '📊' },
   { href: '/admin/campaign-requests', label: 'Campaign Req', icon: '📝' },
   { href: '/admin/prediction-requests', label: 'Prediction Req', icon: '🎯' },

@@ -66,6 +66,9 @@ model User {
   // Onboarding flags
   hasSeenBotWelcome      Boolean @default(false)
   hasSeenOnboardingGuide Boolean @default(false)
+  
+  // Broadcast preferences
+  allowAnnouncements     Boolean @default(true)
 }
 
 model TwitterAccount {

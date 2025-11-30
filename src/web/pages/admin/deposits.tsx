@@ -1,7 +1,7 @@
 /**
  * Admin Deposits Page
  * 
- * View and manage TON deposits with:
+ * View and manage USDT deposits (on TON chain) with:
  * - Confirm/Decline actions
  * - Date range filtering
  * - CSV export for audit
@@ -142,8 +142,8 @@ export default function AdminDepositsPage() {
     }
 
     const headers = [
-      'ID', 'Date', 'User', 'Telegram ID', 'User Wallet', 'TON Amount', 'USD Value', 
-      'TON Price', 'MYST Estimate', 'MYST Credited', 'Memo', 'Status', 
+      'ID', 'Date', 'User', 'Telegram ID', 'User Wallet', 'USDT Amount', 'USD Value', 
+      'Rate (1:50)', 'MYST Estimate', 'MYST Credited', 'Memo', 'Status', 
       'TX Hash', 'Confirmed At', 'Declined Reason', 'Declined At', 'Declined By'
     ];
 
@@ -188,11 +188,11 @@ export default function AdminDepositsPage() {
   const pendingCount = deposits.filter(d => d.status === 'pending').length;
   const confirmedCount = deposits.filter(d => d.status === 'confirmed').length;
   const declinedCount = deposits.filter(d => d.status === 'declined').length;
-  const totalTon = deposits.reduce((sum, d) => sum + d.tonAmount, 0);
+  const totalUsdt = deposits.reduce((sum, d) => sum + d.tonAmount, 0);
   const totalMyst = deposits.reduce((sum, d) => sum + d.mystEstimate, 0);
 
   return (
-    <AdminLayout title="Deposits" subtitle="Manage pending TON deposits">
+    <AdminLayout title="Deposits" subtitle="Manage USDT deposits (on TON chain)">
       {/* Decline Modal */}
       {declineModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
@@ -240,7 +240,7 @@ export default function AdminDepositsPage() {
           <div>
             <div className="font-semibold text-blue-300 mb-1">Bookkeeping Tip</div>
             <p className="text-sm text-blue-200/80">
-              Users should fund their account using the <strong>same TON wallet</strong> they have connected to their profile. 
+              Users should send USDT (on TON chain) from the <strong>same wallet</strong> they have connected to their profile. 
               Check the &quot;User Wallet&quot; column to verify the sender address matches. Decline spam requests with a reason for audit tracking.
             </p>
           </div>
@@ -340,7 +340,7 @@ export default function AdminDepositsPage() {
           <div className="text-red-200/70 text-sm">Declined</div>
         </div>
         <div className="bg-gray-800 p-4 rounded-lg">
-          <div className="text-2xl font-bold">{totalTon.toFixed(2)} TON</div>
+          <div className="text-2xl font-bold">{totalUsdt.toFixed(2)} USDT</div>
           <div className="text-gray-400 text-sm">{totalMyst.toFixed(0)} MYST</div>
         </div>
       </div>
@@ -360,7 +360,7 @@ export default function AdminDepositsPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-gray-400">User</th>
                   <th className="px-4 py-3 text-left text-gray-400">User Wallet</th>
-                  <th className="px-4 py-3 text-center text-gray-400">TON</th>
+                  <th className="px-4 py-3 text-center text-gray-400">USDT</th>
                   <th className="px-4 py-3 text-center text-gray-400">USD</th>
                   <th className="px-4 py-3 text-center text-gray-400">MYST</th>
                   <th className="px-4 py-3 text-left text-gray-400">Memo</th>
@@ -427,7 +427,7 @@ export default function AdminDepositsPage() {
                         <div className="flex gap-1 justify-center">
                           <button
                             onClick={() => {
-                              const txHash = prompt('Enter TON transaction hash:');
+                              const txHash = prompt('Enter USDT transaction hash (TON chain):');
                               if (txHash) confirmDeposit(d.id, txHash);
                             }}
                             className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs"

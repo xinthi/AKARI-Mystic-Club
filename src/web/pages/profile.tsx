@@ -40,11 +40,10 @@ type ProfileResponse =
 
 interface WithdrawSummary {
   mystBurned: number;
-  tonPriceUsd: number;
   usdGross: number;
   usdFee: number;
   usdNet: number;
-  tonAmount: number;
+  usdtAmount: number;
 }
 
 export default function ProfilePage() {
@@ -69,9 +68,8 @@ export default function ProfilePage() {
   const [withdrawMessage, setWithdrawMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [withdrawSummary, setWithdrawSummary] = useState<WithdrawSummary | null>(null);
 
-  // Buy MYST state
-  const [buyTonAmount, setBuyTonAmount] = useState('');
-  const [tonPriceUsd, setTonPriceUsd] = useState<number | null>(null);
+  // Buy MYST state (USDT on TON Chain)
+  const [buyUsdtAmount, setBuyUsdtAmount] = useState('');
   const [buyingMyst, setBuyingMyst] = useState(false);
   const [buyMessage, setBuyMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [depositInfo, setDepositInfo] = useState<{
@@ -291,27 +289,17 @@ export default function ProfilePage() {
   // Withdrawal Functions
   // ========================================
 
-  // Fetch TON price on load
-  useEffect(() => {
-    fetch('/api/price/ton')
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && data.priceUsd) {
-          setTonPriceUsd(data.priceUsd);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
+  // USDT conversion: 1 USDT = 50 MYST (fixed rate)
+  const MYST_PER_USDT = 50;
+  
   // Calculate MYST estimate for buy section
-  const buyTonNum = parseFloat(buyTonAmount) || 0;
-  const buyUsdEstimate = buyTonNum * (tonPriceUsd || 0);
-  const buyMystEstimate = buyUsdEstimate * 50; // MYST_PER_USD
+  const buyUsdtNum = parseFloat(buyUsdtAmount) || 0;
+  const buyMystEstimate = buyUsdtNum * MYST_PER_USDT;
 
   const submitDepositIntent = async () => {
-    const tonAmount = parseFloat(buyTonAmount);
-    if (isNaN(tonAmount) || tonAmount < 0.1) {
-      setBuyMessage({ text: 'Minimum deposit is 0.1 TON', type: 'error' });
+    const usdtAmount = parseFloat(buyUsdtAmount);
+    if (isNaN(usdtAmount) || usdtAmount < 1) {
+      setBuyMessage({ text: 'Minimum deposit is 1 USDT', type: 'error' });
       return;
     }
 
@@ -320,13 +308,13 @@ export default function ProfilePage() {
 
     try {
       const initData = getInitData();
-      const response = await fetch('/api/ton/deposit-intent', {
+      const response = await fetch('/api/usdt/deposit-intent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-telegram-init-data': initData,
         },
-        body: JSON.stringify({ tonAmount }),
+        body: JSON.stringify({ usdtAmount }),
       });
 
       const data = await response.json();
@@ -338,7 +326,7 @@ export default function ProfilePage() {
           mystEstimate: data.deposit.mystEstimate,
         });
         setBuyMessage({ text: 'Deposit intent recorded!', type: 'success' });
-        setBuyTonAmount('');
+        setBuyUsdtAmount('');
       } else {
         setBuyMessage({ text: data.message || 'Failed to create deposit', type: 'error' });
       }
@@ -557,21 +545,21 @@ export default function ProfilePage() {
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-5 border border-purple-500/20">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🏧</span>
-            <h2 className="text-lg font-semibold">Withdraw MYST</h2>
+            <h2 className="text-lg font-semibold">Withdraw MYST → USDT</h2>
           </div>
 
           <p className="text-sm text-purple-300 mb-2">
-            Minimum withdrawal is 50 USD. A 5% fee applies.
+            Minimum withdrawal is $50 USD. A 2% fee applies. Paid in USDT (TON chain).
           </p>
           <p className="text-sm text-amber-300 mb-4">
             You have <strong>{mystBalance.toLocaleString()}</strong> MYST
           </p>
 
-          {/* Warning if no TON wallet */}
+          {/* Warning if no wallet */}
           {!hasTonWallet && (
             <div className="bg-amber-900/30 border border-amber-500/30 rounded-lg p-3 mb-4">
               <p className="text-sm text-amber-200">
-                ⚠️ Please connect your TON wallet first to enable withdrawals.
+                ⚠️ Please connect your wallet first to enable withdrawals.
               </p>
             </div>
           )}
@@ -591,12 +579,12 @@ export default function ProfilePage() {
               <div className="text-green-200 font-semibold mb-2">✅ Withdrawal Request Submitted</div>
               <div className="text-green-300">You burned: <strong>{withdrawSummary.mystBurned.toFixed(2)}</strong> MYST</div>
               <div className="text-green-300">Approx value: <strong>${withdrawSummary.usdGross.toFixed(2)}</strong> USD</div>
-              <div className="text-green-300">Fee (5%): <strong>${withdrawSummary.usdFee.toFixed(2)}</strong> USD</div>
+              <div className="text-green-300">Fee (2%): <strong>${withdrawSummary.usdFee.toFixed(2)}</strong> USD</div>
               <div className="text-green-300">
-                You will receive: <strong>{withdrawSummary.tonAmount.toFixed(4)}</strong> TON @ ${withdrawSummary.tonPriceUsd.toFixed(2)}/TON
+                You will receive: <strong>{withdrawSummary.usdtAmount.toFixed(2)}</strong> USDT
               </div>
               <div className="mt-2 pt-2 border-t border-green-500/30 text-green-200 text-xs">
-                Admin will send TON to your linked wallet soon.
+                Admin will send USDT (TON chain) to your linked wallet soon.
               </div>
             </div>
           )}
@@ -629,12 +617,13 @@ export default function ProfilePage() {
         </div>
 
         {/* ========================================
-            Buy MYST with TON Section
+            Buy MYST with USDT (TON Chain) Section
         ======================================== */}
         <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-lg rounded-xl p-5 border border-blue-500/30">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">💎</span>
-            <h2 className="text-lg font-semibold">Buy MYST with TON</h2>
+            <h2 className="text-lg font-semibold">Buy MYST with USDT</h2>
+            <span className="text-xs bg-blue-600/50 px-2 py-0.5 rounded">TON Chain</span>
           </div>
 
           {buyMessage && (
@@ -650,7 +639,7 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <div className="bg-gray-900/50 p-4 rounded-lg space-y-3">
                 <div>
-                  <div className="text-xs text-gray-400 mb-1">Treasury TON Address</div>
+                  <div className="text-xs text-gray-400 mb-1">Treasury Address (USDT on TON)</div>
                   <div className="flex items-center gap-2">
                     <code className="text-sm text-blue-300 break-all">{depositInfo.treasuryAddress}</code>
                     <button
@@ -680,7 +669,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <p className="text-xs text-gray-400">
-                ⚠️ Include the memo when sending! MYST will be credited after on-chain confirmation.
+                ⚠️ Send USDT on TON network only! Include the memo. MYST credited after admin confirmation.
               </p>
               <button
                 onClick={() => setDepositInfo(null)}
@@ -693,39 +682,36 @@ export default function ProfilePage() {
             // Show input form
             <div className="space-y-3">
               <p className="text-sm text-purple-300">
-                Send TON to our treasury and receive MYST tokens. Rate: 1 USD = 50 MYST
+                Send USDT (on TON chain) and receive MYST tokens.
               </p>
+              <div className="text-xs text-amber-300 bg-amber-900/30 px-3 py-2 rounded-lg">
+                Rate: 1 USDT = 50 MYST
+              </div>
               
               <div>
                 <input
                   type="number"
-                  value={buyTonAmount}
-                  onChange={(e) => setBuyTonAmount(e.target.value)}
-                  placeholder="Enter TON amount (min 0.1)"
-                  step="0.1"
-                  min="0.1"
+                  value={buyUsdtAmount}
+                  onChange={(e) => setBuyUsdtAmount(e.target.value)}
+                  placeholder="Enter USDT amount (min 1)"
+                  step="1"
+                  min="1"
                   className="w-full bg-purple-800/30 border border-purple-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-purple-400 focus:outline-none focus:border-purple-400"
                 />
-                {buyTonNum > 0 && tonPriceUsd && (
+                {buyUsdtNum > 0 && (
                   <div className="mt-2 text-sm text-purple-300">
-                    ≈ ${buyUsdEstimate.toFixed(2)} USD → <span className="text-amber-300 font-semibold">{buyMystEstimate.toFixed(0)} MYST</span>
+                    You will receive ≈ <span className="text-amber-300 font-semibold">{buyMystEstimate.toFixed(0)} MYST</span>
                   </div>
                 )}
               </div>
 
               <button
                 onClick={submitDepositIntent}
-                disabled={buyingMyst || buyTonNum < 0.1}
+                disabled={buyingMyst || buyUsdtNum < 1}
                 className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:from-gray-600 disabled:to-gray-600 disabled:opacity-50 rounded-xl font-semibold text-sm transition-all"
               >
-                {buyingMyst ? 'Processing...' : "I'm Ready to Send TON"}
+                {buyingMyst ? 'Processing...' : "I'm Ready to Send USDT"}
               </button>
-
-              {tonPriceUsd && (
-                <p className="text-xs text-center text-gray-500">
-                  Current TON price: ${tonPriceUsd.toFixed(2)} USD
-                </p>
-              )}
             </div>
           )}
         </div>

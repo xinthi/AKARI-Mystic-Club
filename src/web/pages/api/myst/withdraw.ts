@@ -3,19 +3,17 @@
  * 
  * POST /api/myst/withdraw
  * 
- * Allows users to withdraw MYST by burning it in exchange for TON.
- * Uses live TON price from Binance.
+ * Allows users to withdraw MYST by burning it in exchange for USDT (on TON chain).
  * 
  * Economic model:
  * - 1 USD = 50 MYST (fixed)
  * - 1 MYST = 0.02 USD (fixed)
- * - TON price: live from Binance
+ * - USDT is 1:1 with USD
  * - Fee: 2% of USD value
  * - Minimum: $50 USD gross
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getTonPriceUsd } from '../../../lib/ton-price';
 import { MYST_PER_USD, USD_PER_MYST, getMystBalance, POOL_IDS } from '../../../lib/myst-service';
 import { prisma } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
@@ -28,11 +26,10 @@ interface WithdrawResponse {
   ok: boolean;
   summary?: {
     mystBurned: number;
-    tonPriceUsd: number;
     usdGross: number;
     usdFee: number;
     usdNet: number;
-    tonAmount: number;
+    usdtAmount: number;
   };
   message?: string;
 }
@@ -53,7 +50,7 @@ export default async function handler(
       return res.status(401).json({ ok: false, message: 'Unauthorized' });
     }
 
-    // Get user's TON address
+    // Get user's wallet address
     const fullUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { tonAddress: true },
@@ -62,7 +59,7 @@ export default async function handler(
     if (!fullUser?.tonAddress) {
       return res.status(400).json({ 
         ok: false, 
-        message: 'Please connect your TON wallet first' 
+        message: 'Please connect your wallet first' 
       });
     }
 
@@ -97,10 +94,9 @@ export default async function handler(
     // Apply 2% fee
     const usdFee = usdGross * WITHDRAW_FEE_RATE;
     const usdNet = usdGross - usdFee;
-
-    // Fetch live TON price
-    const tonPriceUsd = await getTonPriceUsd();
-    const tonAmount = usdNet / tonPriceUsd;
+    
+    // USDT amount is 1:1 with USD
+    const usdtAmount = usdNet;
 
     // Create withdrawal in transaction
     const withdrawal = await prisma.$transaction(async (tx) => {
@@ -111,20 +107,19 @@ export default async function handler(
           type: 'withdraw_burn',
           amount: -mystAmount,
           meta: JSON.parse(JSON.stringify({
-            purpose: 'withdrawal',
+            purpose: 'withdrawal_usdt',
             usdGross,
             usdFee,
             usdNet,
-            tonPriceUsd,
-            tonAmount,
+            usdtAmount,
           })),
         },
       });
 
-      // Credit fee to treasury pool
+      // Credit fee to treasury pool (convert fee back to MYST for pool)
       await tx.poolBalance.upsert({
         where: { id: POOL_IDS.TREASURY },
-        update: { balance: { increment: usdFee * MYST_PER_USD } }, // Convert fee back to MYST for pool
+        update: { balance: { increment: usdFee * MYST_PER_USD } },
         create: { id: POOL_IDS.TREASURY, balance: usdFee * MYST_PER_USD },
       });
 
@@ -134,11 +129,11 @@ export default async function handler(
           userId: user.id,
           tonAddress: fullUser.tonAddress!,
           mystRequested: mystAmount,
-          mystFee: usdFee * MYST_PER_USD, // Fee in MYST terms
+          mystFee: usdFee * MYST_PER_USD,
           mystBurn: mystAmount,
           usdNet,
-          tonAmount,
-          tonPriceUsd,
+          tonAmount: usdtAmount, // Storing USDT amount in tonAmount field for backward compat
+          tonPriceUsd: 1.0, // USDT is always 1:1
           status: 'pending',
         },
       });
@@ -146,19 +141,18 @@ export default async function handler(
       return req;
     });
 
-    console.log(`[Withdraw] Created: ${withdrawal.id} | ${mystAmount} MYST → ${tonAmount.toFixed(4)} TON @ $${tonPriceUsd.toFixed(2)}/TON`);
+    console.log(`[Withdraw] Created: ${withdrawal.id} | ${mystAmount} MYST → ${usdtAmount.toFixed(2)} USDT`);
 
     return res.status(200).json({
       ok: true,
       summary: {
         mystBurned: mystAmount,
-        tonPriceUsd,
         usdGross,
         usdFee,
         usdNet,
-        tonAmount,
+        usdtAmount,
       },
-      message: 'Withdrawal request created. Admin will process your TON payout manually.',
+      message: 'Withdrawal request created. Admin will send USDT manually.',
     });
 
   } catch (error: unknown) {
