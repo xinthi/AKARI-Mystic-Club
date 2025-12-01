@@ -6,11 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { webhookCallback } from 'grammy';
 import { bot } from '../../lib/telegram-bot';
-
-// Create webhook handler using Grammy's webhookCallback
-const handleUpdate = webhookCallback(bot, 'http');
 
 // Configure Next.js to use raw body for Telegram webhook
 export const config = {
@@ -42,10 +38,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Handle update using Grammy's webhookCallback
-    await handleUpdate(req, res);
+    // Log incoming update for debugging
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const rawBody = Buffer.concat(chunks).toString('utf8');
     
-    // Ensure response is sent if handler didn't send one
+    let updateData;
+    try {
+      updateData = JSON.parse(rawBody);
+    } catch {
+      console.error('Telegram webhook: Failed to parse body');
+      return res.status(400).json({ ok: false, error: 'Invalid JSON' });
+    }
+    
+    // Log what type of update we received
+    const updateType = updateData.message ? 'message' : 
+                       updateData.callback_query ? 'callback_query' :
+                       updateData.my_chat_member ? 'my_chat_member' :
+                       updateData.chat_member ? 'chat_member' :
+                       'other';
+    
+    const chatId = updateData.message?.chat?.id || 
+                   updateData.callback_query?.message?.chat?.id ||
+                   updateData.my_chat_member?.chat?.id;
+    
+    const text = updateData.message?.text || '';
+    const isCommand = text.startsWith('/');
+    
+    console.log(`[Webhook] Received: ${updateType}, chat: ${chatId}, text: ${text.substring(0, 50)}`);
+    
+    // Handle update using Grammy's bot.handleUpdate directly
+    await bot.handleUpdate(updateData);
+    
+    console.log(`[Webhook] Processed: ${updateType}`);
+    
+    // Send success response
     if (!res.headersSent) {
       return res.status(200).json({ ok: true });
     }
