@@ -33,6 +33,9 @@ interface CampaignInfo {
   name: string;
   winnerCount: number;
   winnersSelected: boolean;
+  selectionRuns: number;
+  endsAt: string;
+  hasEnded: boolean;
   totalTasks: number;
   referralBonus: number;
 }
@@ -83,11 +86,15 @@ export default function CampaignParticipantsPage() {
   }, [id, loadParticipants, router]);
 
   const handleSelectWinners = async () => {
-    if (!id || selecting) return;
+    if (!id || selecting || !campaign?.hasEnded) return;
 
     const effectiveWinnerCount = Math.min(selectedWinnerCount, participants.length);
+    const runNumber = (campaign?.selectionRuns || 0) + 1;
+    const confirmMsg = campaign?.winnersSelected
+      ? `Run ${runNumber}: Are you sure you want to re-select the top ${effectiveWinnerCount} participants as winners?\n\nThis will create a new selection run (previous runs are preserved).`
+      : `Are you sure you want to select the top ${effectiveWinnerCount} participants as winners?`;
     
-    if (!confirm(`Are you sure you want to select the top ${effectiveWinnerCount} participants as winners?`)) {
+    if (!confirm(confirmMsg)) {
       return;
     }
 
@@ -175,10 +182,32 @@ export default function CampaignParticipantsPage() {
         </div>
       )}
 
+      {/* Campaign Status Banner */}
+      {!campaign.hasEnded && (
+        <div className="mb-4 p-3 rounded-lg bg-yellow-900/50 text-yellow-300 flex items-center gap-2">
+          <span>⏳</span>
+          <span>
+            Campaign ends on {new Date(campaign.endsAt).toLocaleDateString()} at {new Date(campaign.endsAt).toLocaleTimeString()}. 
+            Winners can only be selected after the campaign ends.
+          </span>
+        </div>
+      )}
+
+      {/* Selection Runs History */}
+      {campaign.selectionRuns > 0 && (
+        <div className="mb-4 p-3 rounded-lg bg-blue-900/50 text-blue-300">
+          <span className="font-medium">📊 Winner Selection History:</span>
+          <span className="ml-2">
+            {campaign.selectionRuns} run{campaign.selectionRuns > 1 ? 's' : ''} completed
+            {campaign.winnersSelected && ` • Latest: Top ${campaign.winnerCount} winners`}
+          </span>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex flex-wrap gap-3 mb-6 items-center">
         {/* Winner Count Selector */}
-        {!campaign.winnersSelected && (
+        {campaign.hasEnded && (
           <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
             {WINNER_OPTIONS.map((count) => (
               <button
@@ -198,19 +227,23 @@ export default function CampaignParticipantsPage() {
 
         <button
           onClick={handleSelectWinners}
-          disabled={selecting || campaign.winnersSelected || participants.length === 0}
+          disabled={selecting || !campaign.hasEnded || participants.length === 0}
           className={`px-4 py-2 rounded-lg font-medium ${
-            campaign.winnersSelected
-              ? 'bg-green-700/50 text-green-300 cursor-not-allowed'
+            !campaign.hasEnded
+              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
               : participants.length === 0
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              : campaign.winnersSelected
+              ? 'bg-blue-600 hover:bg-blue-500 text-white'
               : 'bg-purple-600 hover:bg-purple-500 text-white'
           }`}
         >
           {selecting 
             ? 'Selecting...' 
+            : !campaign.hasEnded
+            ? '⏳ Waiting for Campaign to End'
             : campaign.winnersSelected 
-            ? `✓ Winners Selected (Top ${campaign.winnerCount})` 
+            ? `🔄 Run Again (Top ${Math.min(selectedWinnerCount, participants.length)}) - Run ${campaign.selectionRuns + 1}` 
             : `🏆 Select Top ${Math.min(selectedWinnerCount, participants.length)} Winners`}
         </button>
 

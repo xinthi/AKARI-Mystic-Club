@@ -48,6 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           referralBonus: true,
           winnerCount: true,
           winnersSelected: true,
+          selectionRuns: true,
+          endsAt: true,
           tasks: {
             select: { id: true, rewardPoints: true },
           },
@@ -136,16 +138,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Sort by total score descending
       participants.sort((a, b) => b.totalScore - a.totalScore);
 
-      // Get existing winners if any
+      // Get existing winners from the latest run
+      const latestRun = campaign.selectionRuns || 0;
       const existingWinners = await prisma.campaignWinner.findMany({
-        where: { campaignId: id },
-        select: { userId: true, rank: true },
+        where: { 
+          campaignId: id,
+          selectionRun: latestRun > 0 ? latestRun : undefined,
+        },
+        select: { userId: true, rank: true, selectionRun: true },
       });
 
-      const winnerMap = new Map<string, number>();
+      const winnerMap = new Map<string, { rank: number; run: number }>();
       existingWinners.forEach((w) => {
-        winnerMap.set(w.userId, w.rank);
+        winnerMap.set(w.userId, { rank: w.rank, run: w.selectionRun });
       });
+
+      // Check if campaign has ended
+      const now = new Date();
+      const hasEnded = campaign.endsAt <= now;
 
       return res.status(200).json({
         ok: true,
@@ -154,6 +164,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           name: campaign.name,
           winnerCount: campaign.winnerCount || 25,
           winnersSelected: campaign.winnersSelected || false,
+          selectionRuns: campaign.selectionRuns || 0,
+          endsAt: campaign.endsAt.toISOString(),
+          hasEnded,
           totalTasks: campaign.tasks.length,
           referralBonus: campaign.referralBonus || 5,
         },
@@ -161,7 +174,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ...p,
           rank: idx + 1,
           isWinner: winnerMap.has(p.userId),
-          winnerRank: winnerMap.get(p.userId),
+          winnerRank: winnerMap.get(p.userId)?.rank,
+          winnerRun: winnerMap.get(p.userId)?.run,
         })),
         totalParticipants: participants.length,
       });

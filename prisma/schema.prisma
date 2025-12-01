@@ -289,6 +289,7 @@ model Campaign {
   winnerCount      Int       @default(25) // 25, 50, or 100 winners
   referralBonus    Int       @default(5)  // Bonus aXP per referral
   winnersSelected  Boolean   @default(false)
+  selectionRuns    Int       @default(0)  // Number of times winners have been selected
   
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -327,11 +328,13 @@ model CampaignWinner {
   totalPoints  Int       // Points earned in this campaign
   tasksCompleted Int     // Number of tasks completed
   referralCount Int      @default(0) // Number of friends referred
+  selectionRun Int       @default(1) // Which run (1, 2, 3, etc.)
   
   createdAt    DateTime  @default(now())
   
-  @@unique([campaignId, userId])
+  @@unique([campaignId, userId, selectionRun])
   @@index([campaignId, rank])
+  @@index([campaignId, selectionRun])
 }
 
 model CampaignTask {

@@ -38,6 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         referralBonus: true,
         winnerCount: true,
         winnersSelected: true,
+        selectionRuns: true,
+        endsAt: true,
         tasks: {
           select: { id: true, rewardPoints: true },
         },
@@ -48,8 +50,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ ok: false, message: 'Campaign not found' });
     }
 
-    if (campaign.winnersSelected) {
-      return res.status(400).json({ ok: false, message: 'Winners already selected for this campaign' });
+    // Check if campaign has ended
+    const now = new Date();
+    if (campaign.endsAt > now) {
+      return res.status(400).json({ 
+        ok: false, 
+        message: `Cannot select winners before campaign ends. Campaign ends on ${campaign.endsAt.toLocaleDateString()} at ${campaign.endsAt.toLocaleTimeString()}.` 
+      });
     }
 
     // Get all completed task progress
@@ -134,10 +141,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, message: 'No participants to select as winners' });
     }
 
-    // Delete existing winners (if re-running)
-    await prisma.campaignWinner.deleteMany({ where: { campaignId: id } });
+    // Calculate the new run number
+    const newRunNumber = (campaign.selectionRuns || 0) + 1;
 
-    // Insert winners
+    // Insert winners with run number (don't delete old runs)
     const winnerData = winners.map((w, idx) => ({
       campaignId: id,
       userId: w.userId,
@@ -145,25 +152,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       totalPoints: w.totalScore,
       tasksCompleted: w.tasksCompleted,
       referralCount: w.referralCount,
+      selectionRun: newRunNumber,
     }));
 
     await prisma.campaignWinner.createMany({ data: winnerData });
 
-    // Mark campaign as winners selected and update winner count
+    // Mark campaign as winners selected, update winner count and run number
     await prisma.campaign.update({
       where: { id },
       data: { 
         winnersSelected: true,
         winnerCount: finalWinnerCount,
+        selectionRuns: newRunNumber,
       },
     });
 
-    console.log(`[Admin/SelectWinners] Selected ${winners.length} winners for campaign ${id}`);
+    console.log(`[Admin/SelectWinners] Run ${newRunNumber}: Selected ${winners.length} winners for campaign ${id}`);
 
     return res.status(200).json({
       ok: true,
-      message: `Selected ${winners.length} winners`,
+      message: `Run ${newRunNumber}: Selected ${winners.length} winners`,
       winnersCount: winners.length,
+      runNumber: newRunNumber,
       topWinner: winners[0] ? {
         userId: winners[0].userId,
         score: winners[0].totalScore,
