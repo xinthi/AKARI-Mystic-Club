@@ -12,7 +12,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 import { getUserFromRequest } from '../../../../lib/telegram-auth';
 import { getMystBalance, creditMyst, MYST_CONFIG } from '../../../../lib/myst-service';
 
@@ -159,7 +159,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       }
 
       // Check MYST balance
-      const mystBalance = await getMystBalance(prisma, user.id);
+      const mystBalance = await withDbRetry(() => getMystBalance(prisma, user.id));
       if (mystBalance < mystBet) {
         res.status(400).json({ ok: false, reason: `Insufficient MYST. Have: ${mystBalance}, Need: ${mystBet}` });
         return;
@@ -167,14 +167,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
       // ECONOMIC MODEL: Debit FULL bet amount - NO SPLITS AT BET TIME
       // The entire bet goes into the pool. Fees are taken only on resolution.
-      await prisma.mystTransaction.create({
+      await withDbRetry(() => prisma.mystTransaction.create({
         data: {
           userId: user.id,
           type: 'spend_bet',
           amount: -mystBet,
           meta: { predictionId: id, option: resolvedOption },
         },
-      });
+      }));
 
     } else if (prediction.entryFeeStars > 0) {
       // Legacy Stars betting
@@ -240,7 +240,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     // Get new MYST balance if MYST was used
     let newMystBalance: number | undefined;
     if (mystBet > 0) {
-      newMystBalance = await getMystBalance(prisma, user.id);
+      newMystBalance = await withDbRetry(() => getMystBalance(prisma, user.id));
     }
 
     res.status(200).json({

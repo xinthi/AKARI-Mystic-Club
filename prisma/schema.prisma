@@ -109,6 +109,8 @@ model MystTransaction {
   @@index([userId])
   @@index([type])
   @@index([createdAt])
+  @@index([userId, type])
+  @@index([userId, createdAt])
 }
 
 // Referral Events - tracks when users spend MYST and referrers earn rewards
@@ -267,6 +269,8 @@ model Bet {
   createdAt    DateTime    @default(now())
 
   @@unique([userId, predictionId]) // One bet per user per prediction
+  @@index([predictionId])
+  @@index([userId, createdAt])
 }
 
 // ============================================
@@ -298,6 +302,9 @@ model Campaign {
   progress     CampaignUserProgress[]
   referrals    CampaignReferral[]
   winners      CampaignWinner[]
+  
+  @@index([status])
+  @@index([endsAt])
 }
 
 // Track campaign-specific referrals
@@ -395,6 +402,8 @@ model CampaignUserProgress {
   updatedAt    DateTime     @updatedAt
 
   @@unique([userId, taskId])
+  @@index([campaignId, userId])
+  @@index([userId, completed])
 }
 
 // ============================================

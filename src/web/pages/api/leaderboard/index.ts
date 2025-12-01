@@ -17,7 +17,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 
 interface LeaderboardEntry {
   rank: number;
@@ -77,7 +77,7 @@ export default async function handler(
       // MYST Spent Leaderboard
       const startTime = period === 'week' ? weekStart : new Date(0);
       
-      const spentData = await prisma.mystTransaction.groupBy({
+      const spentData = await withDbRetry(() => prisma.mystTransaction.groupBy({
         by: ['userId'],
         where: {
           type: { in: ['spend_bet', 'spend_boost', 'spend_campaign', 'bet', 'campaign_fee', 'boost'] },
@@ -87,14 +87,14 @@ export default async function handler(
         _sum: { amount: true },
         orderBy: { _sum: { amount: 'asc' } }, // Most negative = most spent
         take: 50,
-      });
+      }));
 
       // Get user details
       const userIds = spentData.map((d) => d.userId);
-      const users = await prisma.user.findMany({
+      const users = await withDbRetry(() => prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, username: true, tier: true, points: true },
-      });
+      }));
 
       const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -115,7 +115,7 @@ export default async function handler(
       // Referral Earnings Leaderboard (MYST earned from referral rewards)
       const startTime = period === 'week' ? weekStart : new Date(0);
       
-      const referralData = await prisma.mystTransaction.groupBy({
+      const referralData = await withDbRetry(() => prisma.mystTransaction.groupBy({
         by: ['userId'],
         where: {
           type: { in: ['referral_reward_l1', 'referral_reward_l2', 'referral_reward'] },
@@ -125,14 +125,14 @@ export default async function handler(
         _sum: { amount: true },
         orderBy: { _sum: { amount: 'desc' } },
         take: 50,
-      });
+      }));
 
       // Get user details
       const userIds = referralData.map((d) => d.userId);
-      const users = await prisma.user.findMany({
+      const users = await withDbRetry(() => prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, username: true, tier: true, points: true },
-      });
+      }));
 
       const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -151,7 +151,7 @@ export default async function handler(
 
     } else {
       // Default: Points (aXP) Leaderboard
-      const users = await prisma.user.findMany({
+      const users = await withDbRetry(() => prisma.user.findMany({
         where: { points: { gt: 0 } },
         orderBy: { points: 'desc' },
         take: 50,
@@ -164,7 +164,7 @@ export default async function handler(
             },
           },
         },
-      });
+      }));
 
       leaderboard = users.map((u, idx) => ({
         rank: idx + 1,

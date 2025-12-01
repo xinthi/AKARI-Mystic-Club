@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 import { getMystBalance } from '../../../lib/myst-service';
 
@@ -39,10 +39,10 @@ export default async function handler(
     }
 
     // Get balance
-    const balance = await getMystBalance(prisma, user.id);
+    const balance = await withDbRetry(() => getMystBalance(prisma, user.id));
 
     // Get recent transactions (last 20)
-    const recentTransactions = await prisma.mystTransaction.findMany({
+    const recentTransactions = await withDbRetry(() => prisma.mystTransaction.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -52,7 +52,7 @@ export default async function handler(
         amount: true,
         createdAt: true,
       },
-    });
+    }));
 
     return res.status(200).json({
       ok: true,

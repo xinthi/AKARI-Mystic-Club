@@ -41,12 +41,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
+  // Set timeout for webhook processing (25 seconds - Telegram allows up to 30s)
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      console.warn('[Webhook] Request timeout - sending 200 to prevent retry');
+      res.status(200).json({ ok: true, timeout: true });
+    }
+  }, 25000);
+
   try {
     console.log('[Webhook] Processing update...');
     
     // Handle update using Grammy's webhookCallback
     await handleUpdate(req, res);
     
+    clearTimeout(timeout);
     console.log('[Webhook] Update processed successfully');
     
     // Ensure response is sent if handler didn't send one
@@ -54,6 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true });
     }
   } catch (error: any) {
+    clearTimeout(timeout);
     console.error('[Webhook] Error:', error.message);
     console.error('[Webhook] Stack:', error.stack);
     

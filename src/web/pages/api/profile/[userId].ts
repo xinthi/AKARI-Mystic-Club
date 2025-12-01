@@ -5,7 +5,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 interface ProfileResponse {
@@ -48,7 +48,7 @@ export default async function handler(
     }
 
     // Get the requested user's profile
-    const user = await prisma.user.findUnique({
+    const user = await withDbRetry(() => prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -60,7 +60,7 @@ export default async function handler(
         positiveReviews: true,
         negativeReviews: true,
       },
-    });
+    }));
 
     if (!user) {
       return res.status(404).json({ ok: false, message: 'User not found' });

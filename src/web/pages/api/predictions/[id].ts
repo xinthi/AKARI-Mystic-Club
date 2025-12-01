@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 type Data =
@@ -14,14 +14,14 @@ export default async function handler(
 
   try {
     if (req.method === 'GET') {
-      const prediction = await prisma.prediction.findUnique({
+      const prediction = await withDbRetry(() => prisma.prediction.findUnique({
         where: { id },
         include: {
           _count: {
             select: { bets: true },
           },
         },
-      });
+      }));
 
       if (!prediction) {
         return res.status(404).json({ ok: false, prediction: null, reason: 'Prediction not found' });
@@ -40,12 +40,12 @@ export default async function handler(
       let userBet: any = null;
       const user = await getUserFromRequest(req, prisma);
       if (user) {
-        const existingBet = await prisma.bet.findFirst({
+        const existingBet = await withDbRetry(() => prisma.bet.findFirst({
           where: {
             predictionId: prediction.id,
             userId: user.id,
           },
-        });
+        }));
 
         if (existingBet) {
           // Find the option index from the option string

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 type Data =
@@ -7,7 +7,7 @@ type Data =
   | { ok: false; predictions: any[]; reason: string };
 
 async function seedPredictions() {
-  const count = await prisma.prediction.count();
+  const count = await withDbRetry(() => prisma.prediction.count());
   if (count > 0) return;
 
   const btcEnds = new Date('2025-12-31T23:59:59Z');
@@ -88,7 +88,7 @@ export default async function handler(
       if (resolved === 'false') where.resolved = false;
       if (resolved === 'true') where.resolved = true;
 
-      const predictions = await prisma.prediction.findMany({
+      const predictions = await withDbRetry(() => prisma.prediction.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -96,7 +96,7 @@ export default async function handler(
             select: { bets: true },
           },
         },
-      });
+      }));
 
       // Helper to derive category from prediction id/title
       const deriveCategory = (id: string, title: string): string => {
@@ -170,7 +170,7 @@ export default async function handler(
         return res.status(400).json({ ok: false, predictions: [], reason: 'endsAt must be in the future' });
       }
 
-      const created = await prisma.prediction.create({
+      const created = await withDbRetry(() => prisma.prediction.create({
         data: {
           title,
           description,
@@ -179,7 +179,7 @@ export default async function handler(
           entryFeePoints: Number(entryFeePoints || 0),
           endsAt: endsAtDate,
         },
-      });
+      }));
 
       return res.status(201).json({ ok: true, predictions: [created] });
     }

@@ -43,7 +43,7 @@ function parseInitDataUser(initData: string, botToken: string): string | null {
 }
 
 async function seedCampaigns() {
-  const count = await prisma.campaign.count();
+  const count = await withDbRetry(() => prisma.campaign.count());
   if (count > 0) return;
 
   const endsAt = new Date('2026-01-01T23:59:59Z');
@@ -115,10 +115,10 @@ export default async function handler(
       // Find user if authenticated
       let dbUser: { id: string } | null = null;
       if (telegramId) {
-        dbUser = await prisma.user.findUnique({
+        dbUser = await withDbRetry(() => prisma.user.findUnique({
           where: { telegramId },
           select: { id: true },
-        });
+        }));
       }
 
       // Get all campaigns (backward compatible - no status filter if column doesn't exist yet)
@@ -129,7 +129,7 @@ export default async function handler(
       
       try {
         // Try with status filter first (new schema)
-        campaigns = await prisma.campaign.findMany({
+        campaigns = await withDbRetry(() => prisma.campaign.findMany({
           where: {
             OR: [
               { status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
@@ -150,7 +150,7 @@ export default async function handler(
       } catch (statusError) {
         // Fallback: query without status filter (old schema)
         console.warn('[Campaigns] Status field not available, using fallback query');
-        campaigns = await prisma.campaign.findMany({
+        campaigns = await withDbRetry(() => prisma.campaign.findMany({
           where: {
             endsAt: { gte: sixMonthsAgo },
           },
@@ -161,15 +161,15 @@ export default async function handler(
             },
           },
           orderBy: { createdAt: 'desc' },
-        });
+        }));
       }
 
       // Get user progress if authenticated
       let userProgressMap: Map<string, boolean> = new Map();
       if (dbUser) {
-        const progress = await prisma.campaignUserProgress.findMany({
+        const progress = await withDbRetry(() => prisma.campaignUserProgress.findMany({
           where: { userId: dbUser.id },
-        });
+        }));
         progress.forEach((p) => {
           userProgressMap.set(p.taskId, p.completed);
         });

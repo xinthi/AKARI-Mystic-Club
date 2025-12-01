@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 /**
  * Parse Telegram initData to get user telegramId
@@ -43,10 +43,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (req.method === 'GET') {
-      const campaign = await prisma.campaign.findUnique({
+      const campaign = await withDbRetry(() => prisma.campaign.findUnique({
         where: { id },
         include: { tasks: true },
-      });
+      }));
 
       if (!campaign) {
         return res.status(404).json({ ok: false, campaign: null, reason: 'Campaign not found' });
@@ -59,18 +59,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Get user progress if authenticated
       let userProgress: { taskId: string; completed: boolean }[] = [];
       if (telegramId) {
-        const dbUser = await prisma.user.findUnique({
+        const dbUser = await withDbRetry(() => prisma.user.findUnique({
           where: { telegramId },
           select: { id: true },
-        });
+        }));
 
         if (dbUser) {
-          const progress = await prisma.campaignUserProgress.findMany({
+          const progress = await withDbRetry(() => prisma.campaignUserProgress.findMany({
             where: {
               userId: dbUser.id,
               campaignId: id,
             },
-          });
+          }));
           userProgress = progress.map((p) => ({
             taskId: p.taskId,
             completed: p.completed,
