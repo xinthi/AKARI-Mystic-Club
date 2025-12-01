@@ -4,16 +4,19 @@
  * POST: Place a bet on a prediction
  * Supports both legacy (points) and new (MYST) betting.
  * 
- * ECONOMIC MODEL:
- * - The ENTIRE bet amount goes into the prediction pool
- * - NO tax or fee is applied at bet time
- * - Fees are only applied when the prediction is RESOLVED (10% of losing side)
+ * ECONOMIC MODEL (MYST bets):
+ * - When user bets S MYST:
+ *   - 15% → Leaderboard pool
+ *   - 10% → Referral pool (8% L1, 2% L2)
+ *   - 5% → Wheel pool
+ *   - 70% → Prediction pool (what winners can win)
+ * - Referral rewards are paid immediately when bet is placed
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../lib/prisma';
 import { getUserFromRequest } from '../../../../lib/telegram-auth';
-import { getMystBalance, creditMyst, MYST_CONFIG } from '../../../../lib/myst-service';
+import { getMystBalance, creditMyst, MYST_CONFIG, spendMyst } from '../../../../lib/myst-service';
 
 interface BetResponse {
   ok: boolean;
@@ -164,16 +167,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         return;
       }
 
-      // ECONOMIC MODEL: Debit FULL bet amount - NO SPLITS AT BET TIME
-      // The entire bet goes into the pool. Fees are taken only on resolution.
-      await prisma.mystTransaction.create({
-        data: {
-          userId: user.id,
-          type: 'spend_bet',
-          amount: -mystBet,
-          meta: { predictionId: id, option: resolvedOption },
-        },
-      });
+      // ECONOMIC MODEL: Use spendMyst to apply splits and referral rewards
+      // Splits: 15% leaderboard, 10% referral (8% L1, 2% L2), 5% wheel, 70% treasury
+      const spendResult = await spendMyst(
+        prisma,
+        user.id,
+        mystBet,
+        'spend_bet',
+        id // referenceId = predictionId
+      );
 
     } else if (prediction.entryFeeStars > 0) {
       // Legacy Stars betting
@@ -202,6 +204,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     // Determine which pool to update (Yes = index 0, No = index 1)
     const isYes = optionIdx === 0;
 
+    // Calculate prediction pool amount (70% of MYST bet goes to pool)
+    const predictionPoolAmount = mystBet > 0 ? mystBet * MYST_CONFIG.SPLIT_TREASURY : 0;
+
     // Create bet, update prediction pools, and deduct user points
     const totalBetAmount = starsBet + pointsBet;
 
@@ -221,9 +226,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         data: {
           pot: { increment: totalBetAmount },
           participantCount: { increment: 1 },
-          // Update MYST pools - FULL BET AMOUNT goes to pool
-          ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: mystBet } } : {}),
-          ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: mystBet } } : {}),
+          // Update MYST pools - Only 70% (treasury portion) goes to prediction pool
+          ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: predictionPoolAmount } } : {}),
+          ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: predictionPoolAmount } } : {}),
         },
       }),
       pointsBet > 0
