@@ -11,7 +11,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Verify admin token
@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const takeLimit = limit ? parseInt(limit as string, 10) : 100;
 
-    const deposits = await prisma.deposit.findMany({
+    const deposits = await withDbRetry(() => prisma.deposit.findMany({
       where,
       include: {
         user: {
@@ -69,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(takeLimit, 500), // Max 500
-    });
+    }));
 
     return res.status(200).json({
       ok: true,

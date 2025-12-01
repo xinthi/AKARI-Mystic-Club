@@ -13,7 +13,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 
 interface AnalyticsResponse {
   ok: boolean;
@@ -68,7 +68,7 @@ export default async function handler(
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Run all queries in parallel
+    // Run all queries in parallel with retry
     const [
       totalUsers,
       newUsersToday,
@@ -91,7 +91,7 @@ export default async function handler(
       pendingDeposits,
       totalWithdrawals,
       pendingWithdrawals,
-    ] = await Promise.all([
+    ] = await withDbRetry(() => Promise.all([
       // Total users
       prisma.user.count(),
       
@@ -190,7 +190,7 @@ export default async function handler(
       prisma.withdrawalRequest.count({
         where: { status: 'pending' },
       }),
-    ]);
+    ]));
 
     return res.status(200).json({
       ok: true,

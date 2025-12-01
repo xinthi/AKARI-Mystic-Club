@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 interface AdminResponse {
   ok: boolean;
@@ -28,7 +28,7 @@ export default async function handler(
   // GET: List all predictions
   if (req.method === 'GET') {
     try {
-      const predictions = await prisma.prediction.findMany({
+      const predictions = await withDbRetry(() => prisma.prediction.findMany({
         orderBy: { createdAt: 'desc' },
         include: {
           _count: {
@@ -38,7 +38,7 @@ export default async function handler(
             select: { mystBet: true },
           },
         },
-      });
+      }));
 
       const formattedPredictions = predictions.map((p: any) => {
         // Find index of winning option if resolved
