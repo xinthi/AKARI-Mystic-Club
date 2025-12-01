@@ -187,8 +187,26 @@ export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN, {
 
 // Handle /start command
 bot.command('start', async (ctx) => {
-  // Only respond in private chats
-  if (ctx.chat?.type !== 'private') return;
+  // In groups, show a brief intro with link
+  if (ctx.chat?.type !== 'private') {
+    const webAppUrl = getWebAppUrl();
+    await ctx.reply(
+      '🔮 *AKARI Mystic Club*\n\n' +
+      'A prediction market and reputation layer for Web3.\n\n' +
+      '👉 DM me to get started, or tap below to open the app!\n\n' +
+      `🔗 ${webAppUrl}`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🚀 Open Mini App', url: webAppUrl }],
+          ],
+        },
+      }
+    );
+    return;
+  }
   
   const userId = ctx.from?.id;
   const startParam = ctx.match as string | undefined;
@@ -238,9 +256,26 @@ bot.command('start', async (ctx) => {
 
 // Handle /play command - shortcut to open app
 bot.command('play', async (ctx) => {
-  if (ctx.chat?.type !== 'private') return;
-  
   const webAppUrl = getWebAppUrl();
+  
+  // In groups, show link instead of web_app button
+  if (ctx.chat?.type !== 'private') {
+    await ctx.reply(
+      '🎮 *Ready to play?*\n\n' +
+      'Open the Mini App to access predictions, quests, and more!\n\n' +
+      `🔗 ${webAppUrl}`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🚀 Open Mini App', url: webAppUrl }],
+          ],
+        },
+      }
+    );
+    return;
+  }
   
   await ctx.reply('🎮 *Ready to play?*\n\nTap below to open the Mini App:', {
     parse_mode: 'Markdown',
@@ -259,9 +294,32 @@ bot.command('play', async (ctx) => {
 
 // Handle /help command
 bot.command('help', async (ctx) => {
-  if (ctx.chat?.type !== 'private') return;
-  
   const webAppUrl = getWebAppUrl();
+  
+  // In groups, show brief help with link
+  if (ctx.chat?.type !== 'private') {
+    await ctx.reply(
+      '🔮 *AKARI Mystic Club - Quick Help*\n\n' +
+      '*Available in this group:*\n' +
+      '• /play - Open the Mini App\n' +
+      '• /akari\\_intro - About this bot\n' +
+      (ctx.chat.type === 'supergroup' ? '• /credibility - Group trust stats (admin groups)\n' : '') +
+      '\n*Full features in DM:*\n' +
+      '• /start - Get started\n' +
+      '• /help - Full guide\n\n' +
+      `🔗 ${webAppUrl}`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🚀 Open Mini App', url: webAppUrl }],
+          ],
+        },
+      }
+    );
+    return;
+  }
   
   await ctx.reply(HELP_MESSAGE, {
     parse_mode: 'Markdown',
