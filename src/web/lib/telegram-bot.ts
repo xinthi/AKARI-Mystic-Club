@@ -38,6 +38,59 @@ async function withDb<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T
 }
 
 // ============================================
+// SAFE REPLY HELPER (handles permission errors)
+// ============================================
+
+/**
+ * Safely send a message, catching permission errors in groups
+ * Returns true if sent successfully, false if failed
+ */
+async function safeReply(
+  ctx: any, 
+  text: string, 
+  options?: any
+): Promise<boolean> {
+  try {
+    await ctx.reply(text, options);
+    return true;
+  } catch (err: any) {
+    // Check if it's a permission error
+    if (err?.message?.includes('not enough rights') || 
+        err?.message?.includes('CHAT_WRITE_FORBIDDEN') ||
+        err?.message?.includes('have no rights')) {
+      console.warn(`[TelegramBot] No permission to send message in chat ${ctx.chat?.id}: ${err.message}`);
+      return false;
+    }
+    // Re-throw other errors
+    throw err;
+  }
+}
+
+/**
+ * Safely send a message to a chat ID, catching permission errors
+ */
+async function safeSendMessage(
+  chatId: number | string, 
+  text: string, 
+  options?: any
+): Promise<boolean> {
+  try {
+    await bot.api.sendMessage(chatId, text, options);
+    return true;
+  } catch (err: any) {
+    // Check if it's a permission error
+    if (err?.message?.includes('not enough rights') || 
+        err?.message?.includes('CHAT_WRITE_FORBIDDEN') ||
+        err?.message?.includes('have no rights')) {
+      console.warn(`[TelegramBot] No permission to send message to chat ${chatId}: ${err.message}`);
+      return false;
+    }
+    // Re-throw other errors
+    throw err;
+  }
+}
+
+// ============================================
 // BROADCAST TO PROMO GROUPS
 // ============================================
 
@@ -386,7 +439,7 @@ bot.command('play', async (ctx) => {
   
   // In groups, show link instead of web_app button
   if (ctx.chat?.type !== 'private') {
-    await ctx.reply(
+    await safeReply(ctx,
       '🎮 *Ready to play?*\n\n' +
       'Open the Mini App to access predictions, quests, and more!\n\n' +
       `🔗 ${webAppUrl}`,
@@ -424,7 +477,7 @@ bot.command('help', async (ctx) => {
   
   // In groups, show brief help with link
   if (ctx.chat?.type !== 'private') {
-    await ctx.reply(
+    await safeReply(ctx,
       '🔮 *AKARI Mystic Club - Quick Help*\n\n' +
       '*Available in this group:*\n' +
       '• /play - Open the Mini App\n' +
@@ -547,7 +600,7 @@ bot.command('predictions', async (ctx) => {
   // Check if user is bot admin
   if (!ADMIN_IDS.includes(userId)) {
     const webAppUrl = getWebAppUrl();
-    await ctx.reply(
+    await safeReply(ctx,
       '*View Predictions*\n\n' +
       'Open the Mini App to see all active predictions and place bets!\n\n' +
       `${webAppUrl}/predictions`,
@@ -593,7 +646,7 @@ bot.command('predictions', async (ctx) => {
     message += `_Open the Mini App to place bets!_`;
     
     const webAppUrl = getWebAppUrl();
-    await ctx.reply(message, { 
+    await safeReply(ctx, message, { 
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
@@ -603,7 +656,7 @@ bot.command('predictions', async (ctx) => {
     });
   } catch (err) {
     console.error('[TelegramBot] Error in /predictions:', err);
-    await ctx.reply('Failed to load predictions. Try again later.');
+    await safeReply(ctx, 'Failed to load predictions. Try again later.');
   }
 });
 
@@ -615,7 +668,7 @@ bot.command('campaigns', async (ctx) => {
   // Check if user is bot admin
   if (!ADMIN_IDS.includes(userId)) {
     const webAppUrl = getWebAppUrl();
-    await ctx.reply(
+    await safeReply(ctx,
       '*View Campaigns*\n\n' +
       'Open the Mini App to see all active quests and earn rewards!\n\n' +
       `${webAppUrl}/campaigns`,
@@ -647,7 +700,7 @@ bot.command('campaigns', async (ctx) => {
     }));
     
     if (campaigns.length === 0) {
-      await ctx.reply('No active campaigns right now.\n\nGo to Admin Panel to create one.');
+      await safeReply(ctx, 'No active campaigns right now.\n\nGo to Admin Panel to create one.');
       return;
     }
     
@@ -661,7 +714,7 @@ bot.command('campaigns', async (ctx) => {
     message += `_Open the Mini App to join quests!_`;
     
     const webAppUrl = getWebAppUrl();
-    await ctx.reply(message, { 
+    await safeReply(ctx, message, { 
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
@@ -671,14 +724,14 @@ bot.command('campaigns', async (ctx) => {
     });
   } catch (err) {
     console.error('[TelegramBot] Error in /campaigns:', err);
-    await ctx.reply('Failed to load campaigns. Try again later.');
+    await safeReply(ctx, 'Failed to load campaigns. Try again later.');
   }
 });
 
 // Handle /tasks command - alias for campaigns
 bot.command('tasks', async (ctx) => {
   // Redirect to campaigns command
-  await ctx.reply(
+  await safeReply(ctx,
     '*View Tasks & Quests*\n\n' +
     'Use /campaigns to see active quests, or open the Mini App!',
     {
@@ -695,7 +748,7 @@ bot.command('tasks', async (ctx) => {
 // Handle /leaderboard command
 bot.command('leaderboard', async (ctx) => {
   const webAppUrl = getWebAppUrl();
-  await ctx.reply(
+  await safeReply(ctx,
     '*Leaderboard*\n\n' +
     'See the top players and your ranking!\n\n' +
     'Categories:\n' +
@@ -716,7 +769,7 @@ bot.command('leaderboard', async (ctx) => {
 // Handle /profile command
 bot.command('profile', async (ctx) => {
   const webAppUrl = getWebAppUrl();
-  await ctx.reply(
+  await safeReply(ctx,
     '*Your Profile*\n\n' +
     'View your stats, MYST balance, and settings in the Mini App!',
     {
@@ -733,7 +786,7 @@ bot.command('profile', async (ctx) => {
 // Handle /review command
 bot.command('review', async (ctx) => {
   const webAppUrl = getWebAppUrl();
-  await ctx.reply(
+  await safeReply(ctx,
     '*Leave a Review*\n\n' +
     'Search for users and leave reviews to build community trust!\n\n' +
     'Go to Users page in the Mini App to find and review users.',
@@ -1188,34 +1241,34 @@ bot.on('my_chat_member', async (ctx) => {
       
       // Send intro message if not sent before
       if (!existingGroup?.introSent) {
-        try {
-          const introMessage = isAdmin ? ADMIN_GROUP_INTRO : PROMO_GROUP_INTRO;
-          
-          // In groups, use URL button instead of web_app button
-          await bot.api.sendMessage(chat.id, introMessage + `\n\n🔗 ${getWebAppUrl()}`, {
-            parse_mode: 'Markdown',
-            link_preview_options: { is_disabled: true },
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: '🚀 Open Mini App',
-                    url: getWebAppUrl(),
-                  },
-                ],
+        const introMessage = isAdmin ? ADMIN_GROUP_INTRO : PROMO_GROUP_INTRO;
+        
+        // In groups, use URL button instead of web_app button - use safe send
+        const sent = await safeSendMessage(chat.id, introMessage + `\n\n🔗 ${getWebAppUrl()}`, {
+          parse_mode: 'Markdown',
+          link_preview_options: { is_disabled: true },
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Open Mini App',
+                  url: getWebAppUrl(),
+                },
               ],
-            },
-          });
-          
-          // Mark intro as sent
+            ],
+          },
+        });
+        
+        if (sent) {
+          // Mark intro as sent only if successful
           await withDb(() => prisma.tgGroup.update({
             where: { id: chatId },
             data: { introSent: true },
           }));
           
           console.log(`[TelegramBot] Sent intro to group: ${title}`);
-        } catch (sendErr) {
-          console.error(`[TelegramBot] Failed to send intro to ${title}:`, sendErr);
+        } else {
+          console.log(`[TelegramBot] Could not send intro to group: ${title} (no permission)`);
         }
       }
       
