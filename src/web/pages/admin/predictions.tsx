@@ -27,6 +27,27 @@ interface Prediction {
   endsAt?: string;
 }
 
+interface PredictionStats {
+  id: string;
+  title: string;
+  status: string;
+  totalPool: number;
+  yesPool: number;
+  noPool: number;
+  totalBets: number;
+  uniqueBettors: number;
+  avgBetSize: number;
+  largestBet: number;
+  betsByOption: { option: string; count: number; total: number }[];
+  recentBets: {
+    id: string;
+    username: string | null;
+    option: string;
+    amount: number;
+    createdAt: string;
+  }[];
+}
+
 const CATEGORIES = ['crypto', 'sports', 'politics', 'entertainment', 'other'];
 const STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED', 'RESOLVED', 'CANCELLED'];
 
@@ -41,6 +62,10 @@ export default function AdminPredictionsPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newCategory, setNewCategory] = useState('crypto');
+  
+  // Stats modal
+  const [statsModal, setStatsModal] = useState<PredictionStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
   const [newOptions, setNewOptions] = useState(['Yes', 'No']);
   const [newEndsAt, setNewEndsAt] = useState('');
 
@@ -55,6 +80,24 @@ export default function AdminPredictionsPage() {
     }
     loadPredictions();
   }, [router]);
+
+  // Load stats for a prediction
+  const loadStats = async (predictionId: string) => {
+    setLoadingStats(true);
+    try {
+      const response = await adminFetch(`/api/admin/predictions/${predictionId}/stats`);
+      const data = await response.json();
+      if (data.ok && data.stats) {
+        setStatsModal(data.stats);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to load stats' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to load stats' });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const loadPredictions = useCallback(async () => {
     setLoading(true);
@@ -438,6 +481,14 @@ export default function AdminPredictionsPage() {
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-2">
+                  {/* View Stats Button */}
+                  <button
+                    onClick={() => loadStats(pred.id)}
+                    disabled={loadingStats}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-sm"
+                  >
+                    📊 Stats
+                  </button>
                   {pred.status === 'DRAFT' && (
                     <>
                       <button
@@ -559,6 +610,111 @@ export default function AdminPredictionsPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Modal */}
+      {statsModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-bold">📊 Prediction Stats</h2>
+                <p className="text-gray-400">{statsModal.title}</p>
+              </div>
+              <button
+                onClick={() => setStatsModal(null)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                <div className="text-purple-300 text-xs">Total Pool</div>
+                <div className="text-xl font-bold text-purple-400">{statsModal.totalPool.toFixed(2)}</div>
+                <div className="text-purple-300/70 text-xs">MYST</div>
+              </div>
+              <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-500/30">
+                <div className="text-blue-300 text-xs">Total Bets</div>
+                <div className="text-xl font-bold text-blue-400">{statsModal.totalBets}</div>
+              </div>
+              <div className="bg-green-900/30 rounded-lg p-3 border border-green-500/30">
+                <div className="text-green-300 text-xs">Unique Bettors</div>
+                <div className="text-xl font-bold text-green-400">{statsModal.uniqueBettors}</div>
+              </div>
+              <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-500/30">
+                <div className="text-amber-300 text-xs">Avg Bet Size</div>
+                <div className="text-xl font-bold text-amber-400">{statsModal.avgBetSize.toFixed(2)}</div>
+                <div className="text-amber-300/70 text-xs">MYST</div>
+              </div>
+            </div>
+
+            {/* Pool Breakdown */}
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold mb-3">💰 Pool Breakdown by Option</h3>
+              <div className="space-y-3">
+                {statsModal.betsByOption.map((opt, i) => {
+                  const percentage = statsModal.totalPool > 0 
+                    ? ((opt.total / statsModal.totalPool) * 100).toFixed(1) 
+                    : '0';
+                  return (
+                    <div key={i}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium">{opt.option}</span>
+                        <span className="text-gray-400">{opt.count} bets · {opt.total.toFixed(2)} MYST ({percentage}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-600 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${i === 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Bets */}
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <h3 className="font-semibold mb-3">🎟️ Recent Bets (Last 10)</h3>
+              {statsModal.recentBets.length === 0 ? (
+                <p className="text-gray-400 text-sm">No bets yet</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {statsModal.recentBets.map((bet) => (
+                    <div key={bet.id} className="flex justify-between items-center text-sm bg-gray-600/50 rounded px-3 py-2">
+                      <div>
+                        <span className="font-medium">{bet.username || 'Anonymous'}</span>
+                        <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
+                          bet.option === 'Yes' ? 'bg-green-600/50 text-green-300' : 'bg-red-600/50 text-red-300'
+                        }`}>
+                          {bet.option}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-amber-400 font-medium">{bet.amount.toFixed(2)} MYST</div>
+                        <div className="text-gray-500 text-xs">
+                          {new Date(bet.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Extra Stats */}
+            <div className="mt-4 pt-4 border-t border-gray-700 text-sm text-gray-400">
+              <div className="flex justify-between">
+                <span>Largest bet:</span>
+                <span className="text-amber-400">{statsModal.largestBet.toFixed(2)} MYST</span>
+              </div>
             </div>
           </div>
         </div>

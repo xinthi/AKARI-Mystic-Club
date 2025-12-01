@@ -1,7 +1,7 @@
 /**
- * Admin Leaderboard Analytics Page
+ * Admin Analytics & Leaderboard Page
  * 
- * View top players by MYST spent, referrals, or aXP for any period.
+ * Platform-wide statistics + top players by MYST spent, referrals, or aXP.
  * Supports CSV export for off-platform use.
  */
 
@@ -16,6 +16,30 @@ import AdminLayout from '../../components/admin/AdminLayout';
 
 type Metric = 'myst_spent' | 'referrals' | 'axp';
 type Period = 'week' | 'month' | 'all';
+
+interface PlatformStats {
+  totalUsers: number;
+  newUsersToday: number;
+  newUsersWeek: number;
+  newUsersMonth: number;
+  dau: number;
+  wau: number;
+  mau: number;
+  totalMystSpent: number;
+  totalMystInCirculation: number;
+  totalPredictions: number;
+  activePredictions: number;
+  totalBets: number;
+  totalCampaigns: number;
+  activeCampaigns: number;
+  totalTasksCompleted: number;
+  totalReferrals: number;
+  totalWheelSpins: number;
+  totalDeposits: number;
+  pendingDeposits: number;
+  totalWithdrawals: number;
+  pendingWithdrawals: number;
+}
 
 interface LeaderboardRow {
   userId: string;
@@ -50,6 +74,10 @@ const PERIOD_LABELS: Record<Period, string> = {
 export default function AdminLeaderboardPage() {
   const router = useRouter();
   
+  // Platform stats
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  
   // Query state
   const [metric, setMetric] = useState<Metric>('myst_spent');
   const [period, setPeriod] = useState<Period>('week');
@@ -68,12 +96,33 @@ export default function AdminLeaderboardPage() {
     }
   }, [router]);
 
+  // Load platform stats
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const response = await adminFetch('/api/admin/analytics');
+      const json = await response.json();
+      if (json.ok && json.stats) {
+        setStats(json.stats);
+      }
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdminLoggedIn()) {
+      loadStats();
+    }
+  }, [loadStats]);
+
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Build query params
       const params = new URLSearchParams();
       params.set('metric', metric);
       params.set('period', period);
@@ -148,7 +197,103 @@ export default function AdminLeaderboardPage() {
   };
 
   return (
-    <AdminLayout title="Leaderboard Analytics" subtitle="View top players by MYST spent, referrals, or aXP">
+    <AdminLayout title="Analytics" subtitle="Platform statistics and leaderboard data">
+      {/* Platform Stats Dashboard */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          📊 Platform Overview
+          <button
+            onClick={loadStats}
+            className="text-sm px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+          >
+            Refresh
+          </button>
+        </h2>
+        
+        {statsLoading ? (
+          <div className="text-gray-400">Loading stats...</div>
+        ) : stats ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Users */}
+            <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 rounded-xl p-4 border border-blue-500/30">
+              <div className="text-blue-300 text-sm">Total Users</div>
+              <div className="text-3xl font-bold text-blue-400">{stats.totalUsers.toLocaleString()}</div>
+              <div className="text-xs text-blue-300/70 mt-1">+{stats.newUsersToday} today</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-4 border border-green-500/30">
+              <div className="text-green-300 text-sm">Daily Active</div>
+              <div className="text-3xl font-bold text-green-400">{stats.dau.toLocaleString()}</div>
+              <div className="text-xs text-green-300/70 mt-1">{((stats.dau / stats.totalUsers) * 100).toFixed(1)}% of total</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-4 border border-purple-500/30">
+              <div className="text-purple-300 text-sm">Weekly Active</div>
+              <div className="text-3xl font-bold text-purple-400">{stats.wau.toLocaleString()}</div>
+              <div className="text-xs text-purple-300/70 mt-1">+{stats.newUsersWeek} new this week</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-amber-900/50 to-amber-800/30 rounded-xl p-4 border border-amber-500/30">
+              <div className="text-amber-300 text-sm">Monthly Active</div>
+              <div className="text-3xl font-bold text-amber-400">{stats.mau.toLocaleString()}</div>
+              <div className="text-xs text-amber-300/70 mt-1">+{stats.newUsersMonth} new this month</div>
+            </div>
+            
+            {/* MYST Economy */}
+            <div className="bg-gradient-to-br from-yellow-900/50 to-yellow-800/30 rounded-xl p-4 border border-yellow-500/30">
+              <div className="text-yellow-300 text-sm">Total MYST Spent</div>
+              <div className="text-2xl font-bold text-yellow-400">{stats.totalMystSpent.toLocaleString()}</div>
+              <div className="text-xs text-yellow-300/70 mt-1">≈ ${(stats.totalMystSpent * 0.02).toLocaleString()} USD</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-orange-900/50 to-orange-800/30 rounded-xl p-4 border border-orange-500/30">
+              <div className="text-orange-300 text-sm">MYST in Circulation</div>
+              <div className="text-2xl font-bold text-orange-400">{stats.totalMystInCirculation.toLocaleString()}</div>
+              <div className="text-xs text-orange-300/70 mt-1">≈ ${(stats.totalMystInCirculation * 0.02).toLocaleString()} USD</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-red-900/50 to-red-800/30 rounded-xl p-4 border border-red-500/30">
+              <div className="text-red-300 text-sm">Pending Deposits</div>
+              <div className="text-2xl font-bold text-red-400">{stats.pendingDeposits}</div>
+              <div className="text-xs text-red-300/70 mt-1">{stats.totalDeposits} total</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-pink-900/50 to-pink-800/30 rounded-xl p-4 border border-pink-500/30">
+              <div className="text-pink-300 text-sm">Pending Withdrawals</div>
+              <div className="text-2xl font-bold text-pink-400">{stats.pendingWithdrawals}</div>
+              <div className="text-xs text-pink-300/70 mt-1">{stats.totalWithdrawals} total</div>
+            </div>
+            
+            {/* Activity */}
+            <div className="bg-gradient-to-br from-cyan-900/50 to-cyan-800/30 rounded-xl p-4 border border-cyan-500/30">
+              <div className="text-cyan-300 text-sm">Predictions</div>
+              <div className="text-2xl font-bold text-cyan-400">{stats.activePredictions} active</div>
+              <div className="text-xs text-cyan-300/70 mt-1">{stats.totalPredictions} total · {stats.totalBets} bets</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-teal-900/50 to-teal-800/30 rounded-xl p-4 border border-teal-500/30">
+              <div className="text-teal-300 text-sm">Campaigns</div>
+              <div className="text-2xl font-bold text-teal-400">{stats.activeCampaigns} active</div>
+              <div className="text-xs text-teal-300/70 mt-1">{stats.totalCampaigns} total · {stats.totalTasksCompleted} tasks done</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-indigo-900/50 to-indigo-800/30 rounded-xl p-4 border border-indigo-500/30">
+              <div className="text-indigo-300 text-sm">Referrals</div>
+              <div className="text-2xl font-bold text-indigo-400">{stats.totalReferrals.toLocaleString()}</div>
+              <div className="text-xs text-indigo-300/70 mt-1">users referred</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-violet-900/50 to-violet-800/30 rounded-xl p-4 border border-violet-500/30">
+              <div className="text-violet-300 text-sm">Wheel Spins</div>
+              <div className="text-2xl font-bold text-violet-400">{stats.totalWheelSpins.toLocaleString()}</div>
+              <div className="text-xs text-violet-300/70 mt-1">total spins</div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-400">Failed to load stats</div>
+        )}
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="bg-red-900/50 text-red-300 p-4 rounded-lg mb-6">
@@ -156,9 +301,9 @@ export default function AdminLeaderboardPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Leaderboard Section */}
       <div className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
-        <h2 className="text-lg font-semibold mb-4">🔍 Filters</h2>
+        <h2 className="text-lg font-semibold mb-4">🏆 Leaderboard</h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
           {/* Metric */}
           <div>
@@ -303,17 +448,19 @@ export default function AdminLeaderboardPage() {
                   );
                 })}
               </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-600 font-semibold">
-                  <td colSpan={2} className="py-3 px-2 text-gray-400">Total</td>
-                  <td className="py-3 px-2 text-right text-purple-300">
-                    {data.total.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-2 text-right text-amber-300">
-                    {data.rows.reduce((sum, r) => sum + r.mystBalance, 0).toFixed(2)}
-                  </td>
-                </tr>
-              </tfoot>
+              {data.rows.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-gray-600 font-semibold">
+                    <td colSpan={2} className="py-3 px-2 text-gray-400">Total</td>
+                    <td className="py-3 px-2 text-right text-purple-300">
+                      {data.total.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-2 text-right text-amber-300">
+                      {data.rows.reduce((sum, r) => sum + r.mystBalance, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
@@ -328,7 +475,7 @@ export default function AdminLeaderboardPage() {
       {/* No Data Yet */}
       {!data && !loading && (
         <div className="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
-          <div className="text-4xl mb-4">📊</div>
+          <div className="text-4xl mb-4">🏆</div>
           <p className="text-gray-400">Select filters and click &quot;Load Data&quot; to view the leaderboard</p>
         </div>
       )}

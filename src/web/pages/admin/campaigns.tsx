@@ -34,6 +34,31 @@ interface Campaign {
   participantCount: number;
 }
 
+interface CampaignStats {
+  id: string;
+  title: string;
+  status: string;
+  totalParticipants: number;
+  totalTaskCompletions: number;
+  completionRate: number;
+  taskBreakdown: {
+    taskId: string;
+    title: string;
+    type: string;
+    completions: number;
+    uniqueUsers: number;
+  }[];
+  recentParticipants: {
+    id: string;
+    username: string | null;
+    tasksCompleted: number;
+    joinedAt: string;
+  }[];
+  totalReferrals: number;
+  avgTasksPerUser: number;
+  daysActive: number;
+}
+
 // Task type configuration with descriptions and URL placeholders
 const TASK_TYPES = {
   X_FOLLOW: {
@@ -93,6 +118,10 @@ export default function AdminCampaignsPage() {
   const [newTaskUrl, setNewTaskUrl] = useState('');
   const [newTaskReward, setNewTaskReward] = useState('10');
 
+  // Stats modal
+  const [statsModal, setStatsModal] = useState<CampaignStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   useEffect(() => {
     if (!isAdminLoggedIn()) {
       router.push('/admin');
@@ -123,6 +152,24 @@ export default function AdminCampaignsPage() {
       setLoading(false);
     }
   }, [router]);
+
+  // Load stats for a campaign
+  const loadStats = async (campaignId: string) => {
+    setLoadingStats(true);
+    try {
+      const response = await adminFetch(`/api/admin/campaigns/${campaignId}/stats`);
+      const data = await response.json();
+      if (data.ok && data.stats) {
+        setStatsModal(data.stats);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to load stats' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to load stats' });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const createCampaign = async () => {
     if (!newName.trim()) return;
@@ -507,6 +554,13 @@ export default function AdminCampaignsPage() {
                   {campaign.endsAt && (
                     <span>📅 Ends: {new Date(campaign.endsAt).toLocaleDateString()}</span>
                   )}
+                  <button
+                    onClick={() => loadStats(campaign.id)}
+                    disabled={loadingStats}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg font-medium"
+                  >
+                    📊 Stats
+                  </button>
                   {campaign.participantCount > 0 && (
                     <a
                       href={`/admin/campaigns/${campaign.id}/participants`}
@@ -558,6 +612,109 @@ export default function AdminCampaignsPage() {
           </div>
         )}
       </div>
+
+      {/* Stats Modal */}
+      {statsModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-bold">📊 Campaign Stats</h2>
+                <p className="text-gray-400">{statsModal.title}</p>
+              </div>
+              <button
+                onClick={() => setStatsModal(null)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-500/30">
+                <div className="text-blue-300 text-xs">Participants</div>
+                <div className="text-xl font-bold text-blue-400">{statsModal.totalParticipants}</div>
+              </div>
+              <div className="bg-green-900/30 rounded-lg p-3 border border-green-500/30">
+                <div className="text-green-300 text-xs">Tasks Completed</div>
+                <div className="text-xl font-bold text-green-400">{statsModal.totalTaskCompletions}</div>
+              </div>
+              <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                <div className="text-purple-300 text-xs">Completion Rate</div>
+                <div className="text-xl font-bold text-purple-400">{statsModal.completionRate.toFixed(1)}%</div>
+              </div>
+              <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-500/30">
+                <div className="text-amber-300 text-xs">Referrals</div>
+                <div className="text-xl font-bold text-amber-400">{statsModal.totalReferrals}</div>
+              </div>
+            </div>
+
+            {/* Task Breakdown */}
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold mb-3">📋 Task Breakdown</h3>
+              {statsModal.taskBreakdown.length === 0 ? (
+                <p className="text-gray-400 text-sm">No tasks yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {statsModal.taskBreakdown.map((task) => {
+                    const maxCompletions = Math.max(...statsModal.taskBreakdown.map(t => t.completions), 1);
+                    const percentage = (task.completions / maxCompletions) * 100;
+                    return (
+                      <div key={task.taskId}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium">{task.title}</span>
+                          <span className="text-gray-400">{task.uniqueUsers} users · {task.completions} completions</span>
+                        </div>
+                        <div className="w-full bg-gray-600 rounded-full h-2">
+                          <div 
+                            className="h-2 rounded-full bg-green-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Participants */}
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <h3 className="font-semibold mb-3">👥 Recent Participants (Last 10)</h3>
+              {statsModal.recentParticipants.length === 0 ? (
+                <p className="text-gray-400 text-sm">No participants yet</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {statsModal.recentParticipants.map((p) => (
+                    <div key={p.id} className="flex justify-between items-center text-sm bg-gray-600/50 rounded px-3 py-2">
+                      <span className="font-medium">{p.username || 'Anonymous'}</span>
+                      <div className="text-right">
+                        <div className="text-green-400">{p.tasksCompleted} tasks</div>
+                        <div className="text-gray-500 text-xs">
+                          {new Date(p.joinedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Extra Stats */}
+            <div className="mt-4 pt-4 border-t border-gray-700 text-sm text-gray-400 grid grid-cols-2 gap-2">
+              <div className="flex justify-between">
+                <span>Avg tasks per user:</span>
+                <span className="text-white">{statsModal.avgTasksPerUser.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Days active:</span>
+                <span className="text-white">{statsModal.daysActive}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
