@@ -590,9 +590,17 @@ bot.command('predictions', async (ctx) => {
       message += `   Bets: ${p._count.bets}\n\n`;
     });
     
-    message += `_Use /admin in DM to access Admin Panel._`;
+    message += `_Open the Mini App to place bets!_`;
     
-    await ctx.reply(message, { parse_mode: 'Markdown' });
+    const webAppUrl = getWebAppUrl();
+    await ctx.reply(message, { 
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'View All Predictions', url: `${webAppUrl.replace('?startapp=', '')}/predictions` }],
+        ],
+      },
+    });
   } catch (err) {
     console.error('[TelegramBot] Error in /predictions:', err);
     await ctx.reply('Failed to load predictions. Try again later.');
@@ -650,9 +658,17 @@ bot.command('campaigns', async (ctx) => {
       message += `   Ends: ${c.endsAt.toLocaleDateString()}\n\n`;
     });
     
-    message += `_Use /admin in DM to access Admin Panel._`;
+    message += `_Open the Mini App to join quests!_`;
     
-    await ctx.reply(message, { parse_mode: 'Markdown' });
+    const webAppUrl = getWebAppUrl();
+    await ctx.reply(message, { 
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'View All Campaigns', url: `${webAppUrl.replace('?startapp=', '')}/campaigns` }],
+        ],
+      },
+    });
   } catch (err) {
     console.error('[TelegramBot] Error in /campaigns:', err);
     await ctx.reply('Failed to load campaigns. Try again later.');
