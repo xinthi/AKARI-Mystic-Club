@@ -117,6 +117,7 @@ export default function AdminCampaignsPage() {
   const [newTaskType, setNewTaskType] = useState<keyof typeof TASK_TYPES>('X_FOLLOW');
   const [newTaskUrl, setNewTaskUrl] = useState('');
   const [newTaskReward, setNewTaskReward] = useState('10');
+  const [newTaskMystReward, setNewTaskMystReward] = useState('0');
 
   // Stats modal
   const [statsModal, setStatsModal] = useState<CampaignStats | null>(null);
@@ -240,6 +241,7 @@ export default function AdminCampaignsPage() {
           type: newTaskType,
           targetUrl: newTaskUrl || null,
           rewardPoints: Number(newTaskReward) || 10,
+          rewardMyst: Number(newTaskMystReward) || 0,
         }),
       });
       const data = await response.json();
@@ -248,6 +250,7 @@ export default function AdminCampaignsPage() {
         setNewTaskTitle('');
         setNewTaskDescription('');
         setNewTaskUrl('');
+        setNewTaskMystReward('0');
         loadCampaigns();
       } else {
         setMessage({ type: 'error', text: data.message });
@@ -490,16 +493,34 @@ export default function AdminCampaignsPage() {
             />
           </div>
 
-          {/* Reward Points */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Reward (aXP)</label>
-            <input
-              type="number"
-              placeholder="10"
-              value={newTaskReward}
-              onChange={(e) => setNewTaskReward(e.target.value)}
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
-            />
+          {/* Rewards Row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* aXP Reward */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Reward (aXP)</label>
+              <input
+                type="number"
+                placeholder="10"
+                value={newTaskReward}
+                onChange={(e) => setNewTaskReward(e.target.value)}
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              />
+              <p className="text-xs text-gray-500 mt-1">Experience points</p>
+            </div>
+
+            {/* MYST Reward */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Reward (MYST)</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="0"
+                value={newTaskMystReward}
+                onChange={(e) => setNewTaskMystReward(e.target.value)}
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              />
+              <p className="text-xs text-purple-400 mt-1">💎 Token reward (optional)</p>
+            </div>
           </div>
         </div>
 

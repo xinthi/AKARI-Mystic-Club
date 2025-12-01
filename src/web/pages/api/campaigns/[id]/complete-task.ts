@@ -177,7 +177,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ============================================
     // MARK TASK AS COMPLETED
     // ============================================
-    const pointsToAward = task.rewardPoints || 10;
+    const pointsToAward = task.rewardPoints || 0;
+    const mystToAward = (task as any).rewardMyst || 0;
 
     if (existingProgress) {
       // Progress exists but not completed - update it
@@ -201,13 +202,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Award aXP points
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        points: { increment: pointsToAward },
-      },
-    });
+    // Award aXP points if any
+    if (pointsToAward > 0) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          points: { increment: pointsToAward },
+        },
+      });
+    }
+
+    // Award MYST if any
+    if (mystToAward > 0) {
+      await prisma.mystTransaction.create({
+        data: {
+          userId: user.id,
+          amount: mystToAward,
+          type: 'campaign_task_reward',
+          meta: {
+            campaignId,
+            taskId,
+            taskTitle: task.title,
+          },
+        },
+      });
+    }
 
     // Get updated progress for this campaign
     const allProgress = await prisma.campaignUserProgress.findMany({
@@ -225,17 +244,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const allComplete = completedTasks >= allTasks.length;
 
     // Build success message
-    let message = `Task completed! +${pointsToAward} aXP`;
+    const rewards: string[] = [];
+    if (pointsToAward > 0) rewards.push(`+${pointsToAward} aXP`);
+    if (mystToAward > 0) rewards.push(`+${mystToAward} MYST`);
+    let message = `Task completed! ${rewards.join(' ')}`;
     if (allComplete) {
       message += ' 🎉 All tasks done!';
     }
 
-    console.log(`[CompleteTask] User ${user.id} completed task ${taskId} (+${pointsToAward} aXP)`);
+    console.log(`[CompleteTask] User ${user.id} completed task ${taskId} (${rewards.join(', ')})`);
 
     return res.status(200).json({
       ok: true,
       message,
       pointsAwarded: pointsToAward,
+      mystAwarded: mystToAward,
       progress: allProgress.map((p) => ({
         taskId: p.taskId,
         completed: p.completed,

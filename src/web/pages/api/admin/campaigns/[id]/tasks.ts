@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ ok: false, message: 'Campaign not found' });
       }
 
-      const { title, description, type, targetUrl, proofType, rewardPoints, metadata } = req.body;
+      const { title, description, type, targetUrl, proofType, rewardPoints, rewardMyst, metadata } = req.body;
 
       if (!title || !type) {
         return res.status(400).json({ ok: false, message: 'Title and type are required' });
@@ -47,11 +47,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           targetUrl: targetUrl || null,
           proofType: proofType || null,
           rewardPoints: rewardPoints || 0,
+          rewardMyst: rewardMyst || 0,
           metadata: metadata || null,
         },
       });
 
-      console.log(`[Admin/CampaignTasks] Created task: ${task.id} for campaign ${id}`);
+      console.log(`[Admin/CampaignTasks] Created task: ${task.id} for campaign ${id} (aXP: ${rewardPoints || 0}, MYST: ${rewardMyst || 0})`);
 
       return res.status(201).json({ ok: true, task });
     }

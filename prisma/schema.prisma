@@ -348,6 +348,7 @@ model CampaignTask {
   targetUrl    String?   // URL for the task (e.g., tweet to like, account to follow)
   proofType    String?   // "LINK", "SCREENSHOT", "TWEET_URL"
   rewardPoints Int       @default(0) // Points/aXP reward for completing task
+  rewardMyst   Float     @default(0) // MYST reward for completing task
   metadata     Json?
 
   createdAt    DateTime  @default(now())
