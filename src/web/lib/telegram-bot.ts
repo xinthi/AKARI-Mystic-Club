@@ -142,7 +142,23 @@ Open the Mini App above to play! 🔮`;
 // BOT INSTANCE
 // ============================================
 
-export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN);
+// For serverless environments, we need to provide botInfo to avoid async init
+// Get bot info from BotFather: username, first_name, id
+const BOT_INFO = {
+  id: 7788619498, // @AKARIMystic_Bot ID
+  is_bot: true as const,
+  first_name: 'AKARI-Mystic-Club',
+  username: 'AKARIMystic_Bot',
+  can_join_groups: true,
+  can_read_all_group_messages: false,
+  supports_inline_queries: false,
+  can_connect_to_business: false,
+  has_main_web_app: false,
+};
+
+export const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN, {
+  botInfo: BOT_INFO,
+});
 
 // ============================================
 // COMMAND HANDLERS
