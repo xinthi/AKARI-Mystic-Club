@@ -105,14 +105,16 @@ export default function CampaignsPage() {
 
       allCampaigns.forEach(c => {
         const endDate = new Date(c.endsAt);
-        const isEnded = c.status === 'ENDED' || endDate < now;
+        const status = (c.status || 'ACTIVE').toUpperCase();
+        const isEnded = status === 'ENDED' || endDate < now;
         
         if (isEnded) {
           // Only show closed campaigns from the last 6 months
           if (endDate >= sixMonthsAgo) {
             closed.push(c);
           }
-        } else if (c.status === 'ACTIVE') {
+        } else if (status === 'ACTIVE') {
+          // Only show ACTIVE campaigns to users
           active.push(c);
         }
       });

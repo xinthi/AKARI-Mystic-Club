@@ -602,7 +602,7 @@ export default function AdminCampaignsPage() {
                   >
                     📊 Stats
                   </button>
-                  {campaign.status === 'active' && (
+                  {(campaign.status === 'ACTIVE' || campaign.status === 'active') && (
                     <button
                       onClick={() => broadcastCampaign(campaign.id)}
                       className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded-lg font-medium"
