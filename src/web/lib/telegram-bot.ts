@@ -15,6 +15,27 @@
  */
 
 import { Bot } from 'grammy';
+import { prisma } from './prisma';
+
+// Helper to ensure database connection with retry
+async function withDb<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      // Try to connect if needed
+      await prisma.$connect();
+      return await operation();
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[DB] Attempt ${i + 1} failed:`, err.message);
+      if (i < maxRetries) {
+        // Small delay before retry
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+  }
+  throw lastError;
+}
 
 // Log env var status on module load
 console.log('[TelegramBot] Module loaded.');
@@ -178,20 +199,20 @@ bot.command('start', async (ctx) => {
   
   if (userId) {
     try {
-      const { prisma } = await import('./prisma');
-      const user = await prisma.user.findUnique({
+      // prisma is imported at top of file
+      const user = await withDb(() => prisma.user.findUnique({
         where: { telegramId: String(userId) },
         select: { hasSeenBotWelcome: true },
-      });
+      }));
       
       if (user?.hasSeenBotWelcome) {
         isFirstTime = false;
       } else if (user) {
         // Mark as seen
-        await prisma.user.update({
+        await withDb(() => prisma.user.update({
           where: { telegramId: String(userId) },
           data: { hasSeenBotWelcome: true },
-        });
+        }));
       }
     } catch (err) {
       console.error('[TelegramBot] Error checking first-time user:', err);
@@ -347,13 +368,11 @@ bot.command('credibility', async (ctx) => {
   const chatId = String(chat.id);
   
   try {
-    const { prisma } = await import('./prisma');
-    
-    // Get group info
-    const group = await prisma.tgGroup.findUnique({
+    // Get group info with retry
+    const group = await withDb(() => prisma.tgGroup.findUnique({
       where: { id: chatId },
       select: { isAdmin: true, title: true },
-    });
+    }));
     
     if (!group?.isAdmin) {
       await ctx.reply(
@@ -367,7 +386,7 @@ bot.command('credibility', async (ctx) => {
     
     // Get group members who are also AKARI users (simplified approach)
     // In production, you'd track TgGroupMember entries
-    const allUsers = await prisma.user.findMany({
+    const allUsers = await withDb(() => prisma.user.findMany({
       where: {
         OR: [
           { positiveReviews: { gt: 0 } },
@@ -382,7 +401,7 @@ bot.command('credibility', async (ctx) => {
         negativeReviews: true,
         credibilityScore: true,
       },
-    });
+    }));
     
     // Check which users are in this group (sample approach)
     const membersInGroup: typeof allUsers = [];
@@ -450,11 +469,11 @@ bot.command('akari_intro', async (ctx) => {
   const chatId = String(chat.id);
   
   try {
-    const { prisma } = await import('./prisma');
-    const group = await prisma.tgGroup.findUnique({
+    // prisma is imported at top of file
+    const group = await withDb(() => prisma.tgGroup.findUnique({
       where: { id: chatId },
       select: { isAdmin: true },
-    });
+    }));
     
     if (group?.isAdmin) {
       // Admin group - check if user is group admin
@@ -550,12 +569,12 @@ bot.command('debuggroup', async (ctx) => {
   const chatId = String(chat.id);
   
   try {
-    const { prisma } = await import('./prisma');
+    // prisma is imported at top of file
     
     // Get group from DB
-    const group = await prisma.tgGroup.findUnique({
+    const group = await withDb(() => prisma.tgGroup.findUnique({
       where: { id: chatId },
-    });
+    }));
     
     // Get bot's status in this group
     let botStatus = 'unknown';
@@ -639,7 +658,7 @@ bot.command('registergroup', async (ctx) => {
   const username = 'username' in chat ? chat.username : undefined;
   
   try {
-    const { prisma } = await import('./prisma');
+    // prisma is imported at top of file
     
     // Check bot's status
     let isAdmin = false;
@@ -652,7 +671,7 @@ bot.command('registergroup', async (ctx) => {
     }
     
     // Upsert group
-    await prisma.tgGroup.upsert({
+    await withDb(() => prisma.tgGroup.upsert({
       where: { id: chatId },
       update: {
         title,
@@ -670,7 +689,7 @@ bot.command('registergroup', async (ctx) => {
         allowPromo: !isAdmin,
         introSent: false,
       },
-    });
+    }));
     
     await ctx.reply(
       `✅ *Group Registered!*\n\n` +
@@ -743,16 +762,16 @@ bot.on('my_chat_member', async (ctx) => {
   console.log(`[TelegramBot] Bot status in group ${chatId} (${title}): ${newStatus}`);
   
   try {
-    const { prisma } = await import('./prisma');
+    // prisma is imported at top of file
     
     if (newStatus === 'administrator' || newStatus === 'member') {
       // Bot added to group - upsert TgGroup
-      const existingGroup = await prisma.tgGroup.findUnique({
+      const existingGroup = await withDb(() => prisma.tgGroup.findUnique({
         where: { id: chatId },
         select: { introSent: true },
-      });
+      }));
       
-      await prisma.tgGroup.upsert({
+      await withDb(() => prisma.tgGroup.upsert({
         where: { id: chatId },
         update: {
           title,
@@ -770,7 +789,7 @@ bot.on('my_chat_member', async (ctx) => {
           allowPromo: !isAdmin,
           introSent: false,
         },
-      });
+      }));
       
       console.log(`[TelegramBot] Registered group: ${title} (${chatId}) isAdmin=${isAdmin}`);
       
@@ -796,10 +815,10 @@ bot.on('my_chat_member', async (ctx) => {
           });
           
           // Mark intro as sent
-          await prisma.tgGroup.update({
+          await withDb(() => prisma.tgGroup.update({
             where: { id: chatId },
             data: { introSent: true },
-          });
+          }));
           
           console.log(`[TelegramBot] Sent intro to group: ${title}`);
         } catch (sendErr) {
@@ -809,10 +828,10 @@ bot.on('my_chat_member', async (ctx) => {
       
     } else if (newStatus === 'left' || newStatus === 'kicked') {
       // Bot removed from group
-      await prisma.tgGroup.update({
+      await withDb(() => prisma.tgGroup.update({
         where: { id: chatId },
         data: { isActive: false },
-      }).catch(() => {
+      })).catch(() => {
         // Group might not exist in DB yet
       });
       console.log(`[TelegramBot] Deactivated group: ${title} (${chatId})`);
