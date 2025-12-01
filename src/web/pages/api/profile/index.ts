@@ -11,7 +11,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest, getTelegramUserFromRequest } from '../../../lib/telegram-auth';
 import { getMystBalance, generateReferralCode } from '../../../lib/myst-service';
 
@@ -45,7 +45,7 @@ export default async function handler(
           const referralCode = generateReferralCode(String(telegramUser.id));
           
           // Create new user from Telegram data
-          user = await prisma.user.create({
+          user = await withDbRetry(() => prisma.user.create({
             data: {
               telegramId: String(telegramUser.id),
               username: telegramUser.username || null,
@@ -54,15 +54,15 @@ export default async function handler(
               photoUrl: telegramUser.photo_url || null,
               referralCode,
             },
-          });
+          }));
           
           console.log('[Profile API] Created user:', user.id);
         } catch (createErr: any) {
           // User might already exist (race condition) - try to fetch
           console.warn('[Profile API] Create user failed, trying to fetch:', createErr.message);
-          user = await prisma.user.findUnique({
+          user = await withDbRetry(() => prisma.user.findUnique({
             where: { telegramId: String(telegramUser.id) },
-          });
+          }));
         }
       } else {
         console.warn('[Profile API] initData present but failed to parse/verify');
@@ -92,9 +92,9 @@ export default async function handler(
 
       // First, get the base user
       try {
-        fullUser = await prisma.user.findUnique({
+        fullUser = await withDbRetry(() => prisma.user.findUnique({
           where: { id: user.id },
-        });
+        }));
       } catch (e: any) {
         console.error('[Profile API] Base user query failed:', e.message);
         fullUser = user; // Fall back to the user we already have
@@ -110,7 +110,7 @@ export default async function handler(
 
       // Fetch Twitter accounts separately (safe)
       try {
-        twitterAccounts = await prisma.twitterAccount.findMany({
+        twitterAccounts = await withDbRetry(() => prisma.twitterAccount.findMany({
           where: { userId: fullUser.id },
           select: {
             id: true,
@@ -118,7 +118,7 @@ export default async function handler(
             handle: true,
             createdAt: true,
           },
-        });
+        }));
       } catch (e: any) {
         console.warn('[Profile API] Twitter accounts query failed:', e.message);
         twitterAccounts = [];
@@ -126,7 +126,7 @@ export default async function handler(
 
       // Fetch bets separately (safe)
       try {
-        bets = await prisma.bet.findMany({
+        bets = await withDbRetry(() => prisma.bet.findMany({
           where: { userId: fullUser.id },
           include: {
             prediction: {
@@ -137,7 +137,7 @@ export default async function handler(
           },
           take: 10,
           orderBy: { createdAt: 'desc' },
-        });
+        }));
       } catch (e: any) {
         console.warn('[Profile API] Bets query failed:', e.message);
         bets = [];
@@ -146,10 +146,10 @@ export default async function handler(
       // Fetch referrer username separately (safe - new relation)
       try {
         if (fullUser.referrerId) {
-          const referrer = await prisma.user.findUnique({
+          const referrer = await withDbRetry(() => prisma.user.findUnique({
             where: { id: fullUser.referrerId },
             select: { username: true },
-          });
+          }));
           referrerUsername = referrer?.username || null;
         }
       } catch (e: any) {
@@ -169,9 +169,9 @@ export default async function handler(
       // Count referrals (safe - may fail if column doesn't exist)
       let referralCount = 0;
       try {
-        referralCount = await prisma.user.count({
+        referralCount = await withDbRetry(() => prisma.user.count({
           where: { referrerId: fullUser.id },
-        });
+        }));
       } catch (e: any) {
         console.warn('[Profile API] referralCount failed:', e.message);
         referralCount = 0;
@@ -182,10 +182,10 @@ export default async function handler(
       if (!referralCode) {
         try {
           referralCode = generateReferralCode(fullUser.telegramId);
-          await prisma.user.update({
+          await withDbRetry(() => prisma.user.update({
             where: { id: fullUser.id },
             data: { referralCode },
-          });
+          }));
         } catch (e: any) {
           console.warn('[Profile API] referralCode update failed:', e.message);
           // Generate a temporary code for display (won't be persisted)
@@ -273,10 +273,10 @@ export default async function handler(
       }
 
       try {
-        const updatedUser = await prisma.user.update({
+        const updatedUser = await withDbRetry(() => prisma.user.update({
           where: { id: user.id },
           data: updateData,
-        });
+        }));
 
         return res.status(200).json({
           ok: true,

@@ -59,3 +59,9 @@ out/
 *.bak
 *.tmp
 
+# Secrets and sensitive documentation
+secrets/
+**/secrets/
+*.secrets.*
+*_secrets.*
+

@@ -7,7 +7,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 import { 
   MYST_CONFIG, 
@@ -51,10 +51,10 @@ export default async function handler(
 
   try {
     // Authenticate user (optional for status)
-    const user = await getUserFromRequest(req, prisma);
+    const user = await withDbRetry(() => getUserFromRequest(req, prisma));
     
     // Get pool balance
-    const poolBalance = await getWheelPoolBalance(prisma);
+    const poolBalance = await withDbRetry(() => getWheelPoolBalance(prisma));
 
     // Calculate next reset time (midnight UTC)
     const now = new Date();
@@ -63,7 +63,7 @@ export default async function handler(
     // Get spins remaining if user is authenticated
     let spinsRemaining: number = MYST_CONFIG.WHEEL_SPINS_PER_DAY;
     if (user) {
-      const spinsToday = await getUserSpinsToday(prisma, user.id);
+      const spinsToday = await withDbRetry(() => getUserSpinsToday(prisma, user.id));
       spinsRemaining = Math.max(0, MYST_CONFIG.WHEEL_SPINS_PER_DAY - spinsToday);
     }
 

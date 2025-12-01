@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { verifyTelegramWebAppData, parseTelegramInitData } from '../../../lib/telegram-auth';
 import { grantOnboardingMystIfEligible, getMystBalance } from '../../../lib/myst-service';
 
@@ -94,7 +94,7 @@ export default async function handler(
   console.log('[/api/auth/telegram] Verified user:', telegramId);
 
   // Upsert user in the database
-  const dbUser = await prisma.user.upsert({
+  const dbUser = await withDbRetry(() => prisma.user.upsert({
     where: { telegramId },
     update: {
       username,
@@ -109,7 +109,7 @@ export default async function handler(
       lastName,
       photoUrl,
     },
-  });
+  }));
 
   // Try to grant onboarding MYST bonus (5 MYST until 2026-01-01)
   // This is fire-and-forget - auth should succeed even if bonus fails
@@ -134,7 +134,7 @@ export default async function handler(
   }
 
   // Fetch user with hasSeenOnboardingGuide
-  const fullUser = await prisma.user.findUnique({
+  const fullUser = await withDbRetry(() => prisma.user.findUnique({
     where: { id: dbUser.id },
     select: {
       id: true,
@@ -148,7 +148,7 @@ export default async function handler(
       positiveReviews: true,
       hasSeenOnboardingGuide: true,
     },
-  });
+  }));
 
   return res.status(200).json({
     ok: true,
