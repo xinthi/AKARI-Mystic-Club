@@ -318,6 +318,108 @@ bot.command('admin', async (ctx) => {
   );
 });
 
+// Handle /credibility command - show group credibility stats
+bot.command('credibility', async (ctx) => {
+  const chat = ctx.chat;
+  
+  // Only for groups
+  if (chat.type !== 'group' && chat.type !== 'supergroup') {
+    await ctx.reply('This command shows group credibility stats and is only available in groups.');
+    return;
+  }
+  
+  const chatId = String(chat.id);
+  
+  try {
+    const { prisma } = await import('./prisma');
+    
+    // Get group info
+    const group = await prisma.tgGroup.findUnique({
+      where: { id: chatId },
+      select: { isAdmin: true, title: true },
+    });
+    
+    if (!group?.isAdmin) {
+      await ctx.reply(
+        '⚠️ *Credibility Stats Not Available*\n\n' +
+        'This feature requires the bot to have admin rights in this group.\n\n' +
+        'Ask a group admin to make @AKARIMystic_Bot an administrator.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    
+    // Get group members who are also AKARI users (simplified approach)
+    // In production, you'd track TgGroupMember entries
+    const allUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { positiveReviews: { gt: 0 } },
+          { negativeReviews: { gt: 0 } },
+        ],
+      },
+      select: {
+        id: true,
+        telegramId: true,
+        username: true,
+        positiveReviews: true,
+        negativeReviews: true,
+        credibilityScore: true,
+      },
+    });
+    
+    // Check which users are in this group (sample approach)
+    const membersInGroup: typeof allUsers = [];
+    
+    for (const user of allUsers.slice(0, 50)) { // Limit to 50 to avoid rate limits
+      try {
+        const telegramId = parseInt(user.telegramId, 10);
+        if (isNaN(telegramId)) continue;
+        
+        const member = await bot.api.getChatMember(chat.id, telegramId);
+        if (['member', 'administrator', 'creator'].includes(member.status)) {
+          membersInGroup.push(user);
+        }
+      } catch {
+        // User not in group or bot can't check
+      }
+    }
+    
+    const total = membersInGroup.length;
+    const highCred = membersInGroup.filter(u => (u.credibilityScore || 0) >= 3).length;
+    const positive = membersInGroup.reduce((sum, u) => sum + (u.positiveReviews || 0), 0);
+    const negative = membersInGroup.reduce((sum, u) => sum + (u.negativeReviews || 0), 0);
+    const avgScore = total > 0 
+      ? (membersInGroup.reduce((sum, u) => sum + (u.credibilityScore || 0), 0) / total).toFixed(1)
+      : '0';
+    
+    const percentage = total > 0 ? ((highCred / total) * 100).toFixed(0) : '0';
+    
+    // Credibility rating
+    let rating = '🔴 Low';
+    if (parseFloat(percentage) >= 70) rating = '🟢 High';
+    else if (parseFloat(percentage) >= 40) rating = '🟡 Medium';
+    
+    await ctx.reply(
+      `🛡️ *Group Credibility Stats*\n\n` +
+      `*Group:* ${group.title || chat.title}\n` +
+      `*Rating:* ${rating}\n\n` +
+      `📊 *Statistics:*\n` +
+      `• Known AKARI users: ${total}\n` +
+      `• High credibility (≥3): ${highCred} (${percentage}%)\n` +
+      `• Total positive reviews: ${positive}\n` +
+      `• Total negative reviews: ${negative}\n` +
+      `• Average credibility: ${avgScore}\n\n` +
+      `_Users with high credibility are more trustworthy in the AKARI ecosystem._`,
+      { parse_mode: 'Markdown' }
+    );
+    
+  } catch (err) {
+    console.error('[TelegramBot] Error in /credibility:', err);
+    await ctx.reply('❌ Failed to fetch credibility stats. Please try again.');
+  }
+});
+
 // Handle /akari_intro command - group intro on demand
 bot.command('akari_intro', async (ctx) => {
   const chat = ctx.chat;
@@ -390,6 +492,180 @@ bot.command('akari_intro', async (ctx) => {
         ],
       },
     });
+  }
+});
+
+// Handle /debuggroup command - show group status (admin only)
+bot.command('debuggroup', async (ctx) => {
+  const chat = ctx.chat;
+  
+  // Only for groups
+  if (chat.type !== 'group' && chat.type !== 'supergroup') {
+    await ctx.reply('This command is only available in groups.');
+    return;
+  }
+  
+  // Check if user is group admin or bot admin
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  
+  const isGroupAdmin = await (async () => {
+    try {
+      const member = await bot.api.getChatMember(chat.id, userId);
+      return ['administrator', 'creator'].includes(member.status);
+    } catch {
+      return false;
+    }
+  })();
+  
+  const isBotAdmin = ADMIN_IDS.includes(userId);
+  
+  if (!isGroupAdmin && !isBotAdmin) {
+    await ctx.reply('Only group admins can use this command.');
+    return;
+  }
+  
+  const chatId = String(chat.id);
+  
+  try {
+    const { prisma } = await import('./prisma');
+    
+    // Get group from DB
+    const group = await prisma.tgGroup.findUnique({
+      where: { id: chatId },
+    });
+    
+    // Get bot's status in this group
+    let botStatus = 'unknown';
+    try {
+      const me = await bot.api.getMe();
+      const botMember = await bot.api.getChatMember(chat.id, me.id);
+      botStatus = botMember.status;
+    } catch (err: any) {
+      botStatus = `error: ${err.message}`;
+    }
+    
+    if (group) {
+      await ctx.reply(
+        `🔍 *Group Debug Info*\n\n` +
+        `*Chat ID:* \`${chatId}\`\n` +
+        `*Title:* ${chat.title}\n` +
+        `*Type:* ${chat.type}\n\n` +
+        `*Database Record:*\n` +
+        `• Registered: ✅\n` +
+        `• isActive: ${group.isActive ? '✅' : '❌'}\n` +
+        `• isAdmin: ${group.isAdmin ? '✅' : '❌'}\n` +
+        `• allowPromo: ${group.allowPromo ? '✅' : '❌'}\n` +
+        `• introSent: ${group.introSent ? '✅' : '❌'}\n\n` +
+        `*Bot Status:* ${botStatus}\n\n` +
+        `_If isAdmin is wrong, remove and re-add bot with correct permissions._`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await ctx.reply(
+        `🔍 *Group Debug Info*\n\n` +
+        `*Chat ID:* \`${chatId}\`\n` +
+        `*Title:* ${chat.title}\n` +
+        `*Type:* ${chat.type}\n\n` +
+        `*Database Record:* ❌ Not found\n\n` +
+        `*Bot Status:* ${botStatus}\n\n` +
+        `⚠️ Group not registered. This usually means the webhook didn't receive the my_chat_member update.\n\n` +
+        `*To fix:*\n` +
+        `1. Remove the bot from group\n` +
+        `2. Re-add the bot\n` +
+        `3. If adding as admin, promote to admin BEFORE adding\n\n` +
+        `Or use /registergroup to manually register.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  } catch (err) {
+    console.error('[TelegramBot] Error in /debuggroup:', err);
+    await ctx.reply('❌ Failed to fetch group debug info.');
+  }
+});
+
+// Handle /registergroup command - manually register group
+bot.command('registergroup', async (ctx) => {
+  const chat = ctx.chat;
+  
+  // Only for groups
+  if (chat.type !== 'group' && chat.type !== 'supergroup') {
+    await ctx.reply('This command is only available in groups.');
+    return;
+  }
+  
+  // Check if user is group admin
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  
+  const isGroupAdmin = await (async () => {
+    try {
+      const member = await bot.api.getChatMember(chat.id, userId);
+      return ['administrator', 'creator'].includes(member.status);
+    } catch {
+      return false;
+    }
+  })();
+  
+  if (!isGroupAdmin) {
+    await ctx.reply('Only group admins can register the group.');
+    return;
+  }
+  
+  const chatId = String(chat.id);
+  const title = chat.title || 'Unknown Group';
+  const username = 'username' in chat ? chat.username : undefined;
+  
+  try {
+    const { prisma } = await import('./prisma');
+    
+    // Check bot's status
+    let isAdmin = false;
+    try {
+      const me = await bot.api.getMe();
+      const botMember = await bot.api.getChatMember(chat.id, me.id);
+      isAdmin = botMember.status === 'administrator';
+    } catch {
+      // Assume not admin if check fails
+    }
+    
+    // Upsert group
+    await prisma.tgGroup.upsert({
+      where: { id: chatId },
+      update: {
+        title,
+        username: username || null,
+        isActive: true,
+        isAdmin,
+        allowPromo: !isAdmin,
+      },
+      create: {
+        id: chatId,
+        title,
+        username: username || null,
+        isActive: true,
+        isAdmin,
+        allowPromo: !isAdmin,
+        introSent: false,
+      },
+    });
+    
+    await ctx.reply(
+      `✅ *Group Registered!*\n\n` +
+      `*Title:* ${title}\n` +
+      `*Chat ID:* \`${chatId}\`\n` +
+      `*Bot is Admin:* ${isAdmin ? '✅' : '❌'}\n` +
+      `*Promo Messages:* ${!isAdmin ? '✅ Allowed' : '❌ Disabled (admin group)'}\n\n` +
+      (isAdmin 
+        ? `_As an admin group, I'll only handle verifications and credibility. No spam!_`
+        : `_As a promo group, I may share new predictions and campaigns._`
+      ),
+      { parse_mode: 'Markdown' }
+    );
+    
+  } catch (err) {
+    console.error('[TelegramBot] Error in /registergroup:', err);
+    await ctx.reply('❌ Failed to register group. Please try again.');
   }
 });
 
