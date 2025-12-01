@@ -37,6 +37,8 @@ interface CampaignInfo {
   referralBonus: number;
 }
 
+const WINNER_OPTIONS = [25, 50, 100];
+
 export default function CampaignParticipantsPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -46,6 +48,7 @@ export default function CampaignParticipantsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selecting, setSelecting] = useState(false);
+  const [selectedWinnerCount, setSelectedWinnerCount] = useState(25);
 
   const loadParticipants = useCallback(async () => {
     if (!id) return;
@@ -82,7 +85,9 @@ export default function CampaignParticipantsPage() {
   const handleSelectWinners = async () => {
     if (!id || selecting) return;
 
-    if (!confirm(`Are you sure you want to select the top ${campaign?.winnerCount || 25} participants as winners?`)) {
+    const effectiveWinnerCount = Math.min(selectedWinnerCount, participants.length);
+    
+    if (!confirm(`Are you sure you want to select the top ${effectiveWinnerCount} participants as winners?`)) {
       return;
     }
 
@@ -92,6 +97,7 @@ export default function CampaignParticipantsPage() {
     try {
       const res = await adminFetch(`/api/admin/campaigns/${id}/select-winners`, {
         method: 'POST',
+        body: JSON.stringify({ winnerCount: selectedWinnerCount }),
       });
       const data = await res.json();
 
@@ -170,17 +176,42 @@ export default function CampaignParticipantsPage() {
       )}
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        {/* Winner Count Selector */}
+        {!campaign.winnersSelected && (
+          <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
+            {WINNER_OPTIONS.map((count) => (
+              <button
+                key={count}
+                onClick={() => setSelectedWinnerCount(count)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedWinnerCount === count
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-transparent text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                Top {count}
+              </button>
+            ))}
+          </div>
+        )}
+
         <button
           onClick={handleSelectWinners}
-          disabled={selecting || campaign.winnersSelected}
+          disabled={selecting || campaign.winnersSelected || participants.length === 0}
           className={`px-4 py-2 rounded-lg font-medium ${
             campaign.winnersSelected
+              ? 'bg-green-700/50 text-green-300 cursor-not-allowed'
+              : participants.length === 0
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-              : 'bg-purple-600 hover:bg-purple-700 text-white'
+              : 'bg-purple-600 hover:bg-purple-500 text-white'
           }`}
         >
-          {selecting ? 'Selecting...' : campaign.winnersSelected ? '✓ Winners Selected' : `🏆 Select Top ${campaign.winnerCount} Winners`}
+          {selecting 
+            ? 'Selecting...' 
+            : campaign.winnersSelected 
+            ? `✓ Winners Selected (Top ${campaign.winnerCount})` 
+            : `🏆 Select Top ${Math.min(selectedWinnerCount, participants.length)} Winners`}
         </button>
 
         <button
@@ -246,11 +277,13 @@ export default function CampaignParticipantsPage() {
                 </tr>
               </thead>
               <tbody>
-                {participants.map((p, idx) => (
+                {participants.map((p, idx) => {
+                  const effectiveWinnerCount = campaign.winnersSelected ? campaign.winnerCount : selectedWinnerCount;
+                  return (
                   <tr
                     key={p.userId}
                     className={`border-t border-gray-700/50 ${
-                      p.isWinner ? 'bg-yellow-900/20' : idx < (campaign.winnerCount || 25) ? 'bg-green-900/10' : ''
+                      p.isWinner ? 'bg-yellow-900/20' : idx < effectiveWinnerCount ? 'bg-green-900/10' : ''
                     }`}
                   >
                     <td className="px-4 py-3">
@@ -288,7 +321,7 @@ export default function CampaignParticipantsPage() {
                         <span className="px-2 py-1 bg-yellow-500/30 text-yellow-300 rounded text-xs">
                           🏆 #{p.winnerRank}
                         </span>
-                      ) : idx < (campaign.winnerCount || 25) ? (
+                      ) : idx < effectiveWinnerCount ? (
                         <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
                           Eligible
                         </span>
@@ -297,7 +330,8 @@ export default function CampaignParticipantsPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

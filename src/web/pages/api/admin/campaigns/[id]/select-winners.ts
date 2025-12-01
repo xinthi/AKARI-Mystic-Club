@@ -120,9 +120,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return b.referralCount - a.referralCount;
     });
 
-    // Select top N winners
-    const winnerCount = campaign.winnerCount || 25;
-    const winners = participants.slice(0, winnerCount);
+    // Get winner count from request body or use campaign default
+    const { winnerCount: requestedWinnerCount } = req.body || {};
+    const winnerCount = requestedWinnerCount || campaign.winnerCount || 25;
+    
+    // Validate winner count (must be 25, 50, or 100)
+    const validWinnerCounts = [25, 50, 100];
+    const finalWinnerCount = validWinnerCounts.includes(winnerCount) ? winnerCount : 25;
+    
+    const winners = participants.slice(0, finalWinnerCount);
 
     if (winners.length === 0) {
       return res.status(400).json({ ok: false, message: 'No participants to select as winners' });
@@ -143,10 +149,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     await prisma.campaignWinner.createMany({ data: winnerData });
 
-    // Mark campaign as winners selected
+    // Mark campaign as winners selected and update winner count
     await prisma.campaign.update({
       where: { id },
-      data: { winnersSelected: true },
+      data: { 
+        winnersSelected: true,
+        winnerCount: finalWinnerCount,
+      },
     });
 
     console.log(`[Admin/SelectWinners] Selected ${winners.length} winners for campaign ${id}`);
