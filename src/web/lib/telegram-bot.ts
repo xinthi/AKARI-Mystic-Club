@@ -539,6 +539,213 @@ bot.command('admin', async (ctx) => {
   );
 });
 
+// Handle /predictions command - show active predictions (admin only)
+bot.command('predictions', async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  
+  // Check if user is bot admin
+  if (!ADMIN_IDS.includes(userId)) {
+    const webAppUrl = getWebAppUrl();
+    await ctx.reply(
+      '*View Predictions*\n\n' +
+      'Open the Mini App to see all active predictions and place bets!\n\n' +
+      `${webAppUrl}/predictions`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'View Predictions', url: `${webAppUrl.replace('?startapp=', '')}/predictions` }],
+          ],
+        },
+      }
+    );
+    return;
+  }
+  
+  // Admin view - show active predictions with broadcast option
+  try {
+    const predictions = await withDb(() => prisma.prediction.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        options: true,
+        _count: { select: { bets: true } },
+      },
+    }));
+    
+    if (predictions.length === 0) {
+      await ctx.reply('No active predictions right now.\n\nGo to Admin Panel to create one.');
+      return;
+    }
+    
+    let message = '*Active Predictions*\n\n';
+    predictions.forEach((p, i) => {
+      message += `${i + 1}. *${p.title}*\n`;
+      message += `   Options: ${p.options.join(' / ')}\n`;
+      message += `   Bets: ${p._count.bets}\n\n`;
+    });
+    
+    message += `_Use Admin Panel to broadcast predictions to groups._`;
+    
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Open Admin Panel', url: getAdminUrl('/admin/predictions') }],
+        ],
+      },
+    });
+  } catch (err) {
+    console.error('[TelegramBot] Error in /predictions:', err);
+    await ctx.reply('Failed to load predictions. Try again later.');
+  }
+});
+
+// Handle /campaigns command - show active campaigns (admin only)
+bot.command('campaigns', async (ctx) => {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+  
+  // Check if user is bot admin
+  if (!ADMIN_IDS.includes(userId)) {
+    const webAppUrl = getWebAppUrl();
+    await ctx.reply(
+      '*View Campaigns*\n\n' +
+      'Open the Mini App to see all active quests and earn rewards!\n\n' +
+      `${webAppUrl}/campaigns`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'View Campaigns', url: `${webAppUrl.replace('?startapp=', '')}/campaigns` }],
+          ],
+        },
+      }
+    );
+    return;
+  }
+  
+  // Admin view - show active campaigns with broadcast option
+  try {
+    const campaigns = await withDb(() => prisma.campaign.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        endsAt: true,
+        _count: { select: { progress: true } },
+      },
+    }));
+    
+    if (campaigns.length === 0) {
+      await ctx.reply('No active campaigns right now.\n\nGo to Admin Panel to create one.');
+      return;
+    }
+    
+    let message = '*Active Campaigns*\n\n';
+    campaigns.forEach((c, i) => {
+      message += `${i + 1}. *${c.name}*\n`;
+      message += `   Participants: ${c._count.progress}\n`;
+      message += `   Ends: ${c.endsAt.toLocaleDateString()}\n\n`;
+    });
+    
+    message += `_Use Admin Panel to broadcast campaigns to groups._`;
+    
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Open Admin Panel', url: getAdminUrl('/admin/campaigns') }],
+        ],
+      },
+    });
+  } catch (err) {
+    console.error('[TelegramBot] Error in /campaigns:', err);
+    await ctx.reply('Failed to load campaigns. Try again later.');
+  }
+});
+
+// Handle /tasks command - alias for campaigns
+bot.command('tasks', async (ctx) => {
+  // Redirect to campaigns command
+  await ctx.reply(
+    '*View Tasks & Quests*\n\n' +
+    'Use /campaigns to see active quests, or open the Mini App!',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'View Campaigns', url: `${getWebAppUrl().replace('?startapp=', '')}/campaigns` }],
+        ],
+      },
+    }
+  );
+});
+
+// Handle /leaderboard command
+bot.command('leaderboard', async (ctx) => {
+  const webAppUrl = getWebAppUrl();
+  await ctx.reply(
+    '*Leaderboard*\n\n' +
+    'See the top players and your ranking!\n\n' +
+    'Categories:\n' +
+    '• MYST Spent\n' +
+    '• Referrals\n' +
+    '• aXP Points',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'View Leaderboard', url: `${webAppUrl.replace('?startapp=', '')}/leaderboard` }],
+        ],
+      },
+    }
+  );
+});
+
+// Handle /profile command
+bot.command('profile', async (ctx) => {
+  const webAppUrl = getWebAppUrl();
+  await ctx.reply(
+    '*Your Profile*\n\n' +
+    'View your stats, MYST balance, and settings in the Mini App!',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'View Profile', url: `${webAppUrl.replace('?startapp=', '')}/profile` }],
+        ],
+      },
+    }
+  );
+});
+
+// Handle /review command
+bot.command('review', async (ctx) => {
+  const webAppUrl = getWebAppUrl();
+  await ctx.reply(
+    '*Leave a Review*\n\n' +
+    'Search for users and leave reviews to build community trust!\n\n' +
+    'Go to Users page in the Mini App to find and review users.',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Find Users', url: `${webAppUrl.replace('?startapp=', '')}/users` }],
+        ],
+      },
+    }
+  );
+});
+
 // Handle /credibility command - show group credibility stats
 bot.command('credibility', async (ctx) => {
   const chat = ctx.chat;
