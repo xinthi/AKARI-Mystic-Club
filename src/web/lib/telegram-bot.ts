@@ -426,8 +426,9 @@ bot.command('credibility', async (ctx) => {
       `• Total positive reviews: ${positive}\n` +
       `• Total negative reviews: ${negative}\n` +
       `• Average credibility: ${avgScore}\n\n` +
-      `_Users with high credibility are more trustworthy in the AKARI ecosystem._`,
-      { parse_mode: 'Markdown' }
+      `_Users with high credibility are more trustworthy in the AKARI ecosystem._\n\n` +
+      `🔗 Open Mini App: ${getWebAppUrl()}`,
+      { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } }
     );
     
   } catch (err) {
@@ -463,14 +464,16 @@ bot.command('akari_intro', async (ctx) => {
         return;
       }
       
-      await ctx.reply(ADMIN_GROUP_INTRO, {
+      // In groups, use URL button instead of web_app button
+      await ctx.reply(ADMIN_GROUP_INTRO + `\n\n🔗 ${getWebAppUrl()}`, {
         parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '🚀 Open Mini App',
-                web_app: { url: getWebAppUrl() },
+                url: getWebAppUrl(),
               },
             ],
           ],
@@ -478,14 +481,16 @@ bot.command('akari_intro', async (ctx) => {
       });
     } else {
       // Promo group - anyone can trigger
-      await ctx.reply(PROMO_GROUP_INTRO, {
+      // In groups, use URL button instead of web_app button
+      await ctx.reply(PROMO_GROUP_INTRO + `\n\n🔗 ${getWebAppUrl()}`, {
         parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
         reply_markup: {
           inline_keyboard: [
             [
               {
                 text: '🚀 Open Mini App',
-                web_app: { url: getWebAppUrl() },
+                url: getWebAppUrl(),
               },
             ],
           ],
@@ -494,15 +499,16 @@ bot.command('akari_intro', async (ctx) => {
     }
   } catch (err) {
     console.error('[TelegramBot] Error in /akari_intro:', err);
-    // Fallback to promo intro
-    await ctx.reply(PROMO_GROUP_INTRO, {
+    // Fallback to promo intro - use URL button for groups
+    await ctx.reply(PROMO_GROUP_INTRO + `\n\n🔗 ${getWebAppUrl()}`, {
       parse_mode: 'Markdown',
+      link_preview_options: { is_disabled: true },
       reply_markup: {
         inline_keyboard: [
           [
             {
               text: '🚀 Open Mini App',
-              web_app: { url: getWebAppUrl() },
+              url: getWebAppUrl(),
             },
           ],
         ],
@@ -773,14 +779,16 @@ bot.on('my_chat_member', async (ctx) => {
         try {
           const introMessage = isAdmin ? ADMIN_GROUP_INTRO : PROMO_GROUP_INTRO;
           
-          await bot.api.sendMessage(chat.id, introMessage, {
+          // In groups, use URL button instead of web_app button
+          await bot.api.sendMessage(chat.id, introMessage + `\n\n🔗 ${getWebAppUrl()}`, {
             parse_mode: 'Markdown',
+            link_preview_options: { is_disabled: true },
             reply_markup: {
               inline_keyboard: [
                 [
                   {
                     text: '🚀 Open Mini App',
-                    web_app: { url: getWebAppUrl() },
+                    url: getWebAppUrl(),
                   },
                 ],
               ],
