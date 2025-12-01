@@ -765,10 +765,10 @@ export default function ProfilePage() {
             <h2 className="text-lg font-semibold">Invite Friends</h2>
           </div>
           <p className="text-sm text-purple-300 mb-2">
-            Earn <span className="text-green-400 font-bold">8%</span> of your friends&apos; MYST spending as referral rewards!
+            Earn from the <span className="text-green-400 font-bold">Referral Leaderboard</span>!
           </p>
           <p className="text-xs text-gray-400 mb-1">
-            + 2% from your friends&apos; referrals (L2)
+            Rank higher by inviting more friends. 10% of platform fees are shared weekly with top referrers.
           </p>
           <p className="text-xs text-amber-400 mb-4">
             🎁 Refer 5 friends and earn 10 MYST bonus! (Limited time)

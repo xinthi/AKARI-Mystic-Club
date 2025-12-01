@@ -4,14 +4,29 @@
  * POST: Resolve a prediction and pay out winners
  * 
  * ECONOMIC MODEL:
- * - Fees are already taken at bet time (15% leaderboard, 10% referral, 5% wheel, 70% treasury)
- * - Prediction pool contains 70% of all bets (treasury portion)
- * - Winners receive: 100% of the pool, distributed proportionally
- * - No additional fees on resolution
+ * - Platform fee = 10% of the LOSING SIDE only (NOT total pool)
+ * - Winners receive: (total pool - fee) distributed proportionally
+ * - Fee distribution:
+ *   - 10% of platform fee → Referral leaderboard (weekly distribution)
+ *   - 15% of platform fee → Leaderboard pool
+ *   - 5% of platform fee → Wheel pool
+ *   - 70% of platform fee → Treasury
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../../lib/prisma';
+import { POOL_IDS } from '../../../../../lib/myst-service';
+
+// Fee rate: 10% of losing side
+const PLATFORM_FEE_RATE = 0.10;
+
+// Fee distribution splits (must sum to 1.0)
+const FEE_SPLIT = {
+  REFERRAL_LEADERBOARD: 0.10,  // 10% of platform fee → referral leaderboard
+  LEADERBOARD: 0.15,           // 15% of platform fee → leaderboard pool
+  WHEEL: 0.05,                 // 5% of platform fee → wheel pool
+  TREASURY: 0.70,              // 70% of platform fee → treasury
+};
 
 interface ResolveResponse {
   ok: boolean;
@@ -21,8 +36,14 @@ interface ResolveResponse {
     totalPool: number;
     winningSide: string;
     losingSide: string;
+    platformFee: number;
+    feeDistribution: {
+      referralLeaderboard: number;
+      leaderboard: number;
+      wheel: number;
+      treasury: number;
+    };
     winPool: number;
-    note: string;
   };
   message?: string;
 }
@@ -80,10 +101,15 @@ export default async function handler(
     const losingSideTotal = isYesWinner ? prediction.mystPoolNo : prediction.mystPoolYes;
     const totalPool = winningSideTotal + losingSideTotal;
 
-    // ECONOMIC MODEL: Fees already taken at bet time
-    // Pool contains 70% of all bets (treasury portion)
-    // Winners get 100% of the pool, distributed proportionally
-    const winPool = totalPool;
+    // ECONOMIC MODEL: Fee = 10% of LOSING SIDE only
+    const platformFee = losingSideTotal * PLATFORM_FEE_RATE;
+    const winPool = totalPool - platformFee;
+
+    // Calculate fee distribution
+    const feeToReferralLeaderboard = platformFee * FEE_SPLIT.REFERRAL_LEADERBOARD;
+    const feeToLeaderboard = platformFee * FEE_SPLIT.LEADERBOARD;
+    const feeToWheel = platformFee * FEE_SPLIT.WHEEL;
+    const feeToTreasury = platformFee * FEE_SPLIT.TREASURY;
 
     // Get winning bets
     const winningBets = prediction.bets.filter(bet => bet.option === winningOptionString);
@@ -155,8 +181,43 @@ export default async function handler(
         }
       }
 
-      // Fees already distributed at bet time via spendMyst
-      // No additional pool updates needed on resolution
+      // Distribute platform fee to pools
+      if (platformFee > 0) {
+        // Referral leaderboard: 10% of platform fee (weekly distribution)
+        await tx.poolBalance.upsert({
+          where: { id: POOL_IDS.REFERRAL },
+          update: { balance: { increment: feeToReferralLeaderboard } },
+          create: { id: POOL_IDS.REFERRAL, balance: feeToReferralLeaderboard },
+        });
+
+        // Leaderboard pool: 15% of platform fee
+        await tx.poolBalance.upsert({
+          where: { id: POOL_IDS.LEADERBOARD },
+          update: { balance: { increment: feeToLeaderboard } },
+          create: { id: POOL_IDS.LEADERBOARD, balance: feeToLeaderboard },
+        });
+
+        // Wheel pool: 5% of platform fee
+        await tx.poolBalance.upsert({
+          where: { id: POOL_IDS.WHEEL },
+          update: { balance: { increment: feeToWheel } },
+          create: { id: POOL_IDS.WHEEL, balance: feeToWheel },
+        });
+
+        // Also update legacy WheelPool
+        await tx.wheelPool.upsert({
+          where: { id: 'main_pool' },
+          update: { balance: { increment: feeToWheel } },
+          create: { id: 'main_pool', balance: feeToWheel },
+        });
+
+        // Treasury: 70% of platform fee
+        await tx.poolBalance.upsert({
+          where: { id: POOL_IDS.TREASURY },
+          update: { balance: { increment: feeToTreasury } },
+          create: { id: POOL_IDS.TREASURY, balance: feeToTreasury },
+        });
+      }
 
       // Update prediction status
       await tx.prediction.update({
@@ -175,7 +236,10 @@ export default async function handler(
     console.log(
       `[AdminPrediction] Resolved ${id}: Option ${winningOption} (${winningOptionString}). ` +
       `Pool: YES=${prediction.mystPoolYes}, NO=${prediction.mystPoolNo}, Total=${totalPool}. ` +
-      `${result.winnersCount} winners, ${result.totalPayout.toFixed(2)} MYST paid out (fees already taken at bet time)`
+      `Losing side=${losingSideTotal}, Fee=${platformFee.toFixed(2)} (10% of losing). ` +
+      `Fee dist: REF_LB=${feeToReferralLeaderboard.toFixed(2)}, LB=${feeToLeaderboard.toFixed(2)}, ` +
+      `WHEEL=${feeToWheel.toFixed(2)}, TREASURY=${feeToTreasury.toFixed(2)}. ` +
+      `${result.winnersCount} winners, ${result.totalPayout.toFixed(2)} MYST paid out`
     );
 
     return res.status(200).json({
@@ -186,8 +250,14 @@ export default async function handler(
         totalPool,
         winningSide: isYesWinner ? 'YES' : 'NO',
         losingSide: isYesWinner ? 'NO' : 'YES',
+        platformFee,
+        feeDistribution: {
+          referralLeaderboard: feeToReferralLeaderboard,
+          leaderboard: feeToLeaderboard,
+          wheel: feeToWheel,
+          treasury: feeToTreasury,
+        },
         winPool,
-        note: 'Fees (15% leaderboard, 10% referral, 5% wheel, 70% treasury) already taken at bet time',
       },
       message: `Prediction resolved. ${result.winnersCount} winner(s) received ${result.totalPayout.toFixed(2)} MYST.`,
     });
