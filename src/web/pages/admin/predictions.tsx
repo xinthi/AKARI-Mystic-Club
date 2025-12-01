@@ -81,6 +81,26 @@ export default function AdminPredictionsPage() {
     loadPredictions();
   }, [router]);
 
+  // Broadcast prediction to groups
+  const broadcastPrediction = async (predictionId: string) => {
+    if (!confirm('Broadcast this prediction to all promo groups?')) return;
+    
+    try {
+      const response = await adminFetch('/api/admin/broadcast-prediction', {
+        method: 'POST',
+        body: JSON.stringify({ predictionId }),
+      });
+      const data = await response.json();
+      if (data.ok) {
+        setMessage({ type: 'success', text: data.message });
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to broadcast' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to broadcast' });
+    }
+  };
+
   // Load stats for a prediction
   const loadStats = async (predictionId: string) => {
     setLoadingStats(true);
@@ -508,6 +528,12 @@ export default function AdminPredictionsPage() {
                   
                   {pred.status === 'ACTIVE' && (
                     <>
+                      <button
+                        onClick={() => broadcastPrediction(pred.id)}
+                        className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-sm"
+                      >
+                        📢 Broadcast
+                      </button>
                       <button
                         onClick={() => updateStatus(pred.id, 'PAUSED')}
                         className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-sm"

@@ -37,6 +37,132 @@ async function withDb<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T
   throw lastError;
 }
 
+// ============================================
+// BROADCAST TO PROMO GROUPS
+// ============================================
+
+/**
+ * Broadcast a message to all promo groups (groups where bot is NOT admin)
+ */
+export async function broadcastToPromoGroups(message: string, buttonText?: string, buttonUrl?: string) {
+  try {
+    // Get all active promo groups
+    const groups = await withDb(() => prisma.tgGroup.findMany({
+      where: {
+        isActive: true,
+        allowPromo: true,
+      },
+      select: { id: true, title: true },
+    }));
+    
+    console.log(`[Broadcast] Sending to ${groups.length} promo groups`);
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const group of groups) {
+      try {
+        const options: any = {
+          parse_mode: 'Markdown' as const,
+          link_preview_options: { is_disabled: true },
+        };
+        
+        if (buttonText && buttonUrl) {
+          options.reply_markup = {
+            inline_keyboard: [
+              [{ text: buttonText, url: buttonUrl }],
+            ],
+          };
+        }
+        
+        await bot.api.sendMessage(group.id, message, options);
+        successCount++;
+        
+        // Rate limit: wait 100ms between messages
+        await new Promise(r => setTimeout(r, 100));
+      } catch (err: any) {
+        console.warn(`[Broadcast] Failed to send to ${group.title}:`, err.message);
+        failCount++;
+        
+        // If bot was removed from group, deactivate it
+        if (err.message?.includes('bot was kicked') || err.message?.includes('chat not found')) {
+          await withDb(() => prisma.tgGroup.update({
+            where: { id: group.id },
+            data: { isActive: false },
+          })).catch(() => {});
+        }
+      }
+    }
+    
+    console.log(`[Broadcast] Sent: ${successCount}, Failed: ${failCount}`);
+    return { successCount, failCount };
+  } catch (err) {
+    console.error('[Broadcast] Error:', err);
+    return { successCount: 0, failCount: 0 };
+  }
+}
+
+/**
+ * Broadcast a new prediction to promo groups
+ */
+export async function broadcastNewPrediction(prediction: {
+  id: string;
+  title: string;
+  description?: string;
+  options: string[];
+  endDate?: Date;
+}) {
+  const webAppUrl = getWebAppUrl();
+  const predictionUrl = `${webAppUrl.replace('?startapp=', '')}/predictions/${prediction.id}`;
+  
+  const optionsList = prediction.options.map((o, i) => `  ${i + 1}. ${o}`).join('\n');
+  const endDateStr = prediction.endDate 
+    ? `Ends: ${prediction.endDate.toLocaleDateString()}`
+    : '';
+  
+  const message = 
+    `*New Prediction Market*\n\n` +
+    `*${prediction.title}*\n\n` +
+    (prediction.description ? `${prediction.description}\n\n` : '') +
+    `Options:\n${optionsList}\n\n` +
+    (endDateStr ? `${endDateStr}\n\n` : '') +
+    `Place your bets now!`;
+  
+  return broadcastToPromoGroups(message, 'Bet Now', predictionUrl);
+}
+
+/**
+ * Broadcast a new campaign/quest to promo groups
+ */
+export async function broadcastNewCampaign(campaign: {
+  id: string;
+  name: string;
+  description?: string;
+  rewardPool?: number;
+  endDate?: Date;
+}) {
+  const webAppUrl = getWebAppUrl();
+  const campaignUrl = `${webAppUrl.replace('?startapp=', '')}/campaigns/${campaign.id}`;
+  
+  const endDateStr = campaign.endDate 
+    ? `Ends: ${campaign.endDate.toLocaleDateString()}`
+    : '';
+  
+  const rewardStr = campaign.rewardPool 
+    ? `Reward Pool: ${campaign.rewardPool} aXP`
+    : '';
+  
+  const message = 
+    `*New Quest Available*\n\n` +
+    `*${campaign.name}*\n\n` +
+    (campaign.description ? `${campaign.description}\n\n` : '') +
+    (rewardStr ? `${rewardStr}\n` : '') +
+    (endDateStr ? `${endDateStr}\n\n` : '\n') +
+    `Complete tasks to earn rewards!`;
+  
+  return broadcastToPromoGroups(message, 'Join Quest', campaignUrl);
+}
+
 // Log env var status on module load
 console.log('[TelegramBot] Module loaded.');
 console.log('[TelegramBot] TELEGRAM_BOT_TOKEN length:', process.env.TELEGRAM_BOT_TOKEN?.length ?? 0);
@@ -191,16 +317,16 @@ bot.command('start', async (ctx) => {
   if (ctx.chat?.type !== 'private') {
     const webAppUrl = getWebAppUrl();
     await ctx.reply(
-      '🔮 *AKARI Mystic Club*\n\n' +
+      '*AKARI Mystic Club*\n\n' +
       'A prediction market and reputation layer for Web3.\n\n' +
-      '👉 DM me to get started, or tap below to open the app!\n\n' +
-      `🔗 ${webAppUrl}`,
+      'DM me to get started, or tap below to open the app!\n\n' +
+      webAppUrl,
       {
         parse_mode: 'Markdown',
         link_preview_options: { is_disabled: true },
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Open Mini App', url: webAppUrl }],
+            [{ text: 'Open Mini App', url: webAppUrl }],
           ],
         },
       }

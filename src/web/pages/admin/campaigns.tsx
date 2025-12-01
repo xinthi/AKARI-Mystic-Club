@@ -153,6 +153,26 @@ export default function AdminCampaignsPage() {
     }
   }, [router]);
 
+  // Broadcast campaign to groups
+  const broadcastCampaign = async (campaignId: string) => {
+    if (!confirm('Broadcast this campaign to all promo groups?')) return;
+    
+    try {
+      const response = await adminFetch('/api/admin/broadcast-campaign', {
+        method: 'POST',
+        body: JSON.stringify({ campaignId }),
+      });
+      const data = await response.json();
+      if (data.ok) {
+        setMessage({ type: 'success', text: data.message });
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to broadcast' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to broadcast' });
+    }
+  };
+
   // Load stats for a campaign
   const loadStats = async (campaignId: string) => {
     setLoadingStats(true);
@@ -561,6 +581,14 @@ export default function AdminCampaignsPage() {
                   >
                     📊 Stats
                   </button>
+                  {campaign.status === 'active' && (
+                    <button
+                      onClick={() => broadcastCampaign(campaign.id)}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded-lg font-medium"
+                    >
+                      📢 Broadcast
+                    </button>
+                  )}
                   {campaign.participantCount > 0 && (
                     <a
                       href={`/admin/campaigns/${campaign.id}/participants`}
