@@ -590,16 +590,9 @@ bot.command('predictions', async (ctx) => {
       message += `   Bets: ${p._count.bets}\n\n`;
     });
     
-    message += `_Use Admin Panel to broadcast predictions to groups._`;
+    message += `_Use /admin in DM to access Admin Panel._`;
     
-    await ctx.reply(message, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Open Admin Panel', url: getAdminUrl('/admin/predictions') }],
-        ],
-      },
-    });
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (err) {
     console.error('[TelegramBot] Error in /predictions:', err);
     await ctx.reply('Failed to load predictions. Try again later.');
@@ -657,16 +650,9 @@ bot.command('campaigns', async (ctx) => {
       message += `   Ends: ${c.endsAt.toLocaleDateString()}\n\n`;
     });
     
-    message += `_Use Admin Panel to broadcast campaigns to groups._`;
+    message += `_Use /admin in DM to access Admin Panel._`;
     
-    await ctx.reply(message, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Open Admin Panel', url: getAdminUrl('/admin/campaigns') }],
-        ],
-      },
-    });
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (err) {
     console.error('[TelegramBot] Error in /campaigns:', err);
     await ctx.reply('Failed to load campaigns. Try again later.');
