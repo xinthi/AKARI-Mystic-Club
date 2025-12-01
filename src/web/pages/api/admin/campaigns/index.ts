@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Verify admin token
@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (req.method === 'GET') {
       // List all campaigns with tasks
-      const campaigns = await prisma.campaign.findMany({
+      const campaigns = await withDbRetry(() => prisma.campaign.findMany({
         include: {
           tasks: true,
           _count: {
@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         },
         orderBy: { createdAt: 'desc' },
-      });
+      }));
 
       return res.status(200).json({
         ok: true,

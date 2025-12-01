@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Verify admin token
@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where.status = status;
       }
 
-      const requests = await prisma.campaignRequest.findMany({
+      const requests = await withDbRetry(() => prisma.campaignRequest.findMany({
         where,
         include: {
           createdBy: {
@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         },
         orderBy: { createdAt: 'desc' },
-      });
+      }));
 
       return res.status(200).json({ ok: true, requests });
     }

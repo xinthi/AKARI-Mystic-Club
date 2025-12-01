@@ -7,7 +7,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 
 interface WithdrawalRow {
   id: string;
@@ -53,7 +53,7 @@ export default async function handler(
     
     const whereClause = status ? { status } : {};
 
-    const withdrawals = await prisma.withdrawalRequest.findMany({
+    const withdrawals = await withDbRetry(() => prisma.withdrawalRequest.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -64,7 +64,7 @@ export default async function handler(
           },
         },
       },
-    });
+    }));
 
     const rows: WithdrawalRow[] = withdrawals.map(w => ({
       id: w.id,
