@@ -40,7 +40,7 @@ export default function AdminPredictionRequestsPage() {
       return;
     }
     loadRequests();
-  }, [router]);
+  }, [router, loadRequests]);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);

@@ -41,7 +41,7 @@ export default function AdminCampaignRequestsPage() {
       return;
     }
     loadRequests();
-  }, [router]);
+  }, [router, loadRequests]);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);

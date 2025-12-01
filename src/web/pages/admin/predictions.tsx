@@ -79,7 +79,7 @@ export default function AdminPredictionsPage() {
       return;
     }
     loadPredictions();
-  }, [router]);
+  }, [router, loadPredictions]);
 
   // Broadcast prediction to groups
   const broadcastPrediction = async (predictionId: string) => {

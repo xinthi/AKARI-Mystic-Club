@@ -129,7 +129,7 @@ export default function AdminCampaignsPage() {
       return;
     }
     loadCampaigns();
-  }, [router]);
+  }, [router, loadCampaigns]);
 
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
