@@ -26,12 +26,41 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ProfileResponse>
 ) {
+  const startTime = Date.now();
+  
   try {
+    console.log('[Profile API] Request received:', req.method, new Date().toISOString());
+    
+    // Set timeout for the entire request (25 seconds - Vercel limit is 30s for Hobby)
+    const timeoutId = setTimeout(() => {
+      console.error('[Profile API] Request timeout after 25 seconds');
+      if (!res.headersSent) {
+        res.status(500).json({
+          ok: false,
+          user: null,
+          error: 'Request timeout - database connection may be slow',
+        });
+      }
+    }, 25000);
+
     // Debug: log what headers we received
     const initDataHeader = req.headers['x-telegram-init-data'] as string | undefined;
     console.log('[Profile API] initData header length:', initDataHeader?.length || 0);
 
-    let user = await getUserFromRequest(req, prisma);
+    let user;
+    try {
+      console.log('[Profile API] Getting user from request...');
+      user = await getUserFromRequest(req, prisma);
+      console.log('[Profile API] getUserFromRequest completed, user:', user?.id || 'null');
+    } catch (authErr: any) {
+      console.error('[Profile API] getUserFromRequest failed:', authErr.message);
+      clearTimeout(timeoutId);
+      return res.status(200).json({
+        ok: false,
+        user: null,
+        message: 'Authentication failed. Please try again.',
+      });
+    }
 
     // If no user but we have valid initData, create the user
     if (!user && initDataHeader) {
@@ -242,6 +271,10 @@ export default async function handler(
         })),
       };
 
+      clearTimeout(timeoutId);
+      const duration = Date.now() - startTime;
+      console.log(`[Profile API] Successfully returned profile in ${duration}ms`);
+      
       return res.status(200).json({
         ok: true,
         user: responseUser,

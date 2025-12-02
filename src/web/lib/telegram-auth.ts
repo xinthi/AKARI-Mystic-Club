@@ -15,6 +15,7 @@
 import crypto from 'crypto';
 import type { NextApiRequest } from 'next';
 import type { PrismaClient } from '@prisma/client';
+import { withDbRetry } from './prisma';
 
 // Log env var status on module load (once per cold start)
 const _botToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -301,14 +302,20 @@ export async function getUserFromRequest(
 
   // If we got a telegramId from initData, look up the user
   if (telegramId) {
-    const user = await prisma.user.findUnique({
-      where: { telegramId },
-    });
-    if (user) {
-      console.log('[TelegramAuth] getUserFromRequest: Found user in DB:', user.id);
-      return user;
-    } else {
-      console.log('[TelegramAuth] getUserFromRequest: No user found for telegramId:', telegramId);
+    try {
+      const user = await withDbRetry(() => prisma.user.findUnique({
+        where: { telegramId },
+      }), 2, 500); // Fast retry for auth
+      if (user) {
+        console.log('[TelegramAuth] getUserFromRequest: Found user in DB:', user.id);
+        return user;
+      } else {
+        console.log('[TelegramAuth] getUserFromRequest: No user found for telegramId:', telegramId);
+      }
+    } catch (dbErr: any) {
+      console.error('[TelegramAuth] getUserFromRequest: Database error:', dbErr.message);
+      // Don't throw - return null so caller can handle gracefully
+      return null;
     }
   }
 
@@ -318,23 +325,28 @@ export async function getUserFromRequest(
     const adminTelegramId = process.env.ADMIN_TELEGRAM_ID;
     if (adminTelegramId) {
       console.log('[TelegramAuth] DEV MODE: Using ADMIN_TELEGRAM_ID fallback');
-      // Look for existing user with that telegramId
-      let user = await prisma.user.findFirst({
-        where: { telegramId: adminTelegramId.toString() },
-      });
+      try {
+        // Look for existing user with that telegramId
+        let user = await withDbRetry(() => prisma.user.findFirst({
+          where: { telegramId: adminTelegramId.toString() },
+        }), 2, 500);
 
-      // If not found, create a basic user row for admin
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            telegramId: adminTelegramId.toString(),
-            username: 'MuazXinthi',
-            firstName: 'Muaz',
-          },
-        });
+        // If not found, create a basic user row for admin
+        if (!user) {
+          user = await withDbRetry(() => prisma.user.create({
+            data: {
+              telegramId: adminTelegramId.toString(),
+              username: 'MuazXinthi',
+              firstName: 'Muaz',
+            },
+          }), 2, 500);
+        }
+
+        return user;
+      } catch (dbErr: any) {
+        console.error('[TelegramAuth] DEV MODE: Database error:', dbErr.message);
+        return null;
       }
-
-      return user;
     }
   }
 
