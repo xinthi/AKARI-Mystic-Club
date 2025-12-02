@@ -155,6 +155,7 @@ export default async function handler(
         endsAt: p.endsAt?.toISOString() ?? null,
         participantCount: p._count.bets,
         category: deriveCategory(p.id, p.title, p.category),
+        originalCategory: p.category, // Keep original for badge detection
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),
       }));

@@ -21,6 +21,7 @@ interface Prediction {
   endsAt: string;
   participantCount: number;
   category?: string;
+  originalCategory?: string; // Original database category for badge detection
   optionStats?: Array<{
     option: string;
     index: number;
@@ -328,7 +329,7 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
           <h2 className="text-[11px] font-semibold text-white leading-snug line-clamp-2 flex-1">
             {prediction.title}
           </h2>
-          {prediction.category === 'TRENDING_CRYPTO' && (
+          {prediction.originalCategory === 'TRENDING_CRYPTO' && (
             <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 border border-amber-500/20 shrink-0">
               🔥 Trending
             </span>
