@@ -363,18 +363,19 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
         </div>
       </div>
 
-      {/* Footer: Pot + Participants */}
-      <div className="flex justify-between items-center text-[9px] text-purple-300/70 pt-1.5 border-t border-white/5">
-        <span className="truncate">
-          {(() => {
-            const totalMyst = (prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0);
-            if (totalMyst > 0) {
-              return `${totalMyst.toFixed(0)} MYST`;
-            }
-            return `${prediction.pot.toLocaleString()} ${prediction.entryFeeStars > 0 ? '⭐' : 'EP'}`;
-          })()}
-        </span>
-        <span className="shrink-0">{prediction.participantCount} 👤</span>
+      {/* Footer: Pools + Participants */}
+      <div className="flex flex-col gap-1 pt-1.5 border-t border-white/5">
+        <div className="flex justify-between items-center text-[9px] text-purple-300/70">
+          <span className="truncate">
+            EP: {prediction.pot.toLocaleString()}
+          </span>
+          <span className="shrink-0">{prediction.participantCount} 👤</span>
+        </div>
+        <div className="flex justify-between items-center text-[9px] text-amber-300/70">
+          <span className="truncate">
+            MYST: {((prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0)).toFixed(2)}
+          </span>
+        </div>
       </div>
     </button>
   );

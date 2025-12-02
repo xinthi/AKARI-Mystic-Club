@@ -105,6 +105,8 @@ export default async function handler(
           entryFeePoints: prediction.entryFeePoints,
           entryFeeMyst: prediction.entryFeeMyst,
           pot: prediction.pot,
+          mystPoolYes: prediction.mystPoolYes,
+          mystPoolNo: prediction.mystPoolNo,
           resolved: prediction.resolved,
           winningOption: prediction.winningOption,
           endsAt: prediction.endsAt?.toISOString() ?? null,

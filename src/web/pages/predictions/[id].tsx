@@ -16,6 +16,8 @@ interface PredictionDetail {
   entryFeeStars: number;
   entryFeePoints: number;
   pot: number;
+  mystPoolYes?: number;
+  mystPoolNo?: number;
   resolved: boolean;
   winnerOption?: number;
   winningOption?: string;
@@ -331,20 +333,26 @@ export default function PredictionDetailPage() {
       </header>
 
       <div className="px-6 pb-6 space-y-6">
-        {/* Pot and Stats */}
+        {/* Pools and Stats */}
         <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <div className="text-xs text-purple-300 mb-1">Total Pot</div>
-              <div className="text-2xl font-bold">
-                {(prediction.pot ?? 0).toLocaleString()} {prediction.entryFeeStars > 0 ? '⭐' : 'EP'}
+              <div className="text-xs text-purple-300 mb-1">EP Pool</div>
+              <div className="text-2xl font-bold text-purple-200">
+                {(prediction.pot ?? 0).toLocaleString()} EP
               </div>
             </div>
             <div>
-              <div className="text-xs text-purple-300 mb-1">Ends</div>
-              <div className="text-lg font-semibold">
-                {prediction.endsAt ? new Date(prediction.endsAt).toLocaleDateString() : 'TBD'}
+              <div className="text-xs text-purple-300 mb-1">MYST Pool</div>
+              <div className="text-2xl font-bold text-amber-300">
+                {((prediction.mystPoolYes ?? 0) + (prediction.mystPoolNo ?? 0)).toFixed(2)} MYST
               </div>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-purple-500/20">
+            <div className="text-xs text-purple-300 mb-1">Ends</div>
+            <div className="text-lg font-semibold">
+              {prediction.endsAt ? new Date(prediction.endsAt).toLocaleDateString() : 'TBD'}
             </div>
           </div>
         </div>
@@ -424,8 +432,15 @@ export default function PredictionDetailPage() {
             <div className="text-sm text-blue-300 mb-1">Your Bet</div>
             <div className="font-semibold">
               {getUserBetOptionLabel()} •{' '}
-              {prediction.userBet.starsBet || prediction.userBet.pointsBet}{' '}
-              {(prediction.userBet.starsBet ?? 0) > 0 ? '⭐' : 'EP'}
+              {(() => {
+                if ((prediction.userBet.mystBet ?? 0) > 0) {
+                  return `${prediction.userBet.mystBet?.toFixed(2)} MYST`;
+                } else if ((prediction.userBet.starsBet ?? 0) > 0) {
+                  return `${prediction.userBet.starsBet} ⭐`;
+                } else {
+                  return `${prediction.userBet.pointsBet} EP`;
+                }
+              })()}
             </div>
           </div>
         )}
