@@ -10,19 +10,53 @@ function getDatabaseUrl(): string {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  // If using Supabase pooler (port 6543), ensure pgbouncer mode
-  if (url.includes(':6543/') && !url.includes('pgbouncer=true')) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}pgbouncer=true&connect_timeout=10`;
-  }
+  // Parse URL to check and modify
+  try {
+    const urlObj = new URL(url);
+    
+    // If using Supabase pooler (port 6543), ensure pgbouncer mode
+    if (urlObj.port === '6543' || url.includes(':6543/')) {
+      // For Prisma with pgbouncer, we need session mode (not transaction mode)
+      urlObj.searchParams.set('pgbouncer', 'true');
+      urlObj.searchParams.set('connect_timeout', '10');
+      // Important: Prisma needs session mode for pgbouncer
+      urlObj.searchParams.set('pool_timeout', '10');
+      return urlObj.toString();
+    }
 
-  // If using direct connection, add connection timeout
-  if (url.includes(':5432/') && !url.includes('connect_timeout')) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}connect_timeout=10`;
+    // If using direct connection, add connection timeout
+    if (urlObj.port === '5432' || url.includes(':5432/')) {
+      urlObj.searchParams.set('connect_timeout', '10');
+      return urlObj.toString();
+    }
+  } catch (e) {
+    // If URL parsing fails, try string manipulation
+    console.warn('[Prisma] Failed to parse DATABASE_URL, using string manipulation');
+    
+    // If using Supabase pooler (port 6543), ensure pgbouncer mode
+    if (url.includes(':6543/') && !url.includes('pgbouncer=true')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}pgbouncer=true&connect_timeout=10&pool_timeout=10`;
+    }
+
+    // If using direct connection, add connection timeout
+    if (url.includes(':5432/') && !url.includes('connect_timeout')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}connect_timeout=10`;
+    }
   }
 
   return url;
+}
+
+// Get optimized database URL
+const databaseUrl = getDatabaseUrl();
+
+// Log connection details (without password) for debugging
+if (process.env.NODE_ENV === 'development') {
+  const urlObj = new URL(databaseUrl);
+  console.log('[Prisma] Connecting to:', `${urlObj.protocol}//${urlObj.hostname}:${urlObj.port}${urlObj.pathname}`);
+  console.log('[Prisma] Connection params:', urlObj.searchParams.toString());
 }
 
 export const prisma =
@@ -32,7 +66,7 @@ export const prisma =
     // Optimize for serverless environments
     datasources: {
       db: {
-        url: getDatabaseUrl(),
+        url: databaseUrl,
       },
     },
   });
