@@ -418,19 +418,86 @@ export default function PredictionDetailPage() {
           <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-6 border border-purple-500/20">
             <h3 className="text-lg font-semibold mb-4">Place Your Bet</h3>
 
+            {/* Currency Toggle */}
             <div className="mb-4">
-              <label className="block text-sm text-purple-300 mb-2">Bet Amount (optional)</label>
+              <label className="block text-sm text-purple-300 mb-2">Bet Currency</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBetCurrency('MYST');
+                    setBetAmount('');
+                  }}
+                  className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
+                    betCurrency === 'MYST'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-purple-800/50 text-purple-200 hover:bg-purple-700/50'
+                  }`}
+                >
+                  MYST
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBetCurrency('EP');
+                    setBetAmount('');
+                  }}
+                  className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
+                    betCurrency === 'EP'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-800/50 text-purple-200 hover:bg-purple-700/50'
+                  }`}
+                >
+                  EP
+                </button>
+              </div>
+            </div>
+
+            {/* User Balances */}
+            {userBalances && (
+              <div className="mb-4 p-3 bg-purple-800/30 rounded-lg border border-purple-500/20">
+                <div className="flex justify-between text-sm">
+                  <span className="text-purple-300">Your Balance:</span>
+                  <div className="text-right">
+                    <div className="text-amber-300 font-semibold">
+                      {userBalances.myst.toFixed(2)} MYST
+                    </div>
+                    <div className="text-purple-200 text-xs">
+                      {userBalances.points.toLocaleString()} EP
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bet Amount Input */}
+            <div className="mb-4">
+              <label className="block text-sm text-purple-300 mb-2">
+                Bet Amount {betCurrency === 'MYST' ? '(MYST)' : '(EP)'} (optional)
+              </label>
               <input
                 type="number"
+                step={betCurrency === 'MYST' ? '0.01' : '1'}
                 value={betAmount}
                 onChange={(e) => setBetAmount(e.target.value)}
                 placeholder={
-                  prediction.entryFeeStars > 0
-                    ? `Min: ${prediction.entryFeeStars} Stars`
-                    : `Min: ${prediction.entryFeePoints} Points`
+                  betCurrency === 'MYST'
+                    ? prediction.entryFeeMyst
+                      ? `Min: ${prediction.entryFeeMyst} MYST`
+                      : 'Min: 2 MYST'
+                    : prediction.entryFeePoints
+                      ? `Min: ${prediction.entryFeePoints} EP`
+                      : 'Min: 1 EP'
                 }
                 className="w-full bg-purple-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-400"
-                min={prediction.entryFeeStars || prediction.entryFeePoints || 1}
+                min={betCurrency === 'MYST' 
+                  ? (prediction.entryFeeMyst || 2)
+                  : (prediction.entryFeePoints || 1)
+                }
+                max={userBalances 
+                  ? (betCurrency === 'MYST' ? userBalances.myst : userBalances.points)
+                  : undefined
+                }
               />
               <p className="text-xs text-purple-400 mt-1">
                 Leave empty to bet the minimum amount
