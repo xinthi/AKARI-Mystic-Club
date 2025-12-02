@@ -98,15 +98,30 @@ export default function ProfilePage() {
     const tg = (window as any).Telegram?.WebApp;
     if (!tg?.BackButton) return;
 
+    let isNavigating = false;
+
+    const handleBack = () => {
+      if (isNavigating) return; // Prevent multiple navigations
+      isNavigating = true;
+      
+      // Use replace instead of push for faster navigation
+      router.replace('/').catch((err) => {
+        console.error('[Profile] Navigation error:', err);
+        isNavigating = false;
+      });
+    };
+
     tg.BackButton.show();
-    tg.BackButton.onClick(() => {
-      router.push('/');
-    });
+    tg.BackButton.onClick(handleBack);
 
     return () => {
       try {
+        if (tg.BackButton?.offClick) {
+          tg.BackButton.offClick(handleBack);
+        } else {
+          tg.BackButton.onClick(() => {});
+        }
         tg.BackButton.hide();
-        tg.BackButton.onClick(() => {});
       } catch (_) {
         // ignore
       }
