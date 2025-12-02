@@ -16,7 +16,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../../lib/prisma';
 import { getTelegramUserFromRequest } from '../../../../lib/telegram-auth';
 import { MYST_CONFIG, POOL_IDS } from '../../../../lib/myst-service';
 import { z } from 'zod';
@@ -68,13 +68,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .json({ error: 'Invalid request data', details: validation.error.errors });
     }
 
-    // Get prediction
-    const prediction = await prisma.prediction.findUnique({
+    // Get prediction with retry
+    const prediction = await withDbRetry(() => prisma.prediction.findUnique({
       where: { id },
       include: {
         bets: true,
       },
-    });
+    }));
 
     if (!prediction) {
       return res.status(404).json({ error: 'Prediction not found' });
@@ -125,7 +125,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     // Resolve prediction and distribute winnings
-    await prisma.$transaction(async (tx) => {
+    // Use withDbRetry for transaction resilience
+    await withDbRetry(async () => {
+      return await prisma.$transaction(async (tx) => {
       // Mark prediction as resolved
       await tx.prediction.update({
         where: { id },
@@ -231,6 +233,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           create: { id: POOL_IDS.TREASURY, balance: feeToTreasury },
         });
       }
+      }, {
+        maxWait: 15000, // 15 seconds max wait for large transactions
+        timeout: 60000, // 60 seconds timeout for resolution
+      });
     });
 
     console.log(

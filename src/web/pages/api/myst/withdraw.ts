@@ -15,7 +15,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { MYST_PER_USD, USD_PER_MYST, getMystBalance, POOL_IDS } from '../../../lib/myst-service';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
 
 // Withdrawal constants
@@ -98,8 +98,9 @@ export default async function handler(
     // USDT amount is 1:1 with USD
     const usdtAmount = usdNet;
 
-    // Create withdrawal in transaction
-    const withdrawal = await prisma.$transaction(async (tx) => {
+    // Create withdrawal in transaction with retry logic
+    const withdrawal = await withDbRetry(async () => {
+      return await prisma.$transaction(async (tx) => {
       // Burn the full mystAmount from user's ledger
       await tx.mystTransaction.create({
         data: {
@@ -139,6 +140,10 @@ export default async function handler(
       });
 
       return req;
+      }, {
+        maxWait: 10000,
+        timeout: 30000,
+      });
     });
 
     console.log(`[Withdraw] Created: ${withdrawal.id} | ${mystAmount} MYST → ${usdtAmount.toFixed(2)} USDT`);

@@ -206,36 +206,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     // Create bet, update prediction pools, and deduct user points
     const totalBetAmount = starsBet + pointsBet;
 
-    const [bet, updatedPrediction, updatedUser] = await prisma.$transaction([
-      prisma.bet.create({
-        data: {
-          userId: user.id,
-          predictionId: id,
-          option: resolvedOption,
-          starsBet,
-          pointsBet,
-          mystBet,
-        },
-      }),
-      prisma.prediction.update({
-        where: { id },
-        data: {
-          pot: { increment: totalBetAmount },
-          participantCount: { increment: 1 },
-          // Update MYST pools - FULL BET AMOUNT goes to pool
-          ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: mystBet } } : {}),
-          ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: mystBet } } : {}),
-        },
-      }),
-      pointsBet > 0
-        ? prisma.user.update({
-            where: { id: user.id },
-            data: {
-              points: { decrement: pointsBet },
-            },
-          })
-        : prisma.user.findUnique({ where: { id: user.id } }),
-    ]);
+    // Use transaction with retry logic for critical bet operation
+    const [bet, updatedPrediction, updatedUser] = await withDbRetry(async () => {
+      return await prisma.$transaction([
+        prisma.bet.create({
+          data: {
+            userId: user.id,
+            predictionId: id,
+            option: resolvedOption,
+            starsBet,
+            pointsBet,
+            mystBet,
+          },
+        }),
+        prisma.prediction.update({
+          where: { id },
+          data: {
+            pot: { increment: totalBetAmount },
+            participantCount: { increment: 1 },
+            // Update MYST pools - FULL BET AMOUNT goes to pool
+            ...(mystBet > 0 && isYes ? { mystPoolYes: { increment: mystBet } } : {}),
+            ...(mystBet > 0 && !isYes ? { mystPoolNo: { increment: mystBet } } : {}),
+          },
+        }),
+        pointsBet > 0
+          ? prisma.user.update({
+              where: { id: user.id },
+              data: {
+                points: { decrement: pointsBet },
+              },
+            })
+          : prisma.user.findUnique({ where: { id: user.id } }),
+      ], {
+        maxWait: 10000, // 10 seconds max wait
+        timeout: 30000, // 30 seconds timeout
+      });
+    });
 
     // Get new MYST balance if MYST was used
     let newMystBalance: number | undefined;
