@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import crypto from 'crypto';
-import { prisma } from '../../../lib/prisma';
+import { prisma, withDbRetry } from '../../../lib/prisma';
 
 type Data =
   | { ok: true; campaigns: any[] }
@@ -146,7 +146,7 @@ export default async function handler(
             },
           },
           orderBy: { createdAt: 'desc' },
-        });
+        }));
       } catch (statusError) {
         // Fallback: query without status filter (old schema)
         console.warn('[Campaigns] Status field not available, using fallback query');

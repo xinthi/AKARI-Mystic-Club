@@ -73,14 +73,6 @@ export default function AdminPredictionsPage() {
   const [resolveModal, setResolveModal] = useState<Prediction | null>(null);
   const [winningOption, setWinningOption] = useState<number>(0);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      router.push('/admin');
-      return;
-    }
-    loadPredictions();
-  }, [router, loadPredictions]);
-
   // Broadcast prediction to groups
   const broadcastPrediction = async (predictionId: string) => {
     if (!confirm('Broadcast this prediction to all promo groups?')) return;
@@ -143,6 +135,14 @@ export default function AdminPredictionsPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
+    }
+    loadPredictions();
+  }, [router, loadPredictions]);
 
   const createPrediction = async () => {
     if (!newTitle.trim() || newOptions.filter(o => o.trim()).length < 2) {

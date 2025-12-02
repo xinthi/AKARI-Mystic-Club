@@ -94,9 +94,10 @@ export async function withIsolatedTransaction<T>(
 export async function executeTransaction<T extends Prisma.PrismaPromise<any>[]>(
   prisma: PrismaClient,
   operations: T
-): Promise<Prisma.Result<T, any, 'runCommand'>> {
+): Promise<UnwrapPromise<ReturnType<typeof prisma.$transaction<T>>>> {
   return await withTransactionRetry(prisma, async (tx) => {
     // This is a wrapper for the array-based transaction syntax
+    // Note: For array-based transactions, use prisma.$transaction(operations) directly
     return await Promise.all(operations.map(op => {
       // Convert operations to use transaction client
       // Note: This is a simplified version - actual implementation depends on operation types
@@ -104,4 +105,7 @@ export async function executeTransaction<T extends Prisma.PrismaPromise<any>[]>(
     })) as any;
   });
 }
+
+// Helper type for unwrapping promises
+type UnwrapPromise<T> = T extends Promise<infer U> ? U : T;
 

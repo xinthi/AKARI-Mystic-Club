@@ -34,14 +34,6 @@ export default function AdminPredictionRequestsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      router.push('/admin');
-      return;
-    }
-    loadRequests();
-  }, [router, loadRequests]);
-
   const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
@@ -64,6 +56,14 @@ export default function AdminPredictionRequestsPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
+    }
+    loadRequests();
+  }, [router, loadRequests]);
 
   const updateStatus = async (id: string, status: string, notes?: string) => {
     try {

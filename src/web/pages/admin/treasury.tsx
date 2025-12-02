@@ -34,14 +34,6 @@ export default function AdminTreasuryPage() {
   const [amount, setAmount] = useState('');
   const [transferring, setTransferring] = useState(false);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      router.push('/admin');
-      return;
-    }
-    loadPools();
-  }, [router]);
-
   const loadPools = useCallback(async () => {
     setLoading(true);
     setMessage(null);
@@ -69,6 +61,14 @@ export default function AdminTreasuryPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
+    }
+    loadPools();
+  }, [router, loadPools]);
 
   const handleTransfer = async () => {
     if (!fromPool || !toPool || !amount) {

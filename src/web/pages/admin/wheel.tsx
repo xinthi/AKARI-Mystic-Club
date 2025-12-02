@@ -39,14 +39,6 @@ export default function AdminWheelPage() {
   // UI state
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      router.push('/admin');
-      return;
-    }
-    loadStats();
-  }, [router]);
-
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
@@ -71,6 +63,14 @@ export default function AdminWheelPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
+    }
+    loadStats();
+  }, [router, loadStats]);
 
   const handleAdjust = async () => {
     if (!adjustAmount) return;

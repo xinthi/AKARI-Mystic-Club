@@ -6,7 +6,7 @@
  * IMPORTANT: Shows "Reward Eligible" badges but NEVER shows future reward amounts.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 
@@ -66,11 +66,7 @@ export default function LeaderboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    loadLeaderboard();
-  }, [type, period]);
-
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       let initData = '';
@@ -104,7 +100,7 @@ export default function LeaderboardPage() {
       setError(err.message || 'Failed to load data');
       setLoading(false);
     }
-  };
+  }, [type, period]);
 
   const getTypeLabel = (t: LeaderboardType): string => {
     switch (t) {

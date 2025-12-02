@@ -207,7 +207,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const totalBetAmount = starsBet + pointsBet;
 
     // Use transaction with retry logic for critical bet operation
-    const [bet, updatedPrediction, updatedUser] = await withDbRetry(async () => {
+    const transactionResult = await withDbRetry(async () => {
       return await prisma.$transaction([
         prisma.bet.create({
           data: {
@@ -237,11 +237,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
               },
             })
           : prisma.user.findUnique({ where: { id: user.id } }),
-      ], {
-        maxWait: 10000, // 10 seconds max wait
-        timeout: 30000, // 30 seconds timeout
-      });
+      ]);
     });
+    const [bet, updatedPrediction, updatedUser] = transactionResult;
 
     // Get new MYST balance if MYST was used
     let newMystBalance: number | undefined;

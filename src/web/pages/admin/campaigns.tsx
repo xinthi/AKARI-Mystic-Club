@@ -123,14 +123,6 @@ export default function AdminCampaignsPage() {
   const [statsModal, setStatsModal] = useState<CampaignStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
-  useEffect(() => {
-    if (!isAdminLoggedIn()) {
-      router.push('/admin');
-      return;
-    }
-    loadCampaigns();
-  }, [router, loadCampaigns]);
-
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
     try {
@@ -153,6 +145,14 @@ export default function AdminCampaignsPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdminLoggedIn()) {
+      router.push('/admin');
+      return;
+    }
+    loadCampaigns();
+  }, [router, loadCampaigns]);
 
   // Broadcast campaign to groups
   const broadcastCampaign = async (campaignId: string) => {

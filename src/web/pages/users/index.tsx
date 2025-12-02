@@ -58,9 +58,9 @@ export default function FindUsersPage() {
     
     // Load recent/active users on mount
     loadRecentUsers();
-  }, []);
+  }, [loadRecentUsers]);
 
-  const loadRecentUsers = async () => {
+  const loadRecentUsers = useCallback(async () => {
     try {
       const initData = getInitData();
       const response = await fetch('/api/users/recent', {
@@ -75,7 +75,7 @@ export default function FindUsersPage() {
     } catch (err) {
       console.error('Failed to load recent users:', err);
     }
-  };
+  }, []);
 
   const searchUsers = async () => {
     if (!searchQuery.trim()) return;

@@ -4,7 +4,7 @@
  * Shows user profile, MYST balance, TON wallet, withdrawals, referral sharing, X connection, and stats
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 
@@ -124,9 +124,9 @@ export default function ProfilePage() {
       }
     }
     loadProfile();
-  }, []);
+  }, [loadProfile]);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const initData = getInitData();
 
@@ -154,7 +154,7 @@ export default function ProfilePage() {
       setUser(null);
       setLoading(false);
     }
-  };
+  }, []);
 
   // Copy referral link to clipboard
   const copyReferralLink = async () => {

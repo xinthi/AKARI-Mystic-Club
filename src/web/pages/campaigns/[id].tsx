@@ -6,7 +6,7 @@
  * Users can share/invite friends to participate.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../../lib/telegram-webapp';
 
@@ -82,9 +82,9 @@ export default function CampaignDetailPage() {
     if (id) {
       loadCampaign();
     }
-  }, [id]);
+  }, [id, loadCampaign]);
 
-  const loadCampaign = async () => {
+  const loadCampaign = useCallback(async () => {
     try {
       let initData = '';
       if (typeof window !== 'undefined') {
@@ -113,7 +113,7 @@ export default function CampaignDetailPage() {
       setError(err.message || 'Failed to load campaign');
       setLoading(false);
     }
-  };
+  }, [id]);
 
   // Get the appropriate icon for task type
   const getTaskIcon = (type: string): string => {
