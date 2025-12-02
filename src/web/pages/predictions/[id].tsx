@@ -204,13 +204,30 @@ export default function PredictionDetailPage() {
         }
       }
 
+      // Build payload based on selected currency
+      const payload: { optionIndex: number; mystAmount?: number; betAmount?: number } = {
+        optionIndex: indexToUse,
+      };
+
+      if (betCurrency === 'MYST') {
+        const mystAmount = betAmount ? parseFloat(betAmount) : undefined;
+        if (mystAmount !== undefined && mystAmount > 0) {
+          payload.mystAmount = mystAmount;
+        }
+      } else {
+        const pointsAmount = betAmount ? parseInt(betAmount) : undefined;
+        if (pointsAmount !== undefined && pointsAmount > 0) {
+          payload.betAmount = pointsAmount;
+        }
+      }
+
       const res = await fetch(`/api/predictions/${prediction.id}/bet`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Telegram-Init-Data': initData,
         },
-        body: JSON.stringify({ optionIndex: indexToUse, betAmount: betAmount ? parseInt(betAmount) : undefined }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
