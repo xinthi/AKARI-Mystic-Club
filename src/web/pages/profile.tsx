@@ -115,29 +115,54 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const initData = getInitData();
 
-      const response = await fetch('/api/profile', {
-        headers: {
-          'x-telegram-init-data': initData,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      const data: ProfileResponse = await response.json();
+      try {
+        const response = await fetch('/api/profile', {
+          headers: {
+            'x-telegram-init-data': initData,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
 
-      if (data.ok && data.user) {
-        setUser(data.user);
-        setError(null);
-      } else {
-        setUser(null);
-        setError(data.message || 'Failed to load profile');
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          // Handle non-200 responses
+          const errorData = await response.json().catch(() => ({ message: 'Network error' }));
+          throw new Error(errorData.message || `Server error: ${response.status}`);
+        }
+
+        const data: ProfileResponse = await response.json();
+
+        if (data.ok && data.user) {
+          setUser(data.user);
+          setError(null);
+        } else {
+          setUser(null);
+          setError(data.message || 'Failed to load profile');
+        }
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        
+        if (fetchErr.name === 'AbortError') {
+          throw new Error('Request timed out. Please check your connection and try again.');
+        }
+        throw fetchErr;
       }
 
       setLoading(false);
     } catch (err: any) {
       console.error('[Profile] Error loading profile:', err);
-      setError(err.message || 'Failed to load data');
+      setError(err.message || 'Failed to load data. Please try again.');
       setUser(null);
       setLoading(false);
     }
@@ -378,14 +403,17 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading profile...</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-white text-xl mb-4">Loading profile...</div>
+          <div className="text-gray-400 text-sm">This may take a moment</div>
+        </div>
       </div>
     );
   }
 
-  // Show error state when no user
-  if (!user) {
+  // Show error state when no user or error occurred
+  if (!user || error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
         <header className="p-6 pb-4">
