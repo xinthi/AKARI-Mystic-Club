@@ -84,7 +84,9 @@ export default async function handler(
       await seedPredictions();
 
       const { resolved } = req.query;
-      const where: { resolved?: boolean } = {};
+      const where: { resolved?: boolean; status?: string } = {
+        status: 'ACTIVE', // Only show ACTIVE predictions
+      };
       if (resolved === 'false') where.resolved = false;
       if (resolved === 'true') where.resolved = true;
 
@@ -98,8 +100,27 @@ export default async function handler(
         },
       }));
 
-      // Helper to derive category from prediction id/title
-      const deriveCategory = (id: string, title: string): string => {
+      // Helper to derive category from prediction id/title or use database category
+      const deriveCategory = (id: string, title: string, dbCategory: string | null): string => {
+        // If database has a category, use it (map TRENDING_CRYPTO to Crypto for frontend)
+        if (dbCategory) {
+          if (dbCategory === 'TRENDING_CRYPTO') {
+            return 'Crypto';
+          }
+          // Map other database categories to frontend categories
+          if (dbCategory === 'CRYPTO' || dbCategory === 'TRENDING_CRYPTO') {
+            return 'Crypto';
+          }
+          if (dbCategory === 'POLITICS') {
+            return 'Politics';
+          }
+          if (dbCategory === 'MARKETS') {
+            return 'Markets';
+          }
+          // For any other category, fall through to derivation
+        }
+        
+        // Fallback: derive from id/title if no database category
         const idLower = id.toLowerCase();
         const titleLower = title.toLowerCase();
         
@@ -133,7 +154,7 @@ export default async function handler(
         winningOption: p.winningOption,
         endsAt: p.endsAt?.toISOString() ?? null,
         participantCount: p._count.bets,
-        category: deriveCategory(p.id, p.title),
+        category: deriveCategory(p.id, p.title, p.category),
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),
       }));
