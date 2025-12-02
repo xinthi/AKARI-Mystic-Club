@@ -42,8 +42,19 @@ export default function LeaderboardPage() {
     const tg = (window as any).Telegram?.WebApp;
     if (!tg?.BackButton) return;
 
+    let isNavigating = false;
+
+    const handleBack = () => {
+      if (isNavigating) return; // Prevent multiple navigations
+      isNavigating = true;
+      
+      router.replace('/').catch((err) => {
+        console.error('[Leaderboard] Navigation error:', err);
+        isNavigating = false;
+      });
+    };
+
     tg.BackButton.show();
-    const handleBack = () => router.push('/');
     tg.BackButton.onClick(handleBack);
 
     return () => {
