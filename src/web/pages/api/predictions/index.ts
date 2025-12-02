@@ -92,7 +92,7 @@ export default async function handler(
 
       const predictions = await withDbRetry(() => prisma.prediction.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' }, // Newest first
         include: {
           _count: {
             select: { bets: true },
