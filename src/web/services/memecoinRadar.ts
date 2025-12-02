@@ -54,8 +54,8 @@ export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCo
     const response = await fetchWithCoinGeckoAuth(url.toString());
 
     if (!response.ok) {
-      console.error(`CoinGecko markets API error: ${response.status} ${response.statusText}`);
-      throw new Error('Failed to fetch memecoins from CoinGecko');
+      console.error('[memecoinRadar] error:', `CoinGecko markets API error: ${response.status} ${response.statusText}`);
+      return [];
     }
 
     const data: CoinGeckoMarketCoin[] = await response.json();
@@ -74,7 +74,7 @@ export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCo
 
     return memecoins;
   } catch (error) {
-    console.error('[MemeCoin Radar] Error fetching Pump.fun memecoins:', error);
+    console.error('[memecoinRadar] error:', error);
     return [];
   }
 }

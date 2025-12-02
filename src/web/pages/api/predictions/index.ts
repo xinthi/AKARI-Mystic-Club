@@ -120,6 +120,9 @@ export default async function handler(
           if (dbCategory === 'SPORTS' || dbCategory === 'sports') {
             return 'Sports';
           }
+          if (dbCategory === 'MEME_COIN') {
+            return 'Meme Coins';
+          }
           // For any other category, fall through to derivation
         }
         

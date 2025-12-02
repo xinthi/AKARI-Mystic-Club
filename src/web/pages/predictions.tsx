@@ -34,7 +34,7 @@ interface Prediction {
   }>;
 }
 
-const CATEGORIES = ['All', 'Crypto', 'Politics', 'Markets', 'Community', 'Sports'] as const;
+const CATEGORIES = ['All', 'Crypto', 'Politics', 'Markets', 'Community', 'Sports', 'Meme Coins'] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export default function PredictionsPage() {
@@ -335,6 +335,11 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
           {prediction.originalCategory === 'TRENDING_CRYPTO' && (
             <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 border border-amber-500/20 shrink-0">
               🔥 Trending
+            </span>
+          )}
+          {prediction.originalCategory === 'MEME_COIN' && (
+            <span className="ml-1 rounded-full bg-pink-500/10 px-1.5 py-0.5 text-[9px] text-pink-400 border border-pink-500/20 shrink-0">
+              🔥 Meme Coin
             </span>
           )}
         </div>
