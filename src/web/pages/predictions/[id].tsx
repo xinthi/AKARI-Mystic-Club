@@ -32,6 +32,17 @@ interface PredictionDetail {
     option?: string;
     starsBet: number;
     pointsBet: number;
+    mystBet?: number;
+  };
+  entryFeeMyst?: number;
+}
+
+interface PredictionDetailResponse {
+  ok: boolean;
+  prediction: PredictionDetail;
+  userBalances?: {
+    myst: number;
+    points: number;
   };
 }
 
@@ -41,9 +52,11 @@ export default function PredictionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [betCurrency, setBetCurrency] = useState<'MYST' | 'EP'>('MYST'); // Default to MYST
   const [betAmount, setBetAmount] = useState<string>('');
   const [placingBet, setPlacingBet] = useState(false);
   const [betError, setBetError] = useState<string | null>(null);
+  const [userBalances, setUserBalances] = useState<{ myst: number; points: number } | null>(null);
 
   // Safe array accessors
   const safeOptions = Array.isArray(prediction?.options) ? prediction!.options : [];
@@ -82,13 +95,14 @@ export default function PredictionDetailPage() {
         throw new Error('Failed to load prediction');
       }
 
-      const data = await response.json();
+      const data: PredictionDetailResponse = await response.json();
 
       if (!data.prediction) {
         throw new Error('Prediction not found');
       }
 
       setPrediction(data.prediction);
+      setUserBalances(data.userBalances || null);
 
       // Set selected option if user already has a bet
       if (data.prediction?.userBet?.optionIndex !== undefined) {

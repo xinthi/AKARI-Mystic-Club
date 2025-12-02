@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma, withDbRetry } from '../../../lib/prisma';
 import { getUserFromRequest } from '../../../lib/telegram-auth';
+import { getMystBalance } from '../../../lib/myst-service';
 
 type Data =
-  | { ok: true; prediction: any }
+  | { ok: true; prediction: any; userBalances?: { myst: number; points: number } }
   | { ok: false; prediction: null; reason: string };
 
 export default async function handler(
@@ -38,8 +39,16 @@ export default async function handler(
 
       // Get user's existing bet if authenticated
       let userBet: any = null;
+      let userBalances: { myst: number; points: number } | undefined = undefined;
       const user = await getUserFromRequest(req, prisma);
       if (user) {
+        // Get user balances
+        const mystBalance = await withDbRetry(() => getMystBalance(prisma, user.id));
+        userBalances = {
+          myst: mystBalance,
+          points: user.points,
+        };
+
         const existingBet = await withDbRetry(() => prisma.bet.findFirst({
           where: {
             predictionId: prediction.id,
@@ -58,6 +67,7 @@ export default async function handler(
             option: existingBet.option,
             starsBet: existingBet.starsBet,
             pointsBet: existingBet.pointsBet,
+            mystBet: existingBet.mystBet,
           };
         }
       }
@@ -93,6 +103,7 @@ export default async function handler(
           options: prediction.options,
           entryFeeStars: prediction.entryFeeStars,
           entryFeePoints: prediction.entryFeePoints,
+          entryFeeMyst: prediction.entryFeeMyst,
           pot: prediction.pot,
           resolved: prediction.resolved,
           winningOption: prediction.winningOption,
@@ -104,6 +115,7 @@ export default async function handler(
           optionStats,
           userBet,
         },
+        userBalances,
       });
     }
 
