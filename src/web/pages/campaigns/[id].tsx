@@ -69,21 +69,6 @@ export default function CampaignDetailPage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const WebApp = getWebApp();
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-      } catch (e) {
-        console.error('Telegram WebApp SDK not available', e);
-      }
-    }
-    if (id) {
-      loadCampaign();
-    }
-  }, [id, loadCampaign]);
-
   const loadCampaign = useCallback(async () => {
     try {
       let initData = '';
@@ -114,6 +99,21 @@ export default function CampaignDetailPage() {
       setLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
+    if (id) {
+      loadCampaign();
+    }
+  }, [id, loadCampaign]);
 
   // Get the appropriate icon for task type
   const getTaskIcon = (type: string): string => {
