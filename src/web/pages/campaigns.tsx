@@ -41,15 +41,29 @@ export default function CampaignsPage() {
     const tg = (window as any).Telegram?.WebApp;
     if (!tg?.BackButton) return;
 
+    let isNavigating = false;
+
+    const handleBack = () => {
+      if (isNavigating) return; // Prevent multiple navigations
+      isNavigating = true;
+      
+      router.replace('/').catch((err) => {
+        console.error('[Campaigns] Navigation error:', err);
+        isNavigating = false;
+      });
+    };
+
     tg.BackButton.show();
-    tg.BackButton.onClick(() => {
-      router.push('/');
-    });
+    tg.BackButton.onClick(handleBack);
 
     return () => {
       try {
+        if (tg.BackButton?.offClick) {
+          tg.BackButton.offClick(handleBack);
+        } else {
+          tg.BackButton.onClick(() => {});
+        }
         tg.BackButton.hide();
-        tg.BackButton.onClick(() => {});
       } catch (_) {
         // ignore
       }
