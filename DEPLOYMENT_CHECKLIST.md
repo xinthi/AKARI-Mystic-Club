@@ -13,9 +13,9 @@
 Go to Settings → Environment Variables and add:
 
 #### Required:
-- `TELEGRAM_BOT_TOKEN` = `8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8`
-- `DATABASE_URL` = `postgresql://postgres.dosalyqfzynurisjmknw:Persevere2-Starter8-Little6-Slighted5-Surging6@aws-1-eu-north-1.pooler.supabase.com:6543/postgres?sslmode=require`
-- `ADMIN_TELEGRAM_ID` = `6022649318`
+- `TELEGRAM_BOT_TOKEN` = `your-bot-token-from-botfather`
+- `DATABASE_URL` = `postgresql://user:password@host:port/database?sslmode=require`
+- `ADMIN_TELEGRAM_ID` = `your-telegram-user-id`
 
 #### Optional (for X verifications):
 - `TWITTER_BEARER_TOKEN`
@@ -50,13 +50,13 @@ Go to Settings → Environment Variables and add:
 ### B. Set Webhook
 Visit in browser or use curl:
 ```
-https://api.telegram.org/bot8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8/setWebhook?url=https://your-app-name.vercel.app/api/webhook
+https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-app-name.vercel.app/api/webhook
 ```
 
 ### C. Verify Webhook
 Check webhook status:
 ```
-https://api.telegram.org/bot8300403255:AAEN5v-e7XxS8JAxxNnOpsNJWHj2c5T5hL8/getWebhookInfo
+https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
 ```
 
 Expected response:

@@ -117,6 +117,9 @@ export default async function handler(
           if (dbCategory === 'MARKETS') {
             return 'Markets';
           }
+          if (dbCategory === 'SPORTS' || dbCategory === 'sports') {
+            return 'Sports';
+          }
           // For any other category, fall through to derivation
         }
         
@@ -137,6 +140,11 @@ export default async function handler(
             titleLower.includes('fed') || titleLower.includes('rate') || titleLower.includes('market') ||
             titleLower.includes('s&p') || titleLower.includes('nasdaq')) {
           return 'Markets';
+        }
+        if (idLower.includes('football') || idLower.includes('soccer') || idLower.includes('match') ||
+            titleLower.includes('football') || titleLower.includes('soccer') || titleLower.includes('match') ||
+            titleLower.includes('premier league') || titleLower.includes('la liga') || titleLower.includes('champions league')) {
+          return 'Sports';
         }
         return 'Community';
       };

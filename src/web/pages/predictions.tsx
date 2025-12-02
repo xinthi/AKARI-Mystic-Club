@@ -34,7 +34,7 @@ interface Prediction {
   }>;
 }
 
-const CATEGORIES = ['All', 'Crypto', 'Politics', 'Markets', 'Community'] as const;
+const CATEGORIES = ['All', 'Crypto', 'Politics', 'Markets', 'Community', 'Sports'] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export default function PredictionsPage() {

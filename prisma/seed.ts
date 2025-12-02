@@ -7,12 +7,12 @@ async function main() {
 
   // 1. Create sample user
   const user = await prisma.user.upsert({
-    where: { telegramId: '6022649318' }, // your Telegram ID
+    where: { telegramId: process.env.ADMIN_TELEGRAM_ID || 'your-telegram-id' }, // Use env var or placeholder
     update: {},
     create: {
-      telegramId: '6022649318',
-      username: 'MuazXinthix',
-      firstName: 'Muaz',
+      telegramId: process.env.ADMIN_TELEGRAM_ID || 'your-telegram-id',
+      username: 'AdminUser',
+      firstName: 'Admin',
       points: 500,
       tier: 'Seeker_L2',
       credibilityScore: 0,
