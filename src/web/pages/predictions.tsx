@@ -324,9 +324,16 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
     >
       {/* Top row: Title + Chance */}
       <div className="flex items-start justify-between gap-1.5 mb-2">
-        <h2 className="text-[11px] font-semibold text-white leading-snug line-clamp-2 flex-1">
-          {prediction.title}
-        </h2>
+        <div className="flex-1 flex items-start gap-1.5">
+          <h2 className="text-[11px] font-semibold text-white leading-snug line-clamp-2 flex-1">
+            {prediction.title}
+          </h2>
+          {prediction.category === 'TRENDING_CRYPTO' && (
+            <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 border border-amber-500/20 shrink-0">
+              🔥 Trending
+            </span>
+          )}
+        </div>
         <div className="text-right shrink-0">
           <div className="text-xs font-bold text-emerald-300">{chance}</div>
           <div className="text-[8px] text-purple-300/70 uppercase tracking-wide">chance</div>
