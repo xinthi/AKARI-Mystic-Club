@@ -168,6 +168,20 @@ export default function ProfilePage() {
     }
   }, []);
 
+  // Load profile on mount
+  useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {
+        console.error('Telegram WebApp SDK not available', e);
+      }
+    }
+    loadProfile();
+  }, [loadProfile]);
+
   // Copy referral link to clipboard
   const copyReferralLink = async () => {
     if (!user?.referralLink) return;
