@@ -113,19 +113,6 @@ export default function ProfilePage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const WebApp = getWebApp();
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-      } catch (e) {
-        console.error('Telegram WebApp SDK not available', e);
-      }
-    }
-    loadProfile();
-  }, [loadProfile]);
-
   const loadProfile = useCallback(async () => {
     try {
       const initData = getInitData();

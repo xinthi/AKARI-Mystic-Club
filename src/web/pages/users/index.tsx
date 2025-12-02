@@ -47,19 +47,6 @@ export default function FindUsersPage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const WebApp = getWebApp();
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-      } catch (e) {}
-    }
-    
-    // Load recent/active users on mount
-    loadRecentUsers();
-  }, [loadRecentUsers]);
-
   const loadRecentUsers = useCallback(async () => {
     try {
       const initData = getInitData();
@@ -76,6 +63,19 @@ export default function FindUsersPage() {
       console.error('Failed to load recent users:', err);
     }
   }, []);
+
+  useEffect(() => {
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch (e) {}
+    }
+    
+    // Load recent/active users on mount
+    loadRecentUsers();
+  }, [loadRecentUsers]);
 
   const searchUsers = async () => {
     if (!searchQuery.trim()) return;
