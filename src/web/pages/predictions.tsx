@@ -16,7 +16,10 @@ interface Prediction {
   options: string[];
   entryFeeStars: number;
   entryFeePoints: number;
+  entryFeeMyst?: number;
   pot: number;
+  mystPoolYes?: number;
+  mystPoolNo?: number;
   resolved: boolean;
   endsAt: string;
   participantCount: number;
@@ -363,7 +366,13 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
       {/* Footer: Pot + Participants */}
       <div className="flex justify-between items-center text-[9px] text-purple-300/70 pt-1.5 border-t border-white/5">
         <span className="truncate">
-          {prediction.pot.toLocaleString()} {prediction.entryFeeStars > 0 ? '⭐' : 'EP'}
+          {(() => {
+            const totalMyst = (prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0);
+            if (totalMyst > 0) {
+              return `${totalMyst.toFixed(0)} MYST`;
+            }
+            return `${prediction.pot.toLocaleString()} ${prediction.entryFeeStars > 0 ? '⭐' : 'EP'}`;
+          })()}
         </span>
         <span className="shrink-0">{prediction.participantCount} 👤</span>
       </div>
