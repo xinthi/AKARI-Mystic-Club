@@ -33,6 +33,7 @@ type CheckPriceMarketsResponse = {
   closed: number;
   skippedNoMatch: number;
   skippedNoPrice: number;
+  priceMapSize?: number;
   error?: string;
 };
 
