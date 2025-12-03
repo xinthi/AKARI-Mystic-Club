@@ -5,7 +5,7 @@
  * Shows user stats, Wheel of Fortune, quick links, and active predictions/campaigns
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 import WheelOfFortune from '../components/WheelOfFortune';
@@ -52,37 +52,84 @@ export default function Dashboard() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
-  useEffect(() => {
-    // Initialize Telegram WebApp
-    const WebApp = getWebApp();
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-        
-        // @ts-ignore - SDK types may vary
-        const initData = (WebApp as any).initData;
-        if (initData) {
-          setInitData(initData);
-          authenticateUser(initData);
-        } else {
-          // Try to authenticate anyway - permissive mode
-          console.warn('No initData from WebApp, attempting auth anyway');
-          authenticateUser('');
-        }
-      } catch (err) {
-        console.error('Telegram SDK error:', err);
-        // Don't fail - try to authenticate anyway
-        authenticateUser('');
+  // If no user, show a default state but still allow navigation
+  const displayUser = user || {
+    id: 'guest',
+    username: 'Guest',
+    points: 0,
+    tier: undefined,
+    credibilityScore: '0',
+    positiveReviews: 0,
+    mystBalance: 0,
+  };
+
+  // Derive featured predictions and quests (must be before early returns)
+  const featuredPredictions = useMemo<FeaturedPrediction[]>(() => {
+    const active = predictions.filter(p => !p.resolved);
+    
+    // Prioritize MEME_COIN and TRENDING_CRYPTO
+    const prioritized = [
+      ...active.filter(p => p.originalCategory === 'MEME_COIN' || p.originalCategory === 'TRENDING_CRYPTO'),
+      ...active.filter(p => p.originalCategory !== 'MEME_COIN' && p.originalCategory !== 'TRENDING_CRYPTO'),
+    ];
+    
+    // Sort by createdAt (newest first) and limit to 5
+    return prioritized
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map(p => ({
+        id: p.id,
+        title: p.title,
+        category: p.originalCategory || p.category || 'Community',
+        endsAt: p.endsAt,
+        poolMyst: (p.mystPoolYes || 0) + (p.mystPoolNo || 0),
+      }));
+  }, [predictions]);
+
+  const featuredQuests = useMemo<FeaturedQuest[]>(() => {
+    return campaigns
+      .filter(c => c.status === 'ACTIVE')
+      .slice(0, 3)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        endsAt: c.endsAt,
+      }));
+  }, [campaigns]);
+
+  const loadFeaturedData = useCallback(async (initData: string) => {
+    try {
+      // Load predictions
+      const predictionsResponse = await fetch('/api/predictions?resolved=false', {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
+      });
+      
+      if (predictionsResponse.ok) {
+        const predictionsData = await predictionsResponse.json();
+        setPredictions(predictionsData.predictions || []);
       }
-    } else {
-      // Server-side - try to authenticate anyway
-      console.warn('WebApp not available (server-side), attempting auth anyway');
-      authenticateUser('');
+
+      // Load campaigns
+      const campaignsResponse = await fetch('/api/campaigns', {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
+      });
+      
+      if (campaignsResponse.ok) {
+        const campaignsData = await campaignsResponse.json();
+        setCampaigns(campaignsData.campaigns || []);
+      }
+    } catch (err) {
+      console.error('Error loading featured data:', err);
+      // Don't block UI if this fails
     }
   }, []);
 
-  const authenticateUser = async (initData: string) => {
+  const authenticateUser = useCallback(async (initData: string) => {
     try {
       // Debug: log initData before sending
       console.log('[Dashboard] Sending initData to /api/auth/telegram:');
@@ -140,38 +187,37 @@ export default function Dashboard() {
       // Don't show error - just continue loading
       setLoading(false);
     }
-  };
+  }, [loadFeaturedData]);
 
-  const loadFeaturedData = async (initData: string) => {
-    try {
-      // Load predictions
-      const predictionsResponse = await fetch('/api/predictions?resolved=false', {
-        headers: {
-          'X-Telegram-Init-Data': initData,
-        },
-      });
-      
-      if (predictionsResponse.ok) {
-        const predictionsData = await predictionsResponse.json();
-        setPredictions(predictionsData.predictions || []);
+  useEffect(() => {
+    // Initialize Telegram WebApp
+    const WebApp = getWebApp();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+        
+        // @ts-ignore - SDK types may vary
+        const initData = (WebApp as any).initData;
+        if (initData) {
+          setInitData(initData);
+          authenticateUser(initData);
+        } else {
+          // Try to authenticate anyway - permissive mode
+          console.warn('No initData from WebApp, attempting auth anyway');
+          authenticateUser('');
+        }
+      } catch (err) {
+        console.error('Telegram SDK error:', err);
+        // Don't fail - try to authenticate anyway
+        authenticateUser('');
       }
-
-      // Load campaigns
-      const campaignsResponse = await fetch('/api/campaigns', {
-        headers: {
-          'X-Telegram-Init-Data': initData,
-        },
-      });
-      
-      if (campaignsResponse.ok) {
-        const campaignsData = await campaignsResponse.json();
-        setCampaigns(campaignsData.campaigns || []);
-      }
-    } catch (err) {
-      console.error('Error loading featured data:', err);
-      // Don't block UI if this fails
+    } else {
+      // Server-side - try to authenticate anyway
+      console.warn('WebApp not available (server-side), attempting auth anyway');
+      authenticateUser('');
     }
-  };
+  }, [authenticateUser]);
 
   const handleBalanceUpdate = (newBalance: number) => {
     if (user) {
@@ -225,51 +271,6 @@ export default function Dashboard() {
     );
   }
 
-  // If no user, show a default state but still allow navigation
-  const displayUser = user || {
-    id: 'guest',
-    username: 'Guest',
-    points: 0,
-    tier: undefined,
-    credibilityScore: '0',
-    positiveReviews: 0,
-    mystBalance: 0,
-  };
-
-  // Derive featured predictions and quests
-  const featuredPredictions = useMemo<FeaturedPrediction[]>(() => {
-    const active = predictions.filter(p => !p.resolved);
-    
-    // Prioritize MEME_COIN and TRENDING_CRYPTO
-    const prioritized = [
-      ...active.filter(p => p.originalCategory === 'MEME_COIN' || p.originalCategory === 'TRENDING_CRYPTO'),
-      ...active.filter(p => p.originalCategory !== 'MEME_COIN' && p.originalCategory !== 'TRENDING_CRYPTO'),
-    ];
-    
-    // Sort by createdAt (newest first) and limit to 5
-    return prioritized
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-      .map(p => ({
-        id: p.id,
-        title: p.title,
-        category: p.originalCategory || p.category || 'Community',
-        endsAt: p.endsAt,
-        poolMyst: (p.mystPoolYes || 0) + (p.mystPoolNo || 0),
-      }));
-  }, [predictions]);
-
-  const featuredQuests = useMemo<FeaturedQuest[]>(() => {
-    return campaigns
-      .filter(c => c.status === 'ACTIVE')
-      .slice(0, 3)
-      .map(c => ({
-        id: c.id,
-        name: c.name,
-        status: c.status,
-        endsAt: c.endsAt,
-      }));
-  }, [campaigns]);
 
   return (
     <div className="min-h-screen bg-akari-bg text-akari-text">
