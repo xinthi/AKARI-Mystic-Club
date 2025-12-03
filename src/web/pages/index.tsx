@@ -5,11 +5,12 @@
  * Shows user stats, Wheel of Fortune, quick links, and active predictions/campaigns
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../lib/telegram-webapp';
 import WheelOfFortune from '../components/WheelOfFortune';
 import OnboardingOverlay from '../components/OnboardingOverlay';
+import FeaturedStrip, { FeaturedPrediction, FeaturedQuest } from '../components/FeaturedStrip';
 
 interface User {
   id: string;
@@ -22,6 +23,25 @@ interface User {
   hasSeenOnboardingGuide?: boolean;
 }
 
+interface Prediction {
+  id: string;
+  title: string;
+  category?: string;
+  originalCategory?: string;
+  endsAt?: string | null;
+  mystPoolYes?: number;
+  mystPoolNo?: number;
+  createdAt: string;
+  resolved: boolean;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+  endsAt?: string | null;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -29,6 +49,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [initData, setInitData] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
     // Initialize Telegram WebApp
@@ -108,10 +130,46 @@ export default function Dashboard() {
       }
       
       setLoading(false);
+      
+      // Load predictions and campaigns after auth
+      if (data.user) {
+        loadFeaturedData(initData);
+      }
     } catch (err: any) {
       console.error('Auth error:', err);
       // Don't show error - just continue loading
       setLoading(false);
+    }
+  };
+
+  const loadFeaturedData = async (initData: string) => {
+    try {
+      // Load predictions
+      const predictionsResponse = await fetch('/api/predictions?resolved=false', {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
+      });
+      
+      if (predictionsResponse.ok) {
+        const predictionsData = await predictionsResponse.json();
+        setPredictions(predictionsData.predictions || []);
+      }
+
+      // Load campaigns
+      const campaignsResponse = await fetch('/api/campaigns', {
+        headers: {
+          'X-Telegram-Init-Data': initData,
+        },
+      });
+      
+      if (campaignsResponse.ok) {
+        const campaignsData = await campaignsResponse.json();
+        setCampaigns(campaignsData.campaigns || []);
+      }
+    } catch (err) {
+      console.error('Error loading featured data:', err);
+      // Don't block UI if this fails
     }
   };
 
@@ -148,8 +206,8 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-akari-bg flex items-center justify-center">
+        <div className="text-akari-text text-xl">Loading...</div>
       </div>
     );
   }
@@ -157,11 +215,11 @@ export default function Dashboard() {
   // Only show error if there's a critical error, not if user is missing
   if (error && (error.includes('critical') || error.includes('fatal'))) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 flex items-center justify-center">
-        <div className="text-white text-center">
+      <div className="min-h-screen bg-akari-bg flex items-center justify-center">
+        <div className="text-akari-text text-center">
           <div className="text-xl mb-4">🔮</div>
           <div className="text-lg mb-2">Failed to load</div>
-          <div className="text-sm text-purple-300">{error}</div>
+          <div className="text-sm text-akari-muted">{error}</div>
         </div>
       </div>
     );
@@ -178,8 +236,43 @@ export default function Dashboard() {
     mystBalance: 0,
   };
 
+  // Derive featured predictions and quests
+  const featuredPredictions = useMemo<FeaturedPrediction[]>(() => {
+    const active = predictions.filter(p => !p.resolved);
+    
+    // Prioritize MEME_COIN and TRENDING_CRYPTO
+    const prioritized = [
+      ...active.filter(p => p.originalCategory === 'MEME_COIN' || p.originalCategory === 'TRENDING_CRYPTO'),
+      ...active.filter(p => p.originalCategory !== 'MEME_COIN' && p.originalCategory !== 'TRENDING_CRYPTO'),
+    ];
+    
+    // Sort by createdAt (newest first) and limit to 5
+    return prioritized
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map(p => ({
+        id: p.id,
+        title: p.title,
+        category: p.originalCategory || p.category || 'Community',
+        endsAt: p.endsAt,
+        poolMyst: (p.mystPoolYes || 0) + (p.mystPoolNo || 0),
+      }));
+  }, [predictions]);
+
+  const featuredQuests = useMemo<FeaturedQuest[]>(() => {
+    return campaigns
+      .filter(c => c.status === 'ACTIVE')
+      .slice(0, 3)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        endsAt: c.endsAt,
+      }));
+  }, [campaigns]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
+    <div className="min-h-screen bg-akari-bg text-akari-text">
       {/* Onboarding Overlay */}
       {showOnboarding && (
         <OnboardingOverlay onComplete={handleOnboardingComplete} />
@@ -187,47 +280,47 @@ export default function Dashboard() {
       
       {/* Header */}
       <header className="p-6 pb-4">
-        <h1 className="text-3xl font-bold mb-2">🔮 AKARI Mystic Club</h1>
-        <p className="text-purple-300">Welcome back, {displayUser.username || 'Mystic'}</p>
+        <h1 className="text-3xl font-bold mb-2 text-akari-text">🔮 AKARI Mystic Club</h1>
+        <p className="text-akari-muted">Welcome back, {displayUser.username || 'Mystic'}</p>
       </header>
 
       {/* User Stats Card */}
       <div className="px-6 mb-4">
-        <div className="bg-purple-900/30 backdrop-blur-lg rounded-2xl p-5 border border-purple-500/20">
+        <div className="bg-akari-cardSoft backdrop-blur-lg rounded-2xl p-5 border border-akari-accent/40 shadow-[0_0_40px_rgba(0,246,162,0.18)]">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-sm text-purple-300 mb-1">MYST Balance</div>
-              <div className="text-3xl font-bold text-amber-400">
+              <div className="text-sm text-akari-muted mb-1">MYST Balance</div>
+              <div className="text-3xl font-bold text-akari-primary">
                 {(displayUser.mystBalance ?? 0).toLocaleString()} <span className="text-lg">MYST</span>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-purple-300 mb-1">Experience</div>
-              <div className="text-xl font-semibold">{displayUser.points.toLocaleString()} EP</div>
+              <div className="text-sm text-akari-muted mb-1">Experience</div>
+              <div className="text-xl font-semibold text-akari-profit">{displayUser.points.toLocaleString()} EP</div>
             </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-purple-500/20">
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-akari-accent/20">
             <div>
-              <div className="text-xs text-purple-300 mb-1">Tier</div>
-              <div className="text-sm font-semibold">{displayUser.tier || 'None'}</div>
+              <div className="text-xs text-akari-muted mb-1">Tier</div>
+              <div className="text-sm font-semibold text-akari-text">{displayUser.tier || 'None'}</div>
             </div>
             {/* Clickable Credibility & Reviews - Opens Find Users Page */}
             <button
               onClick={() => router.push('/users')}
-              className="col-span-2 bg-purple-800/30 hover:bg-purple-700/40 rounded-lg p-2 -m-2 transition-all border border-transparent hover:border-purple-500/30"
+              className="col-span-2 bg-akari-card hover:bg-akari-card/80 rounded-lg p-2 -m-2 transition-all border border-transparent hover:border-akari-accent/30"
             >
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-left">
-                  <div className="text-xs text-purple-300 mb-1">Credibility</div>
-                  <div className="text-sm font-semibold">{displayUser.credibilityScore}/10</div>
+                  <div className="text-xs text-akari-muted mb-1">Credibility</div>
+                  <div className="text-sm font-semibold text-akari-text">{displayUser.credibilityScore}/10</div>
                 </div>
                 <div className="text-left">
-                  <div className="text-xs text-purple-300 mb-1">Reviews</div>
-                  <div className="text-sm font-semibold">{displayUser.positiveReviews} 🛡️</div>
+                  <div className="text-xs text-akari-muted mb-1">Reviews</div>
+                  <div className="text-sm font-semibold text-akari-text">{displayUser.positiveReviews} 🛡️</div>
                 </div>
               </div>
-              <div className="text-[10px] text-purple-400 mt-1 text-center">
+              <div className="text-[10px] text-akari-muted mt-1 text-center">
                 Tap to find & review users →
               </div>
             </button>
@@ -235,60 +328,65 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Featured Strip */}
+      <FeaturedStrip predictions={featuredPredictions} quests={featuredQuests} />
+
       {/* Wheel of Fortune */}
       <div className="px-6 mb-4">
-        <WheelOfFortune onBalanceUpdate={handleBalanceUpdate} />
+        <div className="bg-akari-cardSoft rounded-2xl p-4 border border-akari-accent/20">
+          <WheelOfFortune onBalanceUpdate={handleBalanceUpdate} />
+        </div>
       </div>
 
       {/* Quick Actions */}
       <div className="px-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+        <h2 className="text-xl font-semibold mb-4 text-akari-text">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => router.push('/predictions')}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+            className="bg-gradient-to-r from-akari-primary to-akari-accent hover:from-akari-primary/90 hover:to-akari-accent/90 rounded-xl p-4 text-left transition-all active:scale-95 shadow-[0_0_24px_rgba(0,246,162,0.3)]"
           >
             <div className="text-2xl mb-2">🎲</div>
-            <div className="font-semibold">Predictions</div>
-            <div className="text-sm text-purple-200">Bet & Win</div>
+            <div className="font-semibold text-neutral-900">Predictions</div>
+            <div className="text-sm text-neutral-800">Bet & Win</div>
           </button>
 
           <button
             onClick={() => router.push('/leaderboard')}
-            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 rounded-xl p-4 text-left transition-colors"
+            className="bg-gradient-to-r from-akari-primary to-akari-accent hover:from-akari-primary/90 hover:to-akari-accent/90 rounded-xl p-4 text-left transition-all active:scale-95 shadow-[0_0_24px_rgba(0,246,162,0.3)]"
           >
             <div className="text-2xl mb-2">🏆</div>
-            <div className="font-semibold">Leaderboard</div>
-            <div className="text-sm text-amber-100">Weekly Rankings</div>
+            <div className="font-semibold text-neutral-900">Leaderboard</div>
+            <div className="text-sm text-neutral-800">Weekly Rankings</div>
           </button>
 
           <button
             onClick={() => router.push('/campaigns')}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+            className="bg-gradient-to-r from-akari-primary to-akari-accent hover:from-akari-primary/90 hover:to-akari-accent/90 rounded-xl p-4 text-left transition-all active:scale-95 shadow-[0_0_24px_rgba(0,246,162,0.3)]"
           >
             <div className="text-2xl mb-2">📋</div>
-            <div className="font-semibold">Campaigns</div>
-            <div className="text-sm text-purple-200">Tasks & Rewards</div>
+            <div className="font-semibold text-neutral-900">Campaigns</div>
+            <div className="text-sm text-neutral-800">Tasks & Rewards</div>
           </button>
 
           <button
             onClick={() => router.push('/profile')}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl p-4 text-left transition-colors"
+            className="bg-gradient-to-r from-akari-primary to-akari-accent hover:from-akari-primary/90 hover:to-akari-accent/90 rounded-xl p-4 text-left transition-all active:scale-95 shadow-[0_0_24px_rgba(0,246,162,0.3)]"
           >
             <div className="text-2xl mb-2">👤</div>
-            <div className="font-semibold">Profile</div>
-            <div className="text-sm text-purple-200">Your Stats</div>
+            <div className="font-semibold text-neutral-900">Profile</div>
+            <div className="text-sm text-neutral-800">Your Stats</div>
           </button>
         </div>
       </div>
 
       {/* Recent Activity Preview */}
       <div className="px-6 pb-6">
-        <h2 className="text-xl font-semibold mb-4">Active Predictions</h2>
-        <div className="bg-purple-900/30 backdrop-blur-lg rounded-xl p-4 border border-purple-500/20">
+        <h2 className="text-xl font-semibold mb-4 text-akari-text">Active Predictions</h2>
+        <div className="bg-akari-card backdrop-blur-lg rounded-xl p-4 border border-akari-accent/20">
           <button
             onClick={() => router.push('/predictions')}
-            className="w-full text-left text-purple-200 hover:text-white transition-colors"
+            className="w-full text-left text-akari-muted hover:text-akari-text transition-colors"
           >
             View all predictions →
           </button>
