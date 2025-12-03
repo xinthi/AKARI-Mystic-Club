@@ -97,6 +97,14 @@ export default async function handler(
           _count: {
             select: { bets: true },
           },
+          bets: {
+            select: {
+              option: true,
+              starsBet: true,
+              pointsBet: true,
+              mystBet: true,
+            },
+          },
         },
       }));
 
@@ -153,26 +161,57 @@ export default async function handler(
       };
 
       // Map to return participantCount based on actual bets count
-      const mapped = predictions.map((p) => ({
-        id: p.id,
-        title: p.title,
-        description: p.description,
-        options: p.options,
-        entryFeeStars: p.entryFeeStars,
-        entryFeePoints: p.entryFeePoints,
-        entryFeeMyst: p.entryFeeMyst,
-        pot: p.pot,
-        mystPoolYes: p.mystPoolYes,
-        mystPoolNo: p.mystPoolNo,
-        resolved: p.resolved,
-        winningOption: p.winningOption,
-        endsAt: p.endsAt?.toISOString() ?? null,
-        participantCount: p._count.bets,
-        category: deriveCategory(p.id, p.title, p.category),
-        originalCategory: p.category, // Keep original for badge detection
-        createdAt: p.createdAt.toISOString(),
-        updatedAt: p.updatedAt.toISOString(),
-      }));
+      const mapped = predictions.map((p) => {
+        // Calculate optionStats from bets
+        const optionStatsMap = new Map<string, { betCount: number; totalStars: number; totalPoints: number; totalMyst: number }>();
+        
+        (p.options as string[]).forEach((option) => {
+          optionStatsMap.set(option, { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 });
+        });
+
+        p.bets.forEach((bet) => {
+          const stats = optionStatsMap.get(bet.option) || { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 };
+          stats.betCount += 1;
+          stats.totalStars += bet.starsBet || 0;
+          stats.totalPoints += bet.pointsBet || 0;
+          stats.totalMyst += bet.mystBet || 0;
+          optionStatsMap.set(bet.option, stats);
+        });
+
+        const optionStats = (p.options as string[]).map((option: string, index: number) => {
+          const stats = optionStatsMap.get(option) || { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 };
+          return {
+            option,
+            index,
+            betCount: stats.betCount,
+            totalStars: stats.totalStars,
+            totalPoints: stats.totalPoints,
+            totalMyst: stats.totalMyst,
+          };
+        });
+
+        return {
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          options: p.options,
+          entryFeeStars: p.entryFeeStars,
+          entryFeePoints: p.entryFeePoints,
+          entryFeeMyst: p.entryFeeMyst,
+          pot: p.pot,
+          mystPoolYes: p.mystPoolYes,
+          mystPoolNo: p.mystPoolNo,
+          resolved: p.resolved,
+          winningOption: p.winningOption,
+          endsAt: p.endsAt?.toISOString() ?? null,
+          participantCount: p._count.bets,
+          category: deriveCategory(p.id, p.title, p.category),
+          originalCategory: p.category, // Keep original for badge detection
+          createdAt: p.createdAt.toISOString(),
+          updatedAt: p.updatedAt.toISOString(),
+          optionStats, // Include calculated optionStats
+        };
+      });
 
       return res.status(200).json({ ok: true, predictions: mapped });
     }

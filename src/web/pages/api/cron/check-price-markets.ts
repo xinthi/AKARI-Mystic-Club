@@ -23,7 +23,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma, withDbRetry } from '../../../lib/prisma';
-import { getTrendingCoinsWithPrices } from '../../../services/coingecko';
+import { getTrendingCoinsWithPrices, getPriceBySymbol } from '../../../services/coingecko';
 import { getTopPumpFunMemecoins } from '../../../services/memecoinRadar';
 import { POOL_IDS } from '../../../lib/myst-service';
 
@@ -128,30 +128,41 @@ export default async function handler(
       });
     }
 
+    // Extract all unique symbols from active predictions
+    const symbolsToTrack = new Set<string>();
+    for (const prediction of predictions) {
+      const match = prediction.title.match(TITLE_REGEX);
+      if (match && match[1]) {
+        symbolsToTrack.add(match[1].toUpperCase());
+      }
+    }
+
+    console.log(`[CheckPriceMarkets] Tracking ${symbolsToTrack.size} unique symbols from active predictions:`, Array.from(symbolsToTrack));
+
     // Build a price map keyed by SYMBOL (uppercased)
     const priceBySymbol = new Map<string, number>();
 
-    // 1) Pump.fun memecoins (MEME_COIN category)
-    try {
-      const memecoins = await getTopPumpFunMemecoins(50);
-      for (const coin of memecoins) {
-        if (!coin.symbol || typeof coin.priceUsd !== 'number') continue;
-        priceBySymbol.set(coin.symbol.toUpperCase(), coin.priceUsd);
+    // Fetch prices for all symbols we're tracking
+    const pricePromises = Array.from(symbolsToTrack).map(async (symbol) => {
+      try {
+        const price = await getPriceBySymbol(symbol);
+        if (typeof price === 'number') {
+          priceBySymbol.set(symbol, price);
+          return { symbol, price, success: true };
+        } else {
+          console.warn(`[CheckPriceMarkets] Could not fetch price for ${symbol}`);
+          return { symbol, price: null, success: false };
+        }
+      } catch (err) {
+        console.error(`[CheckPriceMarkets] Error fetching price for ${symbol}:`, err);
+        return { symbol, price: null, success: false };
       }
-    } catch (err) {
-      console.error('[CheckPriceMarkets] Error loading Pump.fun memecoins:', err);
-    }
+    });
 
-    // 2) Trending coins with prices (TRENDING_CRYPTO category)
-    try {
-      const trending = await getTrendingCoinsWithPrices();
-      for (const coin of trending) {
-        if (!coin.symbol || typeof coin.priceUsd !== 'number') continue;
-        priceBySymbol.set(coin.symbol.toUpperCase(), coin.priceUsd);
-      }
-    } catch (err) {
-      console.error('[CheckPriceMarkets] Error loading trending coins:', err);
-    }
+    // Wait for all price fetches to complete (with some parallelism)
+    const results = await Promise.all(pricePromises);
+    const successful = results.filter(r => r.success).length;
+    console.log(`[CheckPriceMarkets] Fetched prices for ${successful}/${symbolsToTrack.size} symbols`);
 
     let checked = 0;
     let closed = 0;
@@ -175,13 +186,18 @@ export default async function handler(
       }
 
       const currentPrice = priceBySymbol.get(symbol);
+      
       if (typeof currentPrice !== 'number') {
         skippedNoPrice += 1;
+        console.log(`[CheckPriceMarkets] No price found for ${symbol} (strike: $${strike}) - prediction ${prediction.id}`);
         continue;
       }
 
       // If the live price meets or exceeds the strike, close and resolve the market early
+      console.log(`[CheckPriceMarkets] Checking ${symbol}: current=$${currentPrice}, strike=$${strike}, prediction=${prediction.id}`);
+      
       if (currentPrice >= strike) {
+        console.log(`[CheckPriceMarkets] ✅ Price target hit! ${symbol} at $${currentPrice} >= $${strike}, resolving market ${prediction.id}`);
         try {
           // Determine winning option: for these markets, \"Yes\" (index 0) wins when price >= strike
           const winningOption = Array.isArray(prediction.options) && prediction.options.length > 0
@@ -335,12 +351,19 @@ export default async function handler(
       }
     }
 
+    console.log(
+      `[CheckPriceMarkets] Summary: checked=${checked}, closed=${closed}, ` +
+      `skippedNoMatch=${skippedNoMatch}, skippedNoPrice=${skippedNoPrice}, ` +
+      `priceMapSize=${priceBySymbol.size}`
+    );
+
     return res.status(200).json({
       ok: true,
       checked,
       closed,
       skippedNoMatch,
       skippedNoPrice,
+      priceMapSize: priceBySymbol.size,
     });
   } catch (error: any) {
     console.error('[CheckPriceMarkets] Fatal error:', error);

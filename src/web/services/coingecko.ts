@@ -110,3 +110,64 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
   }
 }
 
+/**
+ * Get price for a specific coin by symbol from CoinGecko.
+ * Uses the /simple/price endpoint with symbol lookup.
+ */
+export async function getPriceBySymbol(symbol: string): Promise<number | null> {
+  const apiKey = process.env.COINGECKO_API_KEY;
+  const baseUrl = 'https://api.coingecko.com/api/v3';
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (apiKey) {
+    headers['x-cg-demo-api-key'] = apiKey;
+  }
+
+  try {
+    // First, search for the coin by symbol to get its ID
+    const searchUrl = `${baseUrl}/search?query=${encodeURIComponent(symbol)}`;
+    const searchResponse = await fetch(searchUrl, { headers });
+    
+    if (!searchResponse.ok) {
+      console.error(`[CoinGecko] Search API failed for ${symbol}: ${searchResponse.status}`);
+      return null;
+    }
+    
+    const searchData: { coins?: Array<{ id: string; symbol: string }> } = await searchResponse.json();
+    
+    if (!searchData.coins || searchData.coins.length === 0) {
+      return null;
+    }
+    
+    // Find exact symbol match (case-insensitive)
+    const coin = searchData.coins.find(c => c.symbol.toLowerCase() === symbol.toLowerCase());
+    if (!coin) {
+      return null;
+    }
+    
+    // Get price for this coin ID
+    const priceUrl = `${baseUrl}/simple/price?ids=${coin.id}&vs_currencies=usd`;
+    const priceResponse = await fetch(priceUrl, { headers });
+    
+    if (!priceResponse.ok) {
+      console.error(`[CoinGecko] Price API failed for ${coin.id}: ${priceResponse.status}`);
+      return null;
+    }
+    
+    const priceData: CoinGeckoPriceResponse = await priceResponse.json();
+    const priceInfo = priceData[coin.id];
+    
+    if (priceInfo && priceInfo.usd) {
+      return priceInfo.usd;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[CoinGecko] Error fetching price for ${symbol}:`, error);
+    return null;
+  }
+}
+
