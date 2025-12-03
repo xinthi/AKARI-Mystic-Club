@@ -1,0 +1,66 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00F6A2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7BFFDA;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F9F871;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main text "AKARI" with golden glow -->
+  <text x="256" y="220" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="url(#goldGradient)" text-anchor="middle" filter="url(#glow)" stroke="#F4F7FF" stroke-width="1">
+    <tspan x="256" dy="0">AKARI</tspan>
+  </text>
+  
+  <!-- Secondary text "MYSTIC CLUB" -->
+  <text x="256" y="270" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#F4F7FF" text-anchor="middle" opacity="0.95" filter="url(#softGlow)">
+    <tspan x="256" dy="0">MYSTIC CLUB</tspan>
+  </text>
+  
+  <!-- Decorative cute characters around the logo (simplified style) -->
+  <!-- Top row characters -->
+  <circle cx="150" cy="100" r="22" fill="#F9F871" opacity="0.85" filter="url(#softGlow)"/>
+  <circle cx="200" cy="80" r="18" fill="#00F6A2" opacity="0.75" filter="url(#softGlow)"/>
+  <circle cx="256" cy="70" r="20" fill="#7BFFDA" opacity="0.8" filter="url(#softGlow)"/>
+  <circle cx="312" cy="80" r="18" fill="#F9F871" opacity="0.75" filter="url(#softGlow)"/>
+  <circle cx="362" cy="100" r="22" fill="#00F6A2" opacity="0.85" filter="url(#softGlow)"/>
+  
+  <!-- Left side characters -->
+  <circle cx="90" cy="180" r="20" fill="#7BFFDA" opacity="0.8" filter="url(#softGlow)"/>
+  <circle cx="70" cy="256" r="22" fill="#F9F871" opacity="0.85" filter="url(#softGlow)"/>
+  <circle cx="90" cy="332" r="20" fill="#00F6A2" opacity="0.8" filter="url(#softGlow)"/>
+  
+  <!-- Right side characters -->
+  <circle cx="422" cy="180" r="20" fill="#F9F871" opacity="0.8" filter="url(#softGlow)"/>
+  <circle cx="442" cy="256" r="22" fill="#7BFFDA" opacity="0.85" filter="url(#softGlow)"/>
+  <circle cx="422" cy="332" r="20" fill="#F9F871" opacity="0.8" filter="url(#softGlow)"/>
+  
+  <!-- Bottom row characters -->
+  <circle cx="150" cy="412" r="22" fill="#00F6A2" opacity="0.85" filter="url(#softGlow)"/>
+  <circle cx="200" cy="432" r="18" fill="#7BFFDA" opacity="0.75" filter="url(#softGlow)"/>
+  <circle cx="256" cy="442" r="20" fill="#F9F871" opacity="0.8" filter="url(#softGlow)"/>
+  <circle cx="312" cy="432" r="18" fill="#00F6A2" opacity="0.75" filter="url(#softGlow)"/>
+  <circle cx="362" cy="412" r="22" fill="#7BFFDA" opacity="0.85" filter="url(#softGlow)"/>
+  
+  <!-- Central accent dots -->
+  <circle cx="220" cy="320" r="6" fill="#F9F871" opacity="0.7"/>
+  <circle cx="256" cy="330" r="8" fill="#00F6A2" opacity="0.6"/>
+  <circle cx="292" cy="320" r="6" fill="#7BFFDA" opacity="0.7"/>
+</svg>

@@ -1,102 +1,201 @@
-/**
- * Portal Homepage
- * akarimystic.club
- */
+import React from 'react';
+import { GetServerSideProps } from 'next';
+import { PortalLayout } from '../../components/portal/PortalLayout';
+import { prisma } from '@/lib/prisma';
 
-import Head from 'next/head';
-import Link from 'next/link';
+interface PortalHomeProps {
+  platforms: Array<{ id: string; name: string }>;
+}
 
-export default function PortalHomePage() {
+export default function PortalHome({ platforms }: PortalHomeProps) {
+  // Format platform names for display
+  const platformNames = platforms.length > 0
+    ? platforms.map(p => p.name).join(', ')
+    : 'Multiple launchpads';
   return (
-    <>
-      <Head>
-        <title>Akari Mystic Club – Markets, Memes & New Launches</title>
-        <meta name="description" content="Akari Mystic Club Portal - Explore prediction markets, meme coins, and new token launches" />
-      </Head>
+    <PortalLayout>
+      {/* Hero grid */}
+      <section className="grid items-center gap-8 md:grid-cols-[1.3fr_minmax(0,1fr)]">
+        {/* Left copy */}
+        <div>
+          <p className="mb-3 text-xs uppercase tracking-[0.25em] text-akari-muted">
+            Prediction-native market intelligence
+          </p>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-        {/* Hero Section */}
-        <div className="container mx-auto px-4 py-16">
-          <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Akari Mystic Club
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-8">
-              Markets, Memes & New Launches
-            </p>
-            <p className="text-lg text-gray-400 mb-12 max-w-2xl mx-auto">
-              Your gateway to prediction markets, meme coin tracking, and early access to new token launches.
-            </p>
+          <h1 className="mb-3 text-3xl font-semibold leading-tight md:text-4xl">
+            One hub for{' '}
+            <span className="text-akari-primary">Markets</span>,{' '}
+            <span className="text-akari-accent">Memecoins</span> and{' '}
+            <span className="text-akari-profit">Launchpads</span>.
+          </h1>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-              <Link
-                href="https://play.akarimystic.club"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-semibold hover:from-purple-500 hover:to-pink-500 transition-all transform hover:scale-105 shadow-lg"
-              >
-                Open MiniApp
-              </Link>
-              <Link
-                href="/portal/new-launches"
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg font-semibold hover:from-blue-500 hover:to-cyan-500 transition-all transform hover:scale-105 shadow-lg"
-              >
-                Explore New Launches
-              </Link>
-            </div>
+          <p className="mb-6 max-w-xl text-sm text-akari-muted">
+            Akari Mystic Club turns live crypto data into prediction markets.
+            Track what&apos;s pumping, who&apos;s building, and which IDOs
+            actually performed, then put your conviction to the test in our
+            Telegram MiniApp.
+          </p>
+
+          {/* CTAs */}
+          <div className="mb-6 flex flex-wrap gap-3">
+            <a
+              href="https://play.akarimystic.club"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-akari-primary to-akari-accent px-4 py-2 text-xs font-medium text-neutral-900 shadow-akari-glow transition hover:scale-[0.99] active:scale-95"
+            >
+              🚀 Launch MiniApp
+            </a>
+            <a
+              href="#markets"
+              className="inline-flex items-center gap-2 rounded-full border border-akari-accent/40 px-4 py-2 text-xs text-akari-muted transition hover:border-akari-primary hover:text-akari-primary"
+            >
+              📊 Explore Markets
+            </a>
           </div>
 
-          {/* Features Grid */}
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mt-20">
-            {/* Markets */}
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
-              <div className="text-4xl mb-4">📊</div>
-              <h2 className="text-2xl font-bold mb-3 text-purple-300">Markets</h2>
-              <p className="text-gray-400 mb-4">
-                Prediction markets for crypto, politics, sports, and more. Bet on outcomes and earn rewards.
+          {/* Pills */}
+          <div className="flex flex-wrap gap-3 text-[11px] text-akari-muted">
+            <span className="inline-flex items-center gap-1 rounded-full bg-akari-cardSoft px-2 py-1">
+              ✅ Powered by Binance, CoinGecko, DexScreener
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-akari-cardSoft px-2 py-1">
+              🔮 Auto-created &amp; auto-resolved markets
+            </span>
+          </div>
+        </div>
+
+        {/* Right highlight card */}
+        <div className="rounded-3xl border border-akari-accent/30 bg-akari-card p-4 shadow-akari-glow">
+          <p className="mb-2 text-xs text-akari-muted">Live samplers</p>
+          <div className="space-y-3 text-xs">
+            {/* Markets card */}
+            <div className="rounded-2xl border border-akari-primary/30 bg-akari-cardSoft p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="rounded-full bg-akari-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-akari-primary">
+                  Markets
+                </span>
+                <span className="text-[10px] text-akari-muted">
+                  Top gainers 24h
+                </span>
+              </div>
+              <p className="text-sm">Will SOL stay above $130?</p>
+              <p className="mt-1 text-[11px] text-akari-muted">
+                Auto-synced from Binance &amp; CoinGecko.
               </p>
-              <Link
-                href="/portal/markets"
-                className="text-purple-400 hover:text-purple-300 font-semibold"
-              >
-                Coming Soon →
-              </Link>
             </div>
 
             {/* Meme Radar */}
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-pink-500/20">
-              <div className="text-4xl mb-4">🔥</div>
-              <h2 className="text-2xl font-bold mb-3 text-pink-300">Meme Radar</h2>
-              <p className="text-gray-400 mb-4">
-                Track trending meme coins and discover the next viral token before it moons.
+            <div className="rounded-2xl border border-akari-accent/30 bg-akari-cardSoft p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="rounded-full bg-akari-accent/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-akari-accent">
+                  Meme Radar
+                </span>
+                <span className="text-[10px] text-akari-muted">
+                  Onchain degens
+                </span>
+              </div>
+              <p className="text-sm">New SOL memes with 50k+ liquidity.</p>
+              <p className="mt-1 text-[11px] text-akari-muted">
+                Curated from DexScreener, turned into prediction pools.
               </p>
-              <Link
-                href="/portal/memes"
-                className="text-pink-400 hover:text-pink-300 font-semibold"
-              >
-                Coming Soon →
-              </Link>
             </div>
 
-            {/* New Launches */}
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-cyan-500/20">
-              <div className="text-4xl mb-4">🚀</div>
-              <h2 className="text-2xl font-bold mb-3 text-cyan-300">New Launches</h2>
-              <p className="text-gray-400 mb-4">
-                Community-curated database of new token launches, IDOs, and airdrops with real-time price tracking.
+            {/* Launchpads */}
+            <div className="rounded-2xl border border-akari-profit/40 bg-akari-cardSoft p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="rounded-full bg-akari-profit/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-akari-profit">
+                  Launchpads
+                </span>
+                <span className="text-[10px] text-akari-muted">ROI tracker</span>
+              </div>
+              <p className="text-sm">
+                {platformNames.length > 60 
+                  ? `${platformNames.substring(0, 60)}...`
+                  : platformNames || 'Multiple launchpads'}.
               </p>
-              <Link
-                href="/portal/new-launches"
-                className="text-cyan-400 hover:text-cyan-300 font-semibold"
-              >
-                Explore Now →
-              </Link>
+              <p className="mt-1 text-[11px] text-akari-muted">
+                Compare sale price vs current price and bet on the next one.
+              </p>
             </div>
           </div>
         </div>
-      </div>
-    </>
+      </section>
+
+      {/* Feature strip */}
+      <section
+        id="markets"
+        className="mt-10 grid gap-4 text-xs md:grid-cols-3"
+      >
+        <a
+          href="/portal/markets"
+          className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 shadow-akari-soft transition hover:border-akari-primary/70"
+        >
+          <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-akari-primary">
+            Markets
+          </p>
+          <p className="mb-1 text-sm">Centralized &amp; onchain overview.</p>
+          <p className="text-[11px] text-akari-muted">
+            Top gainers, volume leaders, narratives — all ingested into Akari
+            and used as fuel for live prediction markets.
+          </p>
+        </a>
+
+        <a
+          id="memes"
+          href="/portal/memes"
+          className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 transition hover:border-akari-primary/70"
+        >
+          <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-akari-accent">
+            Meme Radar
+          </p>
+          <p className="mb-1 text-sm">Where the real degen flow is.</p>
+          <p className="text-[11px] text-akari-muted">
+            Track new pairs, liquidity &amp; velocity. Open meme-based
+            prediction markets with one tap in the MiniApp.
+          </p>
+        </a>
+
+        <a
+          id="launchpads"
+          href="/portal/new-launches"
+          className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 transition hover:border-akari-primary/70"
+        >
+          <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-akari-profit">
+            Launchpads
+          </p>
+          <p className="mb-1 text-sm">
+            {platformNames.length > 60 
+              ? `${platformNames.substring(0, 60)}...`
+              : platformNames || 'Multiple launchpads'}.
+          </p>
+          <p className="text-[11px] text-akari-muted">
+            Compare sale price vs live price, rank platforms by ROI, and
+            speculate which IDO list will outperform next.
+          </p>
+        </a>
+      </section>
+    </PortalLayout>
   );
 }
 
+export const getServerSideProps: GetServerSideProps = async () => {
+  try {
+    const platforms = await prisma.launchPlatform.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+      take: 10, // Limit to top 10 for display
+    });
+
+    return {
+      props: {
+        platforms: JSON.parse(JSON.stringify(platforms)),
+      },
+    };
+  } catch (error) {
+    console.error('[Portal Home] Error fetching platforms:', error);
+    return {
+      props: {
+        platforms: [],
+      },
+    };
+  }
+};

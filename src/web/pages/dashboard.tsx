@@ -11,6 +11,7 @@ import { getWebApp } from '../lib/telegram-webapp';
 import WheelOfFortune from '../components/WheelOfFortune';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 import FeaturedStrip, { FeaturedPrediction, FeaturedQuest } from '../components/FeaturedStrip';
+import { Logo } from '../components/Logo';
 
 interface User {
   id: string;
@@ -281,8 +282,13 @@ export default function Dashboard() {
       
       {/* Header */}
       <header className="p-6 pb-4">
-        <h1 className="text-3xl font-bold mb-2 text-akari-text">🔮 AKARI Mystic Club</h1>
-        <p className="text-akari-muted">Welcome back, {displayUser.username || 'Mystic'}</p>
+        <div className="flex items-center gap-3 mb-2">
+          <Logo size={40} />
+          <div>
+            <h1 className="text-3xl font-bold text-akari-text">AKARI Mystic Club</h1>
+            <p className="text-akari-muted text-sm">Welcome back, {displayUser.username || 'Mystic'}</p>
+          </div>
+        </div>
       </header>
 
       {/* User Stats Card */}

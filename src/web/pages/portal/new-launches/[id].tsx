@@ -5,6 +5,7 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { PortalLayout } from '../../../components/portal/PortalLayout';
 
 interface NewLaunch {
   id: string;
@@ -43,19 +44,17 @@ interface Props {
 export default function LaunchDetailPage({ launch }: Props) {
   if (!launch) {
     return (
-      <>
+      <PortalLayout>
         <Head>
           <title>Launch Not Found - Akari Mystic Club</title>
         </Head>
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-cyan-900 to-slate-900 text-white flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">Launch Not Found</h1>
-            <Link href="/portal/new-launches" className="text-cyan-400 hover:text-cyan-300">
-              ← Back to Launches
-            </Link>
-          </div>
+        <div className="text-center py-12">
+          <h1 className="text-xl font-semibold mb-4">Launch Not Found</h1>
+          <Link href="/portal/new-launches" className="text-akari-primary hover:text-akari-accent text-sm">
+            ← Back to Launches
+          </Link>
         </div>
-      </>
+      </PortalLayout>
     );
   }
 
@@ -65,147 +64,143 @@ export default function LaunchDetailPage({ launch }: Props) {
     : null;
 
   return (
-    <>
+    <PortalLayout>
       <Head>
         <title>{launch.name} - Akari Mystic Club</title>
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-cyan-900 to-slate-900 text-white">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          {/* Header */}
-          <div className="mb-8">
-            <Link href="/portal/new-launches" className="text-cyan-400 hover:text-cyan-300 mb-4 inline-block">
-              ← Back to Launches
-            </Link>
-            <h1 className="text-4xl md:text-5xl font-bold mb-2">{launch.name}</h1>
-            <p className="text-2xl text-cyan-400 font-semibold">{launch.tokenSymbol}</p>
-            {launch.tokenName && <p className="text-gray-300 mt-1">{launch.tokenName}</p>}
-          </div>
+      {/* Header */}
+      <section className="mb-6">
+        <Link href="/portal/new-launches" className="text-akari-primary hover:text-akari-accent mb-4 inline-block text-sm">
+          ← Back to Launches
+        </Link>
+        <h1 className="text-2xl font-semibold mb-2">{launch.name}</h1>
+        <p className="text-lg text-akari-primary font-medium">{launch.tokenSymbol}</p>
+        {launch.tokenName && <p className="text-sm text-akari-muted mt-1">{launch.tokenName}</p>}
+      </section>
 
-          {/* Main Info Card */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-cyan-500/20">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-xl font-bold mb-4">Basic Information</h2>
-                <div className="space-y-2 text-sm">
-                  {launch.chain && (
-                    <p>
-                      <span className="text-gray-500">Chain:</span> {launch.chain}
-                    </p>
-                  )}
-                  {launch.category && (
-                    <p>
-                      <span className="text-gray-500">Category:</span> {launch.category}
-                    </p>
-                  )}
-                  {launch.status && (
-                    <p>
-                      <span className="text-gray-500">Status:</span> {launch.status}
-                    </p>
-                  )}
-                  {launch.platform ? (
-                    <p>
-                      <span className="text-gray-500">Platform:</span> {launch.platform.name}
-                    </p>
-                  ) : (
-                    <p>
-                      <span className="text-gray-500">Platform:</span> Direct / No Launchpad
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h2 className="text-xl font-bold mb-4">Sale Parameters</h2>
-                <div className="space-y-2 text-sm">
-                  {launch.salePriceUsd && (
-                    <p>
-                      <span className="text-gray-500">Sale Price:</span> ${launch.salePriceUsd.toFixed(4)} USD
-                    </p>
-                  )}
-                  {launch.tokensForSale && (
-                    <p>
-                      <span className="text-gray-500">Tokens for Sale:</span>{' '}
-                      {launch.tokensForSale.toLocaleString()}
-                    </p>
-                  )}
-                  {launch.totalRaiseUsd && (
-                    <p>
-                      <span className="text-gray-500">Total Raise:</span> ${launch.totalRaiseUsd.toLocaleString()} USD
-                    </p>
-                  )}
-                </div>
-              </div>
+      {/* Main Info Card */}
+      <div className="rounded-2xl border border-akari-border bg-akari-card p-6 mb-6">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h2 className="text-sm font-semibold mb-4 text-akari-primary uppercase tracking-[0.1em]">Basic Information</h2>
+            <div className="space-y-2 text-sm">
+              {launch.chain && (
+                <p>
+                  <span className="text-akari-muted/70">Chain:</span> <span className="text-akari-text">{launch.chain}</span>
+                </p>
+              )}
+              {launch.category && (
+                <p>
+                  <span className="text-akari-muted/70">Category:</span> <span className="text-akari-text">{launch.category}</span>
+                </p>
+              )}
+              {launch.status && (
+                <p>
+                  <span className="text-akari-muted/70">Status:</span> <span className="text-akari-text">{launch.status}</span>
+                </p>
+              )}
+              {launch.platform ? (
+                <p>
+                  <span className="text-akari-muted/70">Platform:</span> <span className="text-akari-text">{launch.platform.name}</span>
+                </p>
+              ) : (
+                <p>
+                  <span className="text-akari-muted/70">Platform:</span> <span className="text-akari-text">Direct / No Launchpad</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Airdrop Info */}
-          {(launch.airdropPercent || launch.airdropValueUsd) && (
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-cyan-500/20">
-              <h2 className="text-xl font-bold mb-4">Airdrop Information</h2>
-              <div className="space-y-2 text-sm">
-                {launch.airdropPercent && (
-                  <p>
-                    <span className="text-gray-500">Airdrop %:</span> {launch.airdropPercent}%
-                  </p>
-                )}
-                {launch.airdropValueUsd && (
-                  <p>
-                    <span className="text-gray-500">Estimated Airdrop Value:</span> ${launch.airdropValueUsd.toLocaleString()} USD
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Vesting Info */}
-          {launch.vestingInfo && (
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-cyan-500/20">
-              <h2 className="text-xl font-bold mb-4">Vesting Schedule</h2>
-              <pre className="bg-slate-900/50 p-4 rounded text-xs overflow-x-auto">
-                {JSON.stringify(launch.vestingInfo, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {/* Price Tracking */}
-          {latestSnapshot && (
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-cyan-500/20">
-              <h2 className="text-xl font-bold mb-4">Price Tracking</h2>
-              <div className="space-y-2 text-sm">
+          <div>
+            <h2 className="text-sm font-semibold mb-4 text-akari-primary uppercase tracking-[0.1em]">Sale Parameters</h2>
+            <div className="space-y-2 text-sm">
+              {launch.salePriceUsd && (
                 <p>
-                  <span className="text-gray-500">Current Price:</span> ${latestSnapshot.priceUsd.toFixed(4)} USD
+                  <span className="text-akari-muted/70">Sale Price:</span> <span className="text-akari-text">${launch.salePriceUsd.toFixed(4)} USD</span>
                 </p>
-                {latestSnapshot.volume24h && (
-                  <p>
-                    <span className="text-gray-500">24h Volume:</span> ${latestSnapshot.volume24h.toLocaleString()}
-                  </p>
-                )}
-                {latestSnapshot.liquidity && (
-                  <p>
-                    <span className="text-gray-500">Liquidity:</span> ${latestSnapshot.liquidity.toLocaleString()}
-                  </p>
-                )}
+              )}
+              {launch.tokensForSale && (
                 <p>
-                  <span className="text-gray-500">Source:</span> {latestSnapshot.source}
+                  <span className="text-akari-muted/70">Tokens for Sale:</span>{' '}
+                  <span className="text-akari-text">{launch.tokensForSale.toLocaleString()}</span>
                 </p>
-                {roi && (
-                  <p className={parseFloat(roi) >= 100 ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
-                    <span className="text-gray-500">ROI vs Sale Price:</span> {roi}%
-                  </p>
-                )}
-                <p className="text-gray-500 text-xs mt-2">
-                  Last updated: {new Date(latestSnapshot.fetchedAt).toLocaleString()}
+              )}
+              {launch.totalRaiseUsd && (
+                <p>
+                  <span className="text-akari-muted/70">Total Raise:</span> <span className="text-akari-text">${launch.totalRaiseUsd.toLocaleString()} USD</span>
                 </p>
-              </div>
+              )}
             </div>
-          )}
-
-          {/* Edit Button (for L2/ADMIN - will be implemented with auth) */}
-          {/* TODO: Add auth check and edit button */}
+          </div>
         </div>
       </div>
-    </>
+
+      {/* Airdrop Info */}
+      {(launch.airdropPercent || launch.airdropValueUsd) && (
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-6 mb-6">
+          <h2 className="text-sm font-semibold mb-4 text-akari-accent uppercase tracking-[0.1em]">Airdrop Information</h2>
+          <div className="space-y-2 text-sm">
+            {launch.airdropPercent && (
+              <p>
+                <span className="text-akari-muted/70">Airdrop %:</span> <span className="text-akari-text">{launch.airdropPercent}%</span>
+              </p>
+            )}
+            {launch.airdropValueUsd && (
+              <p>
+                <span className="text-akari-muted/70">Estimated Airdrop Value:</span> <span className="text-akari-text">${launch.airdropValueUsd.toLocaleString()} USD</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Vesting Info */}
+      {launch.vestingInfo && (
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-6 mb-6">
+          <h2 className="text-sm font-semibold mb-4 text-akari-primary uppercase tracking-[0.1em]">Vesting Schedule</h2>
+          <pre className="bg-akari-cardSoft p-4 rounded-lg text-xs overflow-x-auto text-akari-muted">
+            {JSON.stringify(launch.vestingInfo, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* Price Tracking */}
+      {latestSnapshot && (
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-6 mb-6">
+          <h2 className="text-sm font-semibold mb-4 text-akari-profit uppercase tracking-[0.1em]">Price Tracking</h2>
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-akari-muted/70">Current Price:</span> <span className="text-akari-text">${latestSnapshot.priceUsd.toFixed(4)} USD</span>
+            </p>
+            {latestSnapshot.volume24h && (
+              <p>
+                <span className="text-akari-muted/70">24h Volume:</span> <span className="text-akari-text">${latestSnapshot.volume24h.toLocaleString()}</span>
+              </p>
+            )}
+            {latestSnapshot.liquidity && (
+              <p>
+                <span className="text-akari-muted/70">Liquidity:</span> <span className="text-akari-text">${latestSnapshot.liquidity.toLocaleString()}</span>
+              </p>
+            )}
+            <p>
+              <span className="text-akari-muted/70">Source:</span> <span className="text-akari-text">{latestSnapshot.source}</span>
+            </p>
+            {roi && (
+              <p className={parseFloat(roi) >= 100 ? 'text-akari-profit font-semibold' : 'text-akari-danger font-semibold'}>
+                <span className="text-akari-muted/70">ROI vs Sale Price:</span> {roi}%
+              </p>
+            )}
+            <p className="text-akari-muted text-xs mt-2">
+              Last updated: {new Date(latestSnapshot.fetchedAt).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Button (for L2/ADMIN - will be implemented with auth) */}
+      {/* TODO: Add auth check and edit button */}
+    </PortalLayout>
   );
 }
 

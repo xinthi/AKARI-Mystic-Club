@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
+import { PortalLayout } from '../../../components/portal/PortalLayout';
 
 // This is a placeholder - in production, you'd fetch this from an API
 // and check authentication/authorization
@@ -25,111 +26,107 @@ export default function AdminNewLaunchesPage() {
   }, []);
 
   return (
-    <>
+    <PortalLayout>
       <Head>
         <title>Admin - New Launches - Akari Mystic Club</title>
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-        <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <Link href="/portal/new-launches" className="text-purple-400 hover:text-purple-300 mb-4 inline-block">
-              ← Back to Launches
-            </Link>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Admin Panel</h1>
-            <p className="text-gray-300">Manage launches, platforms, and user levels</p>
-          </div>
+      {/* Header */}
+      <section className="mb-6">
+        <Link href="/portal/new-launches" className="text-akari-primary hover:text-akari-accent mb-4 inline-block text-sm">
+          ← Back to Launches
+        </Link>
+        <h2 className="text-xl font-semibold mb-2">Admin Panel</h2>
+        <p className="text-sm text-akari-muted">Manage launches, platforms, and user levels</p>
+      </section>
 
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 border-b border-purple-500/20">
-            <button
-              onClick={() => setActiveTab('launches')}
-              className={`px-6 py-3 font-semibold ${
-                activeTab === 'launches'
-                  ? 'border-b-2 border-purple-400 text-purple-400'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              Launches
-            </button>
-            <button
-              onClick={() => setActiveTab('platforms')}
-              className={`px-6 py-3 font-semibold ${
-                activeTab === 'platforms'
-                  ? 'border-b-2 border-purple-400 text-purple-400'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              Platforms (ADMIN)
-            </button>
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`px-6 py-3 font-semibold ${
-                activeTab === 'users'
-                  ? 'border-b-2 border-purple-400 text-purple-400'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              User Levels (ADMIN)
-            </button>
-          </div>
-
-          {/* Content */}
-          {loading ? (
-            <div className="text-center py-12 text-gray-400">Loading...</div>
-          ) : (
-            <>
-              {activeTab === 'launches' && (
-                <div>
-                  <div className="mb-6">
-                    <button className="px-6 py-3 bg-purple-600 rounded-lg font-semibold hover:bg-purple-500 transition-all">
-                      + Create Launch
-                    </button>
-                  </div>
-                  <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
-                    <p className="text-gray-400">
-                      Launch management interface will be implemented here.
-                      <br />
-                      L2 users can create and edit launches.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'platforms' && (
-                <div>
-                  <div className="mb-6">
-                    <button className="px-6 py-3 bg-purple-600 rounded-lg font-semibold hover:bg-purple-500 transition-all">
-                      + Create Platform
-                    </button>
-                  </div>
-                  <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
-                    <p className="text-gray-400">
-                      Platform management interface will be implemented here.
-                      <br />
-                      Only ADMIN users can create/edit/delete platforms.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'users' && (
-                <div>
-                  <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
-                    <p className="text-gray-400">
-                      User level management interface will be implemented here.
-                      <br />
-                      Only ADMIN users can change user levels (L1 ↔ L2, mark as ADMIN).
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-4 mb-6 border-b border-akari-border">
+        <button
+          onClick={() => setActiveTab('launches')}
+          className={`px-4 py-2 text-xs font-medium transition ${
+            activeTab === 'launches'
+              ? 'border-b-2 border-akari-primary text-akari-primary'
+              : 'text-akari-muted hover:text-akari-text'
+          }`}
+        >
+          Launches
+        </button>
+        <button
+          onClick={() => setActiveTab('platforms')}
+          className={`px-4 py-2 text-xs font-medium transition ${
+            activeTab === 'platforms'
+              ? 'border-b-2 border-akari-primary text-akari-primary'
+              : 'text-akari-muted hover:text-akari-text'
+          }`}
+        >
+          Platforms (ADMIN)
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2 text-xs font-medium transition ${
+            activeTab === 'users'
+              ? 'border-b-2 border-akari-primary text-akari-primary'
+              : 'text-akari-muted hover:text-akari-text'
+          }`}
+        >
+          User Levels (ADMIN)
+        </button>
       </div>
-    </>
+
+      {/* Content */}
+      {loading ? (
+        <div className="text-center py-12 text-akari-muted">Loading...</div>
+      ) : (
+        <>
+          {activeTab === 'launches' && (
+            <div>
+              <div className="mb-6">
+                <button className="px-4 py-2 bg-akari-primary rounded-full text-xs font-medium text-black shadow-akari-glow hover:opacity-90 transition">
+                  + Create Launch
+                </button>
+              </div>
+              <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
+                <p className="text-sm text-akari-muted">
+                  Launch management interface will be implemented here.
+                  <br />
+                  L2 users can create and edit launches.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'platforms' && (
+            <div>
+              <div className="mb-6">
+                <button className="px-4 py-2 bg-akari-primary rounded-full text-xs font-medium text-black shadow-akari-glow hover:opacity-90 transition">
+                  + Create Platform
+                </button>
+              </div>
+              <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
+                <p className="text-sm text-akari-muted">
+                  Platform management interface will be implemented here.
+                  <br />
+                  Only ADMIN users can create/edit/delete platforms.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div>
+              <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
+                <p className="text-sm text-akari-muted">
+                  User level management interface will be implemented here.
+                  <br />
+                  Only ADMIN users can change user levels (L1 ↔ L2, mark as ADMIN).
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </PortalLayout>
   );
 }
 

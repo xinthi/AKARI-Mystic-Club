@@ -1,35 +1,37 @@
-/**
- * Markets Dashboard (Placeholder)
- */
-
-import Head from 'next/head';
-import Link from 'next/link';
+import React from 'react';
+import { PortalLayout } from '../../components/portal/PortalLayout';
 
 export default function MarketsPage() {
   return (
-    <>
-      <Head>
-        <title>Markets - Akari Mystic Club</title>
-      </Head>
+    <PortalLayout>
+      <section className="mb-6">
+        <h2 className="text-xl font-semibold mb-2">Markets overview</h2>
+        <p className="text-sm text-akari-muted max-w-2xl">
+          High-level view of top gainers, volume leaders and narratives.
+          Later we will wire this to Binance / CoinGecko / DexScreener feeds
+          and connect it directly with Akari prediction markets.
+        </p>
+      </section>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-        <div className="container mx-auto px-4 py-16">
-          <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">Markets Dashboard</h1>
-            <p className="text-xl text-gray-300 mb-8">Coming soon</p>
-            <p className="text-gray-400 mb-12">
-              Prediction markets dashboard will be available here soon.
-            </p>
-            <Link
-              href="/portal"
-              className="px-6 py-3 bg-purple-600 rounded-lg font-semibold hover:bg-purple-500 transition-all"
-            >
-              ← Back to Home
-            </Link>
-          </div>
+      {/* Placeholder list */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+          <p className="text-xs text-akari-muted mb-1">Example</p>
+          <p className="text-sm mb-1">Top gainers 24h</p>
+          <p className="text-[11px] text-akari-muted">
+            Once wired, we&apos;ll list coins like SOL, AVAX, LINK with 24h %
+            change and directly open prediction markets from here.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+          <p className="text-xs text-akari-muted mb-1">Example</p>
+          <p className="text-sm mb-1">Narrative dashboards</p>
+          <p className="text-[11px] text-akari-muted">
+            Meme, AI, L2s, TON ecosystem and more, all feeding into your
+            MiniApp markets tab.
+          </p>
         </div>
       </div>
-    </>
+    </PortalLayout>
   );
 }
-
