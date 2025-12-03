@@ -202,10 +202,10 @@ export default function PredictionsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 flex items-center justify-center">
+      <div className="min-h-screen bg-akari-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-          <div className="text-purple-200 text-sm">Loading markets...</div>
+          <div className="w-8 h-8 border-2 border-akari-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-akari-text text-sm">Loading markets...</div>
         </div>
       </div>
     );
@@ -214,38 +214,44 @@ export default function PredictionsPage() {
   const showError = error && predictions.length === 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-950 via-black to-purple-950 text-white">
+    <div className="min-h-screen bg-akari-bg text-akari-text">
       <div className="px-4 pt-5 pb-6">
         {/* Header */}
         <div className="mb-4">
-          <h1 className="text-xl font-bold text-white">Predictions</h1>
-          <p className="text-xs text-purple-300 mt-1">
+          <h1 className="text-3xl font-semibold text-akari-text">Predictions</h1>
+          <p className="text-sm text-akari-muted mt-1">
             Browse markets across Crypto, Politics and more. Tap a card to see details and place a bet.
           </p>
         </div>
 
         {/* Mini Overview Chart */}
         {predictions.length > 0 && (
-          <div className="mb-4 bg-black/40 border border-white/5 rounded-2xl p-3">
+          <div className="mb-4 bg-akari-cardSoft border border-akari-accent/10 rounded-2xl p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-purple-100">Market overview</span>
-              <span className="text-[10px] text-purple-300">{predictions.length} active</span>
+              <span className="text-xs font-medium text-akari-muted">Market overview</span>
+              <span className="text-[10px] text-akari-muted">{predictions.length} active</span>
             </div>
             <div className="space-y-1.5">
-              {Object.entries(countsByCategory).map(([category, count]) => (
-                <div key={category} className="flex items-center gap-2">
-                  <span className="text-[10px] text-purple-200 w-14 shrink-0 truncate">
-                    {category}
-                  </span>
-                  <div className="flex-1 h-1.5 rounded-full bg-purple-900/70 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-500"
-                      style={{ width: `${(count / maxCount) * 100}%` }}
-                    />
+              {Object.entries(countsByCategory).map(([category, count]) => {
+                const isMemeCoin = category === 'Meme Coins';
+                const isCrypto = category === 'Crypto';
+                return (
+                  <div key={category} className="flex items-center gap-2">
+                    <span className="text-[10px] text-akari-muted w-14 shrink-0 truncate">
+                      {category}
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full bg-akari-card overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isMemeCoin ? 'bg-akari-primary' : isCrypto ? 'bg-akari-accent' : 'bg-akari-primary/60'
+                        }`}
+                        style={{ width: `${(count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-akari-muted w-4 text-right">{count}</span>
                   </div>
-                  <span className="text-[10px] text-purple-100 w-4 text-right">{count}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -262,13 +268,13 @@ export default function PredictionsPage() {
                 onClick={() => setActiveCategory(cat)}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-medium whitespace-nowrap border transition-all ${
                   isActive
-                    ? 'bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-500/20'
-                    : 'bg-black/40 text-purple-200 border-white/5 hover:border-purple-500/30'
+                    ? 'bg-akari-primary text-neutral-900 border-akari-primary'
+                    : 'bg-akari-card text-akari-muted border-akari-accent/10 hover:border-akari-accent/20'
                 }`}
               >
                 {cat}
                 {count > 0 && (
-                  <span className={`ml-1.5 ${isActive ? 'text-purple-100' : 'text-purple-400'}`}>
+                  <span className={`ml-1.5 ${isActive ? 'text-neutral-700' : 'text-akari-muted'}`}>
                     {count}
                   </span>
                 )}
@@ -292,12 +298,12 @@ export default function PredictionsPage() {
 
         {/* Empty State */}
         {visiblePredictions.length === 0 && !showError && (
-          <div className="bg-black/40 border border-white/5 rounded-2xl p-8 text-center">
+          <div className="bg-akari-card border border-akari-accent/20 rounded-2xl p-8 text-center">
             <div className="text-3xl mb-3">🔮</div>
-            <div className="text-sm font-medium text-white mb-1">
+            <div className="text-sm font-medium text-akari-text mb-1">
               {activeCategory === 'All' ? 'No active predictions' : `No ${activeCategory} predictions`}
             </div>
-            <div className="text-xs text-purple-300">
+            <div className="text-xs text-akari-muted">
               {activeCategory === 'All' ? 'Check back later for new markets' : 'Try selecting a different category'}
             </div>
           </div>
@@ -335,65 +341,69 @@ function PredictionCard({ prediction, chance, timeRemaining, onClick }: Predicti
   const chanceNum = parseInt(chance) || 50;
   const yesChance = chanceNum;
   const noChance = 100 - chanceNum;
+  const isYesFavored = yesChance > noChance;
 
   return (
     <button
       onClick={onClick}
-      className="bg-black/40 border border-white/5 rounded-2xl p-3 flex flex-col text-left hover:border-purple-500/30 hover:bg-black/50 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+      className="bg-akari-card border border-akari-accent/20 rounded-2xl p-3 flex flex-col text-left text-akari-text shadow-[0_0_24px_rgba(0,246,162,0.12)] hover:border-akari-accent/40 hover:shadow-[0_0_32px_rgba(0,246,162,0.18)] transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-akari-primary/50"
     >
-      {/* Top row: Title + Chance */}
-      <div className="flex items-start justify-between gap-1.5 mb-2">
-        <div className="flex-1 flex items-start gap-1.5">
-          <h2 className="text-[11px] font-semibold text-white leading-snug line-clamp-2 flex-1">
-            {prediction.title}
-          </h2>
-          {prediction.originalCategory === 'TRENDING_CRYPTO' && (
-            <span className="ml-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400 border border-amber-500/20 shrink-0">
-              🔥 Trending
-            </span>
-          )}
-          {prediction.originalCategory === 'MEME_COIN' && (
-            <span className="ml-1 rounded-full bg-pink-500/10 px-1.5 py-0.5 text-[9px] text-pink-400 border border-pink-500/20 shrink-0">
-              🔥 Meme Coin
-            </span>
-          )}
+      {/* Category pill */}
+      {(prediction.originalCategory === 'MEME_COIN' || prediction.originalCategory === 'TRENDING_CRYPTO') && (
+        <div className="mb-2">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-akari-primary/15 text-[11px] font-semibold text-akari-primary uppercase tracking-[0.16em]">
+            {prediction.originalCategory === 'MEME_COIN' ? '🔥 Meme Coin' : '🔥 Trending'}
+          </span>
         </div>
-        <div className="text-right shrink-0">
-          <div className="text-xs font-bold text-emerald-300">{chance}</div>
-          <div className="text-[8px] text-purple-300/70 uppercase tracking-wide">chance</div>
-        </div>
+      )}
+
+      {/* Title */}
+      <div className="mb-2">
+        <h2 className="text-sm font-semibold text-akari-text leading-snug line-clamp-2">
+          {prediction.title}
+        </h2>
       </div>
 
       {/* Time remaining badge */}
-      <div className="mb-2">
-        <span className="inline-flex items-center text-[9px] text-purple-300 bg-purple-500/10 px-1.5 py-0.5 rounded">
+      <div className="mb-3">
+        <span className="inline-flex items-center text-xs text-akari-muted bg-akari-cardSoft px-2 py-0.5 rounded-full">
           ⏱ {timeRemaining}
         </span>
       </div>
 
       {/* Yes / No split row */}
-      <div className="flex text-[10px] font-medium gap-1 mb-2">
-        <div className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/20 text-emerald-200 py-1.5 px-2 text-center">
+      <div className="flex gap-2 mt-3 mb-3">
+        <div className={`flex-1 rounded-xl py-2 px-2 text-center text-xs font-semibold ${
+          isYesFavored
+            ? 'bg-akari-cardSoft border border-akari-primary text-akari-primary'
+            : 'bg-akari-cardSoft border border-zinc-700 text-akari-muted'
+        }`}>
           <div className="font-bold">{yesChance}%</div>
-          <div className="text-[8px] text-emerald-300/70">Yes</div>
+          <div className="text-[10px] mt-0.5">Yes</div>
         </div>
-        <div className="flex-1 rounded-xl bg-rose-500/15 border border-rose-500/20 text-rose-200 py-1.5 px-2 text-center">
+        <div className={`flex-1 rounded-xl py-2 px-2 text-center text-xs font-semibold ${
+          !isYesFavored
+            ? 'bg-akari-cardSoft border border-akari-primary text-akari-primary'
+            : 'bg-akari-cardSoft border border-zinc-700 text-akari-muted'
+        }`}>
           <div className="font-bold">{noChance}%</div>
-          <div className="text-[8px] text-rose-300/70">No</div>
+          <div className="text-[10px] mt-0.5">No</div>
         </div>
       </div>
 
       {/* Footer: Pools + Participants */}
-      <div className="flex flex-col gap-1 pt-1.5 border-t border-white/5">
-        <div className="flex justify-between items-center text-[9px] text-purple-300/70">
+      <div className="flex flex-col gap-1 pt-2 border-t border-akari-accent/10">
+        <div className="flex justify-between items-center text-xs text-akari-muted">
           <span className="truncate">
             EP: {prediction.pot.toLocaleString()}
           </span>
           <span className="shrink-0">{prediction.participantCount} 👤</span>
         </div>
-        <div className="flex justify-between items-center text-[9px] text-amber-300/70">
-          <span className="truncate">
-            MYST: {((prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0)).toFixed(2)}
+        <div className="flex justify-between items-center text-xs">
+          <span className="truncate text-akari-muted">
+            MYST: <span className="font-semibold text-akari-primary">
+              {((prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0)).toFixed(2)}
+            </span>
           </span>
         </div>
       </div>
