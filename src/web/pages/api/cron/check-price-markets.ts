@@ -81,7 +81,7 @@ export default async function handler(
 
   // Check secret from header or query param
   const providedSecret =
-    req.headers.authorization?.toString().replace('Bearer ', '') ||
+    req.headers.authorization?.replace('Bearer ', '') ||
     (req.headers['x-cron-secret'] as string | undefined) ||
     (req.query.secret as string | undefined);
 
