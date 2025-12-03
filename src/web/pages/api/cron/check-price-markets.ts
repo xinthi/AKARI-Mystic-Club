@@ -1,20 +1,19 @@
 /**
- * Check and Auto-Close Markets Cron Job
+ * Auto-Resolution Cron for Price-Based Crypto Markets
  *
- * This cron job automatically closes and resolves markets when:
- * 1. Crypto/Meme Coin: Price target is hit (e.g., AVICI >= $6.83)
- * 2. Sports: Match has finished (event has occurred)
- * 3. Any market: Outcome is determined before the end time
+ * This cron job automatically resolves expired price-based prediction markets:
+ * - MEME_COIN: Meme coin price predictions
+ * - TRENDING_CRYPTO: Trending crypto price predictions
+ * - CRYPTO: General crypto price predictions
  *
- * For price-based markets:
- *   "Will AVICI trade above $6.8 in 24 hours?"
- *   - Tracks all coins with active predictions
- *   - Auto-resolves when price >= strike price
- *   - Distributes winnings immediately
+ * For price-based markets like:
+ *   "Will AVICI trade above $6.83 in 24 hours?"
  *
- * For sports markets:
- *   - Checks if match has finished
- *   - Closes market when event has occurred
+ * When the market expires (endsAt < now), this cron:
+ *   1. Fetches the current price from CoinGecko
+ *   2. Compares it to the target price
+ *   3. Resolves: "Yes" if currentPrice >= targetPrice, else "No"
+ *   4. Distributes winnings to winners
  *
  * Security: Requires CRON_SECRET in Authorization header or query param.
  *
@@ -23,32 +22,27 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma, withDbRetry } from '../../../lib/prisma';
-import { getTrendingCoinsWithPrices, getPriceBySymbol } from '../../../services/coingecko';
-import { getTopPumpFunMemecoins } from '../../../services/memecoinRadar';
-import { POOL_IDS } from '../../../lib/myst-service';
+import { getPriceBySymbol } from '../../../services/coingecko';
+import { resolvePredictionById } from '../../../lib/resolve-prediction';
 
 type CheckPriceMarketsResponse = {
   ok: boolean;
-  checked: number;
-  closed: number;
-  skippedNoMatch: number;
-  skippedNoPrice: number;
-  skippedSports?: number;
-  priceMapSize?: number;
+  resolved: number;
+  errors: number;
+  items: Array<{
+    id: string;
+    title: string;
+    category: string;
+    symbol: string;
+    targetPrice: number;
+    currentPrice: number;
+    winningOption: 'Yes' | 'No';
+  }>;
   error?: string;
 };
 
-// Fee rate and splits should mirror the main resolve endpoint
-const PLATFORM_FEE_RATE = 0.1;
-const FEE_SPLIT = {
-  LEADERBOARD: 0.15,
-  REFERRAL: 0.1,
-  WHEEL: 0.05,
-  TREASURY: 0.7,
-};
-
 // Regex to extract symbol and strike price from our auto-generated titles
-// Example: "Will AVICI trade above $6.8 in 24 hours?"
+// Example: "Will AVICI trade above $6.83 in 24 hours?"
 const TITLE_REGEX =
   /Will\s+([A-Za-z0-9]+)\s+trade\s+above\s+\$([0-9.]+)\s+in\s+24\s*hours\?/i;
 
@@ -59,11 +53,9 @@ export default async function handler(
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({
       ok: false,
-      checked: 0,
-      closed: 0,
-      skippedNoMatch: 0,
-      skippedNoPrice: 0,
-      skippedSports: 0,
+      resolved: 0,
+      errors: 0,
+      items: [],
       error: 'Method not allowed',
     });
   }
@@ -74,11 +66,9 @@ export default async function handler(
     console.error('[CheckPriceMarkets] CRON_SECRET not set in environment');
     return res.status(500).json({
       ok: false,
-      checked: 0,
-      closed: 0,
-      skippedNoMatch: 0,
-      skippedNoPrice: 0,
-      skippedSports: 0,
+      resolved: 0,
+      errors: 0,
+      items: [],
       error: 'Cron secret not configured',
     });
   }
@@ -92,11 +82,9 @@ export default async function handler(
   if (providedSecret !== cronSecret) {
     return res.status(401).json({
       ok: false,
-      checked: 0,
-      closed: 0,
-      skippedNoMatch: 0,
-      skippedNoPrice: 0,
-      skippedSports: 0,
+      resolved: 0,
+      errors: 0,
+      items: [],
       error: 'Unauthorized',
     });
   }
@@ -104,15 +92,20 @@ export default async function handler(
   try {
     const now = new Date();
 
-    // Load ALL active, unresolved predictions (not just crypto)
-    // We check ALL categories to ensure no market stays open after outcome is determined
+    // Load EXPIRED, unresolved price-based predictions
+    // Only check crypto categories: MEME_COIN, TRENDING_CRYPTO, CRYPTO
     const predictions = await withDbRetry(() =>
       prisma.prediction.findMany({
         where: {
           status: 'ACTIVE',
           resolved: false,
-          // Don't filter by endsAt - we want to check ALL active markets
-          // Even if past end time, we should still resolve if outcome is known
+          endsAt: {
+            not: null,
+            lt: now, // Only expired markets
+          },
+          category: {
+            in: ['MEME_COIN', 'TRENDING_CRYPTO', 'CRYPTO'],
+          },
         },
         include: {
           bets: true,
@@ -123,300 +116,124 @@ export default async function handler(
     if (predictions.length === 0) {
       return res.status(200).json({
         ok: true,
-        checked: 0,
-        closed: 0,
-        skippedNoMatch: 0,
-        skippedNoPrice: 0,
-        skippedSports: 0,
+        resolved: 0,
+        errors: 0,
+        items: [],
       });
     }
 
-    // Extract all unique symbols from active predictions
-    const symbolsToTrack = new Set<string>();
+    console.log(
+      `[CheckPriceMarkets] Found ${predictions.length} expired price-based predictions to check`
+    );
+
+    const resolvedItems: CheckPriceMarketsResponse['items'] = [];
+    let resolved = 0;
+    let errors = 0;
+
+    // Process each prediction
     for (const prediction of predictions) {
-      const match = prediction.title.match(TITLE_REGEX);
-      if (match && match[1]) {
-        symbolsToTrack.add(match[1].toUpperCase());
-      }
-    }
-
-    console.log(`[CheckPriceMarkets] Tracking ${symbolsToTrack.size} unique symbols from active predictions:`, Array.from(symbolsToTrack));
-
-    // Build a price map keyed by SYMBOL (uppercased)
-    const priceBySymbol = new Map<string, number>();
-
-    // Fetch prices for all symbols we're tracking
-    const pricePromises = Array.from(symbolsToTrack).map(async (symbol) => {
-      try {
-        const price = await getPriceBySymbol(symbol);
-        if (typeof price === 'number') {
-          priceBySymbol.set(symbol, price);
-          return { symbol, price, success: true };
-        } else {
-          console.warn(`[CheckPriceMarkets] Could not fetch price for ${symbol}`);
-          return { symbol, price: null, success: false };
-        }
-      } catch (err) {
-        console.error(`[CheckPriceMarkets] Error fetching price for ${symbol}:`, err);
-        return { symbol, price: null, success: false };
-      }
-    });
-
-    // Wait for all price fetches to complete (with some parallelism)
-    const results = await Promise.all(pricePromises);
-    const successful = results.filter(r => r.success).length;
-    console.log(`[CheckPriceMarkets] Fetched prices for ${successful}/${symbolsToTrack.size} symbols`);
-
-    let checked = 0;
-    let closed = 0;
-    let skippedNoMatch = 0;
-    let skippedNoPrice = 0;
-    let skippedSports = 0;
-
-    for (const prediction of predictions) {
-      checked += 1;
       const category = prediction.category || '';
 
-      // Handle Crypto/Meme Coin price-based markets
-      if (category === 'TRENDING_CRYPTO' || category === 'MEME_COIN') {
-        const match = prediction.title.match(TITLE_REGEX);
-        if (!match) {
-          skippedNoMatch += 1;
-          continue;
-        }
-
-        const symbol = match[1].toUpperCase();
-        const strike = parseFloat(match[2]);
-        if (!symbol || Number.isNaN(strike)) {
-          skippedNoMatch += 1;
-          continue;
-        }
-
-        const currentPrice = priceBySymbol.get(symbol);
-        
-        if (typeof currentPrice !== 'number') {
-          skippedNoPrice += 1;
-          console.log(`[CheckPriceMarkets] No price found for ${symbol} (strike: $${strike}) - prediction ${prediction.id}`);
-          continue;
-        }
-
-        // If the live price meets or exceeds the strike, close and resolve the market early
-        console.log(`[CheckPriceMarkets] Checking ${symbol}: current=$${currentPrice}, strike=$${strike}, prediction=${prediction.id}`);
-        
-        if (currentPrice >= strike) {
-          console.log(`[CheckPriceMarkets] ✅ Price target hit! ${symbol} at $${currentPrice} >= $${strike}, resolving market ${prediction.id}`);
-          try {
-            // Determine winning option: for these markets, "Yes" (index 0) wins when price >= strike
-            const winningOption = Array.isArray(prediction.options) && prediction.options.length > 0
-              ? (prediction.options[0] as string)
-              : 'Yes';
-
-            const isYesWinner = winningOption === (prediction.options[0] as string);
-
-            const winningSideTotal = isYesWinner ? prediction.mystPoolYes : prediction.mystPoolNo;
-            const losingSideTotal = isYesWinner ? prediction.mystPoolNo : prediction.mystPoolYes;
-            const totalPool = winningSideTotal + losingSideTotal;
-
-            const winningBets = prediction.bets.filter((bet) => bet.option === winningOption);
-
-            const platformFee = losingSideTotal * PLATFORM_FEE_RATE;
-            const winPool = totalPool - platformFee;
-
-            const feeToLeaderboard = platformFee * FEE_SPLIT.LEADERBOARD;
-            const feeToReferral = platformFee * FEE_SPLIT.REFERRAL;
-            const feeToWheel = platformFee * FEE_SPLIT.WHEEL;
-            const feeToTreasury = platformFee * FEE_SPLIT.TREASURY;
-
-            // Legacy payout calculation for points-based bets
-            const houseFee = Math.floor(prediction.pot * 0.05);
-            const legacyPayoutPot = prediction.pot - houseFee;
-
-            const totalLegacyWinningBets = winningBets.reduce(
-              (sum, bet) => sum + (bet.starsBet || bet.pointsBet),
-              0
-            );
-
-            await withDbRetry(async () => {
-              return prisma.$transaction(async (tx) => {
-                // Mark prediction as resolved and close it immediately
-                await tx.prediction.update({
-                  where: { id: prediction.id },
-                  data: {
-                    resolved: true,
-                    winningOption,
-                    resolvedAt: now,
-                    status: 'RESOLVED',
-                    endsAt: now,
-                  },
-                });
-
-                // MYST payouts to winners
-                if (winningBets.length > 0 && winningSideTotal > 0) {
-                  const payoutPerMyst = winPool / winningSideTotal;
-
-                  for (const bet of winningBets) {
-                    if (bet.mystBet > 0) {
-                      const payout = bet.mystBet * payoutPerMyst;
-                      if (payout > 0) {
-                        await tx.mystTransaction.create({
-                          data: {
-                            userId: bet.userId,
-                            type: 'prediction_win',
-                            amount: payout,
-                            meta: {
-                              predictionId: prediction.id,
-                              betId: bet.id,
-                              userStake: bet.mystBet,
-                              winPool,
-                              winningSideTotal,
-                              payoutPerMyst,
-                            },
-                          },
-                        });
-
-                        await tx.bet.update({
-                          where: { id: bet.id },
-                          data: { mystPayout: payout },
-                        });
-                      }
-                    }
-
-                    // Legacy points payout
-                    if (
-                      (bet.starsBet > 0 || bet.pointsBet > 0) &&
-                      totalLegacyWinningBets > 0 &&
-                      legacyPayoutPot > 0
-                    ) {
-                      const betAmount = bet.starsBet || bet.pointsBet;
-                      const share = (betAmount / totalLegacyWinningBets) * legacyPayoutPot;
-                      const payoutPoints = Math.floor(share);
-
-                      if (payoutPoints > 0) {
-                        await tx.user.update({
-                          where: { id: bet.userId },
-                          data: {
-                            points: {
-                              increment: payoutPoints,
-                            },
-                          },
-                        });
-                      }
-                    }
-                  }
-                }
-
-                // Distribute platform fee to pools
-                if (platformFee > 0) {
-                  // Leaderboard pool: 15%
-                  await tx.poolBalance.upsert({
-                    where: { id: POOL_IDS.LEADERBOARD },
-                    update: { balance: { increment: feeToLeaderboard } },
-                    create: { id: POOL_IDS.LEADERBOARD, balance: feeToLeaderboard },
-                  });
-
-                  // Referral pool: 10%
-                  await tx.poolBalance.upsert({
-                    where: { id: POOL_IDS.REFERRAL },
-                    update: { balance: { increment: feeToReferral } },
-                    create: { id: POOL_IDS.REFERRAL, balance: feeToReferral },
-                  });
-
-                  // Wheel pool: 5%
-                  await tx.poolBalance.upsert({
-                    where: { id: POOL_IDS.WHEEL },
-                    update: { balance: { increment: feeToWheel } },
-                    create: { id: POOL_IDS.WHEEL, balance: feeToWheel },
-                  });
-
-                  // Also update legacy WheelPool
-                  await tx.wheelPool.upsert({
-                    where: { id: 'main_pool' },
-                    update: { balance: { increment: feeToWheel } },
-                    create: { id: 'main_pool', balance: feeToWheel },
-                  });
-
-                  // Treasury: 70%
-                  await tx.poolBalance.upsert({
-                    where: { id: POOL_IDS.TREASURY },
-                    update: { balance: { increment: feeToTreasury } },
-                    create: { id: POOL_IDS.TREASURY, balance: feeToTreasury },
-                  });
-                }
-              });
-            });
-
-            closed += 1;
-            console.log(
-              `[CheckPriceMarkets] Closed & resolved market for ${symbol}: current=${currentPrice}, strike=${strike}, id=${prediction.id}`
-            );
-          } catch (err) {
-            console.error(
-              `[CheckPriceMarkets] Failed to close & resolve market for ${symbol} (id=${prediction.id}):`,
-              err
-            );
-          }
-        }
-        continue; // Move to next prediction after handling crypto/meme coin
-      }
-
-      // Handle Sports markets - check if match has finished
-      if (category === 'SPORTS' || category === 'sports') {
-        skippedSports += 1;
-        // TODO: Add sports match checking logic
-        // For now, sports markets need manual resolution or we need to store fixture IDs
-        // This can be enhanced later when sports markets are created with fixture IDs
-        console.log(`[CheckPriceMarkets] Sports market ${prediction.id} - manual resolution required for now`);
+      // Parse title to extract symbol and target price
+      const match = prediction.title.match(TITLE_REGEX);
+      if (!match || !match[1] || !match[2]) {
+        console.log(
+          `[CheckPriceMarkets] ⚠️ Prediction ${prediction.id} doesn't match title pattern: "${prediction.title}"`
+        );
+        errors += 1;
         continue;
       }
 
-      // For other categories, check if endsAt has passed
-      if (prediction.endsAt && new Date(prediction.endsAt) < now) {
-        // Market has passed its end time but isn't resolved - close it
-        console.log(`[CheckPriceMarkets] Market ${prediction.id} has passed end time, closing...`);
-        try {
-          await withDbRetry(() =>
-            prisma.prediction.update({
-              where: { id: prediction.id },
-              data: {
-                status: 'PAUSED', // Close betting
-                endsAt: now,
-              },
-            })
-          );
-          closed += 1;
-        } catch (err) {
-          console.error(`[CheckPriceMarkets] Failed to close expired market ${prediction.id}:`, err);
-        }
+      const symbol = match[1].toUpperCase();
+      const targetPrice = parseFloat(match[2]);
+
+      if (!symbol || Number.isNaN(targetPrice)) {
+        console.log(
+          `[CheckPriceMarkets] ⚠️ Invalid symbol or price for prediction ${prediction.id}: symbol=${symbol}, price=${match[2]}`
+        );
+        errors += 1;
+        continue;
+      }
+
+      // Fetch current price
+      let currentPrice: number | null = null;
+      try {
+        currentPrice = await getPriceBySymbol(symbol);
+      } catch (err) {
+        console.error(
+          `[CheckPriceMarkets] Error fetching price for ${symbol}:`,
+          err
+        );
+        errors += 1;
+        continue;
+      }
+
+      if (typeof currentPrice !== 'number') {
+        console.log(
+          `[CheckPriceMarkets] ⚠️ No price found for ${symbol} (target: $${targetPrice}) - prediction ${prediction.id}`
+        );
+        errors += 1;
+        continue;
+      }
+
+      // Determine winning option
+      // "Yes" wins if currentPrice >= targetPrice, else "No"
+      const winningOption: 'Yes' | 'No' = currentPrice >= targetPrice ? 'Yes' : 'No';
+
+      console.log(
+        `[CheckPriceMarkets] 🔍 ${symbol}: current=$${currentPrice}, target=$${targetPrice}, winner=${winningOption}, prediction=${prediction.id}`
+      );
+
+      // Resolve the prediction using the shared helper
+      const result = await withDbRetry(async () => {
+        return resolvePredictionById({
+          prisma,
+          predictionId: prediction.id,
+          winningOption,
+          now,
+        });
+      });
+
+      if (result.success) {
+        resolved += 1;
+        resolvedItems.push({
+          id: prediction.id,
+          title: prediction.title,
+          category,
+          symbol,
+          targetPrice,
+          currentPrice,
+          winningOption,
+        });
+        console.log(
+          `[CheckPriceMarkets] ✅ Resolved ${symbol} market: ${winningOption} (current=$${currentPrice}, target=$${targetPrice})`
+        );
+      } else {
+        errors += 1;
+        console.error(
+          `[CheckPriceMarkets] ❌ Failed to resolve prediction ${prediction.id}: ${result.error}`
+        );
       }
     }
 
     console.log(
-      `[CheckPriceMarkets] Summary: checked=${checked}, closed=${closed}, ` +
-      `skippedNoMatch=${skippedNoMatch}, skippedNoPrice=${skippedNoPrice}, ` +
-      `skippedSports=${skippedSports}, priceMapSize=${priceBySymbol.size}`
+      `[CheckPriceMarkets] Summary: resolved=${resolved}, errors=${errors}, total=${predictions.length}`
     );
 
     return res.status(200).json({
       ok: true,
-      checked,
-      closed,
-      skippedNoMatch,
-      skippedNoPrice,
-      skippedSports,
-      priceMapSize: priceBySymbol.size,
+      resolved,
+      errors,
+      items: resolvedItems,
     });
   } catch (error: any) {
     console.error('[CheckPriceMarkets] Fatal error:', error);
     return res.status(500).json({
       ok: false,
-      checked: 0,
-      closed: 0,
-      skippedNoMatch: 0,
-      skippedNoPrice: 0,
-      skippedSports: 0,
+      resolved: 0,
+      errors: 0,
+      items: [],
       error: error?.message || 'Internal server error',
     });
   }
 }
-
-
