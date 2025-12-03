@@ -7,6 +7,10 @@
     {
       "source": "/",
       "destination": "/portal"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ]
 }

@@ -586,3 +586,86 @@ model TgGroup {
   @@index([isActive])
   @@index([isAdmin])
 }
+
+// ============================================
+// PORTAL MODELS (Web Portal - akarimystic.club)
+// ============================================
+
+model PortalUserProfile {
+  id               String   @id @default(cuid())
+  telegramId       String   @unique
+  username         String?
+  avatarUrl        String?
+  level            String   @default("L1") // "L1", "L2", "ADMIN"
+  positiveReviews  Int      @default(0)
+  negativeReviews  Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  launches         NewLaunch[]
+}
+
+model LaunchPlatform {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  launches    NewLaunch[]
+}
+
+model NewLaunch {
+  id             String   @id @default(cuid())
+  name           String
+  tokenSymbol    String
+  tokenName      String?
+  chain          String?   // e.g. "ETH", "BSC", "SOL", "TON"
+  category       String?   // e.g. "LAUNCHPAD", "AIRDROP", "IDO", "IEO"
+  status         String?   // e.g. "UPCOMING", "SALE", "LISTED"
+
+  platformId     String?
+  platform       LaunchPlatform? @relation(fields: [platformId], references: [id])
+
+  salePriceUsd   Float?
+  tokensForSale  Float?
+  totalRaiseUsd  Float?
+
+  airdropPercent Float?
+  airdropValueUsd Float?
+
+  vestingInfo    Json?
+
+  // price tracking: store one primary smart contract address per chain
+  tokenAddress   String?
+  priceSource    String?   // e.g. "DEXSCREENER", "OKX", "BINANCE"
+
+  createdById    String?
+  createdBy      PortalUserProfile? @relation(fields: [createdById], references: [id])
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  priceSnapshots DexSnapshot[]
+
+  @@index([platformId])
+  @@index([status])
+  @@index([createdById])
+}
+
+model DexSnapshot {
+  id          String   @id @default(cuid())
+  launchId    String
+  launch      NewLaunch @relation(fields: [launchId], references: [id], onDelete: Cascade)
+
+  priceUsd    Float
+  volume24h   Float?
+  liquidity   Float?
+  source      String
+  fetchedAt   DateTime @default(now())
+
+  @@index([launchId])
+  @@index([fetchedAt])
+}
