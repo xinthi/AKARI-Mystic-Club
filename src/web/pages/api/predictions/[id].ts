@@ -4,7 +4,7 @@ import { getUserFromRequest } from '../../../lib/telegram-auth';
 import { getMystBalance } from '../../../lib/myst-service';
 
 type Data =
-  | { ok: true; prediction: any; userBalances?: { myst: number; points: number } }
+  | { ok: true; prediction: any; userBalances?: { myst: number; points: number }; referralCode?: string; }
   | { ok: false; prediction: null; reason: string };
 
 export default async function handler(
