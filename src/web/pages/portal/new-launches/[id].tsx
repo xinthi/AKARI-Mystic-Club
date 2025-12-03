@@ -4,7 +4,7 @@
 
 import Head from 'next/head';
 import Link from 'next/link';
-import { prisma } from '../../../../lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 interface NewLaunch {
   id: string;
