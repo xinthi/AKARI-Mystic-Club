@@ -4,3 +4,11 @@
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs"
 }
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/portal"
+    }
+  ]
+}
