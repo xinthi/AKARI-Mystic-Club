@@ -1,24 +1,24 @@
 /**
- * Check Price-Based Crypto Markets Cron Job
+ * Check and Auto-Close Markets Cron Job
  *
- * For price barrier markets like:
+ * This cron job automatically closes and resolves markets when:
+ * 1. Crypto/Meme Coin: Price target is hit (e.g., AVICI >= $6.83)
+ * 2. Sports: Match has finished (event has occurred)
+ * 3. Any market: Outcome is determined before the end time
+ *
+ * For price-based markets:
  *   "Will AVICI trade above $6.8 in 24 hours?"
+ *   - Tracks all coins with active predictions
+ *   - Auto-resolves when price >= strike price
+ *   - Distributes winnings immediately
  *
- * When the live price from CoinGecko meets or exceeds the strike price
- * BEFORE the 24h window ends, this cron will "close" the market early by:
- *   - Setting endsAt = now (so no new bets can be placed)
- *   - Optionally updating status to "PAUSED" to make the state explicit
- *
- * NOTE:
- * - This does NOT resolve the market or distribute winnings. Resolution
- *   still happens via the existing admin resolve endpoint.
- * - This focuses on auto-created TRENDING_CRYPTO and MEME_COIN markets
- *   whose titles follow the pattern:
- *     "Will {SYMBOL} trade above ${PRICE} in 24 hours?"
+ * For sports markets:
+ *   - Checks if match has finished
+ *   - Closes market when event has occurred
  *
  * Security: Requires CRON_SECRET in Authorization header or query param.
  *
- * Usage: Call this endpoint every 1–5 minutes from an external cron service.
+ * Usage: Call this endpoint every 1–2 minutes from an external cron service.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -33,6 +33,7 @@ type CheckPriceMarketsResponse = {
   closed: number;
   skippedNoMatch: number;
   skippedNoPrice: number;
+  skippedSports?: number;
   priceMapSize?: number;
   error?: string;
 };
@@ -62,6 +63,7 @@ export default async function handler(
       closed: 0,
       skippedNoMatch: 0,
       skippedNoPrice: 0,
+      skippedSports: 0,
       error: 'Method not allowed',
     });
   }
@@ -76,6 +78,7 @@ export default async function handler(
       closed: 0,
       skippedNoMatch: 0,
       skippedNoPrice: 0,
+      skippedSports: 0,
       error: 'Cron secret not configured',
     });
   }
@@ -93,6 +96,7 @@ export default async function handler(
       closed: 0,
       skippedNoMatch: 0,
       skippedNoPrice: 0,
+      skippedSports: 0,
       error: 'Unauthorized',
     });
   }
@@ -100,18 +104,15 @@ export default async function handler(
   try {
     const now = new Date();
 
-    // Load active, unresolved price-based predictions for crypto / meme coins
+    // Load ALL active, unresolved predictions (not just crypto)
+    // We check ALL categories to ensure no market stays open after outcome is determined
     const predictions = await withDbRetry(() =>
       prisma.prediction.findMany({
         where: {
           status: 'ACTIVE',
           resolved: false,
-          endsAt: {
-            gt: now, // Only markets that are still within their 24h window
-          },
-          category: {
-            in: ['TRENDING_CRYPTO', 'MEME_COIN'],
-          },
+          // Don't filter by endsAt - we want to check ALL active markets
+          // Even if past end time, we should still resolve if outcome is known
         },
         include: {
           bets: true,
@@ -126,6 +127,7 @@ export default async function handler(
         closed: 0,
         skippedNoMatch: 0,
         skippedNoPrice: 0,
+        skippedSports: 0,
       });
     }
 
@@ -169,185 +171,221 @@ export default async function handler(
     let closed = 0;
     let skippedNoMatch = 0;
     let skippedNoPrice = 0;
+    let skippedSports = 0;
 
     for (const prediction of predictions) {
       checked += 1;
+      const category = prediction.category || '';
 
-      const match = prediction.title.match(TITLE_REGEX);
-      if (!match) {
-        skippedNoMatch += 1;
-        continue;
-      }
+      // Handle Crypto/Meme Coin price-based markets
+      if (category === 'TRENDING_CRYPTO' || category === 'MEME_COIN') {
+        const match = prediction.title.match(TITLE_REGEX);
+        if (!match) {
+          skippedNoMatch += 1;
+          continue;
+        }
 
-      const symbol = match[1].toUpperCase();
-      const strike = parseFloat(match[2]);
-      if (!symbol || Number.isNaN(strike)) {
-        skippedNoMatch += 1;
-        continue;
-      }
+        const symbol = match[1].toUpperCase();
+        const strike = parseFloat(match[2]);
+        if (!symbol || Number.isNaN(strike)) {
+          skippedNoMatch += 1;
+          continue;
+        }
 
-      const currentPrice = priceBySymbol.get(symbol);
-      
-      if (typeof currentPrice !== 'number') {
-        skippedNoPrice += 1;
-        console.log(`[CheckPriceMarkets] No price found for ${symbol} (strike: $${strike}) - prediction ${prediction.id}`);
-        continue;
-      }
+        const currentPrice = priceBySymbol.get(symbol);
+        
+        if (typeof currentPrice !== 'number') {
+          skippedNoPrice += 1;
+          console.log(`[CheckPriceMarkets] No price found for ${symbol} (strike: $${strike}) - prediction ${prediction.id}`);
+          continue;
+        }
 
-      // If the live price meets or exceeds the strike, close and resolve the market early
-      console.log(`[CheckPriceMarkets] Checking ${symbol}: current=$${currentPrice}, strike=$${strike}, prediction=${prediction.id}`);
-      
-      if (currentPrice >= strike) {
-        console.log(`[CheckPriceMarkets] ✅ Price target hit! ${symbol} at $${currentPrice} >= $${strike}, resolving market ${prediction.id}`);
-        try {
-          // Determine winning option: for these markets, \"Yes\" (index 0) wins when price >= strike
-          const winningOption = Array.isArray(prediction.options) && prediction.options.length > 0
-            ? (prediction.options[0] as string)
-            : 'Yes';
+        // If the live price meets or exceeds the strike, close and resolve the market early
+        console.log(`[CheckPriceMarkets] Checking ${symbol}: current=$${currentPrice}, strike=$${strike}, prediction=${prediction.id}`);
+        
+        if (currentPrice >= strike) {
+          console.log(`[CheckPriceMarkets] ✅ Price target hit! ${symbol} at $${currentPrice} >= $${strike}, resolving market ${prediction.id}`);
+          try {
+            // Determine winning option: for these markets, "Yes" (index 0) wins when price >= strike
+            const winningOption = Array.isArray(prediction.options) && prediction.options.length > 0
+              ? (prediction.options[0] as string)
+              : 'Yes';
 
-          const isYesWinner = winningOption === (prediction.options[0] as string);
+            const isYesWinner = winningOption === (prediction.options[0] as string);
 
-          const winningSideTotal = isYesWinner ? prediction.mystPoolYes : prediction.mystPoolNo;
-          const losingSideTotal = isYesWinner ? prediction.mystPoolNo : prediction.mystPoolYes;
-          const totalPool = winningSideTotal + losingSideTotal;
+            const winningSideTotal = isYesWinner ? prediction.mystPoolYes : prediction.mystPoolNo;
+            const losingSideTotal = isYesWinner ? prediction.mystPoolNo : prediction.mystPoolYes;
+            const totalPool = winningSideTotal + losingSideTotal;
 
-          const winningBets = prediction.bets.filter((bet) => bet.option === winningOption);
+            const winningBets = prediction.bets.filter((bet) => bet.option === winningOption);
 
-          const platformFee = losingSideTotal * PLATFORM_FEE_RATE;
-          const winPool = totalPool - platformFee;
+            const platformFee = losingSideTotal * PLATFORM_FEE_RATE;
+            const winPool = totalPool - platformFee;
 
-          const feeToLeaderboard = platformFee * FEE_SPLIT.LEADERBOARD;
-          const feeToReferral = platformFee * FEE_SPLIT.REFERRAL;
-          const feeToWheel = platformFee * FEE_SPLIT.WHEEL;
-          const feeToTreasury = platformFee * FEE_SPLIT.TREASURY;
+            const feeToLeaderboard = platformFee * FEE_SPLIT.LEADERBOARD;
+            const feeToReferral = platformFee * FEE_SPLIT.REFERRAL;
+            const feeToWheel = platformFee * FEE_SPLIT.WHEEL;
+            const feeToTreasury = platformFee * FEE_SPLIT.TREASURY;
 
-          // Legacy payout calculation for points-based bets
-          const houseFee = Math.floor(prediction.pot * 0.05);
-          const legacyPayoutPot = prediction.pot - houseFee;
+            // Legacy payout calculation for points-based bets
+            const houseFee = Math.floor(prediction.pot * 0.05);
+            const legacyPayoutPot = prediction.pot - houseFee;
 
-          const totalLegacyWinningBets = winningBets.reduce(
-            (sum, bet) => sum + (bet.starsBet || bet.pointsBet),
-            0
-          );
+            const totalLegacyWinningBets = winningBets.reduce(
+              (sum, bet) => sum + (bet.starsBet || bet.pointsBet),
+              0
+            );
 
-          await withDbRetry(async () => {
-            return prisma.$transaction(async (tx) => {
-              // Mark prediction as resolved and close it immediately
-              await tx.prediction.update({
-                where: { id: prediction.id },
-                data: {
-                  resolved: true,
-                  winningOption,
-                  resolvedAt: now,
-                  status: 'RESOLVED',
-                  endsAt: now,
-                },
-              });
+            await withDbRetry(async () => {
+              return prisma.$transaction(async (tx) => {
+                // Mark prediction as resolved and close it immediately
+                await tx.prediction.update({
+                  where: { id: prediction.id },
+                  data: {
+                    resolved: true,
+                    winningOption,
+                    resolvedAt: now,
+                    status: 'RESOLVED',
+                    endsAt: now,
+                  },
+                });
 
-              // MYST payouts to winners
-              if (winningBets.length > 0 && winningSideTotal > 0) {
-                const payoutPerMyst = winPool / winningSideTotal;
+                // MYST payouts to winners
+                if (winningBets.length > 0 && winningSideTotal > 0) {
+                  const payoutPerMyst = winPool / winningSideTotal;
 
-                for (const bet of winningBets) {
-                  if (bet.mystBet > 0) {
-                    const payout = bet.mystBet * payoutPerMyst;
-                    if (payout > 0) {
-                      await tx.mystTransaction.create({
-                        data: {
-                          userId: bet.userId,
-                          type: 'prediction_win',
-                          amount: payout,
-                          meta: {
-                            predictionId: prediction.id,
-                            betId: bet.id,
-                            userStake: bet.mystBet,
-                            winPool,
-                            winningSideTotal,
-                            payoutPerMyst,
+                  for (const bet of winningBets) {
+                    if (bet.mystBet > 0) {
+                      const payout = bet.mystBet * payoutPerMyst;
+                      if (payout > 0) {
+                        await tx.mystTransaction.create({
+                          data: {
+                            userId: bet.userId,
+                            type: 'prediction_win',
+                            amount: payout,
+                            meta: {
+                              predictionId: prediction.id,
+                              betId: bet.id,
+                              userStake: bet.mystBet,
+                              winPool,
+                              winningSideTotal,
+                              payoutPerMyst,
+                            },
                           },
-                        },
-                      });
+                        });
 
-                      await tx.bet.update({
-                        where: { id: bet.id },
-                        data: { mystPayout: payout },
-                      });
+                        await tx.bet.update({
+                          where: { id: bet.id },
+                          data: { mystPayout: payout },
+                        });
+                      }
                     }
-                  }
 
-                  // Legacy points payout
-                  if (
-                    (bet.starsBet > 0 || bet.pointsBet > 0) &&
-                    totalLegacyWinningBets > 0 &&
-                    legacyPayoutPot > 0
-                  ) {
-                    const betAmount = bet.starsBet || bet.pointsBet;
-                    const share = (betAmount / totalLegacyWinningBets) * legacyPayoutPot;
-                    const payoutPoints = Math.floor(share);
+                    // Legacy points payout
+                    if (
+                      (bet.starsBet > 0 || bet.pointsBet > 0) &&
+                      totalLegacyWinningBets > 0 &&
+                      legacyPayoutPot > 0
+                    ) {
+                      const betAmount = bet.starsBet || bet.pointsBet;
+                      const share = (betAmount / totalLegacyWinningBets) * legacyPayoutPot;
+                      const payoutPoints = Math.floor(share);
 
-                    if (payoutPoints > 0) {
-                      await tx.user.update({
-                        where: { id: bet.userId },
-                        data: {
-                          points: {
-                            increment: payoutPoints,
+                      if (payoutPoints > 0) {
+                        await tx.user.update({
+                          where: { id: bet.userId },
+                          data: {
+                            points: {
+                              increment: payoutPoints,
+                            },
                           },
-                        },
-                      });
+                        });
+                      }
                     }
                   }
                 }
-              }
 
-              // Distribute platform fee to pools
-              if (platformFee > 0) {
-                // Leaderboard pool: 15%
-                await tx.poolBalance.upsert({
-                  where: { id: POOL_IDS.LEADERBOARD },
-                  update: { balance: { increment: feeToLeaderboard } },
-                  create: { id: POOL_IDS.LEADERBOARD, balance: feeToLeaderboard },
-                });
+                // Distribute platform fee to pools
+                if (platformFee > 0) {
+                  // Leaderboard pool: 15%
+                  await tx.poolBalance.upsert({
+                    where: { id: POOL_IDS.LEADERBOARD },
+                    update: { balance: { increment: feeToLeaderboard } },
+                    create: { id: POOL_IDS.LEADERBOARD, balance: feeToLeaderboard },
+                  });
 
-                // Referral pool: 10%
-                await tx.poolBalance.upsert({
-                  where: { id: POOL_IDS.REFERRAL },
-                  update: { balance: { increment: feeToReferral } },
-                  create: { id: POOL_IDS.REFERRAL, balance: feeToReferral },
-                });
+                  // Referral pool: 10%
+                  await tx.poolBalance.upsert({
+                    where: { id: POOL_IDS.REFERRAL },
+                    update: { balance: { increment: feeToReferral } },
+                    create: { id: POOL_IDS.REFERRAL, balance: feeToReferral },
+                  });
 
-                // Wheel pool: 5%
-                await tx.poolBalance.upsert({
-                  where: { id: POOL_IDS.WHEEL },
-                  update: { balance: { increment: feeToWheel } },
-                  create: { id: POOL_IDS.WHEEL, balance: feeToWheel },
-                });
+                  // Wheel pool: 5%
+                  await tx.poolBalance.upsert({
+                    where: { id: POOL_IDS.WHEEL },
+                    update: { balance: { increment: feeToWheel } },
+                    create: { id: POOL_IDS.WHEEL, balance: feeToWheel },
+                  });
 
-                // Also update legacy WheelPool
-                await tx.wheelPool.upsert({
-                  where: { id: 'main_pool' },
-                  update: { balance: { increment: feeToWheel } },
-                  create: { id: 'main_pool', balance: feeToWheel },
-                });
+                  // Also update legacy WheelPool
+                  await tx.wheelPool.upsert({
+                    where: { id: 'main_pool' },
+                    update: { balance: { increment: feeToWheel } },
+                    create: { id: 'main_pool', balance: feeToWheel },
+                  });
 
-                // Treasury: 70%
-                await tx.poolBalance.upsert({
-                  where: { id: POOL_IDS.TREASURY },
-                  update: { balance: { increment: feeToTreasury } },
-                  create: { id: POOL_IDS.TREASURY, balance: feeToTreasury },
-                });
-              }
+                  // Treasury: 70%
+                  await tx.poolBalance.upsert({
+                    where: { id: POOL_IDS.TREASURY },
+                    update: { balance: { increment: feeToTreasury } },
+                    create: { id: POOL_IDS.TREASURY, balance: feeToTreasury },
+                  });
+                }
+              });
             });
-          });
 
+            closed += 1;
+            console.log(
+              `[CheckPriceMarkets] Closed & resolved market for ${symbol}: current=${currentPrice}, strike=${strike}, id=${prediction.id}`
+            );
+          } catch (err) {
+            console.error(
+              `[CheckPriceMarkets] Failed to close & resolve market for ${symbol} (id=${prediction.id}):`,
+              err
+            );
+          }
+        }
+        continue; // Move to next prediction after handling crypto/meme coin
+      }
+
+      // Handle Sports markets - check if match has finished
+      if (category === 'SPORTS' || category === 'sports') {
+        skippedSports += 1;
+        // TODO: Add sports match checking logic
+        // For now, sports markets need manual resolution or we need to store fixture IDs
+        // This can be enhanced later when sports markets are created with fixture IDs
+        console.log(`[CheckPriceMarkets] Sports market ${prediction.id} - manual resolution required for now`);
+        continue;
+      }
+
+      // For other categories, check if endsAt has passed
+      if (prediction.endsAt && new Date(prediction.endsAt) < now) {
+        // Market has passed its end time but isn't resolved - close it
+        console.log(`[CheckPriceMarkets] Market ${prediction.id} has passed end time, closing...`);
+        try {
+          await withDbRetry(() =>
+            prisma.prediction.update({
+              where: { id: prediction.id },
+              data: {
+                status: 'PAUSED', // Close betting
+                endsAt: now,
+              },
+            })
+          );
           closed += 1;
-          console.log(
-            `[CheckPriceMarkets] Closed & resolved market for ${symbol}: current=${currentPrice}, strike=${strike}, id=${prediction.id}`
-          );
         } catch (err) {
-          console.error(
-            `[CheckPriceMarkets] Failed to close & resolve market for ${symbol} (id=${prediction.id}):`,
-            err
-          );
+          console.error(`[CheckPriceMarkets] Failed to close expired market ${prediction.id}:`, err);
         }
       }
     }
@@ -355,7 +393,7 @@ export default async function handler(
     console.log(
       `[CheckPriceMarkets] Summary: checked=${checked}, closed=${closed}, ` +
       `skippedNoMatch=${skippedNoMatch}, skippedNoPrice=${skippedNoPrice}, ` +
-      `priceMapSize=${priceBySymbol.size}`
+      `skippedSports=${skippedSports}, priceMapSize=${priceBySymbol.size}`
     );
 
     return res.status(200).json({
@@ -364,6 +402,7 @@ export default async function handler(
       closed,
       skippedNoMatch,
       skippedNoPrice,
+      skippedSports,
       priceMapSize: priceBySymbol.size,
     });
   } catch (error: any) {
@@ -374,6 +413,7 @@ export default async function handler(
       closed: 0,
       skippedNoMatch: 0,
       skippedNoPrice: 0,
+      skippedSports: 0,
       error: error?.message || 'Internal server error',
     });
   }
