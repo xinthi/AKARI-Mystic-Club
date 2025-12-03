@@ -31,6 +31,7 @@ interface Prediction {
     betCount: number;
     totalStars: number;
     totalPoints: number;
+    totalMyst?: number;
   }>;
 }
 
@@ -165,20 +166,34 @@ export default function PredictionsPage() {
 
   // Compute implied probability for Yes option
   const computeChance = (prediction: Prediction): string => {
-    // If we have optionStats, compute from that
+    // Priority 1: Use MYST pools if available (most accurate)
+    const totalMyst = (prediction.mystPoolYes || 0) + (prediction.mystPoolNo || 0);
+    if (totalMyst > 0) {
+      const yesPercent = Math.round(((prediction.mystPoolYes || 0) / totalMyst) * 100);
+      return `${yesPercent}%`;
+    }
+
+    // Priority 2: Use optionStats if available (includes MYST from stats)
     if (prediction.optionStats && prediction.optionStats.length >= 2) {
       const yesStats = prediction.optionStats.find((s) => s.option === 'Yes' || s.index === 0);
       const noStats = prediction.optionStats.find((s) => s.option === 'No' || s.index === 1);
 
       if (yesStats && noStats) {
-        const yesTotal = (yesStats.totalStars || 0) + (yesStats.totalPoints || 0);
-        const noTotal = (noStats.totalStars || 0) + (noStats.totalPoints || 0);
+        // Include MYST in calculation if available in stats
+        const yesTotal = (yesStats.totalMyst || 0) + (yesStats.totalStars || 0) + (yesStats.totalPoints || 0);
+        const noTotal = (noStats.totalMyst || 0) + (noStats.totalStars || 0) + (noStats.totalPoints || 0);
         const total = yesTotal + noTotal;
 
         if (total > 0) {
           return `${Math.round((yesTotal / total) * 100)}%`;
         }
       }
+    }
+
+    // Priority 3: Fallback to EP pot if available
+    if (prediction.pot > 0) {
+      // If we only have pot but no breakdown, default to 50%
+      return '50%';
     }
 
     // Default to 50% if no betting data

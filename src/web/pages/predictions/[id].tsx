@@ -28,6 +28,7 @@ interface PredictionDetail {
     betCount: number;
     totalStars: number;
     totalPoints: number;
+    totalMyst?: number;
   }>;
   userBet?: {
     optionIndex: number;
@@ -46,6 +47,7 @@ interface PredictionDetailResponse {
     myst: number;
     points: number;
   };
+  referralCode?: string;
 }
 
 export default function PredictionDetailPage() {
@@ -59,6 +61,8 @@ export default function PredictionDetailPage() {
   const [placingBet, setPlacingBet] = useState(false);
   const [betError, setBetError] = useState<string | null>(null);
   const [userBalances, setUserBalances] = useState<{ myst: number; points: number } | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   // Safe array accessors
   const safeOptions = Array.isArray(prediction?.options) ? prediction!.options : [];
@@ -105,6 +109,7 @@ export default function PredictionDetailPage() {
 
       setPrediction(data.prediction);
       setUserBalances(data.userBalances || null);
+      setReferralCode(data.referralCode || null);
 
       // Set selected option if user already has a bet
       if (data.prediction?.userBet?.optionIndex !== undefined) {
@@ -135,8 +140,16 @@ export default function PredictionDetailPage() {
     if (!router.isReady) return;
     if (typeof router.query.id !== 'string') return;
 
+    // If there's a referral code in the URL, store it for later use
+    if (router.query.ref && typeof router.query.ref === 'string') {
+      // Store referral code in localStorage so it can be applied when user authenticates
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('pending_referral_code', router.query.ref);
+      }
+    }
+
     loadPrediction(router.query.id);
-  }, [router.isReady, router.query.id, loadPrediction]);
+  }, [router.isReady, router.query.id, router.query.ref, loadPrediction]);
 
   // Telegram BackButton integration
   useEffect(() => {
@@ -316,16 +329,97 @@ export default function PredictionDetailPage() {
     return `Option ${idx}`;
   };
 
+  // Share prediction with referral link
+  const handleShare = async () => {
+    if (!prediction || !referralCode) {
+      // If no referral code, try to fetch it
+      try {
+        const codeResponse = await fetch('/api/referral/code');
+        if (codeResponse.ok) {
+          const codeData = await codeResponse.json();
+          if (codeData.ok && codeData.referralCode) {
+            setReferralCode(codeData.referralCode);
+            sharePrediction(codeData.referralCode);
+          } else {
+            alert('Unable to generate share link. Please try again later.');
+          }
+        } else {
+          alert('Unable to generate share link. Please try again later.');
+        }
+      } catch (err) {
+        console.error('Error fetching referral code:', err);
+        alert('Unable to generate share link. Please try again later.');
+      }
+      return;
+    }
+
+    sharePrediction(referralCode);
+  };
+
+  const sharePrediction = (refCode: string) => {
+    setSharing(true);
+    try {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const shareUrl = `${baseUrl}/predictions/${prediction?.id}?ref=${refCode}`;
+      
+      // Try to use Web Share API if available
+      if (navigator.share) {
+        navigator.share({
+          title: prediction?.title || 'Check out this prediction!',
+          text: `Join me in predicting: ${prediction?.title}`,
+          url: shareUrl,
+        }).catch((err) => {
+          console.error('Error sharing:', err);
+          // Fallback to clipboard
+          copyToClipboard(shareUrl);
+        });
+      } else {
+        // Fallback to clipboard
+        copyToClipboard(shareUrl);
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+      alert('Unable to share. Please copy the link manually.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.showAlert('Link copied to clipboard!');
+      } else {
+        alert('Link copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback: show the link in an alert
+      alert(`Share this link:\n${text}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900 text-white">
       <header className="p-6 pb-4">
-        <button
-          type="button"
-          className="mb-3 text-sm text-purple-100/80 hover:text-white"
-          onClick={goBack}
-        >
-          ← Back to markets
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            className="text-sm text-purple-100/80 hover:text-white"
+            onClick={goBack}
+          >
+            ← Back to markets
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={sharing}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {sharing ? '...' : '📤 Share'}
+          </button>
+        </div>
         <h1 className="text-3xl font-bold mb-2">{prediction.title}</h1>
         {prediction.description && (
           <p className="text-purple-300">{prediction.description}</p>

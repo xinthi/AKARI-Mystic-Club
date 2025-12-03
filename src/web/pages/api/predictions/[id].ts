@@ -28,18 +28,49 @@ export default async function handler(
         return res.status(404).json({ ok: false, prediction: null, reason: 'Prediction not found' });
       }
 
-      // Build optionStats array (stub with zeros for now, can compute real stats later)
-      const optionStats = (prediction.options as string[]).map((option: string, index: number) => ({
-        option,
-        index,
-        betCount: 0,
-        totalStars: 0,
-        totalPoints: 0,
+      // Calculate real optionStats from bets
+      const bets = await withDbRetry(() => prisma.bet.findMany({
+        where: { predictionId: prediction.id },
+        select: {
+          option: true,
+          starsBet: true,
+          pointsBet: true,
+          mystBet: true,
+        },
       }));
+
+      // Group bets by option and calculate stats
+      const optionStatsMap = new Map<string, { betCount: number; totalStars: number; totalPoints: number; totalMyst: number }>();
+      
+      (prediction.options as string[]).forEach((option) => {
+        optionStatsMap.set(option, { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 });
+      });
+
+      bets.forEach((bet) => {
+        const stats = optionStatsMap.get(bet.option) || { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 };
+        stats.betCount += 1;
+        stats.totalStars += bet.starsBet || 0;
+        stats.totalPoints += bet.pointsBet || 0;
+        stats.totalMyst += bet.mystBet || 0;
+        optionStatsMap.set(bet.option, stats);
+      });
+
+      const optionStats = (prediction.options as string[]).map((option: string, index: number) => {
+        const stats = optionStatsMap.get(option) || { betCount: 0, totalStars: 0, totalPoints: 0, totalMyst: 0 };
+        return {
+          option,
+          index,
+          betCount: stats.betCount,
+          totalStars: stats.totalStars,
+          totalPoints: stats.totalPoints,
+          totalMyst: stats.totalMyst,
+        };
+      });
 
       // Get user's existing bet if authenticated
       let userBet: any = null;
       let userBalances: { myst: number; points: number } | undefined = undefined;
+      let referralCode: string | undefined = undefined;
       const user = await getUserFromRequest(req, prisma);
       if (user) {
         // Get user balances
@@ -48,6 +79,24 @@ export default async function handler(
           myst: mystBalance,
           points: user.points,
         };
+
+        // Get or generate referral code
+        if (user.referralCode) {
+          referralCode = user.referralCode;
+        } else {
+          // Generate referral code if user doesn't have one
+          const { generateReferralCode } = await import('../../../lib/myst-service');
+          referralCode = generateReferralCode(user.telegramId);
+          try {
+            await withDbRetry(() => prisma.user.update({
+              where: { id: user.id },
+              data: { referralCode },
+            }));
+          } catch (e: any) {
+            console.warn('[Prediction API] Failed to save referral code:', e.message);
+            // Continue without referral code
+          }
+        }
 
         const existingBet = await withDbRetry(() => prisma.bet.findFirst({
           where: {
@@ -123,6 +172,7 @@ export default async function handler(
           userBet,
         },
         userBalances,
+        referralCode,
       });
     }
 
