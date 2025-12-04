@@ -111,10 +111,7 @@ export default function AdminLeadInvestorsPage({ userLevel }: Props) {
 
   if (!isSuperAdmin) {
     return (
-      <PortalLayout>
-        <Head>
-          <title>Lead Investors - Admin - Akari Mystic Club</title>
-        </Head>
+      <PortalLayout title="Lead Investors - Admin">
         <div className="rounded-2xl border border-akari-border bg-akari-card p-6 text-center">
           <p className="text-akari-muted">Super admins only. You do not have access to this page.</p>
         </div>
