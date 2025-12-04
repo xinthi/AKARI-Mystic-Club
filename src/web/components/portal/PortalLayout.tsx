@@ -63,7 +63,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             })}
 
             <a
-              href="https://play.akarimystic.club"
+              href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
               className="ml-1 rounded-full bg-akari-primary px-3 py-1.5 text-[11px] font-medium text-black shadow-akari-glow hover:opacity-90 transition"
             >
               Open MiniApp

@@ -1,10 +1,18 @@
 import { prisma } from '../prisma';
 
 /**
- * Get recent whale entries ordered by occurredAt descending
+ * Get recent whale entries from the last 7 days, ordered by occurredAt descending
  */
-export async function getRecentWhaleEntries(limit: number = 20) {
+export async function getRecentWhaleEntries(limit: number = 50) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
   return prisma.whaleEntry.findMany({
+    where: {
+      occurredAt: {
+        gte: sevenDaysAgo,
+      },
+    },
     orderBy: { occurredAt: 'desc' },
     take: limit,
   });
