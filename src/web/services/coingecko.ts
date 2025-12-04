@@ -12,6 +12,9 @@ export type TrendingCoinWithPrice = {
   symbol: string;   // btc
   name: string;     // Bitcoin
   priceUsd: number;
+  imageUrl?: string;      // coin logo image URL
+  marketCapUsd?: number;  // market cap in USD
+  volume24hUsd?: number;   // 24h volume in USD
 };
 
 interface CoinGeckoTrendingCoin {
@@ -34,6 +37,8 @@ interface CoinGeckoTrendingResponse {
 interface CoinGeckoPriceResponse {
   [coinId: string]: {
     usd: number;
+    usd_market_cap?: number;
+    usd_24h_vol?: number;
   };
 }
 
@@ -76,8 +81,8 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
       return [];
     }
 
-    // Step 2: Get prices for these coins
-    const priceUrl = `${baseUrl}/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`;
+    // Step 2: Get prices for these coins (with market cap and volume if available)
+    const priceUrl = `${baseUrl}/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true`;
     const priceResponse = await fetch(priceUrl, { headers });
     
     if (!priceResponse.ok) {
@@ -99,6 +104,9 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
           symbol: coin.symbol,
           name: coin.name,
           priceUsd: priceInfo.usd,
+          imageUrl: coin.small || coin.thumb || undefined,
+          marketCapUsd: priceInfo.usd_market_cap || undefined,
+          volume24hUsd: priceInfo.usd_24h_vol || undefined,
         });
       }
     }

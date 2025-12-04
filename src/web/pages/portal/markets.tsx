@@ -117,7 +117,7 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
           <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
             <h3 className="text-sm font-semibold text-akari-text mb-1">Trending</h3>
             <p className="text-xs text-akari-muted mb-3">
-              Coins pulling the most attention from CoinGecko feeds.
+              Top trending coins by attention.
             </p>
             {highlights.trending.length > 0 ? (
               <div className="space-y-2">
@@ -188,7 +188,7 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
         <div className="mb-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-akari-text">Trending Markets</h2>
-            <span className="text-xs text-akari-muted">Live from CoinGecko</span>
+            <span className="text-xs text-akari-muted">Data source: CoinGecko</span>
           </div>
           
           {/* Desktop Table */}
@@ -197,7 +197,6 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
               <thead className="bg-akari-cardSoft border-b border-akari-border/50">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Symbol</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Price</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Status</th>
                 </tr>
@@ -209,10 +208,31 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
                     className="border-b border-akari-border/30 last:border-0 hover:bg-akari-cardSoft/50 transition"
                   >
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-akari-text">{coin.name}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-akari-muted uppercase">{coin.symbol}</span>
+                      <div className="flex items-center gap-3">
+                        {coin.imageUrl ? (
+                          <img
+                            src={coin.imageUrl}
+                            alt={coin.name}
+                            className="w-8 h-8 rounded-full flex-shrink-0"
+                            onError={(e) => {
+                              // Fallback to placeholder if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-xs font-semibold ${coin.imageUrl ? 'hidden' : ''}`}
+                        >
+                          {(coin.symbol || coin.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-akari-text">{coin.name}</span>
+                          <span className="text-xs text-akari-muted uppercase">{coin.symbol}</span>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className="text-sm font-semibold text-akari-primary">{formatPrice(coin.priceUsd)}</span>
@@ -242,9 +262,29 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
                 className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition"
               >
                 <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-akari-text">{coin.name}</h3>
-                    <p className="text-xs text-akari-muted uppercase mt-0.5">{coin.symbol}</p>
+                  <div className="flex items-center gap-2">
+                    {coin.imageUrl ? (
+                      <img
+                        src={coin.imageUrl}
+                        alt={coin.name}
+                        className="w-6 h-6 rounded-full flex-shrink-0"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const fallback = target.nextElementSibling as HTMLElement;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-[10px] font-semibold ${coin.imageUrl ? 'hidden' : ''}`}
+                    >
+                      {(coin.symbol || coin.name || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-akari-text">{coin.name}</h3>
+                      <p className="text-xs text-akari-muted uppercase mt-0.5">{coin.symbol}</p>
+                    </div>
                   </div>
                   {index < 3 ? (
                     <span className="inline-flex items-center rounded-full bg-akari-primary/15 px-2 py-1 text-[10px] font-medium text-akari-primary uppercase tracking-[0.1em]">
