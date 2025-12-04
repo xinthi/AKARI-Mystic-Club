@@ -14,7 +14,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
     ? platforms.map(p => p.name).join(', ')
     : 'Multiple launchpads';
   return (
-    <PortalLayout>
+    <PortalLayout title="Home">
       {/* Hero grid */}
       <section className="grid items-center gap-8 md:grid-cols-[1.3fr_minmax(0,1fr)]">
         {/* Left copy */}
@@ -135,7 +135,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
           </p>
           <p className="mb-1 text-sm">Centralized &amp; onchain overview.</p>
           <p className="text-[11px] text-akari-muted">
-            Top gainers, volume leaders, narratives — all ingested into Akari
+            Top gainers, volume leaders, narratives. All ingested into Akari
             and used as fuel for live prediction markets.
           </p>
         </Link>

@@ -1,9 +1,11 @@
 import React from 'react';
+import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Logo } from '../Logo';
 
 type Props = {
+  title?: string;
   children: React.ReactNode;
 };
 
@@ -14,11 +16,15 @@ const navItems = [
   { href: '/portal/new-launches', label: 'New Launches' },
 ];
 
-export function PortalLayout({ children }: Props) {
+export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-akari-bg text-akari-text">
+    <>
+      <Head>
+        <title>{title} – Akari Mystic Club</title>
+      </Head>
+      <div className="min-h-screen bg-akari-bg text-akari-text">
       {/* Top nav */}
       <header className="border-b border-akari-border/70 bg-black/50 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -71,6 +77,7 @@ export function PortalLayout({ children }: Props) {
         {children}
       </main>
     </div>
+    </>
   );
 }
 

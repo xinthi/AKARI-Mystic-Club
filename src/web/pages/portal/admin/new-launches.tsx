@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
-import Head from 'next/head';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { prisma, withDbRetry } from '@/lib/prisma';
@@ -210,10 +209,13 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
   };
 
   return (
-    <PortalLayout>
-      <Head>
-        <title>Admin - New Launches - Akari Mystic Club</title>
-      </Head>
+    <PortalLayout title="Admin – New Launches">
+      {/* Warning Banner */}
+      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-4 mb-6">
+        <p className="text-xs text-akari-muted">
+          <strong className="text-akari-profit">Admin only.</strong> Data is community-contributed. Use carefully.
+        </p>
+      </div>
 
       {/* Header */}
       <section className="mb-6">
@@ -223,17 +225,9 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
         >
           ← Back to Launches
         </Link>
-        <h2 className="text-xl font-semibold mb-2">Admin Panel</h2>
+        <h1 className="text-2xl font-semibold mb-2 text-akari-text">Admin – New Launches</h1>
         <p className="text-sm text-akari-muted">Manage launches, platforms, and user levels</p>
       </section>
-
-      {/* Warning */}
-      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-4 mb-6">
-        <p className="text-xs text-akari-muted">
-          <strong className="text-akari-profit">Admin only</strong> – data is community-contributed.
-          Use carefully.
-        </p>
-      </div>
 
       {/* Message */}
       {message && (
@@ -249,12 +243,16 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
       )}
 
       {/* Form */}
-      <div className="rounded-2xl border border-akari-border bg-akari-card p-6 mb-6">
-        <h3 className="text-sm font-semibold mb-4 text-akari-primary uppercase tracking-[0.1em]">
+      <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6 max-w-3xl mx-auto">
+        <h3 className="text-lg font-semibold mb-4 text-akari-text">
           {editingId ? 'Edit Launch' : 'Create New Launch'}
         </h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
+            {/* Basic Info */}
+            <div className="md:col-span-2">
+              <h4 className="text-sm font-medium text-akari-text mb-3">Basic Information</h4>
+            </div>
             <div>
               <label className="block text-xs text-akari-muted mb-1 font-medium">
                 Name *
@@ -511,8 +509,8 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
       </div>
 
       {/* Launches List */}
-      <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
-        <h3 className="text-sm font-semibold mb-4 text-akari-primary uppercase tracking-[0.1em]">
+      <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 max-w-3xl mx-auto">
+        <h3 className="text-lg font-semibold mb-4 text-akari-text">
           Existing Launches
         </h3>
         {launches.length === 0 ? (

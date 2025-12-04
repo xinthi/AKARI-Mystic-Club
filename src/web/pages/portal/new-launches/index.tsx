@@ -1,6 +1,5 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
-import Head from 'next/head';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { getAllLaunchesWithMetrics } from '@/lib/portal/db';
@@ -13,21 +12,24 @@ interface Props {
 
 export default function NewLaunchesPage({ launches }: Props) {
   return (
-    <PortalLayout>
-      <Head>
-        <title>New Launches - Akari Mystic Club</title>
-      </Head>
+    <PortalLayout title="New Launches">
+      {/* Disclaimer Banner */}
+      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-3 mb-6">
+        <p className="text-xs text-akari-muted">
+          <strong className="text-akari-profit">Community data.</strong> Not investment advice. ROI is illustrative, not a guarantee.
+        </p>
+      </div>
 
       {/* Header */}
       <section className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">🚀 New Launches</h2>
+        <h1 className="text-2xl font-semibold mb-2 text-akari-text">New launches</h1>
         <p className="text-sm text-akari-muted max-w-2xl">
           Community-curated database of new token launches, IDOs, and airdrops with real-time price tracking.
         </p>
       </section>
 
       {/* Launches Grid */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
         {launches.map((launch) => {
           const roiPercent = launch.roiPercent;
           const salePrice = launch.salePriceUsd;
@@ -100,6 +102,11 @@ export default function NewLaunchesPage({ launches }: Props) {
                   >
                     {roiPercent > 0 ? '+' : ''}
                     {roiPercent.toFixed(1)}% ROI
+                    {salePrice && latestPrice && (
+                      <span className="ml-1 text-[10px]">
+                        ({((latestPrice / salePrice).toFixed(2))}x)
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-xs text-akari-muted">Pending</span>
@@ -117,14 +124,6 @@ export default function NewLaunchesPage({ launches }: Props) {
         </div>
       )}
 
-      {/* Disclaimer */}
-      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-4 mt-8">
-        <p className="text-xs text-akari-muted">
-          <strong className="text-akari-profit">Disclaimer:</strong> All launch data is
-          community-contributed and may be incomplete or inaccurate. Nothing here is financial
-          advice. Always do your own research.
-        </p>
-      </div>
     </PortalLayout>
   );
 }

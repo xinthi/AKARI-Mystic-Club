@@ -3,26 +3,38 @@ import { PortalLayout } from '../../components/portal/PortalLayout';
 
 export default function MemesPage() {
   return (
-    <PortalLayout>
+    <PortalLayout title="Meme Radar">
       <section className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Meme Radar</h2>
+        <h1 className="text-2xl font-semibold mb-2 text-akari-text">Meme Radar</h1>
         <p className="text-sm text-akari-muted max-w-2xl">
-          This area will track fresh meme pairs (DexScreener, Solana, TON, etc.),
-          filter for real liquidity and speed, and automatically spawn
-          prediction markets in the MiniApp.
+          Track onchain meme pairs, liquidity and velocity. Surface the hottest degens and turn them into prediction markets in the MiniApp.
         </p>
       </section>
 
-      <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
-        <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.16em]">
-          Coming soon
-        </p>
-        <p className="text-sm mb-1">Stream of new meme pairs.</p>
-        <p className="text-[11px] text-akari-muted">
-          We&apos;ll plug in DexScreener APIs later and show pairs with
-          liquidity, FDV, and velocity. From here, you can open a prediction
-          with one tap.
-        </p>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
+          <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">SOL memecoins tracker</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Solana Memes</p>
+          <p className="text-[11px] text-akari-muted">
+            Track SOL memes from DexScreener. Filter by liquidity threshold, age, holder count, and velocity. Auto-create prediction pools.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
+          <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">AI memes vs pure degen</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Narrative Separation</p>
+          <p className="text-[11px] text-akari-muted">
+            Separate memes by narrative. AI-powered memes vs pure degen plays. Track which narrative performs better.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
+          <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Watchlist / candidates</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Prediction Candidates</p>
+          <p className="text-[11px] text-akari-muted">
+            Curated list of meme pairs that meet our criteria. These candidates can become new prediction pools with one tap.
+          </p>
+        </div>
       </div>
     </PortalLayout>
   );

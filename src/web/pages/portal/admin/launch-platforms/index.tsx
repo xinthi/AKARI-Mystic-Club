@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
-import Head from 'next/head';
 import { PortalLayout } from '../../../../components/portal/PortalLayout';
 
 interface Platform {
@@ -124,14 +123,10 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
   }
 
   return (
-    <PortalLayout>
-      <Head>
-        <title>Launch Platforms - Admin - Akari Mystic Club</title>
-      </Head>
-
+    <PortalLayout title="Admin – Platforms & venues">
       <section className="mb-6">
-        <h2 className="text-xl font-semibold mb-2 text-akari-text">Launch Platforms</h2>
-        <p className="text-sm text-akari-muted">Manage launchpads, CEX, DEX and other platforms.</p>
+        <h1 className="text-2xl font-semibold mb-2 text-akari-text">Admin – Platforms & venues</h1>
+        <p className="text-sm text-akari-muted">Manage launchpads, CEX venues and other fundraising sources.</p>
       </section>
 
       {message && (
@@ -146,9 +141,9 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
         {/* Form */}
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6">
           <h3 className="text-lg font-semibold mb-4 text-akari-text">
             {editingId ? 'Edit Platform' : 'Create New Platform'}
           </h3>
@@ -229,7 +224,7 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
         </div>
 
         {/* List */}
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-6">
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6">
           <h3 className="text-lg font-semibold mb-4 text-akari-text">Existing Platforms</h3>
           {loading ? (
             <p className="text-akari-muted text-sm">Loading...</p>

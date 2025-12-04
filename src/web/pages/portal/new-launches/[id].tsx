@@ -1,6 +1,5 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
-import Head from 'next/head';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { getLaunchByIdWithMetrics } from '@/lib/portal/db';
@@ -14,10 +13,7 @@ interface Props {
 export default function LaunchDetailPage({ launch }: Props) {
   if (!launch) {
     return (
-      <PortalLayout>
-        <Head>
-          <title>Launch Not Found - Akari Mystic Club</title>
-        </Head>
+      <PortalLayout title="Launch Not Found">
         <div className="text-center py-12">
           <h1 className="text-xl font-semibold mb-4">Launch Not Found</h1>
           <Link
@@ -36,11 +32,7 @@ export default function LaunchDetailPage({ launch }: Props) {
   const latestPrice = launch.latestPriceUsd;
 
   return (
-    <PortalLayout>
-      <Head>
-        <title>{launch.name} - Akari Mystic Club</title>
-      </Head>
-
+    <PortalLayout title={launch.name}>
       {/* Header */}
       <section className="mb-6">
         <Link

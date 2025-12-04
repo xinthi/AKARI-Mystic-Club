@@ -37,7 +37,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
   
-  // For play subdomain or localhost, show the Mini App dashboard
+  // For localhost (development), redirect to portal
+  if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    return {
+      redirect: {
+        destination: '/portal',
+        permanent: false,
+      },
+    };
+  }
+  
+  // For play subdomain, show the Mini App dashboard
   return {
     props: {
       shouldRedirect: false,
