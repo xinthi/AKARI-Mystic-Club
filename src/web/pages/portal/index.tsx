@@ -20,7 +20,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
         {/* Left copy */}
         <div>
           <p className="mb-3 text-xs uppercase tracking-[0.25em] text-akari-muted">
-            Prediction-native market intelligence
+            Community driven market intelligence
           </p>
 
           <h1 className="mb-3 text-3xl font-semibold leading-tight md:text-4xl">
@@ -31,10 +31,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
           </h1>
 
           <p className="mb-6 max-w-xl text-sm text-akari-muted">
-            Akari Mystic Club turns live crypto data into prediction markets.
-            Track what&apos;s pumping, who&apos;s building, and which IDOs
-            actually performed, then put your conviction to the test in our
-            Telegram MiniApp.
+            Akari Mystic Club collects live crypto data from exchanges, chains and launchpads, then turns it into simple dashboards the community can explore, rank and share. When you want to act on a view, you jump into the Mystic Club MiniApp.
           </p>
 
           {/* CTAs */}
@@ -80,7 +77,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
               </div>
               <p className="text-sm">Will SOL stay above $130?</p>
               <p className="mt-1 text-[11px] text-akari-muted">
-                Auto-synced from Binance &amp; CoinGecko.
+                Auto synced from Binance and CoinGecko.
               </p>
             </div>
 
@@ -96,7 +93,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
               </div>
               <p className="text-sm">New SOL memes with 50k+ liquidity.</p>
               <p className="mt-1 text-[11px] text-akari-muted">
-                Curated from DexScreener, turned into prediction pools.
+                Curated from DexScreener, surfaced for the Akari community.
               </p>
             </div>
 
@@ -114,7 +111,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
                   : platformNames || 'Multiple launchpads'}.
               </p>
               <p className="mt-1 text-[11px] text-akari-muted">
-                Compare sale price vs current price and bet on the next one.
+                Compare sale price with current price and follow the next wave of launches.
               </p>
             </div>
           </div>
@@ -135,8 +132,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
           </p>
           <p className="mb-1 text-sm">Centralized &amp; onchain overview.</p>
           <p className="text-[11px] text-akari-muted">
-            Top gainers, volume leaders, narratives. All ingested into Akari
-            and used as fuel for live prediction markets.
+            Top gainers, volume leaders and narratives, all aggregated into Akari so the community can see the bigger picture.
           </p>
         </Link>
 
@@ -150,8 +146,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
           </p>
           <p className="mb-1 text-sm">Where the real degen flow is.</p>
           <p className="text-[11px] text-akari-muted">
-            Track new pairs, liquidity &amp; velocity. Open meme-based
-            prediction markets with one tap in the MiniApp.
+            Track new pairs, liquidity and velocity, then turn the best ideas into calls inside the MiniApp.
           </p>
         </Link>
 
