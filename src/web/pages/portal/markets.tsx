@@ -11,18 +11,20 @@ import {
 import type { TrendingCoinWithPrice } from '../../services/coingecko';
 import { getRecentWhaleEntries } from '../../lib/portal/db';
 
+type WhaleEntryDto = {
+  id: string;
+  tokenSymbol: string;
+  chain: string;
+  wallet: string;
+  amountUsd: number;
+  occurredAt: string;
+};
+
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
   trending: TrendingCoinWithPrice[];
-  whaleEntries: Array<{
-    id: string;
-    tokenSymbol: string;
-    chain: string;
-    wallet: string;
-    amountUsd: number;
-    occurredAt: string | Date;
-  }>;
+  whaleEntries: WhaleEntryDto[];
   error?: string;
 }
 
@@ -143,57 +145,61 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
       )}
 
       {/* Smart Money Heatmap */}
-      {!error && whaleEntries.length > 0 && (
+      {!error && (
         <div className="mb-6 rounded-2xl border border-akari-accent/20 bg-akari-card p-6">
           <h3 className="text-sm font-semibold text-akari-text mb-1">Smart Money Heatmap</h3>
           <p className="text-xs text-akari-muted mb-4">
             Latest large entries from tracked wallets.
           </p>
           
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {whaleEntries.slice(0, 9).map((entry) => {
-              // Determine intensity based on amount
-              let intensityClass = 'text-akari-muted';
-              if (entry.amountUsd >= 100000) {
-                intensityClass = 'text-green-400 font-semibold';
-              } else if (entry.amountUsd >= 25000) {
-                intensityClass = 'text-green-300';
-              } else {
-                intensityClass = 'text-akari-text';
-              }
+          {whaleEntries.length === 0 ? (
+            <p className="text-sm text-akari-muted text-center py-4">
+              No large whale entries detected in the last few hours.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {whaleEntries.slice(0, 10).map((entry) => {
+                // Determine intensity based on amount
+                let intensityClass = 'text-akari-text';
+                if (entry.amountUsd >= 100000) {
+                  intensityClass = 'text-green-400 font-semibold';
+                } else if (entry.amountUsd >= 25000) {
+                  intensityClass = 'text-green-300';
+                }
 
-              return (
-                <div
-                  key={entry.id}
-                  className="rounded-xl border border-akari-border/30 bg-akari-cardSoft p-3 hover:border-akari-primary/40 transition"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg font-bold text-akari-primary">
-                          {entry.tokenSymbol}
-                        </span>
-                        <span className="text-[10px] text-akari-muted uppercase tracking-[0.1em] px-1.5 py-0.5 rounded bg-akari-border/30">
-                          {entry.chain}
-                        </span>
+                return (
+                  <div
+                    key={entry.id}
+                    className="rounded-xl border border-akari-border/30 bg-akari-cardSoft p-3 hover:border-akari-primary/40 transition"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg font-bold text-akari-primary">
+                            {entry.tokenSymbol}
+                          </span>
+                          <span className="text-[10px] text-akari-muted uppercase tracking-[0.1em] px-1.5 py-0.5 rounded bg-akari-border/30">
+                            {entry.chain}
+                          </span>
+                        </div>
+                        <p className={`text-sm ${intensityClass}`}>
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          }).format(entry.amountUsd)}
+                        </p>
                       </div>
-                      <p className={`text-sm ${intensityClass}`}>
-                        {new Intl.NumberFormat('en-US', {
-                          style: 'currency',
-                          currency: 'USD',
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0,
-                        }).format(entry.amountUsd)}
-                      </p>
                     </div>
+                    <p className="text-[10px] text-akari-muted">
+                      {formatRelativeTime(entry.occurredAt)}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-akari-muted">
-                    {formatRelativeTime(entry.occurredAt)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -458,12 +464,22 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
 
 export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async () => {
   try {
-    const [pulse, highlights, trending, whaleEntries] = await Promise.all([
+    const [pulse, highlights, trending, whaleEntriesRaw] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
       getTrendingMarketTable().catch(() => []),
       getRecentWhaleEntries(20).catch(() => []),
     ]);
+
+    // Map whale entries to serializable DTOs
+    const whaleEntries: WhaleEntryDto[] = whaleEntriesRaw.map((w: any) => ({
+      id: w.id,
+      tokenSymbol: w.tokenSymbol,
+      chain: w.chain,
+      wallet: w.wallet,
+      amountUsd: Number(w.amountUsd),
+      occurredAt: w.occurredAt.toISOString(),
+    }));
 
     return {
       props: {
