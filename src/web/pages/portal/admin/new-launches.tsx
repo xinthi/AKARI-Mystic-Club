@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { prisma, withDbRetry } from '@/lib/prisma';
+import { requirePortalUser, getPortalRoleFromLevel, canManageLaunches, type PortalRole } from '@/lib/portalAuth';
 
 interface LaunchListItem {
   id: string;
@@ -30,9 +31,18 @@ interface Props {
   platforms: Platform[];
   investors: Investor[];
   userLevel: string;
+  role: PortalRole;
+  error?: string;
 }
 
-export default function AdminNewLaunchesPage({ launches: initialLaunches, platforms: initialPlatforms, investors: initialInvestors, userLevel }: Props) {
+export default function AdminNewLaunchesPage({
+  launches: initialLaunches,
+  platforms: initialPlatforms,
+  investors: initialInvestors,
+  userLevel,
+  role,
+  error,
+}: Props) {
   const [launches, setLaunches] = useState(initialLaunches);
   const [platforms] = useState(initialPlatforms);
   const [investors] = useState(initialInvestors);
@@ -59,6 +69,8 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
     vestingInfo: '',
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const canEdit = canManageLaunches(role);
 
   const resetForm = () => {
     setFormData({
@@ -210,12 +222,26 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
 
   return (
     <PortalLayout title="Admin – New Launches">
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-6">
+          <p className="text-sm text-red-400">
+            <strong>Configuration Error:</strong> {error}
+          </p>
+          <p className="text-xs text-red-300/70 mt-2">
+            Create a <code className="bg-black/20 px-1 rounded">.env.local</code> file in the project root with <code className="bg-black/20 px-1 rounded">DATABASE_URL=your_connection_string</code>
+          </p>
+        </div>
+      )}
+
       {/* Warning Banner */}
-      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-4 mb-6">
-        <p className="text-xs text-akari-muted">
-          <strong className="text-akari-profit">Admin only.</strong> Data is community-contributed. Use carefully.
-        </p>
-      </div>
+      {!error && (
+        <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-4 mb-6">
+          <p className="text-xs text-akari-muted">
+            <strong className="text-akari-profit">Admin only.</strong> Data is community-contributed. Use carefully.
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <section className="mb-6">
@@ -228,6 +254,14 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
         <h1 className="text-2xl font-semibold mb-2 text-akari-text">Admin – New Launches</h1>
         <p className="text-sm text-akari-muted">Manage launches, platforms, and user levels</p>
       </section>
+
+      {!canEdit && (
+        <div className="rounded-2xl border border-akari-border bg-akari-cardSoft p-4 mb-6">
+          <p className="text-xs text-akari-muted">
+            You do not have permission to create launches. Viewers can browse data but only editors and admins can add or edit entries.
+          </p>
+        </div>
+      )}
 
       {/* Message */}
       {message && (
@@ -243,11 +277,12 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
       )}
 
       {/* Form */}
-      <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6 max-w-3xl mx-auto">
-        <h3 className="text-lg font-semibold mb-4 text-akari-text">
-          {editingId ? 'Edit Launch' : 'Create New Launch'}
-        </h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {canEdit && (
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6 max-w-3xl mx-auto">
+          <h3 className="text-lg font-semibold mb-4 text-akari-text">
+            {editingId ? 'Edit Launch' : 'Create New Launch'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             {/* Basic Info */}
             <div className="md:col-span-2">
@@ -407,13 +442,21 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
               <label className="block text-xs text-akari-muted mb-1 font-medium">
                 Category
               </label>
-              <input
-                type="text"
-                placeholder="IDO, IEO, LAUNCHPAD, AIRDROP"
+              <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full bg-akari-cardSoft border border-akari-border rounded-lg px-3 py-2 text-sm text-akari-text"
-              />
+              >
+                <option value="">Unspecified</option>
+                <option value="AI">AI</option>
+                <option value="GameFi">GameFi</option>
+                <option value="InfoFi">InfoFi</option>
+                <option value="SportFi">SportFi</option>
+                <option value="Layer 1">Layer 1</option>
+                <option value="Layer 2">Layer 2</option>
+                <option value="Meme">Meme</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs text-akari-muted mb-1 font-medium">
@@ -505,8 +548,9 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
               </button>
             )}
           </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
 
       {/* Launches List */}
       <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 max-w-3xl mx-auto">
@@ -530,12 +574,14 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
                     <p className="text-xs text-akari-muted">{launch.platformName}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => handleEdit(launch)}
-                  className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
-                >
-                  Edit
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => handleEdit(launch)}
+                    className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -545,8 +591,25 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
   );
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  // Check if DATABASE_URL is set
+  if (!process.env.DATABASE_URL) {
+    return {
+      props: {
+        launches: [],
+        platforms: [],
+        investors: [],
+        userLevel: 'L1',
+        role: 'VIEWER' as PortalRole,
+        error: 'DATABASE_URL environment variable is not set. Please configure your .env file.',
+      },
+    };
+  }
+
   try {
+    const user = await requirePortalUser(ctx.req as any);
+    const role = getPortalRoleFromLevel(user.level);
+
     const [launches, platforms, investors] = await Promise.all([
       withDbRetry(() =>
         prisma.newLaunch.findMany({
@@ -587,10 +650,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
       ),
     ]);
 
-    // In development, allow access by default
-    // In production, this should extract user level from session/auth
-    const userLevel = process.env.NODE_ENV === 'development' ? 'SUPER_ADMIN' : 'ADMIN';
-
     return {
       props: {
         launches: launches.map((l) => ({
@@ -602,7 +661,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
         })),
         platforms: JSON.parse(JSON.stringify(platforms)),
         investors: JSON.parse(JSON.stringify(investors)),
-        userLevel,
+        userLevel: user.level,
+        role,
       },
     };
   } catch (error) {
@@ -612,7 +672,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async () => {
         launches: [],
         platforms: [],
         investors: [],
-        userLevel: process.env.NODE_ENV === 'development' ? 'SUPER_ADMIN' : 'L1',
+        userLevel: 'L1',
+        role: 'VIEWER' as PortalRole,
+        error: error?.message || 'Failed to load data',
       },
     };
   }

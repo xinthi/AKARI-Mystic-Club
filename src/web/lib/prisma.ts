@@ -7,6 +7,11 @@ function getDatabaseUrl(): string {
   const url = process.env.DATABASE_URL || '';
   
   if (!url) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[Prisma] DATABASE_URL is not set. Database operations will fail.');
+      // Return a dummy URL to allow module to load, but operations will fail with a clearer error
+      return 'postgresql://dummy:dummy@localhost:5432/dummy?sslmode=require';
+    }
     throw new Error('DATABASE_URL environment variable is not set');
   }
 

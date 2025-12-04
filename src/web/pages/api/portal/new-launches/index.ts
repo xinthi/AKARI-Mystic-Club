@@ -6,7 +6,12 @@ export type LaunchSummary = {
   id: string;
   name: string;
   tokenSymbol: string;
+  category: string | null;
   platformName: string | null;
+  platformKind: string | null;
+  listingPlatformName: string | null;
+  listingPlatformKind: string | null;
+  leadInvestorName: string | null;
   salePriceUsd: number | null;
   latestPriceUsd: number | null;
   roiPercent: number | null;
@@ -33,7 +38,15 @@ export default async function handler(
       id: launch.id,
       name: launch.name,
       tokenSymbol: launch.tokenSymbol,
-      platformName: launch.platform?.name || null,
+      category: launch.category,
+      platformName:
+        launch.primaryPlatform?.name ||
+        launch.platform?.name ||
+        null,
+      platformKind: launch.primaryPlatform?.kind || null,
+      listingPlatformName: launch.listingPlatform?.name || null,
+      listingPlatformKind: launch.listingPlatform?.kind || null,
+      leadInvestorName: launch.leadInvestor?.name || null,
       salePriceUsd: launch.salePriceUsd,
       latestPriceUsd: launch.latestSnapshot?.priceUsd || null,
       roiPercent: launch.roiPercent,

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../../../components/portal/PortalLayout';
+import { requirePortalUser, getPortalRoleFromLevel, canManageTaxonomy } from '@/lib/portalAuth';
+import { prisma, withDbRetry } from '@/lib/prisma';
 
 interface Platform {
   id: string;
@@ -13,9 +15,11 @@ interface Platform {
 
 interface Props {
   userLevel: string;
+  platforms: Platform[];
+  error?: string;
 }
 
-export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
+export default function AdminLaunchPlatformsPage({ userLevel, platforms: initialPlatforms, error }: Props) {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,11 +36,13 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
 
   useEffect(() => {
     if (isSuperAdmin) {
+      // seed from server and then refresh in background
+      setPlatforms(initialPlatforms);
       loadPlatforms();
     } else {
       setLoading(false);
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, initialPlatforms]);
 
   const loadPlatforms = async () => {
     try {
@@ -125,6 +131,17 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
         <h1 className="text-2xl font-semibold mb-2 text-akari-text">Admin – Platforms & venues</h1>
         <p className="text-sm text-akari-muted">Manage launchpads, CEX venues and other fundraising sources.</p>
       </section>
+
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-6">
+          <p className="text-sm text-red-400">
+            <strong>Configuration Error:</strong> {error}
+          </p>
+          <p className="text-xs text-red-300/70 mt-2">
+            Create a <code className="bg-black/20 px-1 rounded">.env.local</code> file in the project root with <code className="bg-black/20 px-1 rounded">DATABASE_URL=your_connection_string</code>
+          </p>
+        </div>
+      )}
 
       {message && (
         <div
@@ -256,15 +273,59 @@ export default function AdminLaunchPlatformsPage({ userLevel }: Props) {
   );
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
-  // In development, allow access by default
-  // In production, this should extract user level from session/auth
-  const userLevel = process.env.NODE_ENV === 'development' ? 'SUPER_ADMIN' : 'L1';
-  
-  return {
-    props: {
-      userLevel,
-    },
-  };
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  if (!process.env.DATABASE_URL) {
+    return {
+      props: {
+        userLevel: 'L1',
+        platforms: [],
+        error: 'DATABASE_URL environment variable is not set. Please configure your .env file.',
+      },
+    };
+  }
+
+  try {
+    const user = await requirePortalUser(ctx.req as any);
+    const role = getPortalRoleFromLevel(user.level);
+
+    if (!canManageTaxonomy(role)) {
+      return {
+        redirect: {
+          destination: '/portal',
+          permanent: false,
+        },
+      };
+    }
+
+    const platforms = await withDbRetry(() =>
+      prisma.launchPlatform.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          websiteUrl: true,
+          description: true,
+          kind: true,
+        },
+        orderBy: { name: 'asc' },
+      })
+    );
+
+    return {
+      props: {
+        userLevel: user.level,
+        platforms: JSON.parse(JSON.stringify(platforms)),
+      },
+    };
+  } catch (error: any) {
+    console.error('[Admin Launch Platforms] Auth or data error:', error);
+    return {
+      props: {
+        userLevel: 'L1',
+        platforms: [],
+        error: error?.message || 'Failed to load platforms',
+      },
+    };
+  }
 };
 

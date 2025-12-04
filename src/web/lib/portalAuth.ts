@@ -13,6 +13,22 @@ export interface PortalUserProfile {
   updatedAt: Date;
 }
 
+export type PortalRole = 'VIEWER' | 'EDITOR' | 'ADMIN';
+
+export function getPortalRoleFromLevel(level: string | null | undefined): PortalRole {
+  if (level === 'L2') return 'EDITOR';
+  if (level === 'ADMIN' || level === 'SUPER_ADMIN') return 'ADMIN';
+  return 'VIEWER';
+}
+
+export function canManageLaunches(role?: PortalRole): boolean {
+  return role === 'EDITOR' || role === 'ADMIN';
+}
+
+export function canManageTaxonomy(role?: PortalRole): boolean {
+  return role === 'ADMIN';
+}
+
 /**
  * Require portal user authentication and return the user profile
  * Extracts user from request (could be from session, cookie, or header)

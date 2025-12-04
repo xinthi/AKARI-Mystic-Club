@@ -23,6 +23,22 @@ export interface LaunchWithMetrics {
     name: string;
     slug: string;
   } | null;
+  primaryPlatform: {
+    id: string;
+    name: string;
+    slug: string;
+    kind: string;
+  } | null;
+  listingPlatform: {
+    id: string;
+    name: string;
+    slug: string;
+    kind: string;
+  } | null;
+  leadInvestor: {
+    id: string;
+    name: string;
+  } | null;
   latestSnapshot: {
     priceUsd: number;
     volume24h: number | null;
@@ -44,6 +60,28 @@ export async function getAllLaunchesWithMetrics(): Promise<LaunchWithMetrics[]> 
           id: true,
           name: true,
           slug: true,
+        },
+      },
+      primaryPlatform: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          kind: true,
+        },
+      },
+      listingPlatform: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          kind: true,
+        },
+      },
+      leadInvestor: {
+        select: {
+          id: true,
+          name: true,
         },
       },
       priceSnapshots: {
@@ -89,6 +127,28 @@ export async function getAllLaunchesWithMetrics(): Promise<LaunchWithMetrics[]> 
       createdAt: launch.createdAt,
       updatedAt: launch.updatedAt,
       platform: launch.platform,
+      primaryPlatform: launch.primaryPlatform
+        ? {
+            id: launch.primaryPlatform.id,
+            name: launch.primaryPlatform.name,
+            slug: launch.primaryPlatform.slug,
+            kind: launch.primaryPlatform.kind,
+          }
+        : null,
+      listingPlatform: launch.listingPlatform
+        ? {
+            id: launch.listingPlatform.id,
+            name: launch.listingPlatform.name,
+            slug: launch.listingPlatform.slug,
+            kind: launch.listingPlatform.kind,
+          }
+        : null,
+      leadInvestor: launch.leadInvestor
+        ? {
+            id: launch.leadInvestor.id,
+            name: launch.leadInvestor.name,
+          }
+        : null,
       latestSnapshot: latestSnapshot ? {
         priceUsd: latestSnapshot.priceUsd,
         volume24h: latestSnapshot.volume24h,
@@ -113,6 +173,28 @@ export async function getLaunchByIdWithMetrics(id: string): Promise<LaunchWithMe
           id: true,
           name: true,
           slug: true,
+        },
+      },
+      primaryPlatform: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          kind: true,
+        },
+      },
+      listingPlatform: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          kind: true,
+        },
+      },
+      leadInvestor: {
+        select: {
+          id: true,
+          name: true,
         },
       },
       priceSnapshots: {
@@ -160,6 +242,28 @@ export async function getLaunchByIdWithMetrics(id: string): Promise<LaunchWithMe
     createdAt: launch.createdAt,
     updatedAt: launch.updatedAt,
     platform: launch.platform,
+    primaryPlatform: launch.primaryPlatform
+      ? {
+          id: launch.primaryPlatform.id,
+          name: launch.primaryPlatform.name,
+          slug: launch.primaryPlatform.slug,
+          kind: launch.primaryPlatform.kind,
+        }
+      : null,
+    listingPlatform: launch.listingPlatform
+      ? {
+          id: launch.listingPlatform.id,
+          name: launch.listPlatform.name,
+          slug: launch.listingPlatform.slug,
+          kind: launch.listingPlatform.kind,
+        }
+      : null,
+    leadInvestor: launch.leadInvestor
+      ? {
+          id: launch.leadInvestor.id,
+          name: launch.leadInvestor.name,
+        }
+      : null,
     latestSnapshot: latestSnapshot ? {
       priceUsd: latestSnapshot.priceUsd,
       volume24h: latestSnapshot.volume24h,

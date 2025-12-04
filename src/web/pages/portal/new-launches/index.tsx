@@ -8,17 +8,32 @@ import type { LaunchSummary } from '../../../pages/api/portal/new-launches';
 
 interface Props {
   launches: LaunchSummary[];
+  error?: string;
 }
 
-export default function NewLaunchesPage({ launches }: Props) {
+export default function NewLaunchesPage({ launches, error }: Props) {
   return (
     <PortalLayout title="New Launches">
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-6">
+          <p className="text-sm text-red-400">
+            <strong>Configuration Error:</strong> {error}
+          </p>
+          <p className="text-xs text-red-300/70 mt-2">
+            Create a <code className="bg-black/20 px-1 rounded">.env.local</code> file in the project root with <code className="bg-black/20 px-1 rounded">DATABASE_URL=your_connection_string</code>
+          </p>
+        </div>
+      )}
+
       {/* Disclaimer Banner */}
-      <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-3 mb-6">
-        <p className="text-xs text-akari-muted">
-          <strong className="text-akari-profit">Community data.</strong> Not investment advice. ROI is illustrative, not a guarantee.
-        </p>
-      </div>
+      {!error && (
+        <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-3 mb-6">
+          <p className="text-xs text-akari-muted">
+            <strong className="text-akari-profit">Community data.</strong> Not investment advice. ROI is illustrative, not a guarantee.
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <section className="mb-6">
@@ -69,6 +84,30 @@ export default function NewLaunchesPage({ launches }: Props) {
               <p className="text-xs text-akari-primary font-medium mb-3">
                 ${launch.tokenSymbol}
               </p>
+
+              {/* Taxonomy chips */}
+              <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+                {launch.category && (
+                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                    {launch.category}
+                  </span>
+                )}
+                {launch.platformName && (
+                  <span className="px-2 py-0.5 rounded-full bg-akari-primary/10 text-akari-primary">
+                    {launch.platformName}
+                  </span>
+                )}
+                {launch.listingPlatformName && (
+                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                    {launch.listingPlatformName}
+                  </span>
+                )}
+                {launch.leadInvestorName && (
+                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                    {launch.leadInvestorName}
+                  </span>
+                )}
+              </div>
 
               {/* Price Row */}
               <div className="mb-3 text-xs text-akari-muted">
@@ -129,6 +168,15 @@ export default function NewLaunchesPage({ launches }: Props) {
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
+  if (!process.env.DATABASE_URL) {
+    return {
+      props: {
+        launches: [],
+        error: 'DATABASE_URL environment variable is not set. Please configure your .env file.',
+      },
+    };
+  }
+
   try {
     const launches = await withDbRetry(() => getAllLaunchesWithMetrics());
 
@@ -136,7 +184,15 @@ export const getServerSideProps: GetServerSideProps = async () => {
       id: launch.id,
       name: launch.name,
       tokenSymbol: launch.tokenSymbol,
-      platformName: launch.platform?.name || null,
+      category: launch.category,
+      platformName:
+        launch.primaryPlatform?.name ||
+        launch.platform?.name ||
+        null,
+      platformKind: launch.primaryPlatform?.kind || null,
+      listingPlatformName: launch.listingPlatform?.name || null,
+      listingPlatformKind: launch.listingPlatform?.kind || null,
+      leadInvestorName: launch.leadInvestor?.name || null,
       salePriceUsd: launch.salePriceUsd,
       latestPriceUsd: launch.latestSnapshot?.priceUsd || null,
       roiPercent: launch.roiPercent,
@@ -149,11 +205,12 @@ export const getServerSideProps: GetServerSideProps = async () => {
         launches: summaries,
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[New Launches] Error:', error);
     return {
       props: {
         launches: [],
+        error: error?.message || 'Failed to load launches',
       },
     };
   }
