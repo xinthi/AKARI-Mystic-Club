@@ -9,11 +9,20 @@ import {
   type AkariHighlights,
 } from '../../services/akariMarkets';
 import type { TrendingCoinWithPrice } from '../../services/coingecko';
+import { getRecentWhaleEntries } from '../../lib/portal/db';
 
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
   trending: TrendingCoinWithPrice[];
+  whaleEntries: Array<{
+    id: string;
+    tokenSymbol: string;
+    chain: string;
+    wallet: string;
+    amountUsd: number;
+    occurredAt: string | Date;
+  }>;
   error?: string;
 }
 
@@ -74,7 +83,23 @@ function formatROI(roi: number | null | undefined): string {
   return `${sign}${roi.toFixed(2)}%`;
 }
 
-export default function MarketsPage({ pulse, highlights, trending, error }: MarketsPageProps) {
+function formatRelativeTime(date: string | Date): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+}
+
+export default function MarketsPage({ pulse, highlights, trending, whaleEntries, error }: MarketsPageProps) {
   return (
     <PortalLayout title="Markets overview">
       <section className="mb-6">
@@ -113,6 +138,61 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
             <p className="text-lg font-semibold text-akari-text">
               {pulse.sources.join(' · ')}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Money Heatmap */}
+      {!error && whaleEntries.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-akari-accent/20 bg-akari-card p-6">
+          <h3 className="text-sm font-semibold text-akari-text mb-1">Smart Money Heatmap</h3>
+          <p className="text-xs text-akari-muted mb-4">
+            Latest large entries from tracked wallets.
+          </p>
+          
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {whaleEntries.slice(0, 9).map((entry) => {
+              // Determine intensity based on amount
+              let intensityClass = 'text-akari-muted';
+              if (entry.amountUsd >= 100000) {
+                intensityClass = 'text-green-400 font-semibold';
+              } else if (entry.amountUsd >= 25000) {
+                intensityClass = 'text-green-300';
+              } else {
+                intensityClass = 'text-akari-text';
+              }
+
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-xl border border-akari-border/30 bg-akari-cardSoft p-3 hover:border-akari-primary/40 transition"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg font-bold text-akari-primary">
+                          {entry.tokenSymbol}
+                        </span>
+                        <span className="text-[10px] text-akari-muted uppercase tracking-[0.1em] px-1.5 py-0.5 rounded bg-akari-border/30">
+                          {entry.chain}
+                        </span>
+                      </div>
+                      <p className={`text-sm ${intensityClass}`}>
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        }).format(entry.amountUsd)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-akari-muted">
+                    {formatRelativeTime(entry.occurredAt)}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -378,10 +458,11 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
 
 export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async () => {
   try {
-    const [pulse, highlights, trending] = await Promise.all([
+    const [pulse, highlights, trending, whaleEntries] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
       getTrendingMarketTable().catch(() => []),
+      getRecentWhaleEntries(20).catch(() => []),
     ]);
 
     return {
@@ -389,6 +470,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
         highlights: highlights ? JSON.parse(JSON.stringify(highlights)) : null,
         trending: JSON.parse(JSON.stringify(trending)),
+        whaleEntries: JSON.parse(JSON.stringify(whaleEntries)),
       },
     };
   } catch (error: any) {
@@ -398,6 +480,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         pulse: null,
         highlights: null,
         trending: [],
+        whaleEntries: [],
         error: 'Failed to load market data',
       },
     };

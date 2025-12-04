@@ -717,3 +717,18 @@ model DexSnapshot {
   @@index([launchId])
   @@index([fetchedAt])
 }
+
+model WhaleEntry {
+  id           String   @id @default(cuid())
+  tokenSymbol  String
+  tokenAddress String
+  chain        String   // e.g. 'ethereum', 'solana', 'base'
+  wallet       String   // whale wallet address
+  amountUsd    Float
+  txHash       String   @unique
+  occurredAt   DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([tokenSymbol, occurredAt])
+  @@index([chain, occurredAt])
+}

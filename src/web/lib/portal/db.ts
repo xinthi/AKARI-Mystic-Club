@@ -1,5 +1,15 @@
 import { prisma } from '../prisma';
 
+/**
+ * Get recent whale entries ordered by occurredAt descending
+ */
+export async function getRecentWhaleEntries(limit: number = 20) {
+  return prisma.whaleEntry.findMany({
+    orderBy: { occurredAt: 'desc' },
+    take: limit,
+  });
+}
+
 export interface LaunchWithMetrics {
   id: string;
   name: string;
