@@ -253,7 +253,7 @@ export async function getLaunchByIdWithMetrics(id: string): Promise<LaunchWithMe
     listingPlatform: launch.listingPlatform
       ? {
           id: launch.listingPlatform.id,
-          name: launch.listPlatform.name,
+          name: launch.listingPlatform.name,
           slug: launch.listingPlatform.slug,
           kind: launch.listingPlatform.kind,
         }
