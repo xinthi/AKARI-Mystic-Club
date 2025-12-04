@@ -50,17 +50,19 @@ export async function getLargeTokenTransfers(params: {
   }
 
   try {
-    // Uniblock API endpoint for token transfers
-    // Using the token transfers endpoint with filters
-    const url = new URL(`${UNIBLOCK_API_BASE_URL}/tokens/${params.tokenAddress}/transfers`);
+    // Use Uniblock provider-based endpoint (Moralis)
+    const url = new URL(
+      `${UNIBLOCK_API_BASE_URL}/direct/v1/Moralis/erc20/transfers`
+    );
     url.searchParams.set('chain', params.chain);
-    url.searchParams.set('limit', '100'); // Get up to 100 transfers
+    url.searchParams.set('contractAddress', params.tokenAddress);
+    url.searchParams.set('limit', '100');
     
     if (params.sinceTimestamp) {
-      // Convert unix timestamp to ISO string if needed
-      const sinceDate = new Date(params.sinceTimestamp * 1000);
-      url.searchParams.set('from', sinceDate.toISOString());
+      url.searchParams.set('fromDate', new Date(params.sinceTimestamp * 1000).toISOString());
     }
+
+    console.log('[Uniblock] Fetching transfers for URL:', url.toString());
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -71,42 +73,82 @@ export async function getLargeTokenTransfers(params: {
 
     if (!response.ok) {
       console.error(`[Uniblock] API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('[Uniblock] Error response body:', errorText);
       return [];
     }
 
-    const data: UniblockResponse = await response.json();
+    // Log raw response before parsing
+    const raw = await response.text();
+    console.log('[Uniblock] Raw response for URL:', url.toString());
+    console.log('[Uniblock] Raw response:', raw);
+
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch (err) {
+      console.error('[Uniblock] JSON parse error:', err);
+      return [];
+    }
 
     if (data.error) {
       console.error(`[Uniblock] API error: ${data.error}`);
       return [];
     }
 
-    if (!data.data || data.data.length === 0) {
+    // Handle different response structures (Moralis vs unified API)
+    const transfers = data.result ?? data.data ?? [];
+
+    if (!transfers || transfers.length === 0) {
+      console.log('[Uniblock] No transfers found in response');
       return [];
     }
+
+    console.log(`[Uniblock] Found ${transfers.length} raw transfers, filtering by minUsd=${params.minUsd}`);
 
     // Filter and map transfers
     const whaleTransfers: WhaleTransfer[] = [];
 
-    for (const transfer of data.data) {
-      // Use valueUsd if available, otherwise skip (we need USD value to filter)
-      if (!transfer.valueUsd || transfer.valueUsd < params.minUsd) {
+    for (const transfer of transfers) {
+      // Try multiple field names for USD value
+      const usd = transfer.usd_value ?? transfer.valueUsd ?? 0;
+      
+      if (usd < params.minUsd) {
         continue;
       }
 
-      // Determine wallet (use 'to' address as the whale wallet)
-      const wallet = transfer.to;
+      // Try multiple field names for wallet address
+      const wallet = transfer.to_address ?? transfer.to ?? '';
+      if (!wallet) {
+        console.warn('[Uniblock] Transfer missing wallet address, skipping:', transfer);
+        continue;
+      }
+
+      // Try multiple field names for transaction hash
+      const txHash = transfer.hash ?? transfer.transaction_hash ?? transfer.transactionHash;
+      if (!txHash) {
+        console.warn('[Uniblock] Transfer missing transaction hash, skipping:', transfer);
+        continue;
+      }
+
+      // Try multiple field names for timestamp
+      const timestamp = transfer.block_timestamp ?? transfer.blockTimestamp ?? transfer.occurredAt;
+      if (!timestamp) {
+        console.warn('[Uniblock] Transfer missing timestamp, skipping:', transfer);
+        continue;
+      }
 
       whaleTransfers.push({
-        tokenAddress: transfer.tokenAddress,
+        tokenAddress: params.tokenAddress,
         wallet: wallet,
-        amountUsd: transfer.valueUsd,
-        txHash: transfer.transactionHash,
-        occurredAt: transfer.blockTimestamp,
-        chain: transfer.chain || params.chain,
+        amountUsd: usd,
+        txHash: txHash,
+        occurredAt: timestamp,
+        chain: params.chain,
       });
     }
 
+    console.log(`[Uniblock] Filtered to ${whaleTransfers.length} whale transfers (>= $${params.minUsd})`);
     return whaleTransfers;
   } catch (error) {
     console.error('[Uniblock] Error fetching large token transfers:', error);

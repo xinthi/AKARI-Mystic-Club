@@ -18,11 +18,13 @@ type WhaleEntriesResponse = {
   errors?: string[];
 };
 
-// Tracked tokens - TODO: Update with correct token addresses
+// Tracked tokens - Currently tracking USDT (ERC20) for testing
 const TRACKED_TOKENS = [
-  { symbol: 'BTC', tokenAddress: '0x...', chain: 'ethereum' }, // TODO: Add correct BTC token address on Ethereum
-  { symbol: 'ETH', tokenAddress: '0x0000000000000000000000000000000000000000', chain: 'ethereum' }, // Native ETH
-  // TODO: Add more tokens (SOL, USDC, etc.) with correct addresses
+  {
+    symbol: 'USDT',
+    tokenAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    chain: 'ethereum',
+  },
 ];
 
 export default async function handler(
@@ -57,31 +59,36 @@ export default async function handler(
   }
 
   try {
+    console.log('[WhaleEntries Cron] Running cron at', new Date().toISOString());
+
     let totalProcessed = 0;
     let totalCreated = 0;
     const errors: string[] = [];
 
-    // Calculate lookback window (last 30 minutes)
-    const lookbackMinutes = 30;
+    // Calculate lookback window (last 4 hours for testing)
+    const lookbackMinutes = 240; // 4 hours
     const sinceTimestamp = Math.floor((Date.now() - lookbackMinutes * 60 * 1000) / 1000);
 
     // Process each tracked token
     for (const token of TRACKED_TOKENS) {
       // Skip if token address is placeholder
       if (token.tokenAddress === '0x...' || !token.tokenAddress) {
-        console.warn(`[WhaleEntries] Skipping ${token.symbol} - placeholder address`);
+        console.warn(`[WhaleEntries Cron] Skipping ${token.symbol} - placeholder address`);
         continue;
       }
 
+      console.log(`[WhaleEntries Cron] Fetching transfers for ${token.symbol}`);
+
       try {
-        // Fetch large transfers from Uniblock
+        // Fetch large transfers from Uniblock (relaxed to $1k for testing)
         const transfers = await getLargeTokenTransfers({
           tokenAddress: token.tokenAddress,
           chain: token.chain,
-          minUsd: 10000, // Minimum $10k USD
+          minUsd: 1000, // Minimum $1k USD (relaxed for testing)
           sinceTimestamp: sinceTimestamp,
         });
 
+        console.log(`[WhaleEntries Cron] Finished ${token.symbol}: found ${transfers.length} transfers`);
         totalProcessed += transfers.length;
 
         // Upsert each transfer
@@ -104,16 +111,16 @@ export default async function handler(
             );
             totalCreated += 1;
           } catch (error: any) {
-            console.error(`[WhaleEntries] Error upserting transfer ${transfer.txHash}:`, error);
+            console.error(`[WhaleEntries Cron] Error upserting transfer ${transfer.txHash}:`, error);
             errors.push(`Transfer ${transfer.txHash}: ${error?.message || 'Unknown error'}`);
           }
         }
 
         console.log(
-          `[WhaleEntries] ✅ Processed ${transfers.length} transfers for ${token.symbol}, created ${transfers.length} entries`
+          `[WhaleEntries Cron] ✅ Processed ${transfers.length} transfers for ${token.symbol}, created ${totalCreated} entries`
         );
       } catch (error: any) {
-        console.error(`[WhaleEntries] Error processing ${token.symbol}:`, error);
+        console.error(`[WhaleEntries Cron] Error processing ${token.symbol}:`, error);
         errors.push(`${token.symbol}: ${error?.message || 'Unknown error'}`);
         // Continue to next token
       }
