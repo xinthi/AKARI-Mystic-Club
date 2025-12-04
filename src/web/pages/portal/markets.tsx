@@ -11,12 +11,20 @@ import {
 import type { TrendingCoinWithPrice } from '../../services/coingecko';
 import { getRecentWhaleEntries } from '../../lib/portal/db';
 import { WhaleHeatmapCard, type WhaleEntryDto } from '../../components/portal/WhaleHeatmapCard';
+import {
+  getNarrativeSummaries,
+  getVolumeLeaders,
+  type NarrativeSummary,
+  type VolumeLeader,
+} from '../../services/akariNarratives';
 
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
   trending: TrendingCoinWithPrice[];
   whaleEntries: WhaleEntryDto[];
+  narratives: NarrativeSummary[];
+  volumeLeaders: VolumeLeader[];
   error?: string;
 }
 
@@ -93,7 +101,15 @@ function formatRelativeTime(date: string | Date): string {
   return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
 }
 
-export default function MarketsPage({ pulse, highlights, trending, whaleEntries, error }: MarketsPageProps) {
+export default function MarketsPage({
+  pulse,
+  highlights,
+  trending,
+  whaleEntries,
+  narratives,
+  volumeLeaders,
+  error,
+}: MarketsPageProps) {
   return (
     <PortalLayout title="Markets overview">
       <section className="mb-6">
@@ -129,8 +145,8 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
           </div>
           <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-4">
             <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Data Sources</p>
-            <p className="text-lg font-semibold text-akari-text">
-              {pulse.sources.join(' · ')}
+            <p className="text-sm font-semibold text-akari-text">
+              These data tracked using multiple sources.
             </p>
           </div>
         </div>
@@ -356,34 +372,139 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
 
       {/* Narrative Tiles */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
-          <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">AI Markets</p>
-          <p className="text-sm mb-1 text-akari-text">Artificial Intelligence</p>
-          <p className="text-[11px] text-akari-muted">
-            Track AI tokens and projects. Monitor price movements and create prediction markets.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
-          <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">GameFi</p>
-          <p className="text-sm mb-1 text-akari-text">Gaming & NFTs</p>
-          <p className="text-[11px] text-akari-muted">
-            Gaming tokens, NFT projects and metaverse assets. Follow trends and bet on outcomes.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
-          <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">InfoFi</p>
-          <p className="text-sm mb-1 text-akari-text">Information Finance</p>
-          <p className="text-[11px] text-akari-muted">
-            Oracle networks, data tokens and information markets. Predict data value and usage.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
-          <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">DeFi & L2s</p>
-          <p className="text-sm mb-1 text-akari-text">Decentralized Finance</p>
-          <p className="text-[11px] text-akari-muted">
-            DeFi protocols, Layer 2 solutions and scaling technologies. Track TVL and adoption.
-          </p>
-        </div>
+        {/* AI Markets */}
+        {(() => {
+          const narrative = narratives.find((n) => n.key === 'ai');
+          return (
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+              <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">AI Markets</p>
+              <p className="text-sm mb-1 text-akari-text">Artificial Intelligence</p>
+              {narrative && narrative.topTokens.length > 0 ? (
+                <>
+                  <p className="text-[11px] text-akari-muted mb-2">
+                    Top 3: {narrative.topTokens.map((t) => t.symbol).join(', ')}
+                  </p>
+                  <p className="text-[11px] text-akari-muted">
+                    Total MC: {formatLargeNumber(narrative.totalMarketCapUsd)} • Avg 24h:{' '}
+                    <span
+                      className={
+                        narrative.avgChange24hPct >= 0 ? 'text-green-400' : 'text-red-400'
+                      }
+                    >
+                      {narrative.avgChange24hPct >= 0 ? '+' : ''}
+                      {narrative.avgChange24hPct.toFixed(2)}%
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-akari-muted">
+                  Track AI tokens and projects. Monitor price movements and create prediction markets.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* GameFi */}
+        {(() => {
+          const narrative = narratives.find((n) => n.key === 'gamefi');
+          return (
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+              <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">GameFi</p>
+              <p className="text-sm mb-1 text-akari-text">Gaming & NFTs</p>
+              {narrative && narrative.topTokens.length > 0 ? (
+                <>
+                  <p className="text-[11px] text-akari-muted mb-2">
+                    Top 3: {narrative.topTokens.map((t) => t.symbol).join(', ')}
+                  </p>
+                  <p className="text-[11px] text-akari-muted">
+                    Total MC: {formatLargeNumber(narrative.totalMarketCapUsd)} • Avg 24h:{' '}
+                    <span
+                      className={
+                        narrative.avgChange24hPct >= 0 ? 'text-green-400' : 'text-red-400'
+                      }
+                    >
+                      {narrative.avgChange24hPct >= 0 ? '+' : ''}
+                      {narrative.avgChange24hPct.toFixed(2)}%
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-akari-muted">
+                  Gaming tokens, NFT projects and metaverse assets. Follow trends and bet on outcomes.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* InfoFi */}
+        {(() => {
+          const narrative = narratives.find((n) => n.key === 'infofi');
+          return (
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+              <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">InfoFi</p>
+              <p className="text-sm mb-1 text-akari-text">Information Finance</p>
+              {narrative && narrative.topTokens.length > 0 ? (
+                <>
+                  <p className="text-[11px] text-akari-muted mb-2">
+                    Top 3: {narrative.topTokens.map((t) => t.symbol).join(', ')}
+                  </p>
+                  <p className="text-[11px] text-akari-muted">
+                    Total MC: {formatLargeNumber(narrative.totalMarketCapUsd)} • Avg 24h:{' '}
+                    <span
+                      className={
+                        narrative.avgChange24hPct >= 0 ? 'text-green-400' : 'text-red-400'
+                      }
+                    >
+                      {narrative.avgChange24hPct >= 0 ? '+' : ''}
+                      {narrative.avgChange24hPct.toFixed(2)}%
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-akari-muted">
+                  Oracle networks, data tokens and information markets. Predict data value and usage.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* DeFi & L2s */}
+        {(() => {
+          const narrative = narratives.find((n) => n.key === 'defi_l2');
+          return (
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+              <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">DeFi & L2s</p>
+              <p className="text-sm mb-1 text-akari-text">Decentralized Finance</p>
+              {narrative && narrative.topTokens.length > 0 ? (
+                <>
+                  <p className="text-[11px] text-akari-muted mb-2">
+                    Top 3: {narrative.topTokens.map((t) => t.symbol).join(', ')}
+                  </p>
+                  <p className="text-[11px] text-akari-muted">
+                    Total MC: {formatLargeNumber(narrative.totalMarketCapUsd)} • Avg 24h:{' '}
+                    <span
+                      className={
+                        narrative.avgChange24hPct >= 0 ? 'text-green-400' : 'text-red-400'
+                      }
+                    >
+                      {narrative.avgChange24hPct >= 0 ? '+' : ''}
+                      {narrative.avgChange24hPct.toFixed(2)}%
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-akari-muted">
+                  DeFi protocols, Layer 2 solutions and scaling technologies. Track TVL and adoption.
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* SportFi - Keep static for now */}
         <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
           <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">SportFi</p>
           <p className="text-sm mb-1 text-akari-text">Sports & Betting</p>
@@ -391,12 +512,39 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
             Sports tokens, fan tokens and betting markets. Predict match outcomes and token performance.
           </p>
         </div>
+
+        {/* Top Gainers 24h / Volume Leaders */}
         <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
           <p className="text-xs text-akari-muted mb-1">Top Gainers 24h</p>
           <p className="text-sm mb-1 text-akari-text">Volume Leaders</p>
-          <p className="text-[11px] text-akari-muted">
-            Once wired, we will list coins like SOL, AVAX, LINK with 24h change and directly open prediction markets.
-          </p>
+          {volumeLeaders.length > 0 ? (
+            <div className="space-y-1.5 mt-2">
+              {volumeLeaders.slice(0, 5).map((leader) => {
+                const changeColor = leader.change24hPct >= 0 ? 'text-green-400' : 'text-red-400';
+                return (
+                  <div key={leader.id} className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-akari-text font-medium">{leader.symbol}</span>
+                      <span className="text-akari-muted">{formatPrice(leader.priceUsd)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`${changeColor} font-medium`}>
+                        {leader.change24hPct >= 0 ? '+' : ''}
+                        {leader.change24hPct.toFixed(2)}%
+                      </span>
+                      <span className="text-akari-muted text-[10px]">
+                        {formatVolumeOrMarketCap(leader.volume24hUsd)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-akari-muted">
+              No data available at this time.
+            </p>
+          )}
         </div>
       </div>
     </PortalLayout>
@@ -405,12 +553,15 @@ export default function MarketsPage({ pulse, highlights, trending, whaleEntries,
 
 export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async () => {
   try {
-    const [pulse, highlights, trending, whaleEntriesRaw] = await Promise.all([
-      getMarketPulse().catch(() => null),
-      getAkariHighlights().catch(() => null),
-      getTrendingMarketTable().catch(() => []),
-      getRecentWhaleEntries(50).catch(() => []),
-    ]);
+    const [pulse, highlights, trending, whaleEntriesRaw, narratives, volumeLeaders] =
+      await Promise.all([
+        getMarketPulse().catch(() => null),
+        getAkariHighlights().catch(() => null),
+        getTrendingMarketTable().catch(() => []),
+        getRecentWhaleEntries(50).catch(() => []),
+        getNarrativeSummaries().catch(() => []),
+        getVolumeLeaders(5).catch(() => []),
+      ]);
 
     // Map whale entries to serializable DTOs
     const whaleEntries: WhaleEntryDto[] = whaleEntriesRaw.map((w: any) => ({
@@ -428,6 +579,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         highlights: highlights ? JSON.parse(JSON.stringify(highlights)) : null,
         trending: JSON.parse(JSON.stringify(trending)),
         whaleEntries: JSON.parse(JSON.stringify(whaleEntries)),
+        narratives: JSON.parse(JSON.stringify(narratives)),
+        volumeLeaders: JSON.parse(JSON.stringify(volumeLeaders)),
       },
     };
   } catch (error: any) {
@@ -438,6 +591,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         highlights: null,
         trending: [],
         whaleEntries: [],
+        narratives: [],
+        volumeLeaders: [],
         error: 'Failed to load market data',
       },
     };

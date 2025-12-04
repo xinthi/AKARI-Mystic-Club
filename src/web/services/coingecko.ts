@@ -35,7 +35,7 @@ interface CoinGeckoTrendingResponse {
   }>;
 }
 
-interface CoinGeckoMarketCoin {
+export interface CoinGeckoMarketCoin {
   id: string;
   symbol: string;
   name: string;
@@ -193,6 +193,73 @@ export async function getPriceBySymbol(symbol: string): Promise<number | null> {
   } catch (error) {
     console.error(`[CoinGecko] Error fetching price for ${symbol}:`, error);
     return null;
+  }
+}
+
+/**
+ * Get market data for specific coin IDs from CoinGecko.
+ * Returns market data including price, market cap, volume, and 24h change.
+ */
+export async function getMarketDataForCoins(coinIds: string[]): Promise<CoinGeckoMarketCoin[]> {
+  if (coinIds.length === 0) {
+    return [];
+  }
+
+  const apiKey = process.env.COINGECKO_API_KEY;
+  const baseUrl = 'https://api.coingecko.com/api/v3';
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (apiKey) {
+    headers['x-cg-demo-api-key'] = apiKey;
+  }
+
+  try {
+    const marketsUrl = `${baseUrl}/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&order=market_cap_desc&per_page=250&page=1&sparkline=false`;
+    const marketsResponse = await fetch(marketsUrl, { headers });
+    
+    if (!marketsResponse.ok) {
+      throw new Error(`CoinGecko markets API failed: ${marketsResponse.status} ${marketsResponse.statusText}`);
+    }
+    
+    const marketsData: CoinGeckoMarketCoin[] = await marketsResponse.json();
+    return marketsData;
+  } catch (error) {
+    console.error('[CoinGecko] Error fetching market data for coins:', error);
+    return [];
+  }
+}
+
+/**
+ * Get top coins by 24h volume from CoinGecko.
+ */
+export async function getTopCoinsByVolume(limit: number = 10): Promise<CoinGeckoMarketCoin[]> {
+  const apiKey = process.env.COINGECKO_API_KEY;
+  const baseUrl = 'https://api.coingecko.com/api/v3';
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (apiKey) {
+    headers['x-cg-demo-api-key'] = apiKey;
+  }
+
+  try {
+    const marketsUrl = `${baseUrl}/coins/markets?vs_currency=usd&order=volume_desc&per_page=${limit}&page=1&sparkline=false`;
+    const marketsResponse = await fetch(marketsUrl, { headers });
+    
+    if (!marketsResponse.ok) {
+      throw new Error(`CoinGecko markets API failed: ${marketsResponse.status} ${marketsResponse.statusText}`);
+    }
+    
+    const marketsData: CoinGeckoMarketCoin[] = await marketsResponse.json();
+    return marketsData;
+  } catch (error) {
+    console.error('[CoinGecko] Error fetching top coins by volume:', error);
+    return [];
   }
 }
 
