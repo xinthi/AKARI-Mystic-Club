@@ -8,7 +8,7 @@ interface Platform {
   id: string;
   name: string;
   slug: string;
-  websiteUrl?: string;
+  website?: string;
   description?: string;
   kind: 'LAUNCHPAD' | 'CEX' | 'DEX' | 'OTHER';
 }
@@ -26,7 +26,7 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
-    websiteUrl: '',
+    website: '',
     description: '',
     kind: 'LAUNCHPAD' as 'LAUNCHPAD' | 'CEX' | 'DEX' | 'OTHER',
   });
@@ -97,7 +97,7 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
     setFormData({
       name: '',
       slug: '',
-      websiteUrl: '',
+      website: '',
       description: '',
       kind: 'LAUNCHPAD',
     });
@@ -109,7 +109,7 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
     setFormData({
       name: platform.name,
       slug: platform.slug,
-      websiteUrl: platform.websiteUrl || '',
+      website: platform.website || '',
       description: platform.description || '',
       kind: platform.kind,
     });
@@ -186,8 +186,8 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
               <label className="block text-xs text-akari-muted mb-1 font-medium">Website URL</label>
               <input
                 type="url"
-                value={formData.websiteUrl}
-                onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
+                value={formData.website}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 className="w-full bg-akari-cardSoft border border-akari-border rounded-lg px-3 py-2 text-sm text-akari-text"
               />
             </div>
@@ -254,7 +254,7 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
                   <div>
                     <p className="text-sm font-medium text-akari-text">{platform.name}</p>
                     <p className="text-xs text-akari-muted">
-                      {platform.kind} {platform.websiteUrl && `• ${platform.websiteUrl}`}
+                      {platform.kind} {platform.website && `• ${platform.website}`}
                     </p>
                   </div>
                   <button
@@ -303,7 +303,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           id: true,
           name: true,
           slug: true,
-          websiteUrl: true,
+          website: true,
           description: true,
           kind: true,
         },

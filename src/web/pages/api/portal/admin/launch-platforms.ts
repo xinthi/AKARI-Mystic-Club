@@ -6,13 +6,13 @@ type LaunchPlatformPayload = {
   id?: string;
   name: string;
   slug?: string;
-  websiteUrl?: string;
+  website?: string;
   description?: string;
   kind: 'LAUNCHPAD' | 'CEX' | 'DEX' | 'OTHER';
 };
 
 type GetResponse =
-  | { ok: true; platforms: Array<{ id: string; name: string; slug: string; websiteUrl?: string; description?: string; kind: string }> }
+  | { ok: true; platforms: Array<{ id: string; name: string; slug: string; website?: string; description?: string; kind: string }> }
   | { ok: false; error: string };
 
 type PostResponse =
@@ -60,7 +60,7 @@ export default async function handler(
           id: p.id,
           name: p.name,
           slug: p.slug,
-          websiteUrl: p.website || undefined,
+          website: p.website || undefined,
           description: p.description || undefined,
           kind: p.kind,
         })),
@@ -70,7 +70,7 @@ export default async function handler(
     if (req.method === 'POST') {
       assertSuperAdmin(user);
 
-      const { name, slug, websiteUrl, description, kind } = req.body as LaunchPlatformPayload;
+      const { name, slug, website, description, kind } = req.body as LaunchPlatformPayload;
 
       if (!name) {
         return res.status(400).json({
@@ -100,7 +100,7 @@ export default async function handler(
           data: {
             name,
             slug: finalSlug,
-            website: websiteUrl || null,
+            website: website || null,
             description: description || null,
             kind: kind || 'LAUNCHPAD',
             createdById: user.id,
@@ -114,7 +114,7 @@ export default async function handler(
     if (req.method === 'PUT') {
       assertSuperAdmin(user);
 
-      const { id, name, slug, websiteUrl, description, kind } = req.body as LaunchPlatformPayload & { id: string };
+      const { id, name, slug, website, description, kind } = req.body as LaunchPlatformPayload & { id: string };
 
       if (!id) {
         return res.status(400).json({
@@ -126,7 +126,7 @@ export default async function handler(
       const updateData: any = {};
       if (name) updateData.name = name;
       if (slug) updateData.slug = slug;
-      if (websiteUrl !== undefined) updateData.website = websiteUrl || null;
+      if (website !== undefined) updateData.website = website || null;
       if (description !== undefined) updateData.description = description || null;
       if (kind) updateData.kind = kind;
 
