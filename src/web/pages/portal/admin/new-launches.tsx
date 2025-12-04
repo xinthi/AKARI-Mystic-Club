@@ -665,7 +665,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
         role,
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Admin New Launches] Error:', error);
     return {
       props: {
