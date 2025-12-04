@@ -1,10 +1,19 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../components/portal/PortalLayout';
-import { getTrendingCoinsWithPrices, type TrendingCoinWithPrice } from '../../services/coingecko';
+import {
+  getMarketPulse,
+  getAkariHighlights,
+  getTrendingMarketTable,
+  type MarketPulse,
+  type AkariHighlights,
+} from '../../services/akariMarkets';
+import type { TrendingCoinWithPrice } from '../../services/coingecko';
 
 interface MarketsPageProps {
-  trendingCoins: TrendingCoinWithPrice[];
+  pulse: MarketPulse | null;
+  highlights: AkariHighlights | null;
+  trending: TrendingCoinWithPrice[];
   error?: string;
 }
 
@@ -26,7 +35,39 @@ function formatPrice(price: number): string {
   }
 }
 
-export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) {
+function formatLargeNumber(num: number): string {
+  if (num >= 1_000_000_000) {
+    return `$${(num / 1_000_000_000).toFixed(2)}B`;
+  } else if (num >= 1_000_000) {
+    return `$${(num / 1_000_000).toFixed(2)}M`;
+  } else if (num >= 1_000) {
+    return `$${(num / 1_000).toFixed(2)}K`;
+  }
+  return formatPrice(num);
+}
+
+function formatPriceChange(change: number | null | undefined): { text: string; color: string } {
+  if (change === null || change === undefined) {
+    return { text: 'N/A', color: 'text-akari-muted' };
+  }
+  
+  const sign = change >= 0 ? '+' : '';
+  const color = change >= 0 ? 'text-green-400' : 'text-red-400';
+  return {
+    text: `${sign}${change.toFixed(2)}%`,
+    color,
+  };
+}
+
+function formatROI(roi: number | null | undefined): string {
+  if (roi === null || roi === undefined) {
+    return 'N/A';
+  }
+  const sign = roi >= 0 ? '+' : '';
+  return `${sign}${roi.toFixed(2)}%`;
+}
+
+export default function MarketsPage({ pulse, highlights, trending, error }: MarketsPageProps) {
   return (
     <PortalLayout title="Markets overview">
       <section className="mb-6">
@@ -45,8 +86,105 @@ export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) 
         </div>
       )}
 
+      {/* Market Pulse */}
+      {!error && pulse && (
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
+            <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">Tracked Market Cap</p>
+            <p className="text-lg font-semibold text-akari-text">
+              {pulse.trackedMarketCapUsd > 0 ? formatLargeNumber(pulse.trackedMarketCapUsd) : 'N/A'}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4">
+            <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">Tracked 24h Volume</p>
+            <p className="text-lg font-semibold text-akari-text">
+              {pulse.trackedVolume24hUsd > 0 ? formatLargeNumber(pulse.trackedVolume24hUsd) : 'N/A'}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-4">
+            <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Data Sources</p>
+            <p className="text-lg font-semibold text-akari-text">
+              {pulse.sources.join(' · ')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Highlights Row */}
+      {!error && highlights && (
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          {/* Trending */}
+          <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
+            <h3 className="text-sm font-semibold text-akari-text mb-1">Trending</h3>
+            <p className="text-xs text-akari-muted mb-3">
+              Coins pulling the most attention from CoinGecko feeds.
+            </p>
+            {highlights.trending.length > 0 ? (
+              <div className="space-y-2">
+                {highlights.trending.map((coin) => (
+                  <div key={coin.id} className="flex items-center justify-between text-xs">
+                    <span className="text-akari-text">{coin.name}</span>
+                    <span className="text-akari-primary font-medium">{formatPrice(coin.priceUsd)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-akari-muted">No trending data available</p>
+            )}
+          </div>
+
+          {/* Meme Radar */}
+          <div className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4">
+            <h3 className="text-sm font-semibold text-akari-text mb-1">Meme Radar</h3>
+            <p className="text-xs text-akari-muted mb-3">
+              Pump.fun and friends, ranked by daily moves.
+            </p>
+            {highlights.topMemes.length > 0 ? (
+              <div className="space-y-2">
+                {highlights.topMemes.map((meme) => {
+                  const change = formatPriceChange(meme.change24h);
+                  return (
+                    <div key={meme.id} className="flex items-center justify-between text-xs">
+                      <span className="text-akari-text uppercase">{meme.symbol}</span>
+                      <span className={`font-medium ${change.color}`}>{change.text}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-akari-muted">No meme data available</p>
+            )}
+          </div>
+
+          {/* Launchpad Winners */}
+          <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-4">
+            <h3 className="text-sm font-semibold text-akari-text mb-1">Launchpad Winners</h3>
+            <p className="text-xs text-akari-muted mb-3">
+              Best ROI from the launches Akari tracks.
+            </p>
+            {highlights.topLaunches.length > 0 ? (
+              <div className="space-y-2">
+                {highlights.topLaunches.map((launch) => (
+                  <div key={launch.id} className="flex items-center justify-between text-xs">
+                    <span className="text-akari-text">
+                      {launch.tokenSymbol}
+                      {launch.platformName && ` · ${launch.platformName}`}
+                    </span>
+                    <span className="text-akari-profit font-medium">
+                      {formatROI(launch.roiPercent)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-akari-muted">No launch data available</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Trending Markets Table */}
-      {!error && trendingCoins.length > 0 && (
+      {!error && trending.length > 0 && (
         <div className="mb-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-akari-text">Trending Markets</h2>
@@ -65,7 +203,7 @@ export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) 
                 </tr>
               </thead>
               <tbody>
-                {trendingCoins.map((coin, index) => (
+                {trending.map((coin, index) => (
                   <tr
                     key={coin.id}
                     className="border-b border-akari-border/30 last:border-0 hover:bg-akari-cardSoft/50 transition"
@@ -98,7 +236,7 @@ export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) 
 
           {/* Mobile Grid */}
           <div className="md:hidden grid gap-3">
-            {trendingCoins.map((coin, index) => (
+            {trending.map((coin, index) => (
               <div
                 key={coin.id}
                 className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition"
@@ -126,7 +264,7 @@ export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) 
       )}
 
       {/* Empty State */}
-      {!error && trendingCoins.length === 0 && (
+      {!error && trending.length === 0 && (
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6">
           <p className="text-sm text-akari-muted text-center">
             No trending markets available at this time.
@@ -185,18 +323,26 @@ export default function MarketsPage({ trendingCoins, error }: MarketsPageProps) 
 
 export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async () => {
   try {
-    const trendingCoins = await getTrendingCoinsWithPrices();
-    
+    const [pulse, highlights, trending] = await Promise.all([
+      getMarketPulse().catch(() => null),
+      getAkariHighlights().catch(() => null),
+      getTrendingMarketTable().catch(() => []),
+    ]);
+
     return {
       props: {
-        trendingCoins: JSON.parse(JSON.stringify(trendingCoins)),
+        pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
+        highlights: highlights ? JSON.parse(JSON.stringify(highlights)) : null,
+        trending: JSON.parse(JSON.stringify(trending)),
       },
     };
-  } catch (error) {
-    console.error('[Markets Page] Error fetching trending coins:', error);
+  } catch (error: any) {
+    console.error('[Markets Page] Error fetching market data:', error);
     return {
       props: {
-        trendingCoins: [],
+        pulse: null,
+        highlights: null,
+        trending: [],
         error: 'Failed to load market data',
       },
     };

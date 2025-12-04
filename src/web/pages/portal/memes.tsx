@@ -63,6 +63,19 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
     return b.priceUsd - a.priceUsd;
   });
 
+  // Top 3 by priceChange24h for "High attention" candidates
+  const topByChange = [...memecoins]
+    .filter((m) => m.priceChange24h !== null)
+    .sort((a, b) => {
+      const changeA = a.priceChange24h ?? 0;
+      const changeB = b.priceChange24h ?? 0;
+      return changeB - changeA;
+    })
+    .slice(0, 3);
+
+  // First 10 memecoins for the SOL tracker table
+  const solTrackerMemes = sortedMemecoins.slice(0, 10);
+
   return (
     <PortalLayout title="Meme Radar">
       <section className="mb-6">
@@ -146,30 +159,93 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
         </div>
       )}
 
-      {/* Info Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Info Cards with Live Data */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+        {/* SOL Memecoins Tracker */}
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
           <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">SOL memecoins tracker</p>
           <p className="text-sm mb-1 text-akari-text font-medium">Solana Memes</p>
-          <p className="text-[11px] text-akari-muted">
+          <p className="text-[11px] text-akari-muted mb-3">
             Track SOL memes from DexScreener. Filter by liquidity threshold, age, holder count, and velocity. Auto-create prediction pools.
           </p>
+          
+          {!error && solTrackerMemes.length > 0 ? (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {solTrackerMemes.map((coin) => {
+                const change = formatPriceChange(coin.priceChange24h);
+                return (
+                  <div key={coin.id} className="flex items-center justify-between text-xs py-1 border-b border-akari-border/20 last:border-0">
+                    <div className="flex-1">
+                      <span className="text-akari-text uppercase font-medium">{coin.symbol}</span>
+                      {coin.marketCapUsd !== null && (
+                        <span className="text-akari-muted ml-2">{formatMarketCap(coin.marketCapUsd)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-akari-primary">{formatPrice(coin.priceUsd)}</span>
+                      {coin.priceChange24h !== null && (
+                        <span className={`text-[10px] font-medium ${change.color}`}>{change.text}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-akari-muted">No meme data available</p>
+          )}
         </div>
 
+        {/* AI Memes vs Pure Degen */}
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
           <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">AI memes vs pure degen</p>
           <p className="text-sm mb-1 text-akari-text font-medium">Narrative Separation</p>
-          <p className="text-[11px] text-akari-muted">
+          <p className="text-[11px] text-akari-muted mb-3">
             Separate memes by narrative. AI-powered memes vs pure degen plays. Track which narrative performs better.
           </p>
+          
+          {!error && topByChange.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">High attention</p>
+              {topByChange.map((coin) => {
+                const change = formatPriceChange(coin.priceChange24h);
+                return (
+                  <div key={coin.id} className="flex items-center justify-between text-xs">
+                    <span className="text-akari-text uppercase">{coin.symbol}</span>
+                    <span className={`font-medium ${change.color}`}>{change.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-akari-muted">No data available</p>
+          )}
         </div>
 
+        {/* Watchlist / Candidates */}
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
           <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Watchlist / candidates</p>
           <p className="text-sm mb-1 text-akari-text font-medium">Prediction Candidates</p>
-          <p className="text-[11px] text-akari-muted">
+          <p className="text-[11px] text-akari-muted mb-3">
             Curated list of meme pairs that meet our criteria. These candidates can become new prediction pools with one tap.
           </p>
+          
+          {!error && topByChange.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">Top movers</p>
+              {topByChange.map((coin) => {
+                const change = formatPriceChange(coin.priceChange24h);
+                return (
+                  <div key={coin.id} className="flex items-center justify-between text-xs">
+                    <span className="text-akari-text">{coin.name}</span>
+                    <span className={`font-medium ${change.color}`}>{change.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-akari-muted">No candidates available</p>
+          )}
         </div>
       </div>
     </PortalLayout>
@@ -178,14 +254,14 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
 
 export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () => {
   try {
-    const memecoins = await getTopPumpFunMemecoins(12);
+    const memecoins = await getTopPumpFunMemecoins(30);
     
     return {
       props: {
         memecoins: JSON.parse(JSON.stringify(memecoins)),
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Memes Page] Error fetching memecoins:', error);
     return {
       props: {
