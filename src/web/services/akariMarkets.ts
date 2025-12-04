@@ -29,7 +29,7 @@ export interface AkariHighlights {
     symbol: string;
     name: string;
     priceUsd: number;
-    change24h?: number | null;
+    change24h: number | null;
   }>;
   topLaunches: Array<{
     id: string;
@@ -139,7 +139,7 @@ export async function getAkariHighlights(): Promise<AkariHighlights> {
         symbol: meme.symbol,
         name: meme.name,
         priceUsd: meme.priceUsd,
-        change24h: meme.priceChange24h,
+        change24h: meme.priceChange24h ?? null,
       }));
 
     // Top 3 launches sorted by roiPercent descending

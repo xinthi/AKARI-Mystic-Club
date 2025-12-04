@@ -245,12 +245,19 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       name: launch.name,
       tokenSymbol: launch.tokenSymbol,
       tokenName: launch.tokenName,
-      platformName: launch.platform?.name || null,
+      category: launch.category,
+      platformName:
+        launch.primaryPlatform?.name ||
+        launch.platform?.name ||
+        null,
+      platformKind: launch.primaryPlatform?.kind || null,
+      listingPlatformName: launch.listingPlatform?.name || null,
+      listingPlatformKind: launch.listingPlatform?.kind || null,
+      leadInvestorName: launch.leadInvestor?.name || null,
       salePriceUsd: launch.salePriceUsd,
       latestPriceUsd: launch.latestSnapshot?.priceUsd || null,
       roiPercent: launch.roiPercent,
       chain: launch.chain,
-      category: launch.category,
       status: launch.status,
       totalRaiseUsd: launch.totalRaiseUsd,
       tokensForSale: launch.tokensForSale,
