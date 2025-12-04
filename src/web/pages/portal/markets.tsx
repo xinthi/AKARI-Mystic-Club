@@ -46,6 +46,13 @@ function formatLargeNumber(num: number): string {
   return formatPrice(num);
 }
 
+function formatVolumeOrMarketCap(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  return formatLargeNumber(value);
+}
+
 function formatPriceChange(change: number | null | undefined): { text: string; color: string } {
   if (change === null || change === undefined) {
     return { text: 'N/A', color: 'text-akari-muted' };
@@ -198,6 +205,8 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Name</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Price</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Volume 24H</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Market Cap</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-akari-muted uppercase tracking-[0.1em]">Status</th>
                 </tr>
               </thead>
@@ -236,6 +245,12 @@ export default function MarketsPage({ pulse, highlights, trending, error }: Mark
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className="text-sm font-semibold text-akari-primary">{formatPrice(coin.priceUsd)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-sm text-akari-text">{formatVolumeOrMarketCap(coin.volume24hUsd)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-sm text-akari-text">{formatVolumeOrMarketCap(coin.marketCapUsd)}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       {index < 3 ? (

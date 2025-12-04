@@ -15,6 +15,7 @@ export type TrendingCoinWithPrice = {
   imageUrl?: string;      // coin logo image URL
   marketCapUsd?: number;  // market cap in USD
   volume24hUsd?: number;   // 24h volume in USD
+  change24hPct?: number;   // 24h price change percentage
 };
 
 interface CoinGeckoTrendingCoin {
@@ -34,11 +35,20 @@ interface CoinGeckoTrendingResponse {
   }>;
 }
 
+interface CoinGeckoMarketCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  current_price: number;
+  market_cap: number | null;
+  total_volume: number | null;
+  price_change_percentage_24h: number | null;
+}
+
 interface CoinGeckoPriceResponse {
   [coinId: string]: {
     usd: number;
-    usd_market_cap?: number;
-    usd_24h_vol?: number;
   };
 }
 
@@ -81,32 +91,39 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
       return [];
     }
 
-    // Step 2: Get prices for these coins (with market cap and volume if available)
-    const priceUrl = `${baseUrl}/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true`;
-    const priceResponse = await fetch(priceUrl, { headers });
+    // Step 2: Get market data for these coins using coins/markets endpoint
+    const marketsUrl = `${baseUrl}/coins/markets?vs_currency=usd&ids=${coinIds.join(',')}&order=market_cap_desc&per_page=10&page=1&sparkline=false`;
+    const marketsResponse = await fetch(marketsUrl, { headers });
     
-    if (!priceResponse.ok) {
-      throw new Error(`CoinGecko price API failed: ${priceResponse.status} ${priceResponse.statusText}`);
+    if (!marketsResponse.ok) {
+      throw new Error(`CoinGecko markets API failed: ${marketsResponse.status} ${marketsResponse.statusText}`);
     }
     
-    const priceData: CoinGeckoPriceResponse = await priceResponse.json();
+    const marketsData: CoinGeckoMarketCoin[] = await marketsResponse.json();
 
-    // Combine trending data with prices
+    // Create a map of coin IDs to market data for quick lookup
+    const marketDataMap = new Map<string, CoinGeckoMarketCoin>();
+    for (const marketCoin of marketsData) {
+      marketDataMap.set(marketCoin.id, marketCoin);
+    }
+
+    // Combine trending data with market data, preserving trending order
     const result: TrendingCoinWithPrice[] = [];
     
     for (const coinItem of trendingData.coins.slice(0, 10)) {
       const coin = coinItem.item;
-      const priceInfo = priceData[coin.id];
+      const marketData = marketDataMap.get(coin.id);
       
-      if (priceInfo && priceInfo.usd) {
+      if (marketData && marketData.current_price) {
         result.push({
           id: coin.id,
           symbol: coin.symbol,
           name: coin.name,
-          priceUsd: priceInfo.usd,
-          imageUrl: coin.small || coin.thumb || undefined,
-          marketCapUsd: priceInfo.usd_market_cap || undefined,
-          volume24hUsd: priceInfo.usd_24h_vol || undefined,
+          priceUsd: marketData.current_price,
+          imageUrl: marketData.image || coin.small || coin.thumb || undefined,
+          marketCapUsd: marketData.market_cap || undefined,
+          volume24hUsd: marketData.total_volume || undefined,
+          change24hPct: marketData.price_change_percentage_24h || undefined,
         });
       }
     }
