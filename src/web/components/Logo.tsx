@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface LogoProps {
   size?: number;
@@ -9,13 +10,14 @@ interface LogoProps {
 export function Logo({ size = 28, showText = false, className = '' }: LogoProps) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <img
+      <Image
         src="/logo.svg"
         alt="AKARI Mystic Club"
         width={size}
         height={size}
         className="flex-shrink-0"
         style={{ width: size, height: size }}
+        unoptimized
       />
       {showText && (
         <div className="flex flex-col">

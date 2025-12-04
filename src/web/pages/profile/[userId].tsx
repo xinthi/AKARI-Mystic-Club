@@ -333,6 +333,7 @@ export default function UserProfilePage() {
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-purple-700 flex items-center justify-center text-2xl">
             {profile.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={profile.photoUrl} alt="" className="w-full h-full rounded-full object-cover" />
             ) : (
               '👤'

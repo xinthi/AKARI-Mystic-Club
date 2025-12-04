@@ -1,5 +1,6 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
+import Link from 'next/link';
 import { PortalLayout } from '../../components/portal/PortalLayout';
 import { prisma } from '@/lib/prisma';
 
@@ -125,7 +126,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
         id="markets"
         className="mt-10 grid gap-4 text-xs md:grid-cols-3"
       >
-        <a
+        <Link
           href="/portal/markets"
           className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 shadow-akari-soft transition hover:border-akari-primary/70"
         >
@@ -137,9 +138,9 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
             Top gainers, volume leaders, narratives — all ingested into Akari
             and used as fuel for live prediction markets.
           </p>
-        </a>
+        </Link>
 
-        <a
+        <Link
           id="memes"
           href="/portal/memes"
           className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 transition hover:border-akari-primary/70"
@@ -152,9 +153,9 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
             Track new pairs, liquidity &amp; velocity. Open meme-based
             prediction markets with one tap in the MiniApp.
           </p>
-        </a>
+        </Link>
 
-        <a
+        <Link
           id="launchpads"
           href="/portal/new-launches"
           className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 transition hover:border-akari-primary/70"
@@ -171,7 +172,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
             Compare sale price vs live price, rank platforms by ROI, and
             speculate which IDO list will outperform next.
           </p>
-        </a>
+        </Link>
       </section>
     </PortalLayout>
   );
