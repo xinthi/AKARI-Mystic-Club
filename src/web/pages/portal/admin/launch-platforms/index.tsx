@@ -303,7 +303,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
           id: true,
           name: true,
           slug: true,
-          website: true,
+          website: true, // Fixed: changed from websiteUrl to website to match Prisma schema
           description: true,
           kind: true,
         },
