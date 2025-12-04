@@ -591,18 +591,27 @@ model TgGroup {
 // PORTAL MODELS (Web Portal - akarimystic.club)
 // ============================================
 
+enum LaunchPlatformKind {
+  LAUNCHPAD
+  CEX
+  DEX
+  OTHER
+}
+
 model PortalUserProfile {
   id               String   @id @default(cuid())
   telegramId       String   @unique
   username         String?
   avatarUrl        String?
-  level            String   @default("L1") // "L1", "L2", "ADMIN"
+  level            String   @default("L1") // "L1", "L2", "ADMIN", "SUPER_ADMIN"
   positiveReviews  Int      @default(0)
   negativeReviews  Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   launches         NewLaunch[]
+  createdPlatforms LaunchPlatform[]
+  createdInvestors LeadInvestor[]
 }
 
 model LaunchPlatform {
@@ -611,10 +620,16 @@ model LaunchPlatform {
   slug        String   @unique
   description String?
   website     String?
+  kind        LaunchPlatformKind @default(LAUNCHPAD)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  launches    NewLaunch[]
+  createdById String?
+  createdBy   PortalUserProfile? @relation(fields: [createdById], references: [id])
+
+  launchesAsPrimary    NewLaunch[] @relation("PrimaryPlatformOnLaunch")
+  launchesAsListing    NewLaunch[] @relation("ListingPlatformOnLaunch")
+  launches             NewLaunch[] // Legacy relation, kept for backward compatibility
 }
 
 model NewLaunch {
@@ -626,8 +641,20 @@ model NewLaunch {
   category       String?   // e.g. "LAUNCHPAD", "AIRDROP", "IDO", "IEO"
   status         String?   // e.g. "UPCOMING", "SALE", "LISTED"
 
+  // Legacy platform relation (kept for backward compatibility)
   platformId     String?
   platform       LaunchPlatform? @relation(fields: [platformId], references: [id])
+
+  // New platform relations
+  primaryPlatformId  String?
+  primaryPlatform    LaunchPlatform? @relation("PrimaryPlatformOnLaunch", fields: [primaryPlatformId], references: [id])
+
+  listingPlatformId   String?
+  listingPlatform    LaunchPlatform? @relation("ListingPlatformOnLaunch", fields: [listingPlatformId], references: [id])
+
+  // Lead investor relation
+  leadInvestorId     String?
+  leadInvestor       LeadInvestor?   @relation(fields: [leadInvestorId], references: [id])
 
   salePriceUsd   Float?
   tokensForSale  Float?
@@ -651,7 +678,28 @@ model NewLaunch {
   priceSnapshots DexSnapshot[]
 
   @@index([platformId])
+  @@index([primaryPlatformId])
+  @@index([listingPlatformId])
+  @@index([leadInvestorId])
   @@index([status])
+  @@index([createdById])
+}
+
+model LeadInvestor {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  websiteUrl   String?
+  tier         String?  // e.g. "Tier 1", "Tier 2"
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdById  String?
+  createdBy    PortalUserProfile? @relation(fields: [createdById], references: [id])
+
+  launches     NewLaunch[]
+
   @@index([createdById])
 }
 

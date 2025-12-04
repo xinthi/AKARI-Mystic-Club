@@ -60,7 +60,10 @@ export default async function handler(
         name,
         tokenSymbol,
         tokenName,
-        platformId,
+        platformId, // Legacy
+        primaryPlatformId,
+        listingPlatformId,
+        leadInvestorId,
         salePriceUsd,
         totalRaiseUsd,
         tokensForSale,
@@ -87,7 +90,10 @@ export default async function handler(
             name,
             tokenSymbol,
             tokenName: tokenName || null,
-            platformId: platformId || null,
+            platformId: platformId || null, // Legacy
+            primaryPlatformId: primaryPlatformId || null,
+            listingPlatformId: listingPlatformId || null,
+            leadInvestorId: leadInvestorId || null,
             salePriceUsd: salePriceUsd ? parseFloat(salePriceUsd) : null,
             totalRaiseUsd: totalRaiseUsd ? parseFloat(totalRaiseUsd) : null,
             tokensForSale: tokensForSale ? parseFloat(tokensForSale) : null,
@@ -124,7 +130,10 @@ export default async function handler(
         name,
         tokenSymbol,
         tokenName,
-        platformId,
+        platformId, // Legacy
+        primaryPlatformId,
+        listingPlatformId,
+        leadInvestorId,
         salePriceUsd,
         totalRaiseUsd,
         tokensForSale,
@@ -152,7 +161,10 @@ export default async function handler(
             ...(name && { name }),
             ...(tokenSymbol && { tokenSymbol }),
             ...(tokenName !== undefined && { tokenName: tokenName || null }),
-            ...(platformId !== undefined && { platformId: platformId || null }),
+            ...(platformId !== undefined && { platformId: platformId || null }), // Legacy
+            ...(primaryPlatformId !== undefined && { primaryPlatformId: primaryPlatformId || null }),
+            ...(listingPlatformId !== undefined && { listingPlatformId: listingPlatformId || null }),
+            ...(leadInvestorId !== undefined && { leadInvestorId: leadInvestorId || null }),
             ...(salePriceUsd !== undefined && {
               salePriceUsd: salePriceUsd ? parseFloat(salePriceUsd) : null,
             }),

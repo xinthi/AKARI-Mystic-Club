@@ -10,6 +10,47 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 
+// Import the getDatabaseUrl function (we'll need to export it from prisma.ts)
+// For now, let's duplicate the logic here for diagnostic purposes
+function getOptimizedDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL || '';
+  
+  if (!url) {
+    return '';
+  }
+
+  try {
+    const urlObj = new URL(url);
+    
+    // If using Supabase pooler (port 6543), ensure pgbouncer mode
+    if (urlObj.port === '6543' || url.includes(':6543/')) {
+      urlObj.searchParams.set('pgbouncer', 'true');
+      urlObj.searchParams.set('connect_timeout', '10');
+      urlObj.searchParams.set('pool_timeout', '10');
+      return urlObj.toString();
+    }
+
+    // If using direct connection, add connection timeout
+    if (urlObj.port === '5432' || url.includes(':5432/')) {
+      urlObj.searchParams.set('connect_timeout', '10');
+      return urlObj.toString();
+    }
+  } catch (e) {
+    // If URL parsing fails, try string manipulation
+    if (url.includes(':6543/') && !url.includes('pgbouncer=true')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}pgbouncer=true&connect_timeout=10&pool_timeout=10`;
+    }
+
+    if (url.includes(':5432/') && !url.includes('connect_timeout')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}connect_timeout=10`;
+    }
+  }
+
+  return url;
+}
+
 interface DiagnosticResponse {
   ok: boolean;
   connectionString?: {
@@ -53,9 +94,11 @@ export default async function handler(
   };
 
   try {
-    // 1. Parse DATABASE_URL
-    const dbUrl = process.env.DATABASE_URL || '';
-    if (!dbUrl) {
+    // 1. Parse DATABASE_URL (raw and optimized)
+    const rawDbUrl = process.env.DATABASE_URL || '';
+    const optimizedDbUrl = getOptimizedDatabaseUrl();
+    
+    if (!rawDbUrl) {
       return res.status(200).json({
         ...response,
         message: 'DATABASE_URL environment variable is not set',
@@ -63,15 +106,19 @@ export default async function handler(
     }
 
     try {
-      const urlObj = new URL(dbUrl);
+      // Parse raw URL
+      const rawUrlObj = new URL(rawDbUrl);
+      // Parse optimized URL (what Prisma actually uses)
+      const optimizedUrlObj = new URL(optimizedDbUrl);
+      
       response.connectionString = {
-        host: urlObj.hostname,
-        port: urlObj.port || '5432',
-        database: urlObj.pathname.replace('/', ''),
-        hasPgbouncer: urlObj.searchParams.has('pgbouncer'),
-        hasSslMode: urlObj.searchParams.has('sslmode'),
-        hasConnectTimeout: urlObj.searchParams.has('connect_timeout'),
-        fullUrl: `${urlObj.protocol}//${urlObj.hostname}:${urlObj.port}${urlObj.pathname}?${urlObj.searchParams.toString().replace(/password=[^&]*/gi, 'password=***')}`,
+        host: rawUrlObj.hostname,
+        port: rawUrlObj.port || '5432',
+        database: rawUrlObj.pathname.replace('/', ''),
+        hasPgbouncer: optimizedUrlObj.searchParams.has('pgbouncer'), // Check optimized URL
+        hasSslMode: optimizedUrlObj.searchParams.has('sslmode'),
+        hasConnectTimeout: optimizedUrlObj.searchParams.has('connect_timeout'), // Check optimized URL
+        fullUrl: `${optimizedUrlObj.protocol}//${optimizedUrlObj.hostname}:${optimizedUrlObj.port}${optimizedUrlObj.pathname}?${optimizedUrlObj.searchParams.toString().replace(/password=[^&]*/gi, 'password=***')}`, // Show optimized URL
       };
     } catch (e) {
       response.connectionString = {
@@ -105,7 +152,7 @@ export default async function handler(
     // 3. Prisma info
     response.prismaInfo = {
       version: '@prisma/client',
-      datasourceUrl: dbUrl.replace(/:[^:@]+@/, ':***@'), // Mask password
+      datasourceUrl: optimizedDbUrl.replace(/:[^:@]+@/, ':***@'), // Mask password in optimized URL
     };
 
     return res.status(200).json(response);

@@ -17,23 +17,36 @@ interface Platform {
   id: string;
   name: string;
   slug: string;
+  kind?: 'LAUNCHPAD' | 'CEX' | 'DEX' | 'OTHER';
+}
+
+interface Investor {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface Props {
   launches: LaunchListItem[];
   platforms: Platform[];
+  investors: Investor[];
+  userLevel: string;
 }
 
-export default function AdminNewLaunchesPage({ launches: initialLaunches, platforms: initialPlatforms }: Props) {
+export default function AdminNewLaunchesPage({ launches: initialLaunches, platforms: initialPlatforms, investors: initialInvestors, userLevel }: Props) {
   const [launches, setLaunches] = useState(initialLaunches);
   const [platforms] = useState(initialPlatforms);
+  const [investors] = useState(initialInvestors);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     tokenSymbol: '',
     tokenName: '',
-    platformId: '',
+    platformId: '', // Legacy
+    primaryPlatformId: '',
+    listingPlatformId: '',
+    leadInvestorId: '',
     salePriceUsd: '',
     totalRaiseUsd: '',
     tokensForSale: '',
@@ -54,6 +67,9 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
       tokenSymbol: '',
       tokenName: '',
       platformId: '',
+      primaryPlatformId: '',
+      listingPlatformId: '',
+      leadInvestorId: '',
       salePriceUsd: '',
       totalRaiseUsd: '',
       tokensForSale: '',
@@ -81,26 +97,84 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
     }
   };
 
-  const handleEdit = (launch: LaunchListItem) => {
-    // For now, just set editing ID - in production, fetch full launch data
+  const handleEdit = async (launch: LaunchListItem) => {
     setEditingId(launch.id);
-    setFormData({
-      name: launch.name,
-      tokenSymbol: launch.tokenSymbol,
-      tokenName: '',
-      platformId: '',
-      salePriceUsd: '',
-      totalRaiseUsd: '',
-      tokensForSale: '',
-      chain: '',
-      category: '',
-      status: '',
-      tokenAddress: '',
-      priceSource: '',
-      airdropPercent: '',
-      airdropValueUsd: '',
-      vestingInfo: '',
-    });
+    setLoading(true);
+    try {
+      // Fetch full launch data including new fields
+      const res = await fetch(`/api/portal/new-launches/${launch.id}`);
+      const json = await res.json();
+      if (json.ok && json.launch) {
+        const fullLaunch = json.launch;
+        setFormData({
+          name: fullLaunch.name || '',
+          tokenSymbol: fullLaunch.tokenSymbol || '',
+          tokenName: fullLaunch.tokenName || '',
+          platformId: fullLaunch.platformId || '',
+          primaryPlatformId: fullLaunch.primaryPlatformId || '',
+          listingPlatformId: fullLaunch.listingPlatformId || '',
+          leadInvestorId: fullLaunch.leadInvestorId || '',
+          salePriceUsd: fullLaunch.salePriceUsd?.toString() || '',
+          totalRaiseUsd: fullLaunch.totalRaiseUsd?.toString() || '',
+          tokensForSale: fullLaunch.tokensForSale?.toString() || '',
+          chain: fullLaunch.chain || '',
+          category: fullLaunch.category || '',
+          status: fullLaunch.status || '',
+          tokenAddress: fullLaunch.tokenAddress || '',
+          priceSource: fullLaunch.priceSource || '',
+          airdropPercent: fullLaunch.airdropPercent?.toString() || '',
+          airdropValueUsd: fullLaunch.airdropValueUsd?.toString() || '',
+          vestingInfo: fullLaunch.vestingInfo ? JSON.stringify(fullLaunch.vestingInfo, null, 2) : '',
+        });
+      } else {
+        // Fallback to basic data if API fails
+        setFormData({
+          name: launch.name,
+          tokenSymbol: launch.tokenSymbol,
+          tokenName: '',
+          platformId: '',
+          primaryPlatformId: '',
+          listingPlatformId: '',
+          leadInvestorId: '',
+          salePriceUsd: '',
+          totalRaiseUsd: '',
+          tokensForSale: '',
+          chain: '',
+          category: '',
+          status: '',
+          tokenAddress: '',
+          priceSource: '',
+          airdropPercent: '',
+          airdropValueUsd: '',
+          vestingInfo: '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load launch details:', error);
+      // Fallback to basic data
+      setFormData({
+        name: launch.name,
+        tokenSymbol: launch.tokenSymbol,
+        tokenName: '',
+        platformId: '',
+        primaryPlatformId: '',
+        listingPlatformId: '',
+        leadInvestorId: '',
+        salePriceUsd: '',
+        totalRaiseUsd: '',
+        tokensForSale: '',
+        chain: '',
+        category: '',
+        status: '',
+        tokenAddress: '',
+        priceSource: '',
+        airdropPercent: '',
+        airdropValueUsd: '',
+        vestingInfo: '',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -218,17 +292,67 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
             </div>
             <div>
               <label className="block text-xs text-akari-muted mb-1 font-medium">
-                Platform
+                Sale Platform
               </label>
               <select
-                value={formData.platformId}
-                onChange={(e) => setFormData({ ...formData, platformId: e.target.value })}
+                value={formData.primaryPlatformId}
+                onChange={(e) => setFormData({ ...formData, primaryPlatformId: e.target.value })}
                 className="w-full bg-akari-cardSoft border border-akari-border rounded-lg px-3 py-2 text-sm text-akari-text"
               >
                 <option value="">None</option>
-                {platforms.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
+                {['LAUNCHPAD', 'CEX', 'DEX', 'OTHER'].map((kind) => {
+                  const kindPlatforms = platforms.filter((p) => p.kind === kind);
+                  if (kindPlatforms.length === 0) return null;
+                  return (
+                    <optgroup key={kind} label={kind}>
+                      {kindPlatforms.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-akari-muted mb-1 font-medium">
+                Listing Platform
+              </label>
+              <select
+                value={formData.listingPlatformId}
+                onChange={(e) => setFormData({ ...formData, listingPlatformId: e.target.value })}
+                className="w-full bg-akari-cardSoft border border-akari-border rounded-lg px-3 py-2 text-sm text-akari-text"
+              >
+                <option value="">None</option>
+                {['LAUNCHPAD', 'CEX', 'DEX', 'OTHER'].map((kind) => {
+                  const kindPlatforms = platforms.filter((p) => p.kind === kind);
+                  if (kindPlatforms.length === 0) return null;
+                  return (
+                    <optgroup key={kind} label={kind}>
+                      {kindPlatforms.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-akari-muted mb-1 font-medium">
+                Lead Investor
+              </label>
+              <select
+                value={formData.leadInvestorId}
+                onChange={(e) => setFormData({ ...formData, leadInvestorId: e.target.value })}
+                className="w-full bg-akari-cardSoft border border-akari-border rounded-lg px-3 py-2 text-sm text-akari-text"
+              >
+                <option value="">None</option>
+                {investors.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.name}
                   </option>
                 ))}
               </select>
@@ -423,9 +547,9 @@ export default function AdminNewLaunchesPage({ launches: initialLaunches, platfo
   );
 }
 
-export const getServerSideProps: GetServerSideProps = async () => {
+export const getServerSideProps: GetServerSideProps<Props> = async () => {
   try {
-    const [launches, platforms] = await Promise.all([
+    const [launches, platforms, investors] = await Promise.all([
       withDbRetry(() =>
         prisma.newLaunch.findMany({
           select: {
@@ -448,11 +572,26 @@ export const getServerSideProps: GetServerSideProps = async () => {
             id: true,
             name: true,
             slug: true,
+            kind: true,
+          },
+          orderBy: { name: 'asc' },
+        })
+      ),
+      withDbRetry(() =>
+        prisma.leadInvestor.findMany({
+          select: {
+            id: true,
+            name: true,
+            slug: true,
           },
           orderBy: { name: 'asc' },
         })
       ),
     ]);
+
+    // In development, allow access by default
+    // In production, this should extract user level from session/auth
+    const userLevel = process.env.NODE_ENV === 'development' ? 'SUPER_ADMIN' : 'ADMIN';
 
     return {
       props: {
@@ -464,6 +603,8 @@ export const getServerSideProps: GetServerSideProps = async () => {
           createdAt: l.createdAt.toISOString(),
         })),
         platforms: JSON.parse(JSON.stringify(platforms)),
+        investors: JSON.parse(JSON.stringify(investors)),
+        userLevel,
       },
     };
   } catch (error) {
@@ -472,6 +613,8 @@ export const getServerSideProps: GetServerSideProps = async () => {
       props: {
         launches: [],
         platforms: [],
+        investors: [],
+        userLevel: process.env.NODE_ENV === 'development' ? 'SUPER_ADMIN' : 'L1',
       },
     };
   }
