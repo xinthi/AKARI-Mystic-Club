@@ -556,7 +556,7 @@ export default function MarketsPage({
                               DEX
                             </span>
                           )}
-                          {venue?.cexExchanges && venue.cexExchanges.map(ex => (
+                          {venue?.cexSources && venue.cexSources.map(ex => (
                             <span 
                               key={ex} 
                               className="inline-flex items-center rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-medium text-blue-400 uppercase"
@@ -564,7 +564,7 @@ export default function MarketsPage({
                               {ex}
                             </span>
                           ))}
-                          {(!venue || (venue.dexSources.length === 0 && venue.cexExchanges.length === 0)) && (
+                          {(!venue || (venue.dexSources.length === 0 && venue.cexSources.length === 0)) && (
                             <span className="text-[10px] text-akari-muted">—</span>
                           )}
                         </div>
@@ -604,7 +604,7 @@ export default function MarketsPage({
                           DEX
                         </span>
                       )}
-                      {venue?.cexExchanges && venue.cexExchanges.slice(0, 2).map(ex => (
+                      {venue?.cexSources && venue.cexSources.slice(0, 2).map(ex => (
                         <span 
                           key={ex} 
                           className="inline-flex items-center rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[8px] font-medium text-blue-400 uppercase"
