@@ -196,6 +196,12 @@ export async function getRecentStablecoinTransfers(params: {
     return [];
   }
 
+  // Only support ethereum for now - other chains need different token addresses
+  if (params.chain !== 'ethereum') {
+    console.warn(`[Uniblock] Chain ${params.chain} not yet supported for stablecoin transfers (only ethereum supported)`);
+    return [];
+  }
+
   try {
     // Use the same Uniblock provider endpoint as whale transfers
     const url = new URL(`${UNIBLOCK_API_BASE_URL}/direct/v1/Moralis/erc20/transfers`);
@@ -203,6 +209,8 @@ export async function getRecentStablecoinTransfers(params: {
     url.searchParams.set('contractAddress', stablecoin.tokenAddress);
     url.searchParams.set('limit', '100');
     url.searchParams.set('fromDate', new Date(params.sinceTimestamp * 1000).toISOString());
+
+    console.log(`[Uniblock] Fetching stablecoin transfers: ${url.toString()}`);
 
     const response = await fetch(url.toString(), {
       headers: {
@@ -212,7 +220,11 @@ export async function getRecentStablecoinTransfers(params: {
     });
 
     if (!response.ok) {
-      console.error(`[Uniblock] Stablecoin API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      console.error(
+        `[Uniblock] Stablecoin API error: ${response.status} ${response.statusText}`,
+        errorText ? `Response: ${errorText.substring(0, 200)}` : ''
+      );
       return [];
     }
 
@@ -222,6 +234,7 @@ export async function getRecentStablecoinTransfers(params: {
       data = JSON.parse(raw);
     } catch (err) {
       console.error('[Uniblock] JSON parse error for stablecoin transfers:', err);
+      console.error('[Uniblock] Raw response (first 500 chars):', raw.substring(0, 500));
       return [];
     }
 
@@ -232,8 +245,11 @@ export async function getRecentStablecoinTransfers(params: {
 
     const transfers = data.result ?? data.data ?? [];
     if (!transfers || transfers.length === 0) {
+      console.log(`[Uniblock] No stablecoin transfers found for ${params.stableSymbol} on ${params.chain}`);
       return [];
     }
+
+    console.log(`[Uniblock] Found ${transfers.length} raw stablecoin transfers, filtering by minUsd=${minUsd}`);
 
     const stablecoinTransfers: StablecoinTransfer[] = [];
 
@@ -247,6 +263,12 @@ export async function getRecentStablecoinTransfers(params: {
       const timestamp = transfer.block_timestamp ?? transfer.blockTimestamp ?? transfer.occurredAt;
 
       if (!from || !to || !txHash || !timestamp) {
+        console.warn('[Uniblock] Transfer missing required fields, skipping:', {
+          hasFrom: !!from,
+          hasTo: !!to,
+          hasTxHash: !!txHash,
+          hasTimestamp: !!timestamp,
+        });
         continue;
       }
 
@@ -261,9 +283,11 @@ export async function getRecentStablecoinTransfers(params: {
       });
     }
 
+    console.log(`[Uniblock] Filtered to ${stablecoinTransfers.length} stablecoin transfers (>= $${minUsd})`);
     return stablecoinTransfers;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Uniblock] Error fetching stablecoin transfers:', error);
+    console.error('[Uniblock] Error details:', error?.message, error?.stack);
     return [];
   }
 }
