@@ -4,10 +4,11 @@
  * Fetches top Pump.fun memecoins from CoinGecko and stores as MemeTokenSnapshot records.
  * This enables the /portal/memes page to read from DB instead of live API calls.
  * 
- * Protected with CRON_SECRET (query param or Authorization header).
+ * Protected with CRON_SECRET (query param, Authorization header, or x-cron-secret header).
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { randomUUID } from 'crypto';
 import { prisma, withDbRetry } from '../../../../lib/prisma';
 import { getTopPumpFunMemecoins } from '../../../../services/memecoinRadar';
 
@@ -21,6 +22,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<SyncResponse>
 ) {
+  // Only allow GET and POST
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({
       ok: false,
@@ -29,7 +31,7 @@ export default async function handler(
     });
   }
 
-  // Check CRON_SECRET
+  // Validate CRON_SECRET
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const providedSecret =
@@ -38,6 +40,7 @@ export default async function handler(
       (req.query.secret as string | undefined);
 
     if (providedSecret !== cronSecret) {
+      console.log('[sync-meme-snapshots] Unauthorized request');
       return res.status(401).json({
         ok: false,
         snapshots: 0,
@@ -47,61 +50,66 @@ export default async function handler(
   }
 
   try {
+    console.log('[sync-meme-snapshots] Starting sync...');
+    
     // Fetch top Pump.fun memecoins from CoinGecko
-    const memecoins = await getTopPumpFunMemecoins(20);
+    const memes = await getTopPumpFunMemecoins(20);
+    console.log('[sync-meme-snapshots] fetched memes:', memes.length);
 
-    if (memecoins.length === 0) {
-      console.log('[SyncMemeSnapshots] No memecoins returned from CoinGecko');
+    // If no memes returned, log warning and return 0
+    if (memes.length === 0) {
+      console.warn('[sync-meme-snapshots] No memes returned from CoinGecko - check API key and rate limits');
       return res.status(200).json({
         ok: true,
         snapshots: 0,
       });
     }
 
-    console.log(`[SyncMemeSnapshots] Fetched ${memecoins.length} memecoins`);
-
-    // Create MemeTokenSnapshot records for each coin
-    const now = new Date();
-    const snapshotData = memecoins.map((coin) => ({
-      symbol: coin.symbol,
-      name: coin.name,
-      priceUsd: coin.priceUsd,
-      marketCapUsd: coin.marketCapUsd ?? null,
-      change24hPct: coin.priceChange24h ?? null,
+    // Build snapshot data with explicit IDs
+    const data = memes.map((m) => ({
+      id: randomUUID(),
+      symbol: m.symbol,
+      name: m.name,
+      priceUsd: m.priceUsd ?? 0,
+      marketCapUsd: m.marketCapUsd ?? null,
+      change24hPct: m.priceChange24h ?? null,
       source: 'coingecko_pumpfun',
-      createdAt: now,
     }));
 
-    await withDbRetry(() =>
+    console.log('[sync-meme-snapshots] Inserting', data.length, 'snapshots...');
+
+    // Insert snapshots
+    const result = await withDbRetry(() =>
       prisma.memeTokenSnapshot.createMany({
-        data: snapshotData,
+        data,
       })
     );
 
-    // Optionally delete old snapshots older than 2 days to keep the table light
-    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const deleteResult = await withDbRetry(() =>
-      prisma.memeTokenSnapshot.deleteMany({
+    console.log('[sync-meme-snapshots] inserted snapshots:', result.count);
+
+    // Optional: cleanup old snapshots (wrapped in try/catch so it doesn't fail the request)
+    try {
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      const deleteResult = await prisma.memeTokenSnapshot.deleteMany({
         where: {
           createdAt: {
             lt: twoDaysAgo,
           },
         },
-      })
-    );
-
-    if (deleteResult.count > 0) {
-      console.log(`[SyncMemeSnapshots] Deleted ${deleteResult.count} old snapshots`);
+      });
+      if (deleteResult.count > 0) {
+        console.log('[sync-meme-snapshots] Deleted', deleteResult.count, 'old snapshots');
+      }
+    } catch (cleanupError) {
+      console.error('[sync-meme-snapshots] Cleanup error (non-fatal):', cleanupError);
     }
-
-    console.log(`[SyncMemeSnapshots] Created ${snapshotData.length} snapshots`);
 
     return res.status(200).json({
       ok: true,
-      snapshots: snapshotData.length,
+      snapshots: result.count,
     });
   } catch (error: any) {
-    console.error('[SyncMemeSnapshots] Error:', error);
+    console.error('[sync-meme-snapshots] Error:', error?.message || error);
     return res.status(500).json({
       ok: false,
       snapshots: 0,
@@ -109,4 +117,3 @@ export default async function handler(
     });
   }
 }
-

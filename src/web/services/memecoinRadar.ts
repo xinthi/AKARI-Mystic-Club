@@ -3,9 +3,14 @@
  * 
  * Fetches top Pump.fun memecoins from CoinGecko API.
  * 
- * TODO: If using CoinGecko Pro API, set COINGECKO_API_KEY in environment variables.
- * Free tier doesn't require an API key.
+ * Uses COINGECKO_API_KEY if available, falls back to public API otherwise.
  */
+
+import { cgFetch } from './coingecko';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type MemeCoin = {
   id: string;        // coingecko id, e.g. "dogwifcoin"
@@ -25,57 +30,148 @@ interface CoinGeckoMarketCoin {
   price_change_percentage_24h: number | null;
 }
 
-const COINGECKO_API_BASE_URL = 'https://api.coingecko.com/api/v3';
-const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
+// Known meme coin symbols/keywords for fallback filtering
+const MEME_KEYWORDS = [
+  'pepe', 'doge', 'shib', 'wif', 'bonk', 'floki', 'meme', 'inu',
+  'elon', 'moon', 'wojak', 'chad', 'frog', 'cat', 'dog', 'pump',
+  'brett', 'popcat', 'mog', 'turbo', 'neiro', 'goat', 'pnut',
+  'act', 'bome', 'myro', 'slerf', 'wen', 'book', 'samo', 'corgiai'
+];
 
-async function fetchWithCoinGeckoAuth(url: string): Promise<Response> {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-  if (COINGECKO_API_KEY) {
-    headers['x-cg-pro-api-key'] = COINGECKO_API_KEY;
-  }
-  return fetch(url, { headers });
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Exported Functions
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Get top Pump.fun memecoins from CoinGecko, ordered by volume.
  * Returns up to the specified limit (default: 10).
+ * 
+ * Falls back to general meme coins if Pump.fun category returns no data.
  */
 export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCoin[]> {
   try {
-    const url = new URL(`${COINGECKO_API_BASE_URL}/coins/markets`);
-    url.searchParams.set('vs_currency', 'usd');
-    url.searchParams.set('category', 'pump-fun');
-    url.searchParams.set('order', 'volume_desc');
-    url.searchParams.set('per_page', limit.toString());
-    url.searchParams.set('page', '1');
-
-    const response = await fetchWithCoinGeckoAuth(url.toString());
-
-    if (!response.ok) {
-      console.error('[memecoinRadar] error:', `CoinGecko markets API error: ${response.status} ${response.statusText}`);
-      return [];
+    console.log('[memecoinRadar] getTopPumpFunMemecoins starting, limit:', limit);
+    
+    // Step 1: Try the Pump.fun category
+    let result = await fetchPumpFunCoins(limit);
+    
+    if (result.length > 0) {
+      console.log('[memecoinRadar] Pump.fun category returned', result.length, 'coins');
+    } else {
+      console.log('[memecoinRadar] Primary Pump.fun query returned no data, falling back to /coins/markets (meme-ish filter)');
+      
+      // Step 2: Fallback - try meme-token category
+      result = await fetchMemeCategory(limit);
+      
+      if (result.length > 0) {
+        console.log('[memecoinRadar] meme-token category returned', result.length, 'coins');
+      } else {
+        console.log('[memecoinRadar] meme-token category also empty, trying keyword filter fallback');
+        
+        // Step 3: Final fallback - get top coins and filter by meme keywords
+        result = await fetchTopCoinsWithMemeFilter(limit);
+        
+        if (result.length > 0) {
+          console.log('[memecoinRadar] Keyword filter fallback returned', result.length, 'coins');
+        } else {
+          console.log('[memecoinRadar] All fallbacks exhausted, returning empty array');
+        }
+      }
     }
 
-    const data: CoinGeckoMarketCoin[] = await response.json();
-
-    // Filter out entries missing symbol or current_price, and map to MemeCoin type
-    const memecoins: MemeCoin[] = data
-      .filter((coin) => coin.symbol && coin.current_price !== null && coin.current_price !== undefined)
-      .map((coin) => ({
-        id: coin.id,
-        symbol: coin.symbol,
-        name: coin.name,
-        priceUsd: coin.current_price!,
-        marketCapUsd: coin.market_cap ?? null,
-        priceChange24h: coin.price_change_percentage_24h ?? null,
-      }));
-
-    return memecoins;
+    // Slice to requested limit
+    const finalResult = result.slice(0, limit);
+    console.log('[memecoinRadar] getTopPumpFunMemecoins result length:', finalResult.length);
+    return finalResult;
   } catch (error) {
-    console.error('[memecoinRadar] error:', error);
+    console.error('[memecoinRadar] getTopPumpFunMemecoins exception:', error);
     return [];
   }
 }
 
+/**
+ * Fetch coins from the Pump.fun category
+ */
+async function fetchPumpFunCoins(limit: number): Promise<MemeCoin[]> {
+  const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+    vs_currency: 'usd',
+    category: 'pump-fun',
+    order: 'volume_desc',
+    per_page: limit,
+    page: 1,
+  });
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return mapToMemeCoins(data);
+}
+
+/**
+ * Fetch coins from the meme-token category
+ */
+async function fetchMemeCategory(limit: number): Promise<MemeCoin[]> {
+  const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+    vs_currency: 'usd',
+    category: 'meme-token',
+    order: 'volume_desc',
+    per_page: limit,
+    page: 1,
+  });
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return mapToMemeCoins(data);
+}
+
+/**
+ * Fetch top coins by market cap and filter for meme-like tokens
+ */
+async function fetchTopCoinsWithMemeFilter(limit: number): Promise<MemeCoin[]> {
+  // Fetch more coins to have enough after filtering
+  const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+    vs_currency: 'usd',
+    order: 'market_cap_desc',
+    per_page: 250,
+    page: 1,
+  });
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Filter for meme-like tokens based on name/symbol
+  const memeCoins = data.filter(coin => {
+    const symbolLower = coin.symbol.toLowerCase();
+    const nameLower = coin.name.toLowerCase();
+    
+    return MEME_KEYWORDS.some(keyword => 
+      symbolLower.includes(keyword) || nameLower.includes(keyword)
+    );
+  });
+
+  return mapToMemeCoins(memeCoins).slice(0, limit);
+}
+
+/**
+ * Map CoinGecko market data to MemeCoin type
+ */
+function mapToMemeCoins(data: CoinGeckoMarketCoin[]): MemeCoin[] {
+  return data
+    .filter(coin => 
+      coin.symbol && 
+      coin.current_price !== null && 
+      coin.current_price !== undefined
+    )
+    .map(coin => ({
+      id: coin.id,
+      symbol: coin.symbol,
+      name: coin.name,
+      priceUsd: coin.current_price!,
+      marketCapUsd: coin.market_cap ?? null,
+      priceChange24h: coin.price_change_percentage_24h ?? null,
+    }));
+}

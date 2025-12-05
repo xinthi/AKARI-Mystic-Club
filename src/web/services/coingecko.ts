@@ -3,8 +3,8 @@
  * 
  * Fetches trending coins and their current prices from CoinGecko API.
  * 
- * Set COINGECKO_API_KEY in environment variables for Demo API access.
- * If not set, falls back to unauthenticated public API (higher rate limits).
+ * Set COINGECKO_API_KEY in environment variables for authenticated API access.
+ * If not set, falls back to unauthenticated public API (higher risk of rate limits).
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,27 +26,10 @@ export type TrendingCoinWithPrice = {
   name: string;     // Bitcoin
   priceUsd: number;
   imageUrl?: string;      // coin logo image URL
-  marketCapUsd?: number;  // market cap in USD
-  volume24hUsd?: number;   // 24h volume in USD
-  change24hPct?: number;   // 24h price change percentage
+  marketCapUsd?: number | null;  // market cap in USD
+  volume24hUsd?: number | null;   // 24h volume in USD
+  change24hPct?: number | null;   // 24h price change percentage
 };
-
-interface CoinGeckoTrendingCoin {
-  id: string;
-  name: string;
-  symbol: string;
-  thumb: string;
-  small: string;
-  large: string;
-  slug: string;
-  price_btc: number;
-}
-
-interface CoinGeckoTrendingResponse {
-  coins: Array<{
-    item: CoinGeckoTrendingCoin;
-  }>;
-}
 
 export interface CoinGeckoMarketCoin {
   id: string;
@@ -57,6 +40,20 @@ export interface CoinGeckoMarketCoin {
   market_cap: number | null;
   total_volume: number | null;
   price_change_percentage_24h: number | null;
+  price_change_percentage_24h_in_currency?: number | null;
+}
+
+interface CoinGeckoTrendingResponse {
+  coins: Array<{
+    item: {
+      id: string;
+      name: string;
+      symbol: string;
+      thumb?: string;
+      small?: string;
+      large?: string;
+    };
+  }>;
 }
 
 interface CoinGeckoPriceResponse {
@@ -70,33 +67,33 @@ interface CoinGeckoSearchResponse {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal Helper: fetchFromCoinGecko
+// Internal Helper: cgFetch
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Generic helper for all CoinGecko API requests.
  * 
- * - Automatically attaches API key (header + query param) if COINGECKO_API_KEY is set.
+ * - Automatically attaches API key header if COINGECKO_API_KEY is set.
  * - Logs a one-time warning if no API key is configured.
  * - Returns parsed JSON on success, or null on error.
  * 
  * @param path - The API path (e.g. "/search/trending")
- * @param searchParams - Optional query parameters
+ * @param params - Optional query parameters
  * @returns Parsed JSON response, or null if request failed
  */
-async function fetchFromCoinGecko<T = unknown>(
+export async function cgFetch<T = unknown>(
   path: string,
-  searchParams?: Record<string, string | number | undefined>
+  params?: Record<string, string | number | undefined>
 ): Promise<T | null> {
   const apiKey = process.env.COINGECKO_API_KEY;
 
   // Build URL
   const url = new URL(path, COINGECKO_BASE_URL);
 
-  // Add search params
-  if (searchParams) {
-    for (const [key, value] of Object.entries(searchParams)) {
-      if (value !== undefined) {
+  // Add query params
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) {
         url.searchParams.set(key, String(value));
       }
     }
@@ -104,39 +101,35 @@ async function fetchFromCoinGecko<T = unknown>(
 
   // Build headers
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    'Accept': 'application/json',
   };
 
   // API key handling
   if (apiKey) {
-    // Add API key as header
-    headers['x-cg-demo-api-key'] = apiKey;
-    // Also add as query param for safety
-    url.searchParams.set('x_cg_demo_api_key', apiKey);
+    // Use x-cg-api-key header (works for both demo and pro keys)
+    headers['x-cg-api-key'] = apiKey;
   } else {
     // Log one-time warning about missing API key
     if (!hasWarnedAboutMissingKey) {
-      console.warn(
-        '[CoinGecko] COINGECKO_API_KEY not set. Using unauthenticated public API (higher risk of rate limits).'
-      );
+      console.warn('[coingecko] COINGECKO_API_KEY not set – using public API');
       hasWarnedAboutMissingKey = true;
     }
   }
 
   try {
+    console.log('[coingecko] Fetching:', path);
     const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
-      console.error(
-        `[CoinGecko] API error: ${response.status} ${response.statusText} for ${path}`
-      );
+      const bodyText = await response.text().catch(() => '(no body)');
+      console.error(`[coingecko] ${path} error: status ${response.status} ${response.statusText}`, bodyText.slice(0, 300));
       return null;
     }
 
     const data: T = await response.json();
     return data;
   } catch (error) {
-    console.error(`[CoinGecko] Request failed for ${path}:`, error);
+    console.error(`[coingecko] ${path} fetch exception:`, error);
     return null;
   }
 }
@@ -147,117 +140,137 @@ async function fetchFromCoinGecko<T = unknown>(
 
 /**
  * Get trending coins from CoinGecko with their current USD prices.
- * Returns up to 10 coins.
+ * Returns up to 20 coins.
+ * 
+ * Falls back to top coins by market cap if trending endpoint returns no data.
  */
 export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPrice[]> {
   try {
-    // Step 1: Get trending coins
-    const trendingData = await fetchFromCoinGecko<CoinGeckoTrendingResponse>('/search/trending');
-
-    if (!trendingData || !trendingData.coins) {
-      console.warn('[CoinGecko] No trending data received');
-      return [];
+    console.log('[coingecko] getTrendingCoinsWithPrices starting...');
+    
+    // Step 1: Try to get trending coins
+    const trending = await cgFetch<CoinGeckoTrendingResponse>('/search/trending');
+    
+    let coinIds: string[] = [];
+    
+    if (trending && trending.coins && trending.coins.length > 0) {
+      console.log('[coingecko] /search/trending returned', trending.coins.length, 'coins');
+      coinIds = trending.coins.slice(0, 20).map(c => c.item.id);
+    } else {
+      console.log('[coingecko] /search/trending returned no coins, falling back to /coins/markets');
     }
 
-    // Extract up to 10 coin IDs
-    const coinIds = trendingData.coins
-      .slice(0, 10)
-      .map(coin => coin.item.id);
+    // Step 2: If we have trending coin IDs, get their market data
+    let result: TrendingCoinWithPrice[] = [];
+    
+    if (coinIds.length > 0) {
+      const markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+        vs_currency: 'usd',
+        ids: coinIds.join(','),
+        order: 'market_cap_desc',
+        per_page: 20,
+        page: 1,
+        price_change_percentage: '24h',
+      });
 
-    if (coinIds.length === 0) {
-      console.warn('[CoinGecko] No trending coins found');
-      return [];
-    }
-
-    // Step 2: Get market data for these coins using coins/markets endpoint
-    const marketsData = await fetchFromCoinGecko<CoinGeckoMarketCoin[]>('/coins/markets', {
-      vs_currency: 'usd',
-      ids: coinIds.join(','),
-      order: 'market_cap_desc',
-      per_page: 10,
-      page: 1,
-      sparkline: 'false',
-    });
-
-    if (!marketsData) {
-      console.warn('[CoinGecko] No market data received for trending coins');
-      return [];
-    }
-
-    // Create a map of coin IDs to market data for quick lookup
-    const marketDataMap = new Map<string, CoinGeckoMarketCoin>();
-    for (const marketCoin of marketsData) {
-      marketDataMap.set(marketCoin.id, marketCoin);
-    }
-
-    // Combine trending data with market data, preserving trending order
-    const result: TrendingCoinWithPrice[] = [];
-
-    for (const coinItem of trendingData.coins.slice(0, 10)) {
-      const coin = coinItem.item;
-      const marketData = marketDataMap.get(coin.id);
-
-      if (marketData && marketData.current_price) {
-        result.push({
-          id: coin.id,
-          symbol: coin.symbol,
-          name: coin.name,
-          priceUsd: marketData.current_price,
-          imageUrl: marketData.image || coin.small || coin.thumb || undefined,
-          marketCapUsd: marketData.market_cap || undefined,
-          volume24hUsd: marketData.total_volume || undefined,
-          change24hPct: marketData.price_change_percentage_24h || undefined,
-        });
+      if (markets && markets.length > 0) {
+        console.log('[coingecko] /coins/markets returned', markets.length, 'coins for trending ids');
+        result = mapMarketsToTrendingCoins(markets);
+      } else {
+        console.log('[coingecko] /coins/markets returned no data for trending ids');
       }
     }
 
+    // Step 3: Fallback - if we still have no data, get top coins by market cap
+    if (result.length === 0) {
+      console.log('[coingecko] Using fallback: top coins by market cap');
+      const fallbackMarkets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+        vs_currency: 'usd',
+        order: 'market_cap_desc',
+        per_page: 20,
+        page: 1,
+        price_change_percentage: '24h',
+      });
+
+      if (fallbackMarkets && fallbackMarkets.length > 0) {
+        console.log('[coingecko] Fallback /coins/markets returned', fallbackMarkets.length, 'coins');
+        result = mapMarketsToTrendingCoins(fallbackMarkets);
+      } else {
+        console.log('[coingecko] Fallback /coins/markets also empty');
+      }
+    }
+
+    console.log('[coingecko] getTrendingCoinsWithPrices result length:', result.length);
     return result;
   } catch (error) {
-    console.error('[CoinGecko] Error fetching trending coins:', error);
+    console.error('[coingecko] getTrendingCoinsWithPrices exception:', error);
     return [];
   }
 }
 
 /**
+ * Map CoinGecko market data to TrendingCoinWithPrice type
+ */
+function mapMarketsToTrendingCoins(markets: CoinGeckoMarketCoin[]): TrendingCoinWithPrice[] {
+  return markets
+    .filter(m => m.current_price !== null && m.current_price !== undefined)
+    .map(m => ({
+      id: m.id,
+      symbol: m.symbol,
+      name: m.name,
+      priceUsd: m.current_price,
+      imageUrl: m.image || undefined,
+      marketCapUsd: m.market_cap ?? null,
+      volume24hUsd: m.total_volume ?? null,
+      change24hPct: m.price_change_percentage_24h_in_currency ?? m.price_change_percentage_24h ?? null,
+    }));
+}
+
+/**
  * Get price for a specific coin by symbol from CoinGecko.
- * Uses the /simple/price endpoint with symbol lookup.
+ * Uses the /search endpoint to find coin ID, then /simple/price for the price.
  */
 export async function getPriceBySymbol(symbol: string): Promise<number | null> {
   try {
+    console.log('[coingecko] getPriceBySymbol:', symbol);
+    
     // First, search for the coin by symbol to get its ID
-    const searchData = await fetchFromCoinGecko<CoinGeckoSearchResponse>('/search', {
+    const searchData = await cgFetch<CoinGeckoSearchResponse>('/search', {
       query: symbol,
     });
 
     if (!searchData || !searchData.coins || searchData.coins.length === 0) {
+      console.log('[coingecko] No search results for symbol:', symbol);
       return null;
     }
 
     // Find exact symbol match (case-insensitive)
     const coin = searchData.coins.find(c => c.symbol.toLowerCase() === symbol.toLowerCase());
     if (!coin) {
+      console.log('[coingecko] No exact symbol match for:', symbol);
       return null;
     }
 
     // Get price for this coin ID
-    const priceData = await fetchFromCoinGecko<CoinGeckoPriceResponse>('/simple/price', {
+    const priceData = await cgFetch<CoinGeckoPriceResponse>('/simple/price', {
       ids: coin.id,
       vs_currencies: 'usd',
     });
 
     if (!priceData) {
+      console.log('[coingecko] No price data for coin:', coin.id);
       return null;
     }
 
     const priceInfo = priceData[coin.id];
-
     if (priceInfo && priceInfo.usd) {
+      console.log('[coingecko] Price for', symbol, ':', priceInfo.usd);
       return priceInfo.usd;
     }
 
     return null;
   } catch (error) {
-    console.error(`[CoinGecko] Error fetching price for ${symbol}:`, error);
+    console.error(`[coingecko] getPriceBySymbol(${symbol}) exception:`, error);
     return null;
   }
 }
@@ -272,13 +285,12 @@ export async function getMarketDataForCoins(coinIds: string[]): Promise<CoinGeck
   }
 
   try {
-    const marketsData = await fetchFromCoinGecko<CoinGeckoMarketCoin[]>('/coins/markets', {
+    const marketsData = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
       vs_currency: 'usd',
       ids: coinIds.join(','),
       order: 'market_cap_desc',
       per_page: 250,
       page: 1,
-      sparkline: 'false',
     });
 
     if (!marketsData) {
@@ -287,7 +299,7 @@ export async function getMarketDataForCoins(coinIds: string[]): Promise<CoinGeck
 
     return marketsData;
   } catch (error) {
-    console.error('[CoinGecko] Error fetching market data for coins:', error);
+    console.error('[coingecko] getMarketDataForCoins exception:', error);
     return [];
   }
 }
@@ -297,12 +309,11 @@ export async function getMarketDataForCoins(coinIds: string[]): Promise<CoinGeck
  */
 export async function getTopCoinsByVolume(limit: number = 10): Promise<CoinGeckoMarketCoin[]> {
   try {
-    const marketsData = await fetchFromCoinGecko<CoinGeckoMarketCoin[]>('/coins/markets', {
+    const marketsData = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
       vs_currency: 'usd',
       order: 'volume_desc',
       per_page: limit,
       page: 1,
-      sparkline: 'false',
     });
 
     if (!marketsData) {
@@ -311,7 +322,7 @@ export async function getTopCoinsByVolume(limit: number = 10): Promise<CoinGecko
 
     return marketsData;
   } catch (error) {
-    console.error('[CoinGecko] Error fetching top coins by volume:', error);
+    console.error('[coingecko] getTopCoinsByVolume exception:', error);
     return [];
   }
 }
