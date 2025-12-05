@@ -95,6 +95,8 @@ export default async function handler(
   }
 
   try {
+    console.log('[sync-meme-snapshots] memes.length =', memes.length);
+    
     // Build snapshot data with explicit IDs
     const data = memes.map((m) => ({
       id: randomUUID(),

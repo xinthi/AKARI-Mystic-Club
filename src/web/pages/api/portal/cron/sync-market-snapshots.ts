@@ -95,6 +95,8 @@ export default async function handler(
   }
 
   try {
+    console.log('[sync-market-snapshots] coins.length =', coins.length);
+    
     // Build snapshot data with explicit IDs
     const data = coins.map((c) => ({
       id: randomUUID(),

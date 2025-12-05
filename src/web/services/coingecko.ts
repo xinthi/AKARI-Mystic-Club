@@ -163,89 +163,30 @@ export async function cgFetch<T = unknown>(
 
 /**
  * Get trending coins from CoinGecko with their current USD prices.
- * Returns up to 20 coins.
+ * Returns up to 30 coins by market cap.
  * 
- * Falls back through multiple strategies to ensure data is always returned:
- * 1. /search/trending → /coins/markets (by IDs)
- * 2. /coins/markets (by market cap)
- * 3. /coins/markets (by volume)
+ * Simplified implementation that directly calls /coins/markets
+ * which is known to work reliably.
  */
 export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPrice[]> {
   try {
-    console.log('[coingecko] getTrendingCoinsWithPrices starting...');
-    
-    // Step 1: Try to get trending coins
-    const trending = await cgFetch<CoinGeckoTrendingResponse>('/search/trending');
-    
-    let coinIds: string[] = [];
-    const trendingCount = trending?.coins?.length ?? 0;
-    console.log('[coingecko] /search/trending returned', trendingCount, 'coins');
-    
-    if (trendingCount > 0) {
-      coinIds = trending!.coins.slice(0, 20).map(c => c.item.id);
+    console.log('[coingecko] getTrendingCoinsWithPrices: fetching top market cap coins');
+
+    const markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+      vs_currency: 'usd',
+      order: 'market_cap_desc',
+      per_page: 30,
+      page: 1,
+      price_change_percentage: '24h',
+    });
+
+    if (!Array.isArray(markets) || markets.length === 0) {
+      console.log('[coingecko] getTrendingCoinsWithPrices: markets empty or not an array');
+      return [];
     }
 
-    // Step 2: If we have trending coin IDs, get their market data
-    let result: TrendingCoinWithPrice[] = [];
-    
-    if (coinIds.length > 0) {
-      const markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
-        vs_currency: 'usd',
-        ids: coinIds.join(','),
-        order: 'market_cap_desc',
-        per_page: 20,
-        page: 1,
-        price_change_percentage: '24h',
-      });
-
-      const marketsCount = markets?.length ?? 0;
-      console.log('[coingecko] /coins/markets (trending IDs) returned', marketsCount, 'coins');
-      
-      if (marketsCount > 0) {
-        result = mapMarketsToTrendingCoins(markets!);
-      }
-    }
-
-    // Step 3: Fallback #1 - if we still have no data, get top coins by market cap
-    if (result.length === 0) {
-      console.log('[coingecko] Fallback #1: top coins by market cap');
-      const fallbackMarkets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
-        vs_currency: 'usd',
-        order: 'market_cap_desc',
-        per_page: 20,
-        page: 1,
-        price_change_percentage: '24h',
-      });
-
-      const fallbackCount = fallbackMarkets?.length ?? 0;
-      console.log('[coingecko] /coins/markets (market_cap_desc) returned', fallbackCount, 'coins');
-      
-      if (fallbackCount > 0) {
-        result = mapMarketsToTrendingCoins(fallbackMarkets!);
-      }
-    }
-
-    // Step 4: Fallback #2 - if STILL no data, try top coins by volume
-    if (result.length === 0) {
-      console.log('[coingecko] Fallback #2: top coins by volume');
-      const volumeMarkets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
-        vs_currency: 'usd',
-        order: 'volume_desc',
-        per_page: 20,
-        page: 1,
-        price_change_percentage: '24h',
-      });
-
-      const volumeCount = volumeMarkets?.length ?? 0;
-      console.log('[coingecko] /coins/markets (volume_desc) returned', volumeCount, 'coins');
-      
-      if (volumeCount > 0) {
-        result = mapMarketsToTrendingCoins(volumeMarkets!);
-      }
-    }
-
-    console.log('[coingecko] getTrendingCoinsWithPrices final result length:', result.length);
-    return result;
+    console.log('[coingecko] getTrendingCoinsWithPrices: markets length =', markets.length);
+    return mapMarketsToTrendingCoins(markets);
   } catch (error) {
     console.error('[coingecko] getTrendingCoinsWithPrices exception:', error);
     return [];
