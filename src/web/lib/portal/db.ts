@@ -1,5 +1,5 @@
 import { prisma } from '../prisma';
-import type { MarketSnapshot, MemeTokenSnapshot } from '@prisma/client';
+import type { MarketSnapshot, MemeTokenSnapshot, DexMarketSnapshot, CexMarketSnapshot } from '@prisma/client';
 
 /**
  * Get recent whale entries from the last 7 days, ordered by occurredAt descending
@@ -463,5 +463,200 @@ export async function getLatestMemeTokenSnapshots(limit: number = 50): Promise<M
     orderBy: { createdAt: 'desc' },
     take: limit,
   });
+}
+
+// ============================================
+// DEX & CEX SNAPSHOTS
+// ============================================
+
+/**
+ * Get DEX market snapshots for a list of symbols.
+ * Returns the most recent snapshots for each symbol, grouped by symbol.
+ */
+export async function getDexSnapshotsForSymbols(symbols: string[]): Promise<DexMarketSnapshot[]> {
+  if (symbols.length === 0) {
+    return [];
+  }
+
+  const normalizedSymbols = symbols.map(s => s.toUpperCase());
+
+  return prisma.dexMarketSnapshot.findMany({
+    where: {
+      symbol: {
+        in: normalizedSymbols,
+        mode: 'insensitive',
+      },
+    },
+    orderBy: [
+      { liquidityUsd: 'desc' },
+      { updatedAt: 'desc' },
+    ],
+  });
+}
+
+/**
+ * Get CEX market snapshots for a list of symbols.
+ * Returns the most recent snapshots for each symbol.
+ */
+export async function getCexSnapshotsForSymbols(symbols: string[]): Promise<CexMarketSnapshot[]> {
+  if (symbols.length === 0) {
+    return [];
+  }
+
+  const normalizedSymbols = symbols.map(s => s.toUpperCase());
+
+  return prisma.cexMarketSnapshot.findMany({
+    where: {
+      symbol: {
+        in: normalizedSymbols,
+        mode: 'insensitive',
+      },
+    },
+    orderBy: [
+      { volume24hUsd: 'desc' },
+      { updatedAt: 'desc' },
+    ],
+  });
+}
+
+/**
+ * Get top tokens by DEX liquidity.
+ * Returns the tokens with highest liquidity across all DEX sources.
+ */
+export async function getTopDexByLiquidity(limit: number = 10): Promise<DexMarketSnapshot[]> {
+  return prisma.dexMarketSnapshot.findMany({
+    where: {
+      liquidityUsd: {
+        not: null,
+        gt: 0,
+      },
+    },
+    orderBy: { liquidityUsd: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * Get top tokens by 24h DEX volume.
+ */
+export async function getTopDexByVolume(limit: number = 10): Promise<DexMarketSnapshot[]> {
+  return prisma.dexMarketSnapshot.findMany({
+    where: {
+      volume24hUsd: {
+        not: null,
+        gt: 0,
+      },
+    },
+    orderBy: { volume24hUsd: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * Get aggregated DEX data for a single symbol.
+ * Returns the best liquidity and total volume across all DEX sources.
+ */
+export async function getDexAggregateForSymbol(symbol: string): Promise<{
+  maxLiquidityUsd: number | null;
+  totalVolume24hUsd: number | null;
+  sources: string[];
+  chains: string[];
+} | null> {
+  const snapshots = await prisma.dexMarketSnapshot.findMany({
+    where: {
+      symbol: {
+        equals: symbol,
+        mode: 'insensitive',
+      },
+    },
+  });
+
+  if (snapshots.length === 0) {
+    return null;
+  }
+
+  const maxLiquidity = Math.max(
+    ...snapshots.map(s => s.liquidityUsd || 0)
+  );
+  
+  const totalVolume = snapshots.reduce(
+    (sum, s) => sum + (s.volume24hUsd || 0),
+    0
+  );
+
+  const sources = [...new Set(snapshots.map(s => s.dexSource))];
+  const chains = [...new Set(snapshots.map(s => s.chain))];
+
+  return {
+    maxLiquidityUsd: maxLiquidity > 0 ? maxLiquidity : null,
+    totalVolume24hUsd: totalVolume > 0 ? totalVolume : null,
+    sources,
+    chains,
+  };
+}
+
+/**
+ * Get CEX exchanges where a symbol is trading.
+ */
+export async function getCexExchangesForSymbol(symbol: string): Promise<string[]> {
+  const snapshots = await prisma.cexMarketSnapshot.findMany({
+    where: {
+      symbol: {
+        equals: symbol,
+        mode: 'insensitive',
+      },
+    },
+    select: {
+      exchange: true,
+    },
+    distinct: ['exchange'],
+  });
+
+  return snapshots.map(s => s.exchange);
+}
+
+/**
+ * Get a summary of where a token trades (DEX + CEX).
+ */
+export async function getTradingVenuesSummary(symbol: string): Promise<{
+  dexSources: string[];
+  dexChains: string[];
+  cexExchanges: string[];
+  hasDex: boolean;
+  hasCex: boolean;
+}> {
+  const [dexSnapshots, cexSnapshots] = await Promise.all([
+    prisma.dexMarketSnapshot.findMany({
+      where: {
+        symbol: {
+          equals: symbol,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        dexSource: true,
+        chain: true,
+      },
+    }),
+    prisma.cexMarketSnapshot.findMany({
+      where: {
+        symbol: {
+          equals: symbol,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        exchange: true,
+      },
+    }),
+  ]);
+
+  return {
+    dexSources: [...new Set(dexSnapshots.map(s => s.dexSource))],
+    dexChains: [...new Set(dexSnapshots.map(s => s.chain))],
+    cexExchanges: [...new Set(cexSnapshots.map(s => s.exchange))],
+    hasDex: dexSnapshots.length > 0,
+    hasCex: cexSnapshots.length > 0,
+  };
 }
 

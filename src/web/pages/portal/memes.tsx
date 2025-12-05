@@ -1,8 +1,8 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../components/portal/PortalLayout';
-import { getLatestMemeTokenSnapshots } from '../../lib/portal/db';
-import type { MemeTokenSnapshot } from '@prisma/client';
+import { getLatestMemeTokenSnapshots, getDexSnapshotsForSymbols } from '../../lib/portal/db';
+import type { MemeTokenSnapshot, DexMarketSnapshot } from '@prisma/client';
 
 // Serializable version of MemeTokenSnapshot for SSR props
 interface MemeSnapshotDto {
@@ -16,8 +16,18 @@ interface MemeSnapshotDto {
   createdAt: string;
 }
 
+// DEX info per meme
+interface MemeDexInfo {
+  symbol: string;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+  chain: string | null;
+  dexName: string | null;
+}
+
 interface MemesPageProps {
   memecoins: MemeSnapshotDto[];
+  memeDexInfo: MemeDexInfo[];
   error?: string;
 }
 
@@ -52,6 +62,17 @@ function formatMarketCap(marketCap: number | null): string {
   return formatPrice(marketCap);
 }
 
+function formatLargeNumber(num: number): string {
+  if (num >= 1_000_000_000) {
+    return `$${(num / 1_000_000_000).toFixed(2)}B`;
+  } else if (num >= 1_000_000) {
+    return `$${(num / 1_000_000).toFixed(2)}M`;
+  } else if (num >= 1_000) {
+    return `$${(num / 1_000).toFixed(2)}K`;
+  }
+  return `$${num.toFixed(2)}`;
+}
+
 function formatPriceChange(change: number | null): { text: string; color: string } {
   if (change === null) {
     return { text: 'N/A', color: 'text-akari-muted' };
@@ -65,16 +86,46 @@ function formatPriceChange(change: number | null): { text: string; color: string
   };
 }
 
-export default function MemesPage({ memecoins, error }: MemesPageProps) {
-  // Sort by marketCapUsd descending (highest first), then by priceUsd if marketCap is null
-  const sortedMemecoins = [...memecoins].sort((a, b) => {
-    if (a.marketCapUsd !== null && b.marketCapUsd !== null) {
-      return b.marketCapUsd - a.marketCapUsd;
+export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPageProps) {
+  // Create lookup map for DEX info by symbol
+  const dexBySymbol = React.useMemo(() => {
+    const map = new Map<string, MemeDexInfo>();
+    for (const info of memeDexInfo) {
+      map.set(info.symbol.toUpperCase(), info);
     }
-    if (a.marketCapUsd !== null) return -1;
-    if (b.marketCapUsd !== null) return 1;
-    return b.priceUsd - a.priceUsd;
-  });
+    return map;
+  }, [memeDexInfo]);
+
+  // Sort by liquidityUsd (from DEX) descending, then by marketCapUsd
+  const sortedMemecoins = React.useMemo(() => {
+    return [...memecoins].sort((a, b) => {
+      const dexA = dexBySymbol.get(a.symbol.toUpperCase());
+      const dexB = dexBySymbol.get(b.symbol.toUpperCase());
+      
+      // First sort by DEX liquidity
+      const liqA = dexA?.liquidityUsd ?? 0;
+      const liqB = dexB?.liquidityUsd ?? 0;
+      if (liqA !== liqB) return liqB - liqA;
+      
+      // Then by market cap
+      if (a.marketCapUsd !== null && b.marketCapUsd !== null) {
+        return b.marketCapUsd - a.marketCapUsd;
+      }
+      if (a.marketCapUsd !== null) return -1;
+      if (b.marketCapUsd !== null) return 1;
+      return b.priceUsd - a.priceUsd;
+    });
+  }, [memecoins, dexBySymbol]);
+
+  // Top 5 by DEX liquidity for candidates section
+  const topByLiquidity = React.useMemo(() => {
+    return sortedMemecoins
+      .filter(m => {
+        const dex = dexBySymbol.get(m.symbol.toUpperCase());
+        return dex && dex.liquidityUsd && dex.liquidityUsd > 0;
+      })
+      .slice(0, 5);
+  }, [sortedMemecoins, dexBySymbol]);
 
   // Top 3 by priceChange24h for "High attention" candidates
   const topByChange = [...memecoins]
@@ -112,12 +163,13 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
         <div className="mb-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-akari-text">Pump.fun Radar</h2>
-            <span className="text-xs text-akari-muted">High attention zone (cached)</span>
+            <span className="text-xs text-akari-muted">Sorted by DEX liquidity</span>
           </div>
           
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {sortedMemecoins.map((coin) => {
               const priceChange = formatPriceChange(coin.change24hPct);
+              const dexInfo = dexBySymbol.get(coin.symbol.toUpperCase());
               
               return (
                 <div
@@ -129,11 +181,18 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
                       <h3 className="text-sm font-semibold text-akari-text mb-0.5">{coin.name}</h3>
                       <p className="text-xs text-akari-muted uppercase">{coin.symbol}</p>
                     </div>
-                    {coin.marketCapUsd !== null && coin.marketCapUsd > 10_000_000 && (
-                      <span className="inline-flex items-center rounded-full bg-akari-primary/15 px-2 py-1 text-[10px] font-medium text-akari-primary uppercase tracking-[0.1em]">
-                        High Attention
-                      </span>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {dexInfo?.liquidityUsd && dexInfo.liquidityUsd > 100_000 && (
+                        <span className="inline-flex items-center rounded-full bg-green-500/15 px-2 py-0.5 text-[9px] font-medium text-green-400 uppercase tracking-[0.1em]">
+                          High Liq
+                        </span>
+                      )}
+                      {coin.marketCapUsd !== null && coin.marketCapUsd > 10_000_000 && (
+                        <span className="inline-flex items-center rounded-full bg-akari-primary/15 px-2 py-0.5 text-[9px] font-medium text-akari-primary uppercase tracking-[0.1em]">
+                          High MC
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
@@ -141,6 +200,22 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
                       <span className="text-xs text-akari-muted">Price</span>
                       <span className="text-sm font-semibold text-akari-primary">{formatPrice(coin.priceUsd)}</span>
                     </div>
+                    
+                    {/* DEX Liquidity */}
+                    {dexInfo?.liquidityUsd && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-akari-muted">DEX Liquidity</span>
+                        <span className="text-xs font-medium text-green-400">{formatLargeNumber(dexInfo.liquidityUsd)}</span>
+                      </div>
+                    )}
+
+                    {/* DEX Volume */}
+                    {dexInfo?.volume24hUsd && dexInfo.volume24hUsd > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-akari-muted">DEX Vol 24h</span>
+                        <span className="text-xs font-medium text-akari-text">{formatLargeNumber(dexInfo.volume24hUsd)}</span>
+                      </div>
+                    )}
                     
                     {coin.marketCapUsd !== null && (
                       <div className="flex items-center justify-between">
@@ -153,6 +228,15 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-akari-muted">24h Change</span>
                         <span className={`text-xs font-medium ${priceChange.color}`}>{priceChange.text}</span>
+                      </div>
+                    )}
+
+                    {/* Chain/DEX info */}
+                    {dexInfo?.dexName && (
+                      <div className="pt-2 border-t border-akari-border/20">
+                        <span className="text-[10px] text-akari-muted">
+                          {dexInfo.chain ? `${dexInfo.chain} • ` : ''}{dexInfo.dexName}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -179,19 +263,20 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
           <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">SOL memecoins tracker</p>
           <p className="text-sm mb-1 text-akari-text font-medium">Solana Memes</p>
           <p className="text-[11px] text-akari-muted mb-3">
-            Track SOL memes from DexScreener. Filter by liquidity threshold, age, holder count, and velocity. Auto-create prediction pools.
+            Track SOL memes by DEX liquidity. Filter by liquidity threshold, age, holder count, and velocity.
           </p>
           
           {!error && solTrackerMemes.length > 0 ? (
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {solTrackerMemes.map((coin) => {
                 const change = formatPriceChange(coin.change24hPct);
+                const dexInfo = dexBySymbol.get(coin.symbol.toUpperCase());
                 return (
                   <div key={coin.id} className="flex items-center justify-between text-xs py-1 border-b border-akari-border/20 last:border-0">
                     <div className="flex-1">
                       <span className="text-akari-text uppercase font-medium">{coin.symbol}</span>
-                      {coin.marketCapUsd !== null && (
-                        <span className="text-akari-muted ml-2">{formatMarketCap(coin.marketCapUsd)}</span>
+                      {dexInfo?.liquidityUsd && (
+                        <span className="text-green-400 ml-2 text-[10px]">{formatLargeNumber(dexInfo.liquidityUsd)}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -235,15 +320,30 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
           )}
         </div>
 
-        {/* Watchlist / Candidates */}
+        {/* Watchlist / Candidates - Now sorted by DEX liquidity */}
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
           <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Watchlist / candidates</p>
           <p className="text-sm mb-1 text-akari-text font-medium">Prediction Candidates</p>
           <p className="text-[11px] text-akari-muted mb-3">
-            Curated list of meme pairs that meet our criteria. These candidates can become new prediction pools with one tap.
+            Top memes by DEX liquidity. These candidates can become new prediction pools with one tap.
           </p>
           
-          {!error && topByChange.length > 0 ? (
+          {!error && topByLiquidity.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">By Liquidity</p>
+              {topByLiquidity.map((coin) => {
+                const dexInfo = dexBySymbol.get(coin.symbol.toUpperCase());
+                return (
+                  <div key={coin.id} className="flex items-center justify-between text-xs">
+                    <span className="text-akari-text">{coin.name}</span>
+                    <span className="font-medium text-green-400">
+                      {dexInfo?.liquidityUsd ? formatLargeNumber(dexInfo.liquidityUsd) : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : !error && topByChange.length > 0 ? (
             <div className="space-y-1.5">
               <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">Top movers</p>
               {topByChange.map((coin) => {
@@ -281,9 +381,58 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
       createdAt: s.createdAt.toISOString(),
     }));
 
+    // Fetch DEX info for meme symbols
+    const symbols = memeSnapshots.map((s: MemeTokenSnapshot) => s.symbol);
+    let dexSnapshots: DexMarketSnapshot[] = [];
+    
+    if (symbols.length > 0) {
+      dexSnapshots = await getDexSnapshotsForSymbols(symbols).catch(() => []);
+    }
+
+    // Aggregate DEX info per symbol (take best liquidity)
+    const memeDexInfo: MemeDexInfo[] = [];
+    const processedSymbols = new Set<string>();
+    
+    for (const symbol of symbols) {
+      const upperSymbol = symbol.toUpperCase();
+      if (processedSymbols.has(upperSymbol)) continue;
+      processedSymbols.add(upperSymbol);
+      
+      const dexForSymbol = dexSnapshots.filter(
+        (d: DexMarketSnapshot) => d.symbol.toUpperCase() === upperSymbol
+      );
+      
+      if (dexForSymbol.length === 0) {
+        memeDexInfo.push({
+          symbol: upperSymbol,
+          liquidityUsd: null,
+          volume24hUsd: null,
+          chain: null,
+          dexName: null,
+        });
+        continue;
+      }
+      
+      // Find the one with highest liquidity
+      const best = dexForSymbol.reduce((prev: DexMarketSnapshot, curr: DexMarketSnapshot) => {
+        const prevLiq = prev.liquidityUsd || 0;
+        const currLiq = curr.liquidityUsd || 0;
+        return currLiq > prevLiq ? curr : prev;
+      });
+      
+      memeDexInfo.push({
+        symbol: upperSymbol,
+        liquidityUsd: best.liquidityUsd,
+        volume24hUsd: best.volume24hUsd,
+        chain: best.chain,
+        dexName: best.dexName,
+      });
+    }
+
     return {
       props: {
         memecoins: JSON.parse(JSON.stringify(memecoins)),
+        memeDexInfo: JSON.parse(JSON.stringify(memeDexInfo)),
       },
     };
   } catch (error: any) {
@@ -291,6 +440,7 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
     return {
       props: {
         memecoins: [],
+        memeDexInfo: [],
         error: 'Failed to load meme radar',
       },
     };

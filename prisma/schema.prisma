@@ -795,3 +795,54 @@ model MemeTokenSnapshot {
   @@index([createdAt])
   @@index([source])
 }
+
+// ============================================
+// DEX & CEX ENRICHMENT LAYER (Portal)
+// ============================================
+
+model DexMarketSnapshot {
+  id            String   @id @default(cuid())
+  symbol        String   // e.g. "PEPE"
+  name          String?
+  chain         String   // "solana", "ethereum", "base", "bsc", etc.
+  address       String   // token address (or pair address if token unknown)
+  pairAddress   String?  // DEX pair address
+  dexSource     String   // "dexscreener", "geckoterminal", "birdeye"
+  dexName       String?  // specific DEX name, e.g. "Raydium", "Uniswap"
+  priceUsd      Float?
+  liquidityUsd  Float?
+  volume24hUsd  Float?
+  fdvUsd        Float?
+  baseToken     String?  // base token symbol
+  quoteToken    String?  // quote token symbol (e.g. "USDC", "WETH")
+  priceChange24h Float?  // 24h price change percentage
+  txns24h       Int?     // number of transactions in 24h
+  updatedAt     DateTime @default(now())
+
+  @@unique([dexSource, chain, address])
+  @@index([symbol])
+  @@index([chain])
+  @@index([updatedAt])
+}
+
+model CexMarketSnapshot {
+  id              String   @id @default(cuid())
+  symbol          String   // e.g. "BTC"
+  baseSymbol      String   // "BTC"
+  quoteSymbol     String   // "USDT"
+  exchange        String   // "binance", "okx"
+  pairCode        String   // "BTCUSDT" or "BTC-USDT"
+  priceUsd        Float?
+  volume24hUsd    Float?
+  high24h         Float?
+  low24h          Float?
+  priceChange24h  Float?   // 24h price change percentage
+  fundingRate     Float?   // for perpetual futures
+  openInterestUsd Float?   // for futures
+  updatedAt       DateTime @default(now())
+
+  @@unique([exchange, pairCode])
+  @@index([symbol])
+  @@index([exchange])
+  @@index([updatedAt])
+}
