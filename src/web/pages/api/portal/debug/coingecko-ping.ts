@@ -16,6 +16,7 @@ type PingResponse = {
   marketsCount: number | null;
   baseUrl: string;
   hasApiKey: boolean;
+  usingProApi: boolean;
   error?: string;
 };
 
@@ -24,7 +25,8 @@ export default async function handler(
   res: NextApiResponse<PingResponse>
 ) {
   const hasApiKey = !!process.env.COINGECKO_API_KEY;
-  const baseUrl = hasApiKey
+  const useProApi = process.env.COINGECKO_USE_PRO === 'true';
+  const baseUrl = useProApi
     ? 'https://pro-api.coingecko.com/api/v3'
     : 'https://api.coingecko.com/api/v3';
 
@@ -50,6 +52,7 @@ export default async function handler(
       marketsCount: Array.isArray(markets) ? markets.length : null,
       baseUrl,
       hasApiKey,
+      usingProApi: useProApi,
     });
   } catch (e: any) {
     console.error('[coingecko-ping] Error:', e);
@@ -59,6 +62,7 @@ export default async function handler(
       marketsCount: null,
       baseUrl,
       hasApiKey,
+      usingProApi: useProApi,
       error: e?.message ?? 'Unknown error',
     });
   }

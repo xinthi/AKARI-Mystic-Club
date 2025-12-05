@@ -12,9 +12,17 @@
 // Constants & Module State
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HAS_COINGECKO_KEY = !!process.env.COINGECKO_API_KEY;
+/**
+ * CoinGecko API endpoint selection:
+ * - Demo API keys (free tier) work ONLY on api.coingecko.com
+ * - Pro API keys work on pro-api.coingecko.com
+ * 
+ * Since most users have Demo keys, we default to the public endpoint.
+ * Set COINGECKO_USE_PRO=true if you have a paid Pro key.
+ */
+const USE_PRO_API = process.env.COINGECKO_USE_PRO === 'true';
 
-const COINGECKO_BASE_URL = HAS_COINGECKO_KEY
+const COINGECKO_BASE_URL = USE_PRO_API
   ? 'https://pro-api.coingecko.com/api/v3'
   : 'https://api.coingecko.com/api/v3';
 
@@ -116,11 +124,14 @@ export async function cgFetch<T = unknown>(
     'Accept': 'application/json',
   };
 
-  // API key handling - send all header variants for compatibility
+  // API key handling
+  // Demo keys use x-cg-demo-api-key, Pro keys use x-cg-pro-api-key
   if (apiKey) {
-    headers['x-cg-pro-api-key'] = apiKey;
-    headers['x-cg-demo-api-key'] = apiKey;
-    headers['x-cg-api-key'] = apiKey;
+    if (USE_PRO_API) {
+      headers['x-cg-pro-api-key'] = apiKey;
+    } else {
+      headers['x-cg-demo-api-key'] = apiKey;
+    }
   }
 
   try {
