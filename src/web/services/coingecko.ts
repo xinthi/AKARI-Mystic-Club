@@ -4,17 +4,22 @@
  * Fetches trending coins and their current prices from CoinGecko API.
  * 
  * Set COINGECKO_API_KEY in environment variables for authenticated API access.
- * If not set, falls back to unauthenticated public API (higher risk of rate limits).
+ * - With API key: uses pro-api.coingecko.com
+ * - Without API key: uses api.coingecko.com (public, rate-limited)
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & Module State
 // ─────────────────────────────────────────────────────────────────────────────
 
-const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
+const HAS_COINGECKO_KEY = !!process.env.COINGECKO_API_KEY;
 
-/** Module-scoped flag to ensure we only log the missing API key warning once */
-let hasWarnedAboutMissingKey = false;
+const COINGECKO_BASE_URL = HAS_COINGECKO_KEY
+  ? 'https://pro-api.coingecko.com/api/v3'
+  : 'https://api.coingecko.com/api/v3';
+
+/** Module-scoped flag to ensure we only log the base URL info once */
+let hasLoggedBaseUrl = false;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -73,9 +78,10 @@ interface CoinGeckoSearchResponse {
 /**
  * Generic helper for all CoinGecko API requests.
  * 
- * - Automatically attaches API key header if COINGECKO_API_KEY is set.
- * - Logs a one-time warning if no API key is configured.
- * - Returns parsed JSON on success, or null on error.
+ * - Uses pro-api.coingecko.com if COINGECKO_API_KEY is set
+ * - Falls back to api.coingecko.com (public) if no key
+ * - Attaches all possible API key headers for compatibility
+ * - Returns parsed JSON on success, or null on error
  * 
  * @param path - The API path (e.g. "/search/trending")
  * @param params - Optional query parameters
@@ -86,6 +92,12 @@ export async function cgFetch<T = unknown>(
   params?: Record<string, string | number | undefined>
 ): Promise<T | null> {
   const apiKey = process.env.COINGECKO_API_KEY;
+
+  // Log base URL info once
+  if (!hasLoggedBaseUrl) {
+    console.log('[coingecko] Using base URL:', COINGECKO_BASE_URL, 'hasApiKey:', !!apiKey);
+    hasLoggedBaseUrl = true;
+  }
 
   // Build URL
   const url = new URL(path, COINGECKO_BASE_URL);
@@ -104,32 +116,34 @@ export async function cgFetch<T = unknown>(
     'Accept': 'application/json',
   };
 
-  // API key handling
+  // API key handling - send all header variants for compatibility
   if (apiKey) {
-    // Use x-cg-api-key header (works for both demo and pro keys)
+    headers['x-cg-pro-api-key'] = apiKey;
+    headers['x-cg-demo-api-key'] = apiKey;
     headers['x-cg-api-key'] = apiKey;
-  } else {
-    // Log one-time warning about missing API key
-    if (!hasWarnedAboutMissingKey) {
-      console.warn('[coingecko] COINGECKO_API_KEY not set – using public API');
-      hasWarnedAboutMissingKey = true;
-    }
   }
 
   try {
-    console.log('[coingecko] Fetching:', path);
+    console.log('[coingecko] Fetching URL:', url.toString(), 'hasApiKey:', !!apiKey);
     const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '(no body)');
-      console.error(`[coingecko] ${path} error: status ${response.status} ${response.statusText}`, bodyText.slice(0, 300));
+      console.error(
+        '[coingecko] Request failed',
+        url.toString(),
+        'status',
+        response.status,
+        response.statusText,
+        bodyText.slice(0, 300)
+      );
       return null;
     }
 
     const data: T = await response.json();
     return data;
   } catch (error) {
-    console.error(`[coingecko] ${path} fetch exception:`, error);
+    console.error('[coingecko] Fetch exception for', url.toString(), ':', error);
     return null;
   }
 }
@@ -177,7 +191,7 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
         console.log('[coingecko] /coins/markets returned', markets.length, 'coins for trending ids');
         result = mapMarketsToTrendingCoins(markets);
       } else {
-        console.log('[coingecko] /coins/markets returned no data for trending ids');
+        console.error('[coingecko] getTrendingCoinsWithPrices: /coins/markets returned null for trending ids');
       }
     }
 
@@ -196,7 +210,7 @@ export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPric
         console.log('[coingecko] Fallback /coins/markets returned', fallbackMarkets.length, 'coins');
         result = mapMarketsToTrendingCoins(fallbackMarkets);
       } else {
-        console.log('[coingecko] Fallback /coins/markets also empty');
+        console.error('[coingecko] getTrendingCoinsWithPrices: fallback /coins/markets also returned null');
       }
     }
 
@@ -294,6 +308,7 @@ export async function getMarketDataForCoins(coinIds: string[]): Promise<CoinGeck
     });
 
     if (!marketsData) {
+      console.error('[coingecko] getMarketDataForCoins: /coins/markets returned null');
       return [];
     }
 
@@ -317,6 +332,7 @@ export async function getTopCoinsByVolume(limit: number = 10): Promise<CoinGecko
     });
 
     if (!marketsData) {
+      console.error('[coingecko] getTopCoinsByVolume: /coins/markets returned null');
       return [];
     }
 

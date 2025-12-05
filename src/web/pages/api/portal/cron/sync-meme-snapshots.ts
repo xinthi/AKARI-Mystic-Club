@@ -54,14 +54,15 @@ export default async function handler(
     
     // Fetch top Pump.fun memecoins from CoinGecko
     const memes = await getTopPumpFunMemecoins(20);
-    console.log('[sync-meme-snapshots] fetched memes:', memes.length);
+    console.log('[sync-meme-snapshots] fetched memes:', memes?.length ?? 0);
 
-    // If no memes returned, log warning and return 0
-    if (memes.length === 0) {
-      console.warn('[sync-meme-snapshots] No memes returned from CoinGecko - check API key and rate limits');
-      return res.status(200).json({
-        ok: true,
+    // If no memes returned, return 502 error
+    if (!memes || memes.length === 0) {
+      console.error('[sync-meme-snapshots] No memecoins from CoinGecko. See cgFetch logs for URL/status.');
+      return res.status(502).json({
+        ok: false,
         snapshots: 0,
+        error: 'No memecoin data from CoinGecko. Check COINGECKO_API_KEY and Vercel logs.',
       });
     }
 

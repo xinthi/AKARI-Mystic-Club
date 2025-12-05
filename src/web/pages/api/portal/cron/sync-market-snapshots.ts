@@ -54,14 +54,15 @@ export default async function handler(
     
     // Fetch trending coins from CoinGecko
     const coins = await getTrendingCoinsWithPrices();
-    console.log('[sync-market-snapshots] fetched coins:', coins.length);
+    console.log('[sync-market-snapshots] fetched coins:', coins?.length ?? 0);
 
-    // If no coins returned, log warning and return 0
-    if (coins.length === 0) {
-      console.warn('[sync-market-snapshots] No coins returned from CoinGecko - check API key and rate limits');
-      return res.status(200).json({
-        ok: true,
+    // If no coins returned, return 502 error
+    if (!coins || coins.length === 0) {
+      console.error('[sync-market-snapshots] No coins from CoinGecko. See cgFetch logs for URL/status.');
+      return res.status(502).json({
+        ok: false,
         snapshots: 0,
+        error: 'No data from CoinGecko. Check COINGECKO_API_KEY and Vercel logs.',
       });
     }
 
