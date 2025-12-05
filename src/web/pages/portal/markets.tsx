@@ -294,14 +294,14 @@ export default function MarketsPage({
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {topDexLiquidity.slice(0, 6).map((entry, idx) => (
-                <div key={`${entry.symbol}-${idx}`} className="flex items-center justify-between p-2 bg-akari-cardSoft/50 rounded-xl">
+                <div key={`${entry.symbol || 'unknown'}-${idx}`} className="flex items-center justify-between p-2 bg-akari-cardSoft/50 rounded-xl">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 text-[10px] font-bold">
-                      {entry.symbol.charAt(0)}
+                      {entry.symbol?.charAt(0) || '?'}
                     </div>
                     <div>
-                      <span className="text-xs font-medium text-akari-text uppercase">{entry.symbol}</span>
-                      <p className="text-[9px] text-akari-muted">{entry.chain} • {entry.dexName || 'DEX'}</p>
+                      <span className="text-xs font-medium text-akari-text uppercase">{entry.symbol || '—'}</span>
+                      <p className="text-[9px] text-akari-muted">{entry.chain || 'unknown'} • {entry.dex || 'DEX'}</p>
                     </div>
                   </div>
                   <span className="text-xs font-semibold text-green-400">{formatLargeNumber(entry.liquidityUsd)}</span>
