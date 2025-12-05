@@ -3,6 +3,7 @@ import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../components/portal/PortalLayout';
 import { getLatestMemeTokenSnapshots, getDexSnapshotsForSymbols } from '../../lib/portal/db';
 import type { MemeTokenSnapshot, DexMarketSnapshot } from '@prisma/client';
+import { chainIcon, formatChainLabel } from '../../lib/portal/chains';
 
 // Serializable version of MemeTokenSnapshot for SSR props
 interface MemeSnapshotDto {
@@ -22,7 +23,7 @@ interface MemeDexInfo {
   liquidityUsd: number | null;
   volume24hUsd: number | null;
   chain: string | null;
-  dexName: string | null;
+  dex: string | null;
 }
 
 interface MemesPageProps {
@@ -232,10 +233,11 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
                     )}
 
                     {/* Chain/DEX info */}
-                    {dexInfo?.dexName && (
-                      <div className="pt-2 border-t border-akari-border/20">
+                    {dexInfo?.dex && (
+                      <div className="pt-2 border-t border-akari-border/20 flex items-center gap-1">
+                        <span className="text-sm">{chainIcon(dexInfo.chain)}</span>
                         <span className="text-[10px] text-akari-muted">
-                          {dexInfo.chain ? `${dexInfo.chain} • ` : ''}{dexInfo.dexName}
+                          {formatChainLabel(dexInfo.chain)} • {dexInfo.dex}
                         </span>
                       </div>
                     )}
@@ -408,7 +410,7 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
           liquidityUsd: null,
           volume24hUsd: null,
           chain: null,
-          dexName: null,
+          dex: null,
         });
         continue;
       }
@@ -425,7 +427,7 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
         liquidityUsd: best.liquidityUsd,
         volume24hUsd: best.volume24hUsd,
         chain: best.chain,
-        dexName: best.dexName,
+        dex: best.dex ?? best.source,
       });
     }
 

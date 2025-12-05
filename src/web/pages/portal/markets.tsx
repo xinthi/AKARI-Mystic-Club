@@ -30,6 +30,7 @@ import {
   LiquiditySignalsCard,
   type LiquiditySignalDto,
 } from '../../components/portal/LiquiditySignalsCard';
+import { chainIcon, formatChainLabel, chainBadgeColor } from '../../lib/portal/chains';
 
 // Serializable version of MarketSnapshot for SSR props
 interface MarketSnapshotDto {
@@ -296,12 +297,12 @@ export default function MarketsPage({
               {topDexLiquidity.slice(0, 6).map((entry, idx) => (
                 <div key={`${entry.symbol || 'unknown'}-${idx}`} className="flex items-center justify-between p-2 bg-akari-cardSoft/50 rounded-xl">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 text-[10px] font-bold">
-                      {entry.symbol?.charAt(0) || '?'}
+                    <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-sm">
+                      {chainIcon(entry.chain)}
                     </div>
                     <div>
                       <span className="text-xs font-medium text-akari-text uppercase">{entry.symbol || '—'}</span>
-                      <p className="text-[9px] text-akari-muted">{entry.chain || 'unknown'} • {entry.dex || 'DEX'}</p>
+                      <p className="text-[9px] text-akari-muted">{formatChainLabel(entry.chain)} • {entry.dex || 'DEX'}</p>
                     </div>
                   </div>
                   <span className="text-xs font-semibold text-green-400">{formatLargeNumber(entry.liquidityUsd)}</span>
@@ -343,8 +344,9 @@ export default function MarketsPage({
                     className="flex items-center justify-between text-xs p-2 rounded-lg bg-akari-cardSoft/50"
                   >
                     <div className="flex items-center gap-2">
+                      <span className="text-sm">{chainIcon(snap.chain)}</span>
                       <span className="text-akari-text font-medium uppercase">{snap.symbol || '—'}</span>
-                      {snap.name && <span className="text-akari-muted truncate max-w-[100px]">{snap.name}</span>}
+                      {snap.name && <span className="text-akari-muted truncate max-w-[80px]">{snap.name}</span>}
                     </div>
                     <div className="flex items-center gap-3 text-right">
                       <div>
@@ -354,11 +356,9 @@ export default function MarketsPage({
                         {snap.liquidityUsd ? formatLargeNumber(snap.liquidityUsd) : '—'}
                       </div>
                       <div className="flex gap-1">
-                        {snap.chain && (
-                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] uppercase">
-                            {snap.chain.slice(0, 3)}
-                          </span>
-                        )}
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${chainBadgeColor(snap.chain)}`}>
+                          {formatChainLabel(snap.chain)}
+                        </span>
                         {snap.dex && (
                           <span className="px-1.5 py-0.5 rounded bg-akari-accent/20 text-akari-accent text-[10px]">
                             {snap.dex}
@@ -370,9 +370,10 @@ export default function MarketsPage({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6 text-xs text-akari-muted">
-                <p>Waiting for first DEX snapshot.</p>
-                <p className="mt-1 text-[10px]">Check back in a few minutes.</p>
+              <div className="text-center py-8 text-xs text-akari-muted">
+                <p className="text-sm mb-2">No fresh DEX data yet</p>
+                <p className="text-[10px]">Our aggregator is collecting snapshots from DexScreener, GeckoTerminal, and Birdeye.</p>
+                <p className="text-[10px] mt-1">Check back in a few minutes.</p>
               </div>
             )}
           </div>
@@ -413,9 +414,10 @@ export default function MarketsPage({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-6 text-xs text-akari-muted">
-                <p>Waiting for first CEX snapshot.</p>
-                <p className="mt-1 text-[10px]">Check back in a few minutes.</p>
+              <div className="text-center py-8 text-xs text-akari-muted">
+                <p className="text-sm mb-2">No CEX tickers ranked yet</p>
+                <p className="text-[10px]">Our aggregator fetches data from Binance, OKX, and KuCoin.</p>
+                <p className="text-[10px] mt-1">If this persists, check the cron status.</p>
               </div>
             )}
           </div>
