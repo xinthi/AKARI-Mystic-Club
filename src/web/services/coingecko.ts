@@ -13,18 +13,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * CoinGecko API endpoint selection:
- * - Demo API keys (free tier) work ONLY on api.coingecko.com
- * - Pro API keys work on pro-api.coingecko.com
- * 
- * Since most users have Demo keys, we default to the public endpoint.
- * Set COINGECKO_USE_PRO=true if you have a paid Pro key.
+ * CoinGecko API base URL - always use the public endpoint.
+ * The API key (demo or pro) is sent via headers.
  */
-const USE_PRO_API = process.env.COINGECKO_USE_PRO === 'true';
-
-const COINGECKO_BASE_URL = USE_PRO_API
-  ? 'https://pro-api.coingecko.com/api/v3'
-  : 'https://api.coingecko.com/api/v3';
+const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 
 /** Module-scoped flag to ensure we only log the base URL info once */
 let hasLoggedBaseUrl = false;
@@ -86,9 +78,8 @@ interface CoinGeckoSearchResponse {
 /**
  * Generic helper for all CoinGecko API requests.
  * 
- * - Uses pro-api.coingecko.com if COINGECKO_API_KEY is set
- * - Falls back to api.coingecko.com (public) if no key
- * - Attaches all possible API key headers for compatibility
+ * - First attempts with API key headers (if COINGECKO_API_KEY is set)
+ * - If that fails, falls back to unauthenticated request
  * - Returns parsed JSON on success, or null on error
  * 
  * @param path - The API path (e.g. "/search/trending")
@@ -119,42 +110,49 @@ export async function cgFetch<T = unknown>(
     }
   }
 
-  // Build headers
-  const headers: HeadersInit = {
-    'Accept': 'application/json',
+  /**
+   * Make a request with or without API key headers
+   */
+  const makeRequest = async (useApiKey: boolean): Promise<{ resp: Response; ok: boolean }> => {
+    const headers: HeadersInit = { Accept: 'application/json' };
+    
+    if (useApiKey && apiKey) {
+      // Send all header variants for compatibility with demo/pro keys
+      headers['x-cg-demo-api-key'] = apiKey;
+      headers['x-cg-pro-api-key'] = apiKey;
+      headers['x-cg-api-key'] = apiKey;
+    }
+
+    console.log('[coingecko] Fetching', path, 'useApiKey=', !!(useApiKey && apiKey));
+    const resp = await fetch(url.toString(), { headers });
+    const ok = resp.ok;
+    
+    if (!ok) {
+      const text = await resp.text().catch(() => '(no body)');
+      console.error('[coingecko] Error', path, 'status=', resp.status, resp.statusText, 'body=', text?.slice(0, 300));
+    }
+    
+    return { resp, ok };
   };
 
-  // API key handling
-  // Demo keys use x-cg-demo-api-key, Pro keys use x-cg-pro-api-key
-  if (apiKey) {
-    if (USE_PRO_API) {
-      headers['x-cg-pro-api-key'] = apiKey;
-    } else {
-      headers['x-cg-demo-api-key'] = apiKey;
-    }
-  }
-
   try {
-    console.log('[coingecko] Fetching URL:', url.toString(), 'hasApiKey:', !!apiKey);
-    const response = await fetch(url.toString(), { headers });
-
-    if (!response.ok) {
-      const bodyText = await response.text().catch(() => '(no body)');
-      console.error(
-        '[coingecko] Request failed',
-        url.toString(),
-        'status',
-        response.status,
-        response.statusText,
-        bodyText.slice(0, 300)
-      );
-      return null;
+    // 1) Try with API key (if present)
+    let { resp, ok } = await makeRequest(true);
+    
+    if (!ok) {
+      console.log('[coingecko] Authenticated request failed, trying fallback without API key...');
+      // 2) Fallback: try again without API key
+      ({ resp, ok } = await makeRequest(false));
+      if (!ok) {
+        console.error('[coingecko] Fallback request also failed for', path);
+        return null;
+      }
     }
 
-    const data: T = await response.json();
+    const data: T = await resp.json();
     return data;
-  } catch (error) {
-    console.error('[coingecko] Fetch exception for', url.toString(), ':', error);
+  } catch (err) {
+    console.error('[coingecko] cgFetch exception for', path, err);
     return null;
   }
 }
