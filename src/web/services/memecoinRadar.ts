@@ -46,7 +46,11 @@ const MEME_KEYWORDS = [
  * Get top Pump.fun memecoins from CoinGecko, ordered by volume.
  * Returns up to the specified limit (default: 10).
  * 
- * Falls back to general meme coins if Pump.fun category returns no data.
+ * Falls back through multiple strategies to ensure data is always returned:
+ * 1. Pump.fun category
+ * 2. meme-token category
+ * 3. Keyword filtering from top coins
+ * 4. Top coins by market cap (guaranteed fallback)
  */
 export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCoin[]> {
   try {
@@ -54,34 +58,43 @@ export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCo
     
     // Step 1: Try the Pump.fun category
     let result = await fetchPumpFunCoins(limit);
+    console.log('[memecoinRadar] Pump.fun markets length:', result.length);
     
     if (result.length > 0) {
-      console.log('[memecoinRadar] Pump.fun category returned', result.length, 'coins');
-    } else {
-      console.log('[memecoinRadar] Primary Pump.fun query returned no data, falling back to /coins/markets (meme-ish filter)');
-      
-      // Step 2: Fallback - try meme-token category
-      result = await fetchMemeCategory(limit);
-      
-      if (result.length > 0) {
-        console.log('[memecoinRadar] meme-token category returned', result.length, 'coins');
-      } else {
-        console.log('[memecoinRadar] meme-token category also empty, trying keyword filter fallback');
-        
-        // Step 3: Final fallback - get top coins and filter by meme keywords
-        result = await fetchTopCoinsWithMemeFilter(limit);
-        
-        if (result.length > 0) {
-          console.log('[memecoinRadar] Keyword filter fallback returned', result.length, 'coins');
-        } else {
-          console.log('[memecoinRadar] All fallbacks exhausted, returning empty array');
-        }
-      }
+      const finalResult = result.slice(0, limit);
+      console.log('[memecoinRadar] getTopPumpFunMemecoins final result length:', finalResult.length);
+      return finalResult;
     }
+      
+    // Step 2: Fallback - try meme-token category
+    console.log('[memecoinRadar] Pump.fun empty, trying meme-token category...');
+    result = await fetchMemeCategory(limit);
+    console.log('[memecoinRadar] meme-token markets length:', result.length);
+    
+    if (result.length > 0) {
+      const finalResult = result.slice(0, limit);
+      console.log('[memecoinRadar] getTopPumpFunMemecoins final result length:', finalResult.length);
+      return finalResult;
+    }
+    
+    // Step 3: Fallback - keyword filter from top coins
+    console.log('[memecoinRadar] meme-token empty, trying keyword filter fallback...');
+    result = await fetchTopCoinsWithMemeFilter(limit);
+    console.log('[memecoinRadar] keyword-filtered memes length:', result.length);
+    
+    if (result.length > 0) {
+      const finalResult = result.slice(0, limit);
+      console.log('[memecoinRadar] getTopPumpFunMemecoins final result length:', finalResult.length);
+      return finalResult;
+    }
+    
+    // Step 4: Final fallback - just return top coins by market cap
+    console.log('[memecoinRadar] keyword filter empty, falling back to top coins as memes');
+    result = await fetchTopCoinsAsFallback(limit);
+    console.log('[memecoinRadar] top coins fallback length:', result.length);
 
-    // Slice to requested limit
     const finalResult = result.slice(0, limit);
-    console.log('[memecoinRadar] getTopPumpFunMemecoins result length:', finalResult.length);
+    console.log('[memecoinRadar] getTopPumpFunMemecoins final result length:', finalResult.length);
     return finalResult;
   } catch (error) {
     console.error('[memecoinRadar] getTopPumpFunMemecoins exception:', error);
@@ -102,6 +115,7 @@ async function fetchPumpFunCoins(limit: number): Promise<MemeCoin[]> {
   });
 
   if (!data || data.length === 0) {
+    console.log('[memecoinRadar] fetchPumpFunCoins: category pump-fun returned empty or null');
     return [];
   }
 
@@ -121,6 +135,7 @@ async function fetchMemeCategory(limit: number): Promise<MemeCoin[]> {
   });
 
   if (!data || data.length === 0) {
+    console.log('[memecoinRadar] fetchMemeCategory: category meme-token returned empty or null');
     return [];
   }
 
@@ -140,6 +155,7 @@ async function fetchTopCoinsWithMemeFilter(limit: number): Promise<MemeCoin[]> {
   });
 
   if (!data || data.length === 0) {
+    console.log('[memecoinRadar] fetchTopCoinsWithMemeFilter: /coins/markets returned empty or null');
     return [];
   }
 
@@ -153,7 +169,35 @@ async function fetchTopCoinsWithMemeFilter(limit: number): Promise<MemeCoin[]> {
     );
   });
 
-  return mapToMemeCoins(memeCoins).slice(0, limit);
+  console.log('[memecoinRadar] fetchTopCoinsWithMemeFilter: found', memeCoins.length, 'meme-like coins from', data.length, 'total');
+
+  if (memeCoins.length > 0) {
+    return mapToMemeCoins(memeCoins).slice(0, limit);
+  }
+
+  // If no meme coins found via keywords, return empty (next fallback will handle it)
+  return [];
+}
+
+/**
+ * Final fallback: fetch top coins by market cap and return them directly as "memes"
+ * This guarantees we always have something to display if CoinGecko is working
+ */
+async function fetchTopCoinsAsFallback(limit: number): Promise<MemeCoin[]> {
+  const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+    vs_currency: 'usd',
+    order: 'market_cap_desc',
+    per_page: limit,
+    page: 1,
+  });
+
+  if (!data || data.length === 0) {
+    console.log('[memecoinRadar] fetchTopCoinsAsFallback: /coins/markets returned empty or null');
+    return [];
+  }
+
+  // Map top coins directly to MemeCoin type (no filtering)
+  return mapToMemeCoins(data);
 }
 
 /**

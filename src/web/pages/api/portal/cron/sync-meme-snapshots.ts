@@ -16,6 +16,9 @@ type SyncResponse = {
   ok: boolean;
   snapshots: number;
   error?: string;
+  debug?: {
+    fetchedCount?: number;
+  };
 };
 
 export default async function handler(
@@ -49,23 +52,49 @@ export default async function handler(
     }
   }
 
+  let memes: Awaited<ReturnType<typeof getTopPumpFunMemecoins>> | null = null;
+
   try {
     console.log('[sync-meme-snapshots] Starting sync...');
     
     // Fetch top Pump.fun memecoins from CoinGecko
-    const memes = await getTopPumpFunMemecoins(20);
+    memes = await getTopPumpFunMemecoins(20);
     console.log('[sync-meme-snapshots] fetched memes:', memes?.length ?? 0);
 
-    // If no memes returned, return 502 error
-    if (!memes || memes.length === 0) {
-      console.error('[sync-meme-snapshots] No memecoins from CoinGecko. See cgFetch logs for URL/status.');
-      return res.status(502).json({
-        ok: false,
-        snapshots: 0,
-        error: 'No memecoin data from CoinGecko. Check COINGECKO_API_KEY and Vercel logs.',
-      });
-    }
+  } catch (error: any) {
+    // Real API error - return 500
+    console.error('[sync-meme-snapshots] Exception fetching memes:', error?.message || error);
+    return res.status(500).json({
+      ok: false,
+      snapshots: 0,
+      error: `Exception: ${error?.message || 'Unknown error'}`,
+      debug: { fetchedCount: 0 },
+    });
+  }
 
+  // If memes is null (API completely failed), return error
+  if (memes === null) {
+    console.error('[sync-meme-snapshots] CoinGecko returned null (API failure)');
+    return res.status(502).json({
+      ok: false,
+      snapshots: 0,
+      error: 'CoinGecko API returned null. Check Vercel logs for details.',
+      debug: { fetchedCount: 0 },
+    });
+  }
+
+  // If memes is empty array (API worked but no data after all fallbacks)
+  if (memes.length === 0) {
+    console.log('[sync-meme-snapshots] CoinGecko responded but returned 0 memecoins after all fallbacks');
+    return res.status(200).json({
+      ok: true,
+      snapshots: 0,
+      error: 'CoinGecko responded but returned 0 memecoins (after fallbacks).',
+      debug: { fetchedCount: 0 },
+    });
+  }
+
+  try {
     // Build snapshot data with explicit IDs
     const data = memes.map((m) => ({
       id: randomUUID(),
@@ -108,13 +137,15 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       snapshots: result.count,
+      debug: { fetchedCount: memes.length },
     });
   } catch (error: any) {
-    console.error('[sync-meme-snapshots] Error:', error?.message || error);
+    console.error('[sync-meme-snapshots] Database error:', error?.message || error);
     return res.status(500).json({
       ok: false,
       snapshots: 0,
-      error: error?.message || 'Internal server error',
+      error: `Database error: ${error?.message || 'Unknown error'}`,
+      debug: { fetchedCount: memes.length },
     });
   }
 }

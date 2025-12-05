@@ -16,6 +16,9 @@ type SyncResponse = {
   ok: boolean;
   snapshots: number;
   error?: string;
+  debug?: {
+    fetchedCount?: number;
+  };
 };
 
 export default async function handler(
@@ -49,23 +52,49 @@ export default async function handler(
     }
   }
 
+  let coins: Awaited<ReturnType<typeof getTrendingCoinsWithPrices>> | null = null;
+
   try {
     console.log('[sync-market-snapshots] Starting sync...');
     
     // Fetch trending coins from CoinGecko
-    const coins = await getTrendingCoinsWithPrices();
+    coins = await getTrendingCoinsWithPrices();
     console.log('[sync-market-snapshots] fetched coins:', coins?.length ?? 0);
 
-    // If no coins returned, return 502 error
-    if (!coins || coins.length === 0) {
-      console.error('[sync-market-snapshots] No coins from CoinGecko. See cgFetch logs for URL/status.');
-      return res.status(502).json({
-        ok: false,
-        snapshots: 0,
-        error: 'No data from CoinGecko. Check COINGECKO_API_KEY and Vercel logs.',
-      });
-    }
+  } catch (error: any) {
+    // Real API error - return 500
+    console.error('[sync-market-snapshots] Exception fetching coins:', error?.message || error);
+    return res.status(500).json({
+      ok: false,
+      snapshots: 0,
+      error: `Exception: ${error?.message || 'Unknown error'}`,
+      debug: { fetchedCount: 0 },
+    });
+  }
 
+  // If coins is null (API completely failed), return error
+  if (coins === null) {
+    console.error('[sync-market-snapshots] CoinGecko returned null (API failure)');
+    return res.status(502).json({
+      ok: false,
+      snapshots: 0,
+      error: 'CoinGecko API returned null. Check Vercel logs for details.',
+      debug: { fetchedCount: 0 },
+    });
+  }
+
+  // If coins is empty array (API worked but no data after all fallbacks)
+  if (coins.length === 0) {
+    console.log('[sync-market-snapshots] CoinGecko responded but returned 0 coins after all fallbacks');
+    return res.status(200).json({
+      ok: true,
+      snapshots: 0,
+      error: 'CoinGecko responded but returned 0 coins (after fallbacks).',
+      debug: { fetchedCount: 0 },
+    });
+  }
+
+  try {
     // Build snapshot data with explicit IDs
     const data = coins.map((c) => ({
       id: randomUUID(),
@@ -109,13 +138,15 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       snapshots: result.count,
+      debug: { fetchedCount: coins.length },
     });
   } catch (error: any) {
-    console.error('[sync-market-snapshots] Error:', error?.message || error);
+    console.error('[sync-market-snapshots] Database error:', error?.message || error);
     return res.status(500).json({
       ok: false,
       snapshots: 0,
-      error: error?.message || 'Internal server error',
+      error: `Database error: ${error?.message || 'Unknown error'}`,
+      debug: { fetchedCount: coins.length },
     });
   }
 }
