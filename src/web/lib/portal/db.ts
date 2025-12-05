@@ -28,6 +28,105 @@ export async function getRecentLiquiditySignals(limit: number = 10) {
   });
 }
 
+/**
+ * Get whale entries with fallback logic:
+ * - First tries to get entries from recent window (default 24h)
+ * - If none found, falls back to last N days (default 7 days)
+ * - Returns both recent entries and the last known entry (if any)
+ */
+export async function getWhaleEntriesWithFallback(options?: {
+  recentHours?: number;
+  fallbackDays?: number;
+}) {
+  const recentHours = options?.recentHours ?? 24;
+  const fallbackDays = options?.fallbackDays ?? 7;
+
+  const now = new Date();
+  const recentSince = new Date(now.getTime() - recentHours * 60 * 60 * 1000);
+
+  const recent = await prisma.whaleEntry.findMany({
+    where: {
+      occurredAt: {
+        gte: recentSince,
+      },
+    },
+    orderBy: { occurredAt: 'desc' },
+    take: 50,
+  });
+
+  if (recent.length > 0) {
+    return { recent, lastAny: recent[0] };
+  }
+
+  // Fallback: last N days
+  const fallbackSince = new Date(now.getTime() - fallbackDays * 24 * 60 * 60 * 1000);
+
+  const fallback = await prisma.whaleEntry.findMany({
+    where: {
+      occurredAt: {
+        gte: fallbackSince,
+      },
+    },
+    orderBy: { occurredAt: 'desc' },
+    take: 50,
+  });
+
+  return {
+    recent: [],
+    lastAny: fallback[0] ?? null,
+  };
+}
+
+/**
+ * Get liquidity signals with fallback logic:
+ * - First tries to get signals from recent window (default 24h)
+ * - If none found, falls back to last N days (default 3 days)
+ * - Returns both recent signals and the last known signal (if any)
+ */
+export async function getLiquiditySignalsWithFallback(options?: {
+  recentHours?: number;
+  fallbackDays?: number;
+  limit?: number;
+}) {
+  const recentHours = options?.recentHours ?? 24;
+  const fallbackDays = options?.fallbackDays ?? 3;
+  const limit = options?.limit ?? 10;
+
+  const now = new Date();
+  const recentSince = new Date(now.getTime() - recentHours * 60 * 60 * 1000);
+
+  const recent = await prisma.liquiditySignal.findMany({
+    where: {
+      triggeredAt: {
+        gte: recentSince,
+      },
+    },
+    orderBy: { triggeredAt: 'desc' },
+    take: limit,
+  });
+
+  if (recent.length > 0) {
+    return { recent, lastAny: recent[0] };
+  }
+
+  const fallbackSince = new Date(now.getTime() - fallbackDays * 24 * 60 * 60 * 1000);
+
+  const fallback = await prisma.liquiditySignal.findMany({
+    where: {
+      triggeredAt: {
+        gte: fallbackSince,
+      },
+    },
+    orderBy: { triggeredAt: 'desc' },
+    take: limit,
+  });
+
+  return {
+    recent: [],
+    lastAny: fallback[0] ?? null,
+  };
+}
+
 export interface LaunchWithMetrics {
   id: string;
   name: string;

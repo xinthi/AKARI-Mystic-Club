@@ -9,7 +9,10 @@ import {
   type AkariHighlights,
 } from '../../services/akariMarkets';
 import type { TrendingCoinWithPrice } from '../../services/coingecko';
-import { getRecentWhaleEntries } from '../../lib/portal/db';
+import {
+  getWhaleEntriesWithFallback,
+  getLiquiditySignalsWithFallback,
+} from '../../lib/portal/db';
 import { WhaleHeatmapCard, type WhaleEntryDto } from '../../components/portal/WhaleHeatmapCard';
 import {
   getNarrativeSummaries,
@@ -21,16 +24,17 @@ import {
   LiquiditySignalsCard,
   type LiquiditySignalDto,
 } from '../../components/portal/LiquiditySignalsCard';
-import { getRecentLiquiditySignals } from '../../lib/portal/db';
 
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
   trending: TrendingCoinWithPrice[];
-  whaleEntries: WhaleEntryDto[];
+  whaleEntriesRecent: WhaleEntryDto[];
+  whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
   volumeLeaders: VolumeLeader[];
-  liquiditySignals: LiquiditySignalDto[];
+  liquiditySignalsRecent: LiquiditySignalDto[];
+  liquidityLastAny: LiquiditySignalDto | null;
   error?: string;
 }
 
@@ -111,10 +115,12 @@ export default function MarketsPage({
   pulse,
   highlights,
   trending,
-  whaleEntries,
+  whaleEntriesRecent,
+  whaleLastAny,
   narratives,
   volumeLeaders,
-  liquiditySignals,
+  liquiditySignalsRecent,
+  liquidityLastAny,
   error,
 }: MarketsPageProps) {
   return (
@@ -162,8 +168,14 @@ export default function MarketsPage({
       {/* Smart Money Heatmap & Liquidity Signals */}
       {!error && (
         <section className="mb-6 space-y-4 sm:space-y-6">
-          <WhaleHeatmapCard entries={whaleEntries} />
-          <LiquiditySignalsCard signals={liquiditySignals} />
+          <WhaleHeatmapCard
+            recentEntries={whaleEntriesRecent}
+            lastAnyEntry={whaleLastAny}
+          />
+          <LiquiditySignalsCard
+            signals={liquiditySignalsRecent}
+            lastAnySignal={liquidityLastAny}
+          />
         </section>
       )}
 
@@ -564,22 +576,29 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       pulse,
       highlights,
       trending,
-      whaleEntriesRaw,
+      whaleData,
       narratives,
       volumeLeaders,
-      liquiditySignalsRaw,
+      signalData,
     ] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
       getTrendingMarketTable().catch(() => []),
-      getRecentWhaleEntries(50).catch(() => []),
+      getWhaleEntriesWithFallback({
+        recentHours: 24,
+        fallbackDays: 7,
+      }).catch(() => ({ recent: [], lastAny: null })),
       getNarrativeSummaries().catch(() => []),
       getVolumeLeaders(5).catch(() => []),
-      getRecentLiquiditySignals(10).catch(() => []),
+      getLiquiditySignalsWithFallback({
+        recentHours: 24,
+        fallbackDays: 3,
+        limit: 10,
+      }).catch(() => ({ recent: [], lastAny: null })),
     ]);
 
     // Map whale entries to serializable DTOs
-    const whaleEntries: WhaleEntryDto[] = whaleEntriesRaw.map((w: any) => ({
+    const whaleEntriesRecent: WhaleEntryDto[] = whaleData.recent.map((w: any) => ({
       id: w.id,
       tokenSymbol: w.tokenSymbol,
       chain: w.chain,
@@ -588,8 +607,19 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       occurredAt: w.occurredAt.toISOString(),
     }));
 
+    const whaleLastAny: WhaleEntryDto | null = whaleData.lastAny
+      ? {
+          id: whaleData.lastAny.id,
+          tokenSymbol: whaleData.lastAny.tokenSymbol,
+          chain: whaleData.lastAny.chain,
+          wallet: whaleData.lastAny.wallet,
+          amountUsd: Number(whaleData.lastAny.amountUsd),
+          occurredAt: whaleData.lastAny.occurredAt.toISOString(),
+        }
+      : null;
+
     // Map liquidity signals to serializable DTOs
-    const liquiditySignals: LiquiditySignalDto[] = liquiditySignalsRaw.map((s: any) => ({
+    const liquiditySignalsRecent: LiquiditySignalDto[] = signalData.recent.map((s: any) => ({
       id: s.id,
       type: s.type,
       title: s.title,
@@ -601,15 +631,33 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       triggeredAt: s.triggeredAt.toISOString(),
     }));
 
+    const liquidityLastAny: LiquiditySignalDto | null = signalData.lastAny
+      ? {
+          id: signalData.lastAny.id,
+          type: signalData.lastAny.type,
+          title: signalData.lastAny.title,
+          description: signalData.lastAny.description,
+          severity: signalData.lastAny.severity,
+          chain: signalData.lastAny.chain,
+          stableSymbol: signalData.lastAny.stableSymbol,
+          tokenSymbol: signalData.lastAny.tokenSymbol,
+          triggeredAt: signalData.lastAny.triggeredAt.toISOString(),
+        }
+      : null;
+
     return {
       props: {
         pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
         highlights: highlights ? JSON.parse(JSON.stringify(highlights)) : null,
         trending: JSON.parse(JSON.stringify(trending)),
-        whaleEntries: JSON.parse(JSON.stringify(whaleEntries)),
+        whaleEntriesRecent: JSON.parse(JSON.stringify(whaleEntriesRecent)),
+        whaleLastAny: whaleLastAny ? JSON.parse(JSON.stringify(whaleLastAny)) : null,
         narratives: JSON.parse(JSON.stringify(narratives)),
         volumeLeaders: JSON.parse(JSON.stringify(volumeLeaders)),
-        liquiditySignals: JSON.parse(JSON.stringify(liquiditySignals)),
+        liquiditySignalsRecent: JSON.parse(JSON.stringify(liquiditySignalsRecent)),
+        liquidityLastAny: liquidityLastAny
+          ? JSON.parse(JSON.stringify(liquidityLastAny))
+          : null,
       },
     };
   } catch (error: any) {
@@ -619,10 +667,12 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         pulse: null,
         highlights: null,
         trending: [],
-        whaleEntries: [],
+        whaleEntriesRecent: [],
+        whaleLastAny: null,
         narratives: [],
         volumeLeaders: [],
-        liquiditySignals: [],
+        liquiditySignalsRecent: [],
+        liquidityLastAny: null,
         error: 'Failed to load market data',
       },
     };

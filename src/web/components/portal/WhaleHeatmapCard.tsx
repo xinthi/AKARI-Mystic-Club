@@ -10,7 +10,8 @@ export type WhaleEntryDto = {
 };
 
 type Props = {
-  entries: WhaleEntryDto[];
+  recentEntries: WhaleEntryDto[];
+  lastAnyEntry: WhaleEntryDto | null;
 };
 
 function formatUsd(value: number) {
@@ -36,11 +37,11 @@ function timeAgo(iso: string) {
   return `${diffD} d ago`;
 }
 
-export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
+export const WhaleHeatmapCard: React.FC<Props> = ({ recentEntries, lastAnyEntry }) => {
   // Aggregate by token to find top tokens by whale volume
   const totalsByToken = React.useMemo(() => {
     const map = new Map<string, number>();
-    for (const e of entries) {
+    for (const e of recentEntries) {
       const key = e.tokenSymbol || 'UNKNOWN';
       map.set(key, (map.get(key) ?? 0) + e.amountUsd);
     }
@@ -50,9 +51,9 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
     }));
     list.sort((a, b) => b.totalUsd - a.totalUsd);
     return list.slice(0, 4);
-  }, [entries]);
+  }, [recentEntries]);
 
-  const topEntries = entries.slice(0, 12);
+  const topEntries = recentEntries.slice(0, 12);
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 flex flex-col gap-4">
@@ -82,9 +83,16 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
         )}
       </div>
 
-      {entries.length === 0 ? (
+      {recentEntries.length === 0 && !lastAnyEntry ? (
         <div className="text-sm text-slate-500 pt-2">
           No large whale entries detected in the last period.
+        </div>
+      ) : recentEntries.length === 0 && lastAnyEntry ? (
+        <div className="text-sm text-slate-500 pt-2">
+          <p>No large whale entries in the last 24 hours.</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Last detected activity was {timeAgo(lastAnyEntry.occurredAt)}.
+          </p>
         </div>
       ) : (
         <div className="mt-1 max-h-72 overflow-auto pr-1 space-y-2">

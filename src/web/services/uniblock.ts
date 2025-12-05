@@ -187,7 +187,8 @@ export async function getRecentStablecoinTransfers(params: {
     return [];
   }
 
-  const minUsd = params.minUsd ?? 10_000;
+  // NOTE: default minUsd temporarily lowered for testing; raise to 10_000 in production
+  const minUsd = params.minUsd ?? 100;
 
   // Find the token address for this stablecoin
   const stablecoin = TRACKED_STABLECOINS.find((s) => s.symbol === params.stableSymbol);

@@ -54,35 +54,37 @@ async function generateLiquiditySignals(windowStart: Date, windowEnd: Date): Pro
       stableSymbol: string;
     }[] = [];
 
+    // NOTE: thresholds temporarily lowered for testing; raise again in production
     // TODO: Re-enable when solana/base support is added
-    // if (usdtSol > 500_000) {
+    // if (usdtSol > 20_000) {
     //   signals.push({
     //     type: 'SOL_MEME_SEASON',
     //     title: 'Massive USDT inflow to Solana',
     //     description: 'Stablecoin liquidity is rotating into Solana. Meme season signal triggered.',
-    //     severity: usdtSol > 2_000_000 ? 3 : 2,
+    //     severity: usdtSol > 100_000 ? 3 : 2,
     //     chain: 'solana',
     //     stableSymbol: 'USDT',
     //   });
     // }
 
-    // if (usdcBase > 300_000) {
+    // if (usdcBase > 20_000) {
     //   signals.push({
     //     type: 'BASE_SOCIALFI',
     //     title: 'USDC inflow to Base',
     //     description: 'Fresh USDC capital is entering Base. SocialFi / degen app rotation likely.',
-    //     severity: usdcBase > 1_500_000 ? 3 : 2,
+    //     severity: usdcBase > 100_000 ? 3 : 2,
     //     chain: 'base',
     //     stableSymbol: 'USDC',
     //   });
     // }
 
-    if (usdtEth < -400_000) {
+    // NOTE: threshold temporarily lowered for testing; raise to -400_000 in production
+    if (usdtEth < -20_000) {
       signals.push({
         type: 'ETH_RISK_OFF',
         title: 'USDT outflow from Ethereum',
         description: 'Net USDT is leaving Ethereum. Risk-off / rotation into alt L1s possible.',
-        severity: usdtEth < -1_500_000 ? 3 : 2,
+        severity: usdtEth < -100_000 ? 3 : 2, // NOTE: severity threshold also lowered for testing
         chain: 'ethereum',
         stableSymbol: 'USDT',
       });
@@ -159,7 +161,7 @@ export default async function handler(
             chain,
             stableSymbol: stable,
             sinceTimestamp: since,
-            minUsd: 10_000,
+            minUsd: 100, // NOTE: temporarily lowered for testing; raise to 10_000 in production
           });
 
           console.log(`[StablecoinFlows] Found ${transfers.length} ${stable} transfers on ${chain}`);
@@ -178,8 +180,9 @@ export default async function handler(
             netUsd += t.amountUsd; // naive: we only care that big transfers happened on this chain
           }
 
-          if (Math.abs(netUsd) < 50_000) {
+          if (Math.abs(netUsd) < 1_000) {
             // ignore tiny net-flow
+            // NOTE: threshold temporarily lowered for testing; raise to 50_000 in production
             console.log(`[StablecoinFlows] Net flow ${netUsd} too small for ${stable}:${chain}, skipping`);
             continue;
           }

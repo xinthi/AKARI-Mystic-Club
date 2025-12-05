@@ -14,6 +14,7 @@ export type LiquiditySignalDto = {
 
 type Props = {
   signals: LiquiditySignalDto[];
+  lastAnySignal: LiquiditySignalDto | null;
 };
 
 function timeAgo(iso: string) {
@@ -28,7 +29,7 @@ function timeAgo(iso: string) {
   return `${dd}d ago`;
 }
 
-export const LiquiditySignalsCard: React.FC<Props> = ({ signals }) => {
+export const LiquiditySignalsCard: React.FC<Props> = ({ signals, lastAnySignal }) => {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -40,9 +41,16 @@ export const LiquiditySignalsCard: React.FC<Props> = ({ signals }) => {
         </div>
       </div>
 
-      {signals.length === 0 ? (
+      {signals.length === 0 && !lastAnySignal ? (
         <div className="text-sm text-slate-500 pt-2">
           No active liquidity signals in the last 24 hours.
+        </div>
+      ) : signals.length === 0 && lastAnySignal ? (
+        <div className="text-sm text-slate-500 pt-2">
+          <p>No active liquidity signals in the last 24 hours.</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Last signal: {lastAnySignal.title} ({timeAgo(lastAnySignal.triggeredAt)}).
+          </p>
         </div>
       ) : (
         <div className="space-y-2 mt-1">
