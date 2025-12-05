@@ -1,16 +1,20 @@
 /**
  * Meme Token Snapshots Sync Cron
  * 
- * Fetches top Pump.fun memecoins from CoinGecko and stores as MemeTokenSnapshot records.
+ * Fetches top memecoins from CoinGecko and stores as MemeTokenSnapshot records.
  * This enables the /portal/memes page to read from DB instead of live API calls.
  * 
  * Protected with CRON_SECRET (query param, Authorization header, or x-cron-secret header).
+ * 
+ * Fallback strategy:
+ * 1. getTopPumpFunMemecoins() - tries meme-token, pump-fun categories, then keyword filter
+ * 2. fetchMemesDirectly() - direct keyword-based fetch as last resort
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
 import { prisma, withDbRetry } from '../../../../lib/prisma';
-import { getTopPumpFunMemecoins } from '../../../../services/memecoinRadar';
+import { getTopPumpFunMemecoins, fetchMemesDirectly } from '../../../../services/memecoinRadar';
 
 type SyncResponse = {
   ok: boolean;
@@ -18,6 +22,7 @@ type SyncResponse = {
   error?: string;
   debug?: {
     fetchedCount?: number;
+    strategy?: string;
   };
 };
 
@@ -52,14 +57,28 @@ export default async function handler(
     }
   }
 
-  let memes: Awaited<ReturnType<typeof getTopPumpFunMemecoins>> | null = null;
+  let memes: Awaited<ReturnType<typeof getTopPumpFunMemecoins>> = [];
+  let strategy = 'none';
 
   try {
     console.log('[sync-meme-snapshots] Starting sync...');
     
-    // Fetch top Pump.fun memecoins from CoinGecko
+    // Strategy 1: getTopPumpFunMemecoins (has its own fallbacks)
     memes = await getTopPumpFunMemecoins(20);
-    console.log('[sync-meme-snapshots] fetched memes:', memes?.length ?? 0);
+    console.log('[sync-meme-snapshots] Strategy 1 (getTopPumpFunMemecoins): fetched', memes.length, 'memes');
+
+    if (memes.length > 0) {
+      strategy = 'getTopPumpFunMemecoins';
+    } else {
+      // Strategy 2: Direct keyword-based fetch as last resort
+      console.log('[sync-meme-snapshots] Strategy 1 returned empty, trying Strategy 2 (fetchMemesDirectly)...');
+      memes = await fetchMemesDirectly(20);
+      console.log('[sync-meme-snapshots] Strategy 2 (fetchMemesDirectly): fetched', memes.length, 'memes');
+      
+      if (memes.length > 0) {
+        strategy = 'fetchMemesDirectly';
+      }
+    }
 
   } catch (error: any) {
     // Real API error - return 500
@@ -68,34 +87,23 @@ export default async function handler(
       ok: false,
       snapshots: 0,
       error: `Exception: ${error?.message || 'Unknown error'}`,
-      debug: { fetchedCount: 0 },
+      debug: { fetchedCount: 0, strategy: 'exception' },
     });
   }
 
-  // If memes is null (API completely failed), return error
-  if (memes === null) {
-    console.error('[sync-meme-snapshots] CoinGecko returned null (API failure)');
-    return res.status(502).json({
-      ok: false,
-      snapshots: 0,
-      error: 'CoinGecko API returned null. Check Vercel logs for details.',
-      debug: { fetchedCount: 0 },
-    });
-  }
-
-  // If memes is empty array (API worked but no data after all fallbacks)
+  // If memes is still empty after all fallbacks
   if (memes.length === 0) {
-    console.log('[sync-meme-snapshots] CoinGecko responded but returned 0 memecoins after all fallbacks');
+    console.log('[sync-meme-snapshots] All strategies exhausted - no meme coins found');
     return res.status(200).json({
       ok: true,
       snapshots: 0,
-      error: 'CoinGecko responded but returned 0 memecoins (after fallbacks).',
-      debug: { fetchedCount: 0 },
+      error: 'No meme coins found after all fallbacks. API may be rate-limited or no meme coins match keywords.',
+      debug: { fetchedCount: 0, strategy: 'all_exhausted' },
     });
   }
 
   try {
-    console.log('[sync-meme-snapshots] memes.length =', memes.length);
+    console.log('[sync-meme-snapshots] memes.length =', memes.length, 'strategy =', strategy);
     
     // Build snapshot data with explicit IDs
     const data = memes.map((m) => ({
@@ -105,7 +113,7 @@ export default async function handler(
       priceUsd: m.priceUsd ?? 0,
       marketCapUsd: m.marketCapUsd ?? null,
       change24hPct: m.priceChange24h ?? null,
-      source: 'coingecko_pumpfun',
+      source: 'coingecko_meme',
     }));
 
     console.log('[sync-meme-snapshots] Inserting', data.length, 'snapshots...');
@@ -117,9 +125,9 @@ export default async function handler(
       })
     );
 
-    console.log('[sync-meme-snapshots] inserted snapshots:', result.count);
+    console.log('[sync-meme-snapshots] Inserted', result.count, 'snapshots');
 
-    // Optional: cleanup old snapshots (wrapped in try/catch so it doesn't fail the request)
+    // Cleanup: delete old snapshots (wrapped in try/catch so it doesn't fail the request)
     try {
       const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
       const deleteResult = await prisma.memeTokenSnapshot.deleteMany({
@@ -139,7 +147,7 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       snapshots: result.count,
-      debug: { fetchedCount: memes.length },
+      debug: { fetchedCount: memes.length, strategy },
     });
   } catch (error: any) {
     console.error('[sync-meme-snapshots] Database error:', error?.message || error);
@@ -147,7 +155,7 @@ export default async function handler(
       ok: false,
       snapshots: 0,
       error: `Database error: ${error?.message || 'Unknown error'}`,
-      debug: { fetchedCount: memes.length },
+      debug: { fetchedCount: memes.length, strategy },
     });
   }
 }

@@ -5,12 +5,16 @@
  * This enables the /portal/markets page to read from DB instead of live API calls.
  * 
  * Protected with CRON_SECRET (query param, Authorization header, or x-cron-secret header).
+ * 
+ * Fallback strategy:
+ * 1. getTrendingCoinsWithPrices() - full params
+ * 2. fetchMarketsDirectly() - simpler params as last resort
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
 import { prisma, withDbRetry } from '../../../../lib/prisma';
-import { getTrendingCoinsWithPrices } from '../../../../services/coingecko';
+import { getTrendingCoinsWithPrices, fetchMarketsDirectly } from '../../../../services/coingecko';
 
 type SyncResponse = {
   ok: boolean;
@@ -18,6 +22,7 @@ type SyncResponse = {
   error?: string;
   debug?: {
     fetchedCount?: number;
+    strategy?: string;
   };
 };
 
@@ -52,14 +57,28 @@ export default async function handler(
     }
   }
 
-  let coins: Awaited<ReturnType<typeof getTrendingCoinsWithPrices>> | null = null;
+  let coins: Awaited<ReturnType<typeof getTrendingCoinsWithPrices>> = [];
+  let strategy = 'none';
 
   try {
     console.log('[sync-market-snapshots] Starting sync...');
     
-    // Fetch trending coins from CoinGecko
+    // Strategy 1: getTrendingCoinsWithPrices (has its own fallbacks)
     coins = await getTrendingCoinsWithPrices();
-    console.log('[sync-market-snapshots] fetched coins:', coins?.length ?? 0);
+    console.log('[sync-market-snapshots] Strategy 1 (getTrendingCoinsWithPrices): fetched', coins.length, 'coins');
+
+    if (coins.length > 0) {
+      strategy = 'getTrendingCoinsWithPrices';
+    } else {
+      // Strategy 2: Direct markets fetch as last resort
+      console.log('[sync-market-snapshots] Strategy 1 returned empty, trying Strategy 2 (fetchMarketsDirectly)...');
+      coins = await fetchMarketsDirectly(30);
+      console.log('[sync-market-snapshots] Strategy 2 (fetchMarketsDirectly): fetched', coins.length, 'coins');
+      
+      if (coins.length > 0) {
+        strategy = 'fetchMarketsDirectly';
+      }
+    }
 
   } catch (error: any) {
     // Real API error - return 500
@@ -68,34 +87,23 @@ export default async function handler(
       ok: false,
       snapshots: 0,
       error: `Exception: ${error?.message || 'Unknown error'}`,
-      debug: { fetchedCount: 0 },
+      debug: { fetchedCount: 0, strategy: 'exception' },
     });
   }
 
-  // If coins is null (API completely failed), return error
-  if (coins === null) {
-    console.error('[sync-market-snapshots] CoinGecko returned null (API failure)');
-    return res.status(502).json({
-      ok: false,
-      snapshots: 0,
-      error: 'CoinGecko API returned null. Check Vercel logs for details.',
-      debug: { fetchedCount: 0 },
-    });
-  }
-
-  // If coins is empty array (API worked but no data after all fallbacks)
+  // If coins is still empty after all fallbacks
   if (coins.length === 0) {
-    console.log('[sync-market-snapshots] CoinGecko responded but returned 0 coins after all fallbacks');
+    console.log('[sync-market-snapshots] All strategies exhausted - CoinGecko returned 0 coins');
     return res.status(200).json({
       ok: true,
       snapshots: 0,
-      error: 'CoinGecko responded but returned 0 coins (after fallbacks).',
-      debug: { fetchedCount: 0 },
+      error: 'CoinGecko returned 0 coins after all fallbacks. API may be rate-limited or unavailable.',
+      debug: { fetchedCount: 0, strategy: 'all_exhausted' },
     });
   }
 
   try {
-    console.log('[sync-market-snapshots] coins.length =', coins.length);
+    console.log('[sync-market-snapshots] coins.length =', coins.length, 'strategy =', strategy);
     
     // Build snapshot data with explicit IDs
     const data = coins.map((c) => ({
@@ -106,7 +114,7 @@ export default async function handler(
       marketCapUsd: c.marketCapUsd ?? null,
       volume24hUsd: c.volume24hUsd ?? null,
       change24hPct: c.change24hPct ?? null,
-      source: 'coingecko_trending',
+      source: 'coingecko',
     }));
 
     console.log('[sync-market-snapshots] Inserting', data.length, 'snapshots...');
@@ -118,9 +126,9 @@ export default async function handler(
       })
     );
 
-    console.log('[sync-market-snapshots] inserted snapshots:', result.count);
+    console.log('[sync-market-snapshots] Inserted', result.count, 'snapshots');
 
-    // Optional: cleanup old snapshots (wrapped in try/catch so it doesn't fail the request)
+    // Cleanup: delete old snapshots (wrapped in try/catch so it doesn't fail the request)
     try {
       const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
       const deleteResult = await prisma.marketSnapshot.deleteMany({
@@ -140,7 +148,7 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       snapshots: result.count,
-      debug: { fetchedCount: coins.length },
+      debug: { fetchedCount: coins.length, strategy },
     });
   } catch (error: any) {
     console.error('[sync-market-snapshots] Database error:', error?.message || error);
@@ -148,7 +156,7 @@ export default async function handler(
       ok: false,
       snapshots: 0,
       error: `Database error: ${error?.message || 'Unknown error'}`,
-      debug: { fetchedCount: coins.length },
+      debug: { fetchedCount: coins.length, strategy },
     });
   }
 }

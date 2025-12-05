@@ -12,6 +12,7 @@ import {
   getLiquiditySignalsWithFallback,
   getLatestMarketSnapshots,
 } from '../../lib/portal/db';
+import { fetchMajorPricesFromBinance } from '../../services/coingecko';
 import type { MarketSnapshot } from '@prisma/client';
 import { WhaleHeatmapCard, type WhaleEntryDto } from '../../components/portal/WhaleHeatmapCard';
 import {
@@ -38,10 +39,18 @@ interface MarketSnapshotDto {
   createdAt: string;
 }
 
+// Simple type for live price preview
+interface LivePricePreview {
+  symbol: string;
+  name: string;
+  priceUsd: number;
+}
+
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
   trending: MarketSnapshotDto[];
+  livePrices: LivePricePreview[]; // Binance fallback when no snapshots
   whaleEntriesRecent: WhaleEntryDto[];
   whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
@@ -128,6 +137,7 @@ export default function MarketsPage({
   pulse,
   highlights,
   trending,
+  livePrices,
   whaleEntriesRecent,
   whaleLastAny,
   narratives,
@@ -368,10 +378,38 @@ export default function MarketsPage({
 
       {/* Empty State - when no snapshots */}
       {!error && trending.length === 0 && (
-        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6">
-          <p className="text-sm text-akari-muted text-center">
-            Waiting for first market snapshot. Check back in a few minutes.
-          </p>
+        <div className="mb-6">
+          <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-4">
+            <p className="text-sm text-akari-muted text-center">
+              Waiting for first market snapshot. Check back in a few minutes.
+            </p>
+          </div>
+          
+          {/* Live Preview Fallback from Binance */}
+          {livePrices.length > 0 && (
+            <div className="rounded-2xl border border-akari-primary/20 bg-akari-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-akari-text">Major Markets (Live Preview)</h3>
+                <span className="text-[10px] text-akari-muted uppercase tracking-[0.1em]">Binance</span>
+              </div>
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                {livePrices.map((coin) => (
+                  <div key={coin.symbol} className="flex items-center justify-between p-3 bg-akari-cardSoft/50 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-akari-primary/20 flex items-center justify-center text-akari-primary text-[10px] font-bold">
+                        {coin.symbol.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-akari-text">{coin.name}</span>
+                        <p className="text-[10px] text-akari-muted">{coin.symbol}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-akari-primary">{formatPrice(coin.priceUsd)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -583,6 +621,16 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       }).catch(() => ({ recent: [], lastAny: null })),
     ]);
 
+    // If no market snapshots, fetch live prices from Binance as a fallback
+    let livePrices: LivePricePreview[] = [];
+    if (marketSnapshots.length === 0) {
+      try {
+        livePrices = await fetchMajorPricesFromBinance();
+      } catch (e) {
+        console.error('[Markets Page] Binance fallback failed:', e);
+      }
+    }
+
     // Map market snapshots to serializable DTOs
     const trending: MarketSnapshotDto[] = marketSnapshots.map((s: MarketSnapshot) => ({
       id: s.id,
@@ -649,6 +697,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
         highlights: highlights ? JSON.parse(JSON.stringify(highlights)) : null,
         trending: JSON.parse(JSON.stringify(trending)),
+        livePrices: JSON.parse(JSON.stringify(livePrices)),
         whaleEntriesRecent: JSON.parse(JSON.stringify(whaleEntriesRecent)),
         whaleLastAny: whaleLastAny ? JSON.parse(JSON.stringify(whaleLastAny)) : null,
         narratives: JSON.parse(JSON.stringify(narratives)),
@@ -666,6 +715,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         pulse: null,
         highlights: null,
         trending: [],
+        livePrices: [],
         whaleEntriesRecent: [],
         whaleLastAny: null,
         narratives: [],

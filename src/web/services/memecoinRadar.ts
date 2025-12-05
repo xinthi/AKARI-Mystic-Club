@@ -1,8 +1,10 @@
 /**
  * Meme Coin Radar Service
  * 
- * Fetches top memecoins from CoinGecko API by volume,
- * then filters for meme-like tokens using keyword matching.
+ * Fetches top memecoins from CoinGecko API with multiple fallback strategies:
+ * 1. Try category=meme-token
+ * 2. Try category=pump-fun
+ * 3. Fallback to top coins by volume filtered by meme keywords
  * 
  * Uses COINGECKO_API_KEY if available, falls back to public API otherwise.
  */
@@ -36,25 +38,50 @@ const MEME_KEYWORDS = [
   'pepe', 'doge', 'shib', 'wif', 'bonk', 'floki', 'meme', 'inu',
   'elon', 'moon', 'wojak', 'chad', 'frog', 'cat', 'dog', 'pump',
   'brett', 'popcat', 'mog', 'turbo', 'neiro', 'goat', 'pnut',
-  'act', 'bome', 'myro', 'slerf', 'wen', 'book', 'samo', 'corgiai'
+  'act', 'bome', 'myro', 'slerf', 'wen', 'book', 'samo', 'corgiai',
+  'cate', 'ai16z', 'zerebro', 'griffain', 'virtual', 'fartcoin'
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Exported Functions
+// Internal Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Get top memecoins from CoinGecko by volume, filtered by meme keywords.
- * Returns up to the specified limit (default: 10).
- * 
- * Simplified implementation that:
- * 1. Fetches top 250 coins by volume
- * 2. Filters for meme-like tokens using keyword matching
- * 3. Returns the top `limit` results
+ * Attempt to fetch memecoins from a specific CoinGecko category.
+ * Returns empty array if category doesn't exist or has no data.
  */
-export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCoin[]> {
+async function fetchCategory(category: string, limit: number): Promise<MemeCoin[]> {
   try {
-    console.log('[memecoinRadar] getTopPumpFunMemecoins: simple volume-based fetch, limit =', limit);
+    console.log('[memecoinRadar] fetchCategory:', category, 'limit:', limit);
+    
+    const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+      vs_currency: 'usd',
+      category,
+      order: 'market_cap_desc',
+      per_page: limit,
+      page: 1,
+    });
+
+    if (!Array.isArray(data) || data.length === 0) {
+      console.log('[memecoinRadar] fetchCategory', category, ': empty result');
+      return [];
+    }
+
+    console.log('[memecoinRadar] fetchCategory', category, ': got', data.length, 'coins');
+    return mapToMemeCoins(data);
+  } catch (error) {
+    console.error('[memecoinRadar] fetchCategory', category, 'exception:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch top coins by volume and filter by meme keywords.
+ * This is the most reliable fallback since it doesn't depend on CoinGecko categories.
+ */
+async function fetchByVolumeWithKeywordFilter(limit: number): Promise<MemeCoin[]> {
+  try {
+    console.log('[memecoinRadar] fetchByVolumeWithKeywordFilter: fetching top 250 by volume');
 
     const data = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
       vs_currency: 'usd',
@@ -64,11 +91,11 @@ export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCo
     });
 
     if (!Array.isArray(data) || data.length === 0) {
-      console.log('[memecoinRadar] /coins/markets returned empty or not an array');
+      console.log('[memecoinRadar] fetchByVolumeWithKeywordFilter: API returned empty');
       return [];
     }
 
-    console.log('[memecoinRadar] /coins/markets returned', data.length, 'coins');
+    console.log('[memecoinRadar] fetchByVolumeWithKeywordFilter: API returned', data.length, 'coins');
 
     // Filter for meme-like tokens based on name/symbol keywords
     const memeCandidates = data.filter(coin => {
@@ -79,15 +106,12 @@ export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCo
       );
     });
 
-    console.log('[memecoinRadar] memeCandidates length =', memeCandidates.length);
+    console.log('[memecoinRadar] fetchByVolumeWithKeywordFilter: keyword matches =', memeCandidates.length);
 
     const mapped = mapToMemeCoins(memeCandidates);
-    const result = mapped.slice(0, limit);
-    
-    console.log('[memecoinRadar] getTopPumpFunMemecoins final result length =', result.length);
-    return result;
+    return mapped.slice(0, limit);
   } catch (error) {
-    console.error('[memecoinRadar] getTopPumpFunMemecoins exception:', error);
+    console.error('[memecoinRadar] fetchByVolumeWithKeywordFilter exception:', error);
     return [];
   }
 }
@@ -110,4 +134,56 @@ function mapToMemeCoins(data: CoinGeckoMarketCoin[]): MemeCoin[] {
       marketCapUsd: coin.market_cap ?? null,
       priceChange24h: coin.price_change_percentage_24h ?? null,
     }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exported Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get top memecoins from CoinGecko with multiple fallback strategies.
+ * Returns up to the specified limit (default: 10).
+ * 
+ * Strategies (in order):
+ * 1. category=meme-token
+ * 2. category=pump-fun
+ * 3. Top coins by volume, filtered by meme keywords
+ * 
+ * Always returns an array (possibly empty), never throws.
+ */
+export async function getTopPumpFunMemecoins(limit: number = 10): Promise<MemeCoin[]> {
+  console.log('[memecoinRadar] getTopPumpFunMemecoins: limit =', limit);
+
+  // Strategy 1: Try meme-token category
+  let result = await fetchCategory('meme-token', limit);
+  if (result.length > 0) {
+    console.log('[memecoinRadar] getTopPumpFunMemecoins: Strategy 1 (meme-token) succeeded with', result.length, 'coins');
+    return result;
+  }
+
+  // Strategy 2: Try pump-fun category
+  result = await fetchCategory('pump-fun', limit);
+  if (result.length > 0) {
+    console.log('[memecoinRadar] getTopPumpFunMemecoins: Strategy 2 (pump-fun) succeeded with', result.length, 'coins');
+    return result;
+  }
+
+  // Strategy 3: Fallback to volume + keyword filter
+  result = await fetchByVolumeWithKeywordFilter(limit);
+  if (result.length > 0) {
+    console.log('[memecoinRadar] getTopPumpFunMemecoins: Strategy 3 (volume+keywords) succeeded with', result.length, 'coins');
+    return result;
+  }
+
+  console.log('[memecoinRadar] getTopPumpFunMemecoins: All strategies exhausted, returning empty array');
+  return [];
+}
+
+/**
+ * Direct meme fetch using volume + keyword filter only.
+ * Used as a last-resort fallback by cron handlers.
+ */
+export async function fetchMemesDirectly(limit: number = 20): Promise<MemeCoin[]> {
+  console.log('[memecoinRadar] fetchMemesDirectly: direct keyword-based fetch, limit =', limit);
+  return fetchByVolumeWithKeywordFilter(limit);
 }

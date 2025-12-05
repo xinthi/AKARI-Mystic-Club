@@ -4,8 +4,7 @@
  * Fetches trending coins and their current prices from CoinGecko API.
  * 
  * Set COINGECKO_API_KEY in environment variables for authenticated API access.
- * - With API key: uses pro-api.coingecko.com
- * - Without API key: uses api.coingecko.com (public, rate-limited)
+ * Uses the public endpoint https://api.coingecko.com/api/v3 with demo/free key headers.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,19 +45,6 @@ export interface CoinGeckoMarketCoin {
   total_volume: number | null;
   price_change_percentage_24h: number | null;
   price_change_percentage_24h_in_currency?: number | null;
-}
-
-interface CoinGeckoTrendingResponse {
-  coins: Array<{
-    item: {
-      id: string;
-      name: string;
-      symbol: string;
-      thumb?: string;
-      small?: string;
-      large?: string;
-    };
-  }>;
 }
 
 interface CoinGeckoPriceResponse {
@@ -117,9 +103,8 @@ export async function cgFetch<T = unknown>(
     const headers: HeadersInit = { Accept: 'application/json' };
     
     if (useApiKey && apiKey) {
-      // Send all header variants for compatibility with demo/pro keys
+      // Send headers for both demo and free tier keys
       headers['x-cg-demo-api-key'] = apiKey;
-      headers['x-cg-pro-api-key'] = apiKey;
       headers['x-cg-api-key'] = apiKey;
     }
 
@@ -163,32 +148,76 @@ export async function cgFetch<T = unknown>(
 
 /**
  * Get trending coins from CoinGecko with their current USD prices.
- * Returns up to 30 coins by market cap.
+ * Returns up to 50 coins by market cap.
  * 
- * Simplified implementation that directly calls /coins/markets
- * which is known to work reliably.
+ * Multiple fallback strategies:
+ * 1. Try /coins/markets with full params (market_cap_desc, price_change_percentage)
+ * 2. If that fails or returns empty, try simpler params
+ * 3. Always returns an array (possibly empty), never throws
  */
 export async function getTrendingCoinsWithPrices(): Promise<TrendingCoinWithPrice[]> {
   try {
     console.log('[coingecko] getTrendingCoinsWithPrices: fetching top market cap coins');
 
-    const markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+    // Strategy 1: Full params
+    let markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
       vs_currency: 'usd',
       order: 'market_cap_desc',
-      per_page: 30,
+      per_page: 50,
       page: 1,
       price_change_percentage: '24h',
     });
 
-    if (!Array.isArray(markets) || markets.length === 0) {
-      console.log('[coingecko] getTrendingCoinsWithPrices: markets empty or not an array');
-      return [];
+    if (Array.isArray(markets) && markets.length > 0) {
+      console.log('[coingecko] getTrendingCoinsWithPrices: Strategy 1 returned', markets.length, 'coins');
+      return mapMarketsToTrendingCoins(markets);
     }
 
-    console.log('[coingecko] getTrendingCoinsWithPrices: markets length =', markets.length);
-    return mapMarketsToTrendingCoins(markets);
+    console.log('[coingecko] getTrendingCoinsWithPrices: Strategy 1 empty, trying simpler params...');
+
+    // Strategy 2: Simpler params (no price_change_percentage)
+    markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+      vs_currency: 'usd',
+      per_page: 50,
+      page: 1,
+    });
+
+    if (Array.isArray(markets) && markets.length > 0) {
+      console.log('[coingecko] getTrendingCoinsWithPrices: Strategy 2 returned', markets.length, 'coins');
+      return mapMarketsToTrendingCoins(markets);
+    }
+
+    console.log('[coingecko] getTrendingCoinsWithPrices: All strategies exhausted, returning empty array');
+    return [];
   } catch (error) {
     console.error('[coingecko] getTrendingCoinsWithPrices exception:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch markets directly with minimal params - used as a last-resort fallback
+ * by cron handlers when getTrendingCoinsWithPrices returns empty.
+ */
+export async function fetchMarketsDirectly(limit: number = 30): Promise<TrendingCoinWithPrice[]> {
+  try {
+    console.log('[coingecko] fetchMarketsDirectly: direct API call with limit =', limit);
+
+    const markets = await cgFetch<CoinGeckoMarketCoin[]>('/coins/markets', {
+      vs_currency: 'usd',
+      per_page: limit,
+      page: 1,
+    });
+
+    if (Array.isArray(markets) && markets.length > 0) {
+      console.log('[coingecko] fetchMarketsDirectly: returned', markets.length, 'coins');
+      return mapMarketsToTrendingCoins(markets);
+    }
+
+    console.log('[coingecko] fetchMarketsDirectly: returned empty');
+    return [];
+  } catch (error) {
+    console.error('[coingecko] fetchMarketsDirectly exception:', error);
     return [];
   }
 }
@@ -310,6 +339,43 @@ export async function getTopCoinsByVolume(limit: number = 10): Promise<CoinGecko
     return marketsData;
   } catch (error) {
     console.error('[coingecko] getTopCoinsByVolume exception:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch live prices for major coins (BTC, ETH, SOL) from Binance public API.
+ * Used as a UI fallback when no market snapshots exist.
+ */
+export async function fetchMajorPricesFromBinance(): Promise<{ symbol: string; name: string; priceUsd: number }[]> {
+  try {
+    console.log('[coingecko] fetchMajorPricesFromBinance: fetching BTC, ETH, SOL');
+    
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+    const url = `https://api.binance.com/api/v3/ticker/price?symbols=${JSON.stringify(symbols)}`;
+    
+    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!resp.ok) {
+      console.error('[coingecko] Binance API error:', resp.status, resp.statusText);
+      return [];
+    }
+
+    const data: Array<{ symbol: string; price: string }> = await resp.json();
+    
+    const result = data.map(item => {
+      const symbol = item.symbol.replace('USDT', '');
+      const nameMap: Record<string, string> = { BTC: 'Bitcoin', ETH: 'Ethereum', SOL: 'Solana' };
+      return {
+        symbol,
+        name: nameMap[symbol] || symbol,
+        priceUsd: parseFloat(item.price),
+      };
+    });
+
+    console.log('[coingecko] fetchMajorPricesFromBinance: got', result.length, 'prices');
+    return result;
+  } catch (error) {
+    console.error('[coingecko] fetchMajorPricesFromBinance exception:', error);
     return [];
   }
 }
