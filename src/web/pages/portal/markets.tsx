@@ -17,6 +17,11 @@ import {
   type NarrativeSummary,
   type VolumeLeader,
 } from '../../services/akariNarratives';
+import {
+  LiquiditySignalsCard,
+  type LiquiditySignalDto,
+} from '../../components/portal/LiquiditySignalsCard';
+import { getRecentLiquiditySignals } from '../../lib/portal/db';
 
 interface MarketsPageProps {
   pulse: MarketPulse | null;
@@ -25,6 +30,7 @@ interface MarketsPageProps {
   whaleEntries: WhaleEntryDto[];
   narratives: NarrativeSummary[];
   volumeLeaders: VolumeLeader[];
+  liquiditySignals: LiquiditySignalDto[];
   error?: string;
 }
 
@@ -108,6 +114,7 @@ export default function MarketsPage({
   whaleEntries,
   narratives,
   volumeLeaders,
+  liquiditySignals,
   error,
 }: MarketsPageProps) {
   return (
@@ -152,12 +159,12 @@ export default function MarketsPage({
         </div>
       )}
 
-      {/* Smart Money Heatmap */}
-      {/* Smart Money Heatmap */}
+      {/* Smart Money Heatmap & Liquidity Signals */}
       {!error && (
-        <div className="mb-6">
+        <section className="mb-6 space-y-4">
           <WhaleHeatmapCard entries={whaleEntries} />
-        </div>
+          <LiquiditySignalsCard signals={liquiditySignals} />
+        </section>
       )}
 
       {/* Highlights Row */}
@@ -553,15 +560,23 @@ export default function MarketsPage({
 
 export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async () => {
   try {
-    const [pulse, highlights, trending, whaleEntriesRaw, narratives, volumeLeaders] =
-      await Promise.all([
-        getMarketPulse().catch(() => null),
-        getAkariHighlights().catch(() => null),
-        getTrendingMarketTable().catch(() => []),
-        getRecentWhaleEntries(50).catch(() => []),
-        getNarrativeSummaries().catch(() => []),
-        getVolumeLeaders(5).catch(() => []),
-      ]);
+    const [
+      pulse,
+      highlights,
+      trending,
+      whaleEntriesRaw,
+      narratives,
+      volumeLeaders,
+      liquiditySignalsRaw,
+    ] = await Promise.all([
+      getMarketPulse().catch(() => null),
+      getAkariHighlights().catch(() => null),
+      getTrendingMarketTable().catch(() => []),
+      getRecentWhaleEntries(50).catch(() => []),
+      getNarrativeSummaries().catch(() => []),
+      getVolumeLeaders(5).catch(() => []),
+      getRecentLiquiditySignals(10).catch(() => []),
+    ]);
 
     // Map whale entries to serializable DTOs
     const whaleEntries: WhaleEntryDto[] = whaleEntriesRaw.map((w: any) => ({
@@ -573,6 +588,19 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       occurredAt: w.occurredAt.toISOString(),
     }));
 
+    // Map liquidity signals to serializable DTOs
+    const liquiditySignals: LiquiditySignalDto[] = liquiditySignalsRaw.map((s: any) => ({
+      id: s.id,
+      type: s.type,
+      title: s.title,
+      description: s.description,
+      severity: s.severity,
+      chain: s.chain,
+      stableSymbol: s.stableSymbol,
+      tokenSymbol: s.tokenSymbol,
+      triggeredAt: s.triggeredAt.toISOString(),
+    }));
+
     return {
       props: {
         pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
@@ -581,6 +609,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         whaleEntries: JSON.parse(JSON.stringify(whaleEntries)),
         narratives: JSON.parse(JSON.stringify(narratives)),
         volumeLeaders: JSON.parse(JSON.stringify(volumeLeaders)),
+        liquiditySignals: JSON.parse(JSON.stringify(liquiditySignals)),
       },
     };
   } catch (error: any) {
@@ -593,6 +622,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         whaleEntries: [],
         narratives: [],
         volumeLeaders: [],
+        liquiditySignals: [],
         error: 'Failed to load market data',
       },
     };

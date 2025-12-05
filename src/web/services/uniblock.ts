@@ -19,6 +19,16 @@ export type WhaleTransfer = {
   chain: string;
 };
 
+export type StablecoinTransfer = {
+  stableSymbol: 'USDT' | 'USDC';
+  chain: string;
+  from: string;
+  to: string;
+  amountUsd: number;
+  txHash: string;
+  occurredAt: string;
+};
+
 interface UniblockTokenTransfer {
   tokenAddress: string;
   from: string;
@@ -152,6 +162,108 @@ export async function getLargeTokenTransfers(params: {
     return whaleTransfers;
   } catch (error) {
     console.error('[Uniblock] Error fetching large token transfers:', error);
+    return [];
+  }
+}
+
+const TRACKED_STABLECOINS: { symbol: 'USDT' | 'USDC'; tokenAddress: string }[] = [
+  { symbol: 'USDT', tokenAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7' }, // Ethereum USDT
+  { symbol: 'USDC', tokenAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' }, // Ethereum USDC
+  // TODO: user can add Base/Solana/etc wrapped versions later
+];
+
+/**
+ * Get recent stablecoin transfers for a given chain and stablecoin symbol.
+ * Filters for transfers where USD value is >= minUsd (default 10,000).
+ */
+export async function getRecentStablecoinTransfers(params: {
+  chain: string;
+  stableSymbol: 'USDT' | 'USDC';
+  sinceTimestamp: number; // unix seconds
+  minUsd?: number;
+}): Promise<StablecoinTransfer[]> {
+  if (!UNIBLOCK_API_KEY) {
+    console.error('[Uniblock] UNIBLOCK_API_KEY not set, returning empty array');
+    return [];
+  }
+
+  const minUsd = params.minUsd ?? 10_000;
+
+  // Find the token address for this stablecoin
+  const stablecoin = TRACKED_STABLECOINS.find((s) => s.symbol === params.stableSymbol);
+  if (!stablecoin) {
+    console.warn(`[Uniblock] No token address found for ${params.stableSymbol}`);
+    return [];
+  }
+
+  try {
+    // Use the same Uniblock provider endpoint as whale transfers
+    const url = new URL(`${UNIBLOCK_API_BASE_URL}/direct/v1/Moralis/erc20/transfers`);
+    url.searchParams.set('chain', params.chain);
+    url.searchParams.set('contractAddress', stablecoin.tokenAddress);
+    url.searchParams.set('limit', '100');
+    url.searchParams.set('fromDate', new Date(params.sinceTimestamp * 1000).toISOString());
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'x-api-key': UNIBLOCK_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`[Uniblock] Stablecoin API error: ${response.status} ${response.statusText}`);
+      return [];
+    }
+
+    const raw = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch (err) {
+      console.error('[Uniblock] JSON parse error for stablecoin transfers:', err);
+      return [];
+    }
+
+    if (data.error) {
+      console.error(`[Uniblock] API error: ${data.error}`);
+      return [];
+    }
+
+    const transfers = data.result ?? data.data ?? [];
+    if (!transfers || transfers.length === 0) {
+      return [];
+    }
+
+    const stablecoinTransfers: StablecoinTransfer[] = [];
+
+    for (const transfer of transfers) {
+      const usd = transfer.usd_value ?? transfer.valueUsd ?? 0;
+      if (usd < minUsd) continue;
+
+      const from = transfer.from_address ?? transfer.from ?? '';
+      const to = transfer.to_address ?? transfer.to ?? '';
+      const txHash = transfer.hash ?? transfer.transaction_hash ?? transfer.transactionHash;
+      const timestamp = transfer.block_timestamp ?? transfer.blockTimestamp ?? transfer.occurredAt;
+
+      if (!from || !to || !txHash || !timestamp) {
+        continue;
+      }
+
+      stablecoinTransfers.push({
+        stableSymbol: params.stableSymbol,
+        chain: params.chain,
+        from,
+        to,
+        amountUsd: usd,
+        txHash,
+        occurredAt: timestamp,
+      });
+    }
+
+    return stablecoinTransfers;
+  } catch (error) {
+    console.error('[Uniblock] Error fetching stablecoin transfers:', error);
     return [];
   }
 }

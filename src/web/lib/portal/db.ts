@@ -18,6 +18,16 @@ export async function getRecentWhaleEntries(limit: number = 50) {
   });
 }
 
+/**
+ * Get recent liquidity signals, ordered by triggeredAt descending
+ */
+export async function getRecentLiquiditySignals(limit: number = 10) {
+  return prisma.liquiditySignal.findMany({
+    orderBy: { triggeredAt: 'desc' },
+    take: limit,
+  });
+}
+
 export interface LaunchWithMetrics {
   id: string;
   name: string;

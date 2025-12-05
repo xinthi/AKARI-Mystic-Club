@@ -732,3 +732,33 @@ model WhaleEntry {
   @@index([tokenSymbol, occurredAt])
   @@index([chain, occurredAt])
 }
+
+model StablecoinFlowSnapshot {
+  id           String   @id @default(cuid())
+  stableSymbol String   // 'USDT' | 'USDC'
+  fromChain    String   // e.g. 'ethereum', 'solana', 'base'
+  toChain      String   // e.g. 'solana', 'base', 'ethereum'
+  netAmountUsd Float    // positive for net inflow TO toChain FROM fromChain
+  windowStart  DateTime
+  windowEnd    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([stableSymbol, fromChain, toChain, windowEnd])
+}
+
+model LiquiditySignal {
+  id          String   @id @default(cuid())
+  type        String   // 'SOL_MEME_SEASON' | 'BASE_SOCIALFI' | 'ETH_RISK_OFF' | 'GENERIC_FLOW' | 'TOKEN_WHALE_ACCUMULATION'
+  title       String   // short title
+  description String   // human readable text
+  severity    Int      // 1-3
+  chain       String?  // primary chain this relates to
+  stableSymbol String? // if stablecoin-based
+  tokenSymbol  String? // for token whale signals
+  dataJson    String?  // optional JSON payload
+  triggeredAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([type, triggeredAt])
+  @@index([chain, triggeredAt])
+}
