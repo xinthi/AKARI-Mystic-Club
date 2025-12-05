@@ -79,8 +79,8 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
   return (
     <PortalLayout title="Meme Radar">
       <section className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2 text-akari-text">Meme Radar</h1>
-        <p className="text-sm text-akari-muted max-w-2xl">
+        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-akari-text">Meme Radar</h1>
+        <p className="text-xs sm:text-sm text-akari-muted max-w-2xl">
           Track onchain meme pairs, liquidity and velocity. Surface the hottest degens and turn them into prediction markets in the MiniApp.
         </p>
       </section>
@@ -102,7 +102,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
             <span className="text-xs text-akari-muted">High attention zone</span>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {sortedMemecoins.map((coin) => {
               const priceChange = formatPriceChange(coin.priceChange24h);
               
@@ -160,7 +160,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
       )}
 
       {/* Info Cards with Live Data */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {/* SOL Memecoins Tracker */}
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-4 hover:border-akari-primary/40 transition">
           <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">SOL memecoins tracker</p>

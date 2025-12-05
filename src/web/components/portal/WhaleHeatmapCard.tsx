@@ -56,9 +56,9 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-50">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-50">
             Smart Money Heatmap
           </h2>
           <p className="text-xs text-slate-400">
@@ -66,14 +66,14 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
           </p>
         </div>
         {totalsByToken.length > 0 && (
-          <div className="flex flex-wrap gap-2 justify-end max-w-[260px]">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             {totalsByToken.map((t) => (
               <div
                 key={t.symbol}
-                className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-xs text-emerald-200 flex items-center gap-1"
+                className="px-2 sm:px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-[10px] sm:text-xs text-emerald-200 flex items-center gap-1"
               >
                 <span className="font-semibold">{t.symbol}</span>
-                <span className="text-[10px] uppercase tracking-wide">
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-wide">
                   {formatUsd(t.totalUsd)}
                 </span>
               </div>
@@ -99,27 +99,27 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ entries }) => {
             return (
               <div
                 key={e.id}
-                className="flex items-center justify-between gap-3 rounded-xl bg-slate-900/50 px-3 py-2"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 rounded-xl bg-slate-900/50 px-3 py-2"
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-xs font-semibold text-emerald-200">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-emerald-200 flex-shrink-0">
                     {e.tokenSymbol || '?'}
                   </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${intensity}`}>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <span className={`text-xs sm:text-sm font-medium ${intensity}`}>
                         {formatUsd(e.amountUsd)}
                       </span>
-                      <span className="text-[11px] uppercase tracking-wide text-slate-400">
+                      <span className="text-[10px] sm:text-[11px] uppercase tracking-wide text-slate-400">
                         {e.tokenSymbol}
                       </span>
-                      <span className="text-[10px] uppercase tracking-wide rounded-full bg-slate-800 px-2 py-[2px] text-slate-400">
+                      <span className="text-[9px] sm:text-[10px] uppercase tracking-wide rounded-full bg-slate-800 px-1.5 sm:px-2 py-[2px] text-slate-400">
                         {e.chain}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">
                       {timeAgo(e.occurredAt)} •{' '}
-                      <span className="font-mono text-[10px]">
+                      <span className="font-mono text-[9px] sm:text-[10px]">
                         {e.wallet.slice(0, 6)}...{e.wallet.slice(-4)}
                       </span>
                     </div>

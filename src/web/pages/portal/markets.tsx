@@ -120,8 +120,8 @@ export default function MarketsPage({
   return (
     <PortalLayout title="Markets overview">
       <section className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2 text-akari-text">Markets overview</h1>
-        <p className="text-sm text-akari-muted max-w-2xl">
+        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-akari-text">Markets overview</h1>
+        <p className="text-xs sm:text-sm text-akari-muted max-w-2xl">
           High level view of top gainers, volume leaders and narratives. We group markets into segments like Layer 1, Layer 2, AI, GameFi, InfoFi and SportFi so it is easier to see what is actually moving.
         </p>
       </section>
@@ -137,7 +137,7 @@ export default function MarketsPage({
 
       {/* Market Pulse */}
       {!error && pulse && (
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
             <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">Tracked Market Cap</p>
             <p className="text-lg font-semibold text-akari-text">
@@ -161,7 +161,7 @@ export default function MarketsPage({
 
       {/* Smart Money Heatmap & Liquidity Signals */}
       {!error && (
-        <section className="mb-6 space-y-4">
+        <section className="mb-6 space-y-4 sm:space-y-6">
           <WhaleHeatmapCard entries={whaleEntries} />
           <LiquiditySignalsCard signals={liquiditySignals} />
         </section>
@@ -169,9 +169,9 @@ export default function MarketsPage({
 
       {/* Highlights Row */}
       {!error && highlights && (
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           {/* Trending */}
-          <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
+          <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-3 sm:p-4">
             <h3 className="text-sm font-semibold text-akari-text mb-1">Trending</h3>
             <p className="text-xs text-akari-muted mb-3">
               Top trending coins by attention.
@@ -191,7 +191,7 @@ export default function MarketsPage({
           </div>
 
           {/* Meme Radar */}
-          <div className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4">
+          <div className="rounded-2xl border border-akari-accent/30 bg-akari-card p-3 sm:p-4">
             <h3 className="text-sm font-semibold text-akari-text mb-1">Meme Radar</h3>
             <p className="text-xs text-akari-muted mb-3">
               Pump.fun and friends, ranked by daily moves.
@@ -214,7 +214,7 @@ export default function MarketsPage({
           </div>
 
           {/* Launchpad Winners */}
-          <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-4">
+          <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-3 sm:p-4">
             <h3 className="text-sm font-semibold text-akari-text mb-1">Launchpad Winners</h3>
             <p className="text-xs text-akari-muted mb-3">
               Best ROI from the launches Akari tracks.
@@ -378,12 +378,12 @@ export default function MarketsPage({
       )}
 
       {/* Narrative Tiles */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {/* AI Markets */}
         {(() => {
           const narrative = narratives.find((n) => n.key === 'ai');
           return (
-            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
               <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">AI Markets</p>
               <p className="text-sm mb-1 text-akari-text">Artificial Intelligence</p>
               {narrative && narrative.topTokens.length > 0 ? (
@@ -416,7 +416,7 @@ export default function MarketsPage({
         {(() => {
           const narrative = narratives.find((n) => n.key === 'gamefi');
           return (
-            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
               <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">GameFi</p>
               <p className="text-sm mb-1 text-akari-text">Gaming & NFTs</p>
               {narrative && narrative.topTokens.length > 0 ? (
@@ -449,7 +449,7 @@ export default function MarketsPage({
         {(() => {
           const narrative = narratives.find((n) => n.key === 'infofi');
           return (
-            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
               <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">InfoFi</p>
               <p className="text-sm mb-1 text-akari-text">Information Finance</p>
               {narrative && narrative.topTokens.length > 0 ? (
@@ -482,7 +482,7 @@ export default function MarketsPage({
         {(() => {
           const narrative = narratives.find((n) => n.key === 'defi_l2');
           return (
-            <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+            <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
               <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">DeFi & L2s</p>
               <p className="text-sm mb-1 text-akari-text">Decentralized Finance</p>
               {narrative && narrative.topTokens.length > 0 ? (
@@ -512,7 +512,7 @@ export default function MarketsPage({
         })()}
 
         {/* SportFi - Keep static for now */}
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
           <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">SportFi</p>
           <p className="text-sm mb-1 text-akari-text">Sports & Betting</p>
           <p className="text-[11px] text-akari-muted">
@@ -521,7 +521,7 @@ export default function MarketsPage({
         </div>
 
         {/* Top Gainers 24h / Volume Leaders */}
-        <div className="rounded-2xl border border-akari-border bg-akari-card p-4">
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
           <p className="text-xs text-akari-muted mb-1">Top Gainers 24h</p>
           <p className="text-sm mb-1 text-akari-text">Volume Leaders</p>
           {volumeLeaders.length > 0 ? (
@@ -529,17 +529,17 @@ export default function MarketsPage({
               {volumeLeaders.slice(0, 5).map((leader) => {
                 const changeColor = leader.change24hPct >= 0 ? 'text-green-400' : 'text-red-400';
                 return (
-                  <div key={leader.id} className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-2">
+                  <div key={leader.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-[11px]">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-akari-text font-medium">{leader.symbol}</span>
-                      <span className="text-akari-muted">{formatPrice(leader.priceUsd)}</span>
+                      <span className="text-akari-muted text-[10px] sm:text-[11px]">{formatPrice(leader.priceUsd)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`${changeColor} font-medium`}>
+                      <span className={`${changeColor} font-medium text-[10px] sm:text-[11px]`}>
                         {leader.change24hPct >= 0 ? '+' : ''}
                         {leader.change24hPct.toFixed(2)}%
                       </span>
-                      <span className="text-akari-muted text-[10px]">
+                      <span className="text-akari-muted text-[9px] sm:text-[10px]">
                         {formatVolumeOrMarketCap(leader.volume24hUsd)}
                       </span>
                     </div>

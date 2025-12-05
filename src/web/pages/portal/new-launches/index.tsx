@@ -37,14 +37,14 @@ export default function NewLaunchesPage({ launches, error }: Props) {
 
       {/* Header */}
       <section className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2 text-akari-text">New launches</h1>
-        <p className="text-sm text-akari-muted max-w-2xl">
+        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-akari-text">New launches</h1>
+        <p className="text-xs sm:text-sm text-akari-muted max-w-2xl">
           Community-curated database of new token launches, IDOs, and airdrops with real-time price tracking.
         </p>
       </section>
 
       {/* Launches Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-8">
         {launches.map((launch) => {
           const roiPercent = launch.roiPercent;
           const salePrice = launch.salePriceUsd;
