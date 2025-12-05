@@ -14,6 +14,8 @@ import {
   getDexSnapshotsForSymbols,
   getCexSnapshotsForSymbols,
   getTopDexByLiquidity,
+  getLatestDexSnapshots,
+  getLatestCexSnapshots,
 } from '../../lib/portal/db';
 import { fetchMajorPricesFromBinance } from '../../services/coingecko';
 import type { MarketSnapshot, DexMarketSnapshot, CexMarketSnapshot } from '@prisma/client';
@@ -49,21 +51,24 @@ interface LivePricePreview {
   priceUsd: number;
 }
 
-// DEX snapshot DTO for SSR
+// DEX snapshot DTO for SSR (matches new schema)
 interface DexSnapshotDto {
-  symbol: string;
-  chain: string;
-  dexSource: string;
-  dexName: string | null;
+  symbol: string | null;
+  name: string | null;
+  chain: string | null;
+  dex: string | null;
   liquidityUsd: number | null;
   volume24hUsd: number | null;
+  priceUsd: number | null;
 }
 
-// CEX snapshot DTO for SSR
+// CEX snapshot DTO for SSR (matches new schema)
 interface CexSnapshotDto {
   symbol: string;
-  exchange: string;
-  pairCode: string;
+  baseAsset: string | null;
+  quoteAsset: string | null;
+  source: string;
+  priceUsd: number | null;
   volume24hUsd: number | null;
 }
 
@@ -72,17 +77,18 @@ interface TradingVenueInfo {
   symbol: string;
   dexLiquidityUsd: number | null;
   dexVolume24hUsd: number | null;
-  dexSources: string[];
-  cexExchanges: string[];
+  dexSources: string[]; // 'dex' field values
+  cexSources: string[]; // 'source' field values
 }
 
-// Top DEX liquidity entry
+// Top DEX liquidity entry (matches new schema)
 interface TopDexEntry {
-  symbol: string;
+  symbol: string | null;
   name: string | null;
-  chain: string;
+  chain: string | null;
+  dex: string | null;
   liquidityUsd: number;
-  dexName: string | null;
+  priceUsd: number | null;
 }
 
 interface MarketsPageProps {
@@ -92,6 +98,8 @@ interface MarketsPageProps {
   livePrices: LivePricePreview[]; // Binance fallback when no snapshots
   tradingVenues: TradingVenueInfo[]; // DEX/CEX info per symbol
   topDexLiquidity: TopDexEntry[]; // Top tokens by DEX liquidity
+  dexSnapshots: DexSnapshotDto[]; // Latest DEX snapshots for DEX Radar card
+  cexSnapshots: CexSnapshotDto[]; // Latest CEX snapshots for CEX Heatmap card
   whaleEntriesRecent: WhaleEntryDto[];
   whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
@@ -181,6 +189,8 @@ export default function MarketsPage({
   livePrices,
   tradingVenues,
   topDexLiquidity,
+  dexSnapshots,
+  cexSnapshots,
   whaleEntriesRecent,
   whaleLastAny,
   narratives,
@@ -197,6 +207,36 @@ export default function MarketsPage({
     }
     return map;
   }, [tradingVenues]);
+
+  // Deduplicate DEX snapshots by symbol (highest liquidity wins)
+  const topDexRadar = React.useMemo(() => {
+    const map = new Map<string, DexSnapshotDto>();
+    for (const snap of dexSnapshots) {
+      if (!snap.symbol) continue;
+      const existing = map.get(snap.symbol);
+      if (!existing || (snap.liquidityUsd || 0) > (existing.liquidityUsd || 0)) {
+        map.set(snap.symbol, snap);
+      }
+    }
+    return Array.from(map.values())
+      .sort((a, b) => (b.liquidityUsd || 0) - (a.liquidityUsd || 0))
+      .slice(0, 8);
+  }, [dexSnapshots]);
+
+  // Deduplicate CEX snapshots by symbol (highest volume wins)
+  const topCexHeatmap = React.useMemo(() => {
+    const map = new Map<string, CexSnapshotDto>();
+    for (const snap of cexSnapshots) {
+      if (!snap.symbol) continue;
+      const existing = map.get(snap.symbol);
+      if (!existing || (snap.volume24hUsd || 0) > (existing.volume24hUsd || 0)) {
+        map.set(snap.symbol, snap);
+      }
+    }
+    return Array.from(map.values())
+      .sort((a, b) => (b.volume24hUsd || 0) - (a.volume24hUsd || 0))
+      .slice(0, 8);
+  }, [cexSnapshots]);
   return (
     <PortalLayout title="Markets overview">
       <section className="mb-6">
@@ -283,6 +323,102 @@ export default function MarketsPage({
             signals={liquiditySignalsRecent}
             lastAnySignal={liquidityLastAny}
           />
+        </section>
+      )}
+
+      {/* DEX Liquidity Radar & CEX Market Heatmap */}
+      {!error && (
+        <section className="mb-6 grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* DEX Liquidity Radar */}
+          <div className="rounded-2xl border border-cyan-500/30 bg-akari-card p-4 sm:p-5">
+            <h3 className="text-base font-semibold text-akari-text mb-1">DEX Liquidity Radar</h3>
+            <p className="text-xs text-akari-muted mb-4">
+              Aggregated DEX liquidity and volume across Solana, Ethereum, and more.
+            </p>
+            {topDexRadar.length > 0 ? (
+              <div className="space-y-2">
+                {topDexRadar.map((snap, i) => (
+                  <div
+                    key={`${snap.symbol}-${snap.chain}-${i}`}
+                    className="flex items-center justify-between text-xs p-2 rounded-lg bg-akari-cardSoft/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-akari-text font-medium uppercase">{snap.symbol || '—'}</span>
+                      {snap.name && <span className="text-akari-muted truncate max-w-[100px]">{snap.name}</span>}
+                    </div>
+                    <div className="flex items-center gap-3 text-right">
+                      <div>
+                        <span className="text-akari-text">{snap.priceUsd ? formatPrice(snap.priceUsd) : '—'}</span>
+                      </div>
+                      <div className="text-cyan-400 font-medium min-w-[70px]">
+                        {snap.liquidityUsd ? formatLargeNumber(snap.liquidityUsd) : '—'}
+                      </div>
+                      <div className="flex gap-1">
+                        {snap.chain && (
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] uppercase">
+                            {snap.chain.slice(0, 3)}
+                          </span>
+                        )}
+                        {snap.dex && (
+                          <span className="px-1.5 py-0.5 rounded bg-akari-accent/20 text-akari-accent text-[10px]">
+                            {snap.dex}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-xs text-akari-muted">
+                <p>Waiting for first DEX snapshot.</p>
+                <p className="mt-1 text-[10px]">Check back in a few minutes.</p>
+              </div>
+            )}
+          </div>
+
+          {/* CEX Market Heatmap */}
+          <div className="rounded-2xl border border-amber-500/30 bg-akari-card p-4 sm:p-5">
+            <h3 className="text-base font-semibold text-akari-text mb-1">CEX Market Heatmap</h3>
+            <p className="text-xs text-akari-muted mb-4">
+              Spot market leaders across Binance, OKX, KuCoin.
+            </p>
+            {topCexHeatmap.length > 0 ? (
+              <div className="space-y-2">
+                {topCexHeatmap.map((snap, i) => (
+                  <div
+                    key={`${snap.symbol}-${i}`}
+                    className="flex items-center justify-between text-xs p-2 rounded-lg bg-akari-cardSoft/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-akari-text font-medium uppercase">{snap.symbol}</span>
+                      {snap.baseAsset && snap.quoteAsset && (
+                        <span className="text-akari-muted text-[10px]">
+                          {snap.baseAsset}/{snap.quoteAsset}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-right">
+                      <div>
+                        <span className="text-akari-text">{snap.priceUsd ? formatPrice(snap.priceUsd) : '—'}</span>
+                      </div>
+                      <div className="text-amber-400 font-medium min-w-[70px]">
+                        {snap.volume24hUsd ? formatLargeNumber(snap.volume24hUsd) : '—'}
+                      </div>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px]">
+                        CEX
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-xs text-akari-muted">
+                <p>Waiting for first CEX snapshot.</p>
+                <p className="mt-1 text-[10px]">Check back in a few minutes.</p>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -720,6 +856,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       volumeLeaders,
       signalData,
       topDexSnapshots,
+      latestDexSnapshots,
+      latestCexSnapshots,
     ] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
@@ -736,6 +874,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         limit: 10,
       }).catch(() => ({ recent: [], lastAny: null })),
       getTopDexByLiquidity(10).catch(() => []),
+      getLatestDexSnapshots(30).catch(() => []),
+      getLatestCexSnapshots(30).catch(() => []),
     ]);
 
     // If no market snapshots, fetch live prices from Binance as a fallback
@@ -779,7 +919,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
     
     for (const symbol of symbolSet) {
       const dexForSymbol = dexSnapshots.filter(
-        (d: DexMarketSnapshot) => d.symbol.toUpperCase() === symbol
+        (d: DexMarketSnapshot) => d.symbol?.toUpperCase() === symbol
       );
       const cexForSymbol = cexSnapshots.filter(
         (c: CexMarketSnapshot) => c.symbol.toUpperCase() === symbol
@@ -794,12 +934,13 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         0
       );
 
+      // Use 'dex' field for DEX sources, 'source' field for CEX
       tradingVenues.push({
         symbol,
         dexLiquidityUsd: maxDexLiquidity && maxDexLiquidity > 0 ? maxDexLiquidity : null,
         dexVolume24hUsd: totalDexVolume > 0 ? totalDexVolume : null,
-        dexSources: [...new Set(dexForSymbol.map((d: DexMarketSnapshot) => d.dexSource))],
-        cexExchanges: [...new Set(cexForSymbol.map((c: CexMarketSnapshot) => c.exchange))],
+        dexSources: [...new Set(dexForSymbol.map((d: DexMarketSnapshot) => d.dex).filter(Boolean))] as string[],
+        cexSources: [...new Set(cexForSymbol.map((c: CexMarketSnapshot) => c.source))],
       });
     }
 
@@ -810,9 +951,33 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         symbol: d.symbol,
         name: d.name,
         chain: d.chain,
+        dex: d.dex,
         liquidityUsd: d.liquidityUsd!,
-        dexName: d.dexName,
+        priceUsd: d.priceUsd,
       }));
+
+    // Map latest DEX snapshots for DEX Radar card
+    const dexSnapshotsDto: DexSnapshotDto[] = latestDexSnapshots
+      .filter((d: DexMarketSnapshot) => d.symbol)
+      .map((d: DexMarketSnapshot) => ({
+        symbol: d.symbol,
+        name: d.name,
+        chain: d.chain,
+        dex: d.dex,
+        liquidityUsd: d.liquidityUsd,
+        volume24hUsd: d.volume24hUsd,
+        priceUsd: d.priceUsd,
+      }));
+
+    // Map latest CEX snapshots for CEX Heatmap card
+    const cexSnapshotsDto: CexSnapshotDto[] = latestCexSnapshots.map((c: CexMarketSnapshot) => ({
+      symbol: c.symbol,
+      baseAsset: c.baseAsset,
+      quoteAsset: c.quoteAsset,
+      source: c.source,
+      priceUsd: c.priceUsd,
+      volume24hUsd: c.volume24hUsd,
+    }));
 
     // Map whale entries to serializable DTOs
     const whaleEntriesRecent: WhaleEntryDto[] = whaleData.recent.map((w: any) => ({
@@ -870,6 +1035,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         livePrices: JSON.parse(JSON.stringify(livePrices)),
         tradingVenues: JSON.parse(JSON.stringify(tradingVenues)),
         topDexLiquidity: JSON.parse(JSON.stringify(topDexLiquidity)),
+        dexSnapshots: JSON.parse(JSON.stringify(dexSnapshotsDto)),
+        cexSnapshots: JSON.parse(JSON.stringify(cexSnapshotsDto)),
         whaleEntriesRecent: JSON.parse(JSON.stringify(whaleEntriesRecent)),
         whaleLastAny: whaleLastAny ? JSON.parse(JSON.stringify(whaleLastAny)) : null,
         narratives: JSON.parse(JSON.stringify(narratives)),
@@ -890,6 +1057,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         livePrices: [],
         tradingVenues: [],
         topDexLiquidity: [],
+        dexSnapshots: [],
+        cexSnapshots: [],
         whaleEntriesRecent: [],
         whaleLastAny: null,
         narratives: [],

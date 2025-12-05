@@ -14,74 +14,74 @@ datasource db {
 // USER MODEL
 // ============================================
 model User {
-  id               String   @id @default(cuid())
-  telegramId       String   @unique
-  username         String?
-  firstName        String?
-  lastName         String?
-  photoUrl         String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id         String   @id @default(cuid())
+  telegramId String   @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+  photoUrl   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Legacy points (aXP - experience points, non-monetary)
-  points           Int      @default(0)
-  tier             String?  // e.g. "Seeker", "Mystic", "Oracle"
-  credibilityScore Float    @default(0)
-  positiveReviews  Int      @default(0)
-  negativeReviews  Int      @default(0)
+  points           Int     @default(0)
+  tier             String? // e.g. "Seeker", "Mystic", "Oracle"
+  credibilityScore Float   @default(0)
+  positiveReviews  Int     @default(0)
+  negativeReviews  Int     @default(0)
 
   // Referral system
-  referrerId       String?  // User ID who referred this user
-  referrer         User?    @relation("Referrals", fields: [referrerId], references: [id])
-  referrals        User[]   @relation("Referrals")
-  referralCode     String?  @unique // Unique code for sharing
+  referrerId   String? // User ID who referred this user
+  referrer     User?   @relation("Referrals", fields: [referrerId], references: [id])
+  referrals    User[]  @relation("Referrals")
+  referralCode String? @unique // Unique code for sharing
 
   // TON wallet (for withdrawals)
-  tonAddress         String?   // TON wallet address
-  tonLinkedAt        DateTime? // When the wallet was linked
+  tonAddress  String? // TON wallet address
+  tonLinkedAt DateTime? // When the wallet was linked
 
   // Relations
-  twitterAccounts      TwitterAccount[]
-  bets                 Bet[]
-  campaignsProgress    CampaignUserProgress[]
-  mystTransactions     MystTransaction[]
-  referralEvents       ReferralEvent[]       // Events where this user spent MYST
-  referralRewards      ReferralEvent[]       @relation("ReferralRewards") // Rewards received
-  leaderboardRewards   LeaderboardReward[]
-  campaignRequests     CampaignRequest[]
-  predictionRequests   PredictionRequest[]
-  wheelSpins           WheelSpin[]
-  withdrawalRequests   WithdrawalRequest[]
-  deposits             Deposit[]
-  
+  twitterAccounts    TwitterAccount[]
+  bets               Bet[]
+  campaignsProgress  CampaignUserProgress[]
+  mystTransactions   MystTransaction[]
+  referralEvents     ReferralEvent[] // Events where this user spent MYST
+  referralRewards    ReferralEvent[]        @relation("ReferralRewards") // Rewards received
+  leaderboardRewards LeaderboardReward[]
+  campaignRequests   CampaignRequest[]
+  predictionRequests PredictionRequest[]
+  wheelSpins         WheelSpin[]
+  withdrawalRequests WithdrawalRequest[]
+  deposits           Deposit[]
+
   // Campaign relations
   campaignReferralsGiven    CampaignReferral[] @relation("CampaignReferrer")
   campaignReferralsReceived CampaignReferral[] @relation("CampaignReferred")
   campaignWins              CampaignWinner[]
-  
+
   // Reviews (credibility system)
   reviewsGiven    Review[] @relation("ReviewerReviews")
   reviewsReceived Review[] @relation("RevieweeReviews")
-  
+
   // Onboarding flags
   hasSeenBotWelcome      Boolean @default(false)
   hasSeenOnboardingGuide Boolean @default(false)
-  
+
   // Broadcast preferences
-  allowAnnouncements     Boolean @default(true)
+  allowAnnouncements Boolean @default(true)
 }
 
 model TwitterAccount {
-  id                String   @id @default(cuid())
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId            String
-  twitterUserId     String   @unique
-  handle            String?
-  accessToken       String?
-  refreshToken      String?
-  tokenExpiresAt    DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id             String    @id @default(cuid())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  twitterUserId  String    @unique
+  handle         String?
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // ============================================
@@ -91,19 +91,19 @@ model TwitterAccount {
 // MYST Transaction Ledger - all MYST movements are recorded here
 // Balance = SUM(amount) for a user
 model MystTransaction {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
-  
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
   // Transaction type
-  type      String   // "stars_conversion", "bet", "win", "referral_reward", "burn_for_reward", "admin_grant", "campaign_fee", "boost"
-  
+  type String // "stars_conversion", "bet", "win", "referral_reward", "burn_for_reward", "admin_grant", "campaign_fee", "boost"
+
   // Amount: positive = credit, negative = debit
-  amount    Float
-  
+  amount Float
+
   // Optional metadata (predictionId, weekId, referralEventId, etc.)
-  meta      Json?
-  
+  meta Json?
+
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -115,29 +115,29 @@ model MystTransaction {
 
 // Referral Events - tracks when users spend MYST and referrers earn rewards
 model ReferralEvent {
-  id               String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // The user who spent MYST
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId           String
-  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
   // Level 1 referrer (direct)
-  referrerLevel1   User?    @relation("ReferralRewards", fields: [referrerLevel1Id], references: [id])
+  referrerLevel1   User?   @relation("ReferralRewards", fields: [referrerLevel1Id], references: [id])
   referrerLevel1Id String?
-  rewardLevel1     Float    @default(0) // MYST rewarded to level 1
-  
+  rewardLevel1     Float   @default(0) // MYST rewarded to level 1
+
   // Level 2 referrer (indirect)
   referrerLevel2Id String?
-  rewardLevel2     Float    @default(0) // MYST rewarded to level 2
-  
+  rewardLevel2     Float   @default(0) // MYST rewarded to level 2
+
   // The MYST spent that triggered this event
-  mystSpent        Float
-  spendType        String   // "bet", "campaign_fee", "boost"
-  
+  mystSpent Float
+  spendType String // "bet", "campaign_fee", "boost"
+
   // Reference to what was purchased (optional)
-  referenceId      String?  // predictionId, campaignId, etc.
-  
-  createdAt        DateTime @default(now())
+  referenceId String? // predictionId, campaignId, etc.
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([referrerLevel1Id])
@@ -148,37 +148,37 @@ model ReferralEvent {
 // WEEKLY LEADERBOARD REWARDS
 // ============================================
 model LeaderboardReward {
-  id           String   @id @default(cuid())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
   // Week identifier (e.g., "2025-W48" or "2025-11-25_2025-12-01")
-  weekId       String
-  
+  weekId String
+
   // Category: "top_spender", "top_referrer", "top_campaign"
-  category     String
-  
+  category String
+
   // Rank in that category for that week
-  rank         Int
-  
+  rank Int
+
   // Reward amount in USD (set by admin, hidden from user until paid)
-  rewardUsd    Float
-  
+  rewardUsd Float
+
   // MYST burn requirement (computed: rewardUsd / 2 * 1.1)
   requiredMyst Float
-  
+
   // Actual MYST burned by user
-  burnedMyst   Float    @default(0)
-  
+  burnedMyst Float @default(0)
+
   // User's TON wallet at claim time
-  tonWallet    String?
-  
+  tonWallet String?
+
   // Status flow: pending_burn -> ready_for_payout -> paid
-  status       String   @default("pending_burn") // "pending_burn", "ready_for_payout", "paid"
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  paidAt       DateTime?
+  status String @default("pending_burn") // "pending_burn", "ready_for_payout", "paid"
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  paidAt    DateTime?
 
   @@unique([userId, weekId, category])
   @@index([weekId])
@@ -189,84 +189,84 @@ model LeaderboardReward {
 // PREDICTIONS & BETTING
 // ============================================
 model Prediction {
-  id              String   @id @default(cuid())
-  title           String
-  description     String?
-  category        String?  // e.g., "CRYPTO", "POLITICS", "SPORTS", "ENTERTAINMENT"
-  options         String[] // e.g. ["Yes","No"]
-  
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String? // e.g., "CRYPTO", "POLITICS", "SPORTS", "ENTERTAINMENT"
+  options     String[] // e.g. ["Yes","No"]
+
   // Status: DRAFT, ACTIVE, PAUSED, RESOLVED, CANCELLED
-  status          String   @default("ACTIVE")
-  
+  status String @default("ACTIVE")
+
   // Legacy fee structure (kept for backwards compatibility)
-  entryFeeStars   Int      @default(0)
-  entryFeePoints  Int      @default(0)
-  
+  entryFeeStars  Int @default(0)
+  entryFeePoints Int @default(0)
+
   // MYST-based fee (new)
-  entryFeeMyst    Float    @default(0)
-  
+  entryFeeMyst Float @default(0)
+
   // Pool totals in MYST
-  mystPoolYes     Float    @default(0)
-  mystPoolNo      Float    @default(0)
-  
+  mystPoolYes Float @default(0)
+  mystPoolNo  Float @default(0)
+
   // Platform fee rate (e.g., 0.08 = 8%)
-  feeRate         Float    @default(0.08)
-  
+  feeRate Float @default(0.08)
+
   // Legacy pot (kept for backwards compatibility)
-  pot             Int      @default(0)
-  
-  resolved        Boolean  @default(false)
-  winningOption   String?
-  resolvedAt      DateTime?
-  endsAt          DateTime?
-  participantCount Int     @default(0)
+  pot Int @default(0)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  resolved         Boolean   @default(false)
+  winningOption    String?
+  resolvedAt       DateTime?
+  endsAt           DateTime?
+  participantCount Int       @default(0)
 
-  bets            Bet[]
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bets Bet[]
+
   @@index([status])
 }
 
 // Prediction Request from community
 model PredictionRequest {
-  id              String    @id @default(cuid())
-  question        String    // The prediction question
-  category        String?   // e.g., "CRYPTO", "POLITICS", "SPORTS"
-  proposedExpiry  DateTime?
-  details         String?   // Extra context
-  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  createdById     String?
-  createdBy       User?     @relation(fields: [createdById], references: [id])
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  id             String    @id @default(cuid())
+  question       String // The prediction question
+  category       String? // e.g., "CRYPTO", "POLITICS", "SPORTS"
+  proposedExpiry DateTime?
+  details        String? // Extra context
+  status         String    @default("PENDING") // PENDING, APPROVED, REJECTED
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([status])
 }
 
 model Bet {
-  id           String      @id @default(cuid())
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       String
-  prediction   Prediction  @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+  prediction   Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
   predictionId String
 
-  option       String
-  
-  // Legacy betting (kept for backwards compatibility)
-  starsBet     Int         @default(0)
-  pointsBet    Int         @default(0)
-  
-  // MYST betting (new)
-  mystBet      Float       @default(0)
-  
-  // Payout received (filled on resolution)
-  mystPayout   Float?
+  option String
 
-  createdAt    DateTime    @default(now())
+  // Legacy betting (kept for backwards compatibility)
+  starsBet  Int @default(0)
+  pointsBet Int @default(0)
+
+  // MYST betting (new)
+  mystBet Float @default(0)
+
+  // Payout received (filled on resolution)
+  mystPayout Float?
+
+  createdAt DateTime @default(now())
 
   @@unique([userId, predictionId]) // One bet per user per prediction
   @@index([predictionId])
@@ -277,129 +277,129 @@ model Bet {
 // CAMPAIGNS
 // ============================================
 model Campaign {
-  id           String    @id @default(cuid())
-  name         String
-  description  String?
-  rewards      String
-  status       String    @default("DRAFT") // DRAFT, ACTIVE, PAUSED, ENDED
-  startAt      DateTime?
-  endsAt       DateTime
-  
-  // Fee structure
-  starsFee     Int       @default(0)
-  mystFee      Float     @default(0) // MYST fee for joining
-  
-  // Winner settings
-  winnerCount      Int       @default(25) // 25, 50, or 100 winners
-  referralBonus    Int       @default(5)  // Bonus aXP per referral
-  winnersSelected  Boolean   @default(false)
-  selectionRuns    Int       @default(0)  // Number of times winners have been selected
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  rewards     String
+  status      String    @default("DRAFT") // DRAFT, ACTIVE, PAUSED, ENDED
+  startAt     DateTime?
+  endsAt      DateTime
 
-  tasks        CampaignTask[]
-  progress     CampaignUserProgress[]
-  referrals    CampaignReferral[]
-  winners      CampaignWinner[]
-  
+  // Fee structure
+  starsFee Int   @default(0)
+  mystFee  Float @default(0) // MYST fee for joining
+
+  // Winner settings
+  winnerCount     Int     @default(25) // 25, 50, or 100 winners
+  referralBonus   Int     @default(5) // Bonus aXP per referral
+  winnersSelected Boolean @default(false)
+  selectionRuns   Int     @default(0) // Number of times winners have been selected
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks     CampaignTask[]
+  progress  CampaignUserProgress[]
+  referrals CampaignReferral[]
+  winners   CampaignWinner[]
+
   @@index([status])
   @@index([endsAt])
 }
 
 // Track campaign-specific referrals
 model CampaignReferral {
-  id           String    @id @default(cuid())
-  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   campaignId   String
-  referrer     User      @relation("CampaignReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referrer     User     @relation("CampaignReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
   referrerId   String
-  referred     User      @relation("CampaignReferred", fields: [referredId], references: [id], onDelete: Cascade)
+  referred     User     @relation("CampaignReferred", fields: [referredId], references: [id], onDelete: Cascade)
   referredId   String
-  bonusAwarded Boolean   @default(false)
-  
-  createdAt    DateTime  @default(now())
-  
+  bonusAwarded Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
   @@unique([campaignId, referredId]) // Each user can only be referred once per campaign
   @@index([campaignId, referrerId])
 }
 
 // Campaign winners
 model CampaignWinner {
-  id           String    @id @default(cuid())
-  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  campaignId   String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  rank         Int       // 1-100
-  totalPoints  Int       // Points earned in this campaign
-  tasksCompleted Int     // Number of tasks completed
-  referralCount Int      @default(0) // Number of friends referred
-  selectionRun Int       @default(1) // Which run (1, 2, 3, etc.)
-  
-  createdAt    DateTime  @default(now())
-  
+  id             String   @id @default(cuid())
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId     String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  rank           Int // 1-100
+  totalPoints    Int // Points earned in this campaign
+  tasksCompleted Int // Number of tasks completed
+  referralCount  Int      @default(0) // Number of friends referred
+  selectionRun   Int      @default(1) // Which run (1, 2, 3, etc.)
+
+  createdAt DateTime @default(now())
+
   @@unique([campaignId, userId, selectionRun])
   @@index([campaignId, rank])
   @@index([campaignId, selectionRun])
 }
 
 model CampaignTask {
-  id           String    @id @default(cuid())
-  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  campaignId   String
+  id         String   @id @default(cuid())
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String
 
   title        String
   description  String?
-  type         String    // e.g. "X_LIKE", "X_FOLLOW", "JOIN_TELEGRAM", "QUOTE_REPOST", "CUSTOM"
-  targetUrl    String?   // URL for the task (e.g., tweet to like, account to follow)
-  proofType    String?   // "LINK", "SCREENSHOT", "TWEET_URL"
-  rewardPoints Int       @default(0) // Points/aXP reward for completing task
-  rewardMyst   Float     @default(0) // MYST reward for completing task
+  type         String // e.g. "X_LIKE", "X_FOLLOW", "JOIN_TELEGRAM", "QUOTE_REPOST", "CUSTOM"
+  targetUrl    String? // URL for the task (e.g., tweet to like, account to follow)
+  proofType    String? // "LINK", "SCREENSHOT", "TWEET_URL"
+  rewardPoints Int     @default(0) // Points/aXP reward for completing task
+  rewardMyst   Float   @default(0) // MYST reward for completing task
   metadata     Json?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  progress     CampaignUserProgress[]
+  progress CampaignUserProgress[]
 }
 
 // Campaign Request from projects/community
 model CampaignRequest {
   id              String    @id @default(cuid())
   projectName     String
-  contactHandle   String    // Primary contact (e.g., @handle)
-  contactTelegram String?   // Telegram username
-  contactX        String?   // X/Twitter handle
-  goal            String?   // What they want to achieve
+  contactHandle   String // Primary contact (e.g., @handle)
+  contactTelegram String? // Telegram username
+  contactX        String? // X/Twitter handle
+  goal            String? // What they want to achieve
   requestedStart  DateTime?
   requestedEnd    DateTime?
-  details         String?   // Long description
+  details         String? // Long description
   status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  createdById     String?
-  createdBy       User?     @relation(fields: [createdById], references: [id])
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([status])
 }
 
 model CampaignUserProgress {
-  id           String       @id @default(cuid())
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  campaignId   String
-  task         CampaignTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId       String
+  id         String       @id @default(cuid())
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String
+  task       CampaignTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId     String
 
-  completed    Boolean      @default(false)
-  completedAt  DateTime?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
 
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, taskId])
   @@index([campaignId, userId])
@@ -410,30 +410,30 @@ model CampaignUserProgress {
 // WEEKLY CONFIGURATION (Admin-managed)
 // ============================================
 model WeeklyConfig {
-  id              String   @id @default(cuid())
-  weekId          String   @unique // e.g., "2025-W48"
-  
+  id     String @id @default(cuid())
+  weekId String @unique // e.g., "2025-W48"
+
   // Week boundaries
-  startTime       DateTime // Tuesday 23:00 UTC
-  endTime         DateTime // Monday 12:00 UTC
-  
+  startTime DateTime // Tuesday 23:00 UTC
+  endTime   DateTime // Monday 12:00 UTC
+
   // Reward window
-  claimStartTime  DateTime // Monday 12:00 UTC
-  claimEndTime    DateTime // Tuesday 23:00 UTC
-  
+  claimStartTime DateTime // Monday 12:00 UTC
+  claimEndTime   DateTime // Tuesday 23:00 UTC
+
   // Budget allocations in USD
   budgetTopSpenders  Float @default(0)
   budgetTopReferrers Float @default(0)
   budgetTopCampaign  Float @default(0)
-  
+
   // Number of winners per category
-  winnersPerCategory Int   @default(10)
-  
+  winnersPerCategory Int @default(10)
+
   // Status
-  snapshotTaken   Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  snapshotTaken Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================
@@ -467,31 +467,31 @@ model WheelSpin {
 
 // Withdrawal requests - manual payout by admin
 model WithdrawalRequest {
-  id            String   @id @default(cuid())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String
-  
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
   // TON address at time of request
-  tonAddress    String
-  
+  tonAddress String
+
   // MYST amounts
-  mystRequested Float    // Total MYST requested
-  mystFee       Float    // 2% fee retained
-  mystBurn      Float    // Amount burned (mystRequested - mystFee)
-  
+  mystRequested Float // Total MYST requested
+  mystFee       Float // 2% fee retained
+  mystBurn      Float // Amount burned (mystRequested - mystFee)
+
   // USD/TON conversion
-  usdNet        Float    // Net USD value after fee
-  tonAmount     Float    // TON to send
-  tonPriceUsd   Float    // TON price at time of request
-  
+  usdNet      Float // Net USD value after fee
+  tonAmount   Float // TON to send
+  tonPriceUsd Float // TON price at time of request
+
   // Status: pending -> paid | rejected
-  status        String   @default("pending")
-  txHash        String?  // TON transaction hash when paid
+  status          String  @default("pending")
+  txHash          String? // TON transaction hash when paid
   rejectionReason String?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  paidAt        DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  paidAt    DateTime?
 
   @@index([userId])
   @@index([status])
@@ -500,36 +500,36 @@ model WithdrawalRequest {
 
 // Deposits - TON received (populated by external watcher)
 model Deposit {
-  id            String   @id @default(cuid())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String
-  
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
   // TON intended/received
-  tonAmount     Float
-  tonPriceUsd   Float    // TON price at time of deposit
-  usdAmount     Float    // tonAmount * tonPriceUsd
-  
+  tonAmount   Float
+  tonPriceUsd Float // TON price at time of deposit
+  usdAmount   Float // tonAmount * tonPriceUsd
+
   // MYST to be credited
-  mystEstimate  Float    // usdAmount * MYST_PER_USD
-  mystCredited  Float    @default(0) // Actual MYST credited (0 until confirmed)
-  
+  mystEstimate Float // usdAmount * MYST_PER_USD
+  mystCredited Float @default(0) // Actual MYST credited (0 until confirmed)
+
   // Deposit memo for matching
-  memo          String   // AKARI:<userId>
-  
+  memo String // AKARI:<userId>
+
   // Status: pending -> confirmed | declined
-  status        String   @default("pending")
-  
+  status String @default("pending")
+
   // Transaction details (filled when confirmed)
-  txHash        String?  @unique
-  confirmedAt   DateTime?
-  
+  txHash      String?   @unique
+  confirmedAt DateTime?
+
   // Decline details (filled when declined)
   declinedReason String?
   declinedAt     DateTime?
-  declinedBy     String?  // Admin who declined
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  declinedBy     String? // Admin who declined
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -553,16 +553,16 @@ model PoolBalance {
 // ============================================
 
 model Review {
-  id          String   @id @default(cuid())
-  reviewer    User     @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
-  reviewerId  String
-  reviewee    User     @relation("RevieweeReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
-  revieweeId  String
-  score       Int      // +1 (positive) or -1 (negative)
-  comment     String   @db.VarChar(255)
-  link        String?  @db.VarChar(255) // Optional supporting link
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  reviewer   User     @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewee   User     @relation("RevieweeReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
+  revieweeId String
+  score      Int // +1 (positive) or -1 (negative)
+  comment    String   @db.VarChar(255)
+  link       String?  @db.VarChar(255) // Optional supporting link
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([reviewerId, revieweeId]) // One review per reviewer→reviewee pair
   @@index([revieweeId])
@@ -575,14 +575,14 @@ model Review {
 model TgGroup {
   id         String   @id // chatId as string
   title      String
-  username   String?  // @groupname if public
+  username   String? // @groupname if public
   isActive   Boolean  @default(true)
   isAdmin    Boolean  @default(false) // Bot is admin in this group
-  allowPromo Boolean  @default(true)  // Allow promotional messages
+  allowPromo Boolean  @default(true) // Allow promotional messages
   introSent  Boolean  @default(false) // Intro message sent
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
+
   @@index([isActive])
   @@index([isAdmin])
 }
@@ -599,15 +599,15 @@ enum LaunchPlatformKind {
 }
 
 model PortalUserProfile {
-  id               String   @id @default(cuid())
-  telegramId       String   @unique
-  username         String?
-  avatarUrl        String?
-  level            String   @default("L1") // "L1", "L2", "ADMIN", "SUPER_ADMIN"
-  positiveReviews  Int      @default(0)
-  negativeReviews  Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  telegramId      String   @unique
+  username        String?
+  avatarUrl       String?
+  level           String   @default("L1") // "L1", "L2", "ADMIN", "SUPER_ADMIN"
+  positiveReviews Int      @default(0)
+  negativeReviews Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   launches         NewLaunch[]
   createdPlatforms LaunchPlatform[]
@@ -615,65 +615,65 @@ model PortalUserProfile {
 }
 
 model LaunchPlatform {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   name        String
-  slug        String   @unique
+  slug        String             @unique
   description String?
   website     String?
   kind        LaunchPlatformKind @default(LAUNCHPAD)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   createdById String?
   createdBy   PortalUserProfile? @relation(fields: [createdById], references: [id])
 
-  launchesAsPrimary    NewLaunch[] @relation("PrimaryPlatformOnLaunch")
-  launchesAsListing    NewLaunch[] @relation("ListingPlatformOnLaunch")
-  launches             NewLaunch[] // Legacy relation, kept for backward compatibility
+  launchesAsPrimary NewLaunch[] @relation("PrimaryPlatformOnLaunch")
+  launchesAsListing NewLaunch[] @relation("ListingPlatformOnLaunch")
+  launches          NewLaunch[] // Legacy relation, kept for backward compatibility
 }
 
 model NewLaunch {
-  id             String   @id @default(cuid())
-  name           String
-  tokenSymbol    String
-  tokenName      String?
-  chain          String?   // e.g. "ETH", "BSC", "SOL", "TON"
-  category       String?   // e.g. "LAUNCHPAD", "AIRDROP", "IDO", "IEO"
-  status         String?   // e.g. "UPCOMING", "SALE", "LISTED"
+  id          String  @id @default(cuid())
+  name        String
+  tokenSymbol String
+  tokenName   String?
+  chain       String? // e.g. "ETH", "BSC", "SOL", "TON"
+  category    String? // e.g. "LAUNCHPAD", "AIRDROP", "IDO", "IEO"
+  status      String? // e.g. "UPCOMING", "SALE", "LISTED"
 
   // Legacy platform relation (kept for backward compatibility)
-  platformId     String?
-  platform       LaunchPlatform? @relation(fields: [platformId], references: [id])
+  platformId String?
+  platform   LaunchPlatform? @relation(fields: [platformId], references: [id])
 
   // New platform relations
-  primaryPlatformId  String?
-  primaryPlatform    LaunchPlatform? @relation("PrimaryPlatformOnLaunch", fields: [primaryPlatformId], references: [id])
+  primaryPlatformId String?
+  primaryPlatform   LaunchPlatform? @relation("PrimaryPlatformOnLaunch", fields: [primaryPlatformId], references: [id])
 
-  listingPlatformId   String?
-  listingPlatform    LaunchPlatform? @relation("ListingPlatformOnLaunch", fields: [listingPlatformId], references: [id])
+  listingPlatformId String?
+  listingPlatform   LaunchPlatform? @relation("ListingPlatformOnLaunch", fields: [listingPlatformId], references: [id])
 
   // Lead investor relation
-  leadInvestorId     String?
-  leadInvestor       LeadInvestor?   @relation(fields: [leadInvestorId], references: [id])
+  leadInvestorId String?
+  leadInvestor   LeadInvestor? @relation(fields: [leadInvestorId], references: [id])
 
-  salePriceUsd   Float?
-  tokensForSale  Float?
-  totalRaiseUsd  Float?
+  salePriceUsd  Float?
+  tokensForSale Float?
+  totalRaiseUsd Float?
 
-  airdropPercent Float?
+  airdropPercent  Float?
   airdropValueUsd Float?
 
-  vestingInfo    Json?
+  vestingInfo Json?
 
   // price tracking: store one primary smart contract address per chain
-  tokenAddress   String?
-  priceSource    String?   // e.g. "DEXSCREENER", "OKX", "BINANCE"
+  tokenAddress String?
+  priceSource  String? // e.g. "DEXSCREENER", "OKX", "BINANCE"
 
-  createdById    String?
-  createdBy      PortalUserProfile? @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdBy   PortalUserProfile? @relation(fields: [createdById], references: [id])
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   priceSnapshots DexSnapshot[]
 
@@ -686,33 +686,33 @@ model NewLaunch {
 }
 
 model LeadInvestor {
-  id           String   @id @default(cuid())
-  name         String
-  slug         String   @unique
-  websiteUrl   String?
-  tier         String?  // e.g. "Tier 1", "Tier 2"
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  websiteUrl String?
+  tier       String? // e.g. "Tier 1", "Tier 2"
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  createdById  String?
-  createdBy    PortalUserProfile? @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdBy   PortalUserProfile? @relation(fields: [createdById], references: [id])
 
-  launches     NewLaunch[]
+  launches NewLaunch[]
 
   @@index([createdById])
 }
 
 model DexSnapshot {
-  id          String   @id @default(cuid())
-  launchId    String
-  launch      NewLaunch @relation(fields: [launchId], references: [id], onDelete: Cascade)
+  id       String    @id @default(cuid())
+  launchId String
+  launch   NewLaunch @relation(fields: [launchId], references: [id], onDelete: Cascade)
 
-  priceUsd    Float
-  volume24h   Float?
-  liquidity   Float?
-  source      String
-  fetchedAt   DateTime @default(now())
+  priceUsd  Float
+  volume24h Float?
+  liquidity Float?
+  source    String
+  fetchedAt DateTime @default(now())
 
   @@index([launchId])
   @@index([fetchedAt])
@@ -722,8 +722,8 @@ model WhaleEntry {
   id           String   @id @default(cuid())
   tokenSymbol  String
   tokenAddress String
-  chain        String   // e.g. 'ethereum', 'solana', 'base'
-  wallet       String   // whale wallet address
+  chain        String // e.g. 'ethereum', 'solana', 'base'
+  wallet       String // whale wallet address
   amountUsd    Float
   txHash       String   @unique
   occurredAt   DateTime
@@ -735,10 +735,10 @@ model WhaleEntry {
 
 model StablecoinFlowSnapshot {
   id           String   @id @default(cuid())
-  stableSymbol String   // 'USDT' | 'USDC'
-  fromChain    String   // e.g. 'ethereum', 'solana', 'base'
-  toChain      String   // e.g. 'solana', 'base', 'ethereum'
-  netAmountUsd Float    // positive for net inflow TO toChain FROM fromChain
+  stableSymbol String // 'USDT' | 'USDC'
+  fromChain    String // e.g. 'ethereum', 'solana', 'base'
+  toChain      String // e.g. 'solana', 'base', 'ethereum'
+  netAmountUsd Float // positive for net inflow TO toChain FROM fromChain
   windowStart  DateTime
   windowEnd    DateTime
   createdAt    DateTime @default(now())
@@ -747,17 +747,17 @@ model StablecoinFlowSnapshot {
 }
 
 model LiquiditySignal {
-  id          String   @id @default(cuid())
-  type        String   // 'SOL_MEME_SEASON' | 'BASE_SOCIALFI' | 'ETH_RISK_OFF' | 'GENERIC_FLOW' | 'TOKEN_WHALE_ACCUMULATION'
-  title       String   // short title
-  description String   // human readable text
-  severity    Int      // 1-3
-  chain       String?  // primary chain this relates to
+  id           String   @id @default(cuid())
+  type         String // 'SOL_MEME_SEASON' | 'BASE_SOCIALFI' | 'ETH_RISK_OFF' | 'GENERIC_FLOW' | 'TOKEN_WHALE_ACCUMULATION'
+  title        String // short title
+  description  String // human readable text
+  severity     Int // 1-3
+  chain        String? // primary chain this relates to
   stableSymbol String? // if stablecoin-based
   tokenSymbol  String? // for token whale signals
-  dataJson    String?  // optional JSON payload
-  triggeredAt DateTime
-  createdAt   DateTime @default(now())
+  dataJson     String? // optional JSON payload
+  triggeredAt  DateTime
+  createdAt    DateTime @default(now())
 
   @@index([type, triggeredAt])
   @@index([chain, triggeredAt])
@@ -768,29 +768,29 @@ model LiquiditySignal {
 // ============================================
 
 model MarketSnapshot {
-  id            String   @id @default(cuid())
-  symbol        String
-  name          String
-  priceUsd      Float
-  marketCapUsd  Float?
-  volume24hUsd  Float?
-  change24hPct  Float?
-  source        String   // e.g. "coingecko_trending"
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  symbol       String
+  name         String
+  priceUsd     Float
+  marketCapUsd Float?
+  volume24hUsd Float?
+  change24hPct Float?
+  source       String // e.g. "coingecko_trending"
+  createdAt    DateTime @default(now())
 
   @@index([createdAt])
   @@index([source])
 }
 
 model MemeTokenSnapshot {
-  id            String   @id @default(cuid())
-  symbol        String
-  name          String
-  priceUsd      Float
-  marketCapUsd  Float?
-  change24hPct  Float?
-  source        String   // e.g. "coingecko_pumpfun"
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  symbol       String
+  name         String
+  priceUsd     Float
+  marketCapUsd Float?
+  change24hPct Float?
+  source       String // e.g. "coingecko_pumpfun"
+  createdAt    DateTime @default(now())
 
   @@index([createdAt])
   @@index([source])
@@ -801,48 +801,36 @@ model MemeTokenSnapshot {
 // ============================================
 
 model DexMarketSnapshot {
-  id            String   @id @default(cuid())
-  symbol        String   // e.g. "PEPE"
-  name          String?
-  chain         String   // "solana", "ethereum", "base", "bsc", etc.
-  address       String   // token address (or pair address if token unknown)
-  pairAddress   String?  // DEX pair address
-  dexSource     String   // "dexscreener", "geckoterminal", "birdeye"
-  dexName       String?  // specific DEX name, e.g. "Raydium", "Uniswap"
-  priceUsd      Float?
-  liquidityUsd  Float?
-  volume24hUsd  Float?
-  fdvUsd        Float?
-  baseToken     String?  // base token symbol
-  quoteToken    String?  // quote token symbol (e.g. "USDC", "WETH")
-  priceChange24h Float?  // 24h price change percentage
-  txns24h       Int?     // number of transactions in 24h
-  updatedAt     DateTime @default(now())
+  id           String   @id // text PK, Prisma will set it
+  symbol       String?  @db.Text
+  name         String?  @db.Text
+  source       String   @db.Text
+  chain        String?  @db.Text
+  dex          String?  @db.Text
+  pairAddress  String?  @db.Text
+  tokenAddress String?  @db.Text
+  priceUsd     Float?   @db.DoublePrecision
+  liquidityUsd Float?   @db.DoublePrecision
+  volume24hUsd Float?   @db.DoublePrecision
+  txns24h      Int?     @db.Integer
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
 
-  @@unique([dexSource, chain, address])
-  @@index([symbol])
   @@index([chain])
-  @@index([updatedAt])
+  @@index([tokenAddress])
+  @@index([createdAt])
 }
 
 model CexMarketSnapshot {
-  id              String   @id @default(cuid())
-  symbol          String   // e.g. "BTC"
-  baseSymbol      String   // "BTC"
-  quoteSymbol     String   // "USDT"
-  exchange        String   // "binance", "okx"
-  pairCode        String   // "BTCUSDT" or "BTC-USDT"
-  priceUsd        Float?
-  volume24hUsd    Float?
-  high24h         Float?
-  low24h          Float?
-  priceChange24h  Float?   // 24h price change percentage
-  fundingRate     Float?   // for perpetual futures
-  openInterestUsd Float?   // for futures
-  updatedAt       DateTime @default(now())
+  id              String   @id // text PK
+  symbol          String   @db.Text
+  baseAsset       String?  @db.Text
+  quoteAsset      String?  @db.Text
+  source          String   @db.Text
+  priceUsd        Float?   @db.DoublePrecision
+  volume24hUsd    Float?   @db.DoublePrecision
+  openInterestUsd Float?   @db.DoublePrecision
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
 
-  @@unique([exchange, pairCode])
   @@index([symbol])
-  @@index([exchange])
-  @@index([updatedAt])
+  @@index([createdAt])
 }

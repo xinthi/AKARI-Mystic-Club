@@ -489,7 +489,7 @@ export async function getDexSnapshotsForSymbols(symbols: string[]): Promise<DexM
     },
     orderBy: [
       { liquidityUsd: 'desc' },
-      { updatedAt: 'desc' },
+      { createdAt: 'desc' },
     ],
   });
 }
@@ -514,7 +514,7 @@ export async function getCexSnapshotsForSymbols(symbols: string[]): Promise<CexM
     },
     orderBy: [
       { volume24hUsd: 'desc' },
-      { updatedAt: 'desc' },
+      { createdAt: 'desc' },
     ],
   });
 }
@@ -584,8 +584,9 @@ export async function getDexAggregateForSymbol(symbol: string): Promise<{
     0
   );
 
-  const sources = [...new Set(snapshots.map(s => s.dexSource))];
-  const chains = [...new Set(snapshots.map(s => s.chain))];
+  // Use 'dex' field instead of 'dexSource' per schema
+  const sources = [...new Set(snapshots.map(s => s.dex).filter(Boolean))] as string[];
+  const chains = [...new Set(snapshots.map(s => s.chain).filter(Boolean))] as string[];
 
   return {
     maxLiquidityUsd: maxLiquidity > 0 ? maxLiquidity : null,
@@ -596,9 +597,10 @@ export async function getDexAggregateForSymbol(symbol: string): Promise<{
 }
 
 /**
- * Get CEX exchanges where a symbol is trading.
+ * Get CEX sources where a symbol is trading.
+ * Note: The new schema uses 'source' field, not 'exchange'.
  */
-export async function getCexExchangesForSymbol(symbol: string): Promise<string[]> {
+export async function getCexSourcesForSymbol(symbol: string): Promise<string[]> {
   const snapshots = await prisma.cexMarketSnapshot.findMany({
     where: {
       symbol: {
@@ -607,12 +609,12 @@ export async function getCexExchangesForSymbol(symbol: string): Promise<string[]
       },
     },
     select: {
-      exchange: true,
+      source: true,
     },
-    distinct: ['exchange'],
+    distinct: ['source'],
   });
 
-  return snapshots.map(s => s.exchange);
+  return snapshots.map(s => s.source);
 }
 
 /**
@@ -621,7 +623,7 @@ export async function getCexExchangesForSymbol(symbol: string): Promise<string[]
 export async function getTradingVenuesSummary(symbol: string): Promise<{
   dexSources: string[];
   dexChains: string[];
-  cexExchanges: string[];
+  cexSources: string[];
   hasDex: boolean;
   hasCex: boolean;
 }> {
@@ -634,7 +636,7 @@ export async function getTradingVenuesSummary(symbol: string): Promise<{
         },
       },
       select: {
-        dexSource: true,
+        dex: true,
         chain: true,
       },
     }),
@@ -646,17 +648,37 @@ export async function getTradingVenuesSummary(symbol: string): Promise<{
         },
       },
       select: {
-        exchange: true,
+        source: true,
       },
     }),
   ]);
 
   return {
-    dexSources: [...new Set(dexSnapshots.map(s => s.dexSource))],
-    dexChains: [...new Set(dexSnapshots.map(s => s.chain))],
-    cexExchanges: [...new Set(cexSnapshots.map(s => s.exchange))],
+    dexSources: [...new Set(dexSnapshots.map(s => s.dex).filter(Boolean))] as string[],
+    dexChains: [...new Set(dexSnapshots.map(s => s.chain).filter(Boolean))] as string[],
+    cexSources: [...new Set(cexSnapshots.map(s => s.source))],
     hasDex: dexSnapshots.length > 0,
     hasCex: cexSnapshots.length > 0,
   };
+}
+
+/**
+ * Get latest DEX snapshots ordered by createdAt.
+ */
+export async function getLatestDexSnapshots(limit: number = 30): Promise<DexMarketSnapshot[]> {
+  return prisma.dexMarketSnapshot.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * Get latest CEX snapshots ordered by createdAt.
+ */
+export async function getLatestCexSnapshots(limit: number = 30): Promise<CexMarketSnapshot[]> {
+  return prisma.cexMarketSnapshot.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
 }
 
