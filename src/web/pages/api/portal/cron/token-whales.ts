@@ -18,7 +18,13 @@ type Response = {
 };
 
 // Tracked tokens - user can extend this list
-const TRACKED_TOKENS = [
+type TrackedToken = {
+  symbol: string;
+  tokenAddress: string;
+  chain: string;
+};
+
+const TRACKED_TOKENS: TrackedToken[] = [
   // { symbol: 'SOL', tokenAddress: '...', chain: 'solana' },
   // { symbol: 'WIF', tokenAddress: '...', chain: 'solana' },
   // { symbol: 'DEGEN', tokenAddress: '...', chain: 'base' },
