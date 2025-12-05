@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import type { MarketSnapshot, MemeTokenSnapshot } from '@prisma/client';
 
 /**
  * Get recent whale entries from the last 7 days, ordered by occurredAt descending
@@ -400,5 +401,67 @@ export async function getLaunchByIdWithMetrics(id: string): Promise<LaunchWithMe
     } : null,
     roiPercent,
   };
+}
+
+// ============================================
+// MARKET & MEME SNAPSHOTS
+// ============================================
+
+/**
+ * Get the latest batch of MarketSnapshot records.
+ * Returns snapshots from the most recent createdAt timestamp (within 5 minutes window).
+ */
+export async function getLatestMarketSnapshots(limit: number = 50): Promise<MarketSnapshot[]> {
+  // First, find the max createdAt timestamp
+  const latestRecord = await prisma.marketSnapshot.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+
+  if (!latestRecord) {
+    return [];
+  }
+
+  // Get all records within 5 minutes of the latest timestamp
+  const windowStart = new Date(latestRecord.createdAt.getTime() - 5 * 60 * 1000);
+
+  return prisma.marketSnapshot.findMany({
+    where: {
+      createdAt: {
+        gte: windowStart,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * Get the latest batch of MemeTokenSnapshot records.
+ * Returns snapshots from the most recent createdAt timestamp (within 5 minutes window).
+ */
+export async function getLatestMemeTokenSnapshots(limit: number = 50): Promise<MemeTokenSnapshot[]> {
+  // First, find the max createdAt timestamp
+  const latestRecord = await prisma.memeTokenSnapshot.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+
+  if (!latestRecord) {
+    return [];
+  }
+
+  // Get all records within 5 minutes of the latest timestamp
+  const windowStart = new Date(latestRecord.createdAt.getTime() - 5 * 60 * 1000);
+
+  return prisma.memeTokenSnapshot.findMany({
+    where: {
+      createdAt: {
+        gte: windowStart,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
 }
 

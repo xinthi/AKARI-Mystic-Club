@@ -762,3 +762,36 @@ model LiquiditySignal {
   @@index([type, triggeredAt])
   @@index([chain, triggeredAt])
 }
+
+// ============================================
+// MARKET & MEME SNAPSHOTS (Portal Cron Data)
+// ============================================
+
+model MarketSnapshot {
+  id            String   @id @default(cuid())
+  symbol        String
+  name          String
+  priceUsd      Float
+  marketCapUsd  Float?
+  volume24hUsd  Float?
+  change24hPct  Float?
+  source        String   // e.g. "coingecko_trending"
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source])
+}
+
+model MemeTokenSnapshot {
+  id            String   @id @default(cuid())
+  symbol        String
+  name          String
+  priceUsd      Float
+  marketCapUsd  Float?
+  change24hPct  Float?
+  source        String   // e.g. "coingecko_pumpfun"
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source])
+}

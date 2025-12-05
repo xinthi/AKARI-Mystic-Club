@@ -4,15 +4,15 @@ import { PortalLayout } from '../../components/portal/PortalLayout';
 import {
   getMarketPulse,
   getAkariHighlights,
-  getTrendingMarketTable,
   type MarketPulse,
   type AkariHighlights,
 } from '../../services/akariMarkets';
-import type { TrendingCoinWithPrice } from '../../services/coingecko';
 import {
   getWhaleEntriesWithFallback,
   getLiquiditySignalsWithFallback,
+  getLatestMarketSnapshots,
 } from '../../lib/portal/db';
+import type { MarketSnapshot } from '@prisma/client';
 import { WhaleHeatmapCard, type WhaleEntryDto } from '../../components/portal/WhaleHeatmapCard';
 import {
   getNarrativeSummaries,
@@ -25,10 +25,23 @@ import {
   type LiquiditySignalDto,
 } from '../../components/portal/LiquiditySignalsCard';
 
+// Serializable version of MarketSnapshot for SSR props
+interface MarketSnapshotDto {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  marketCapUsd: number | null;
+  volume24hUsd: number | null;
+  change24hPct: number | null;
+  source: string;
+  createdAt: string;
+}
+
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
-  trending: TrendingCoinWithPrice[];
+  trending: MarketSnapshotDto[];
   whaleEntriesRecent: WhaleEntryDto[];
   whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
@@ -252,12 +265,12 @@ export default function MarketsPage({
         </div>
       )}
 
-      {/* Trending Markets Table */}
+      {/* Trending Markets Table - Now from DB snapshots */}
       {!error && trending.length > 0 && (
         <div className="mb-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-akari-text">Trending Markets</h2>
-            <span className="text-xs text-akari-muted">Data source: CoinGecko</span>
+            <span className="text-xs text-akari-muted">Data source: CoinGecko (cached)</span>
           </div>
           
           {/* Desktop Table */}
@@ -280,22 +293,8 @@ export default function MarketsPage({
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {coin.imageUrl ? (
-                          <img
-                            src={coin.imageUrl}
-                            alt={coin.name}
-                            className="w-8 h-8 rounded-full flex-shrink-0"
-                            onError={(e) => {
-                              // Fallback to placeholder if image fails to load
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const fallback = target.nextElementSibling as HTMLElement;
-                              if (fallback) fallback.style.display = 'flex';
-                            }}
-                          />
-                        ) : null}
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-xs font-semibold ${coin.imageUrl ? 'hidden' : ''}`}
+                          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-xs font-semibold"
                         >
                           {(coin.symbol || coin.name || '?').charAt(0).toUpperCase()}
                         </div>
@@ -340,21 +339,8 @@ export default function MarketsPage({
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {coin.imageUrl ? (
-                      <img
-                        src={coin.imageUrl}
-                        alt={coin.name}
-                        className="w-6 h-6 rounded-full flex-shrink-0"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
                     <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-[10px] font-semibold ${coin.imageUrl ? 'hidden' : ''}`}
+                      className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-akari-primary/20 text-akari-primary text-[10px] font-semibold"
                     >
                       {(coin.symbol || coin.name || '?').charAt(0).toUpperCase()}
                     </div>
@@ -380,11 +366,11 @@ export default function MarketsPage({
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Empty State - when no snapshots */}
       {!error && trending.length === 0 && (
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6">
           <p className="text-sm text-akari-muted text-center">
-            No trending markets available at this time.
+            Waiting for first market snapshot. Check back in a few minutes.
           </p>
         </div>
       )}
@@ -575,7 +561,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
     const [
       pulse,
       highlights,
-      trending,
+      marketSnapshots,
       whaleData,
       narratives,
       volumeLeaders,
@@ -583,7 +569,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
     ] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
-      getTrendingMarketTable().catch(() => []),
+      getLatestMarketSnapshots(20).catch(() => []),
       getWhaleEntriesWithFallback({
         recentHours: 24,
         fallbackDays: 7,
@@ -596,6 +582,19 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         limit: 10,
       }).catch(() => ({ recent: [], lastAny: null })),
     ]);
+
+    // Map market snapshots to serializable DTOs
+    const trending: MarketSnapshotDto[] = marketSnapshots.map((s: MarketSnapshot) => ({
+      id: s.id,
+      symbol: s.symbol,
+      name: s.name,
+      priceUsd: s.priceUsd,
+      marketCapUsd: s.marketCapUsd,
+      volume24hUsd: s.volume24hUsd,
+      change24hPct: s.change24hPct,
+      source: s.source,
+      createdAt: s.createdAt.toISOString(),
+    }));
 
     // Map whale entries to serializable DTOs
     const whaleEntriesRecent: WhaleEntryDto[] = whaleData.recent.map((w: any) => ({

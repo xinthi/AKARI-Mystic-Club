@@ -1,10 +1,23 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../components/portal/PortalLayout';
-import { getTopPumpFunMemecoins, type MemeCoin } from '../../services/memecoinRadar';
+import { getLatestMemeTokenSnapshots } from '../../lib/portal/db';
+import type { MemeTokenSnapshot } from '@prisma/client';
+
+// Serializable version of MemeTokenSnapshot for SSR props
+interface MemeSnapshotDto {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  marketCapUsd: number | null;
+  change24hPct: number | null;
+  source: string;
+  createdAt: string;
+}
 
 interface MemesPageProps {
-  memecoins: MemeCoin[];
+  memecoins: MemeSnapshotDto[];
   error?: string;
 }
 
@@ -65,10 +78,10 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
 
   // Top 3 by priceChange24h for "High attention" candidates
   const topByChange = [...memecoins]
-    .filter((m) => m.priceChange24h !== null)
+    .filter((m) => m.change24hPct !== null)
     .sort((a, b) => {
-      const changeA = a.priceChange24h ?? 0;
-      const changeB = b.priceChange24h ?? 0;
+      const changeA = a.change24hPct ?? 0;
+      const changeB = b.change24hPct ?? 0;
       return changeB - changeA;
     })
     .slice(0, 3);
@@ -99,12 +112,12 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
         <div className="mb-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-akari-text">Pump.fun Radar</h2>
-            <span className="text-xs text-akari-muted">High attention zone</span>
+            <span className="text-xs text-akari-muted">High attention zone (cached)</span>
           </div>
           
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {sortedMemecoins.map((coin) => {
-              const priceChange = formatPriceChange(coin.priceChange24h);
+              const priceChange = formatPriceChange(coin.change24hPct);
               
               return (
                 <div
@@ -136,7 +149,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
                       </div>
                     )}
                     
-                    {coin.priceChange24h !== null && (
+                    {coin.change24hPct !== null && (
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-akari-muted">24h Change</span>
                         <span className={`text-xs font-medium ${priceChange.color}`}>{priceChange.text}</span>
@@ -150,11 +163,11 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Empty State - when no snapshots */}
       {!error && sortedMemecoins.length === 0 && (
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6">
           <p className="text-sm text-akari-muted text-center">
-            No meme coins available at this time.
+            No meme data yet. Waiting for first snapshot from cron.
           </p>
         </div>
       )}
@@ -172,7 +185,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
           {!error && solTrackerMemes.length > 0 ? (
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {solTrackerMemes.map((coin) => {
-                const change = formatPriceChange(coin.priceChange24h);
+                const change = formatPriceChange(coin.change24hPct);
                 return (
                   <div key={coin.id} className="flex items-center justify-between text-xs py-1 border-b border-akari-border/20 last:border-0">
                     <div className="flex-1">
@@ -183,7 +196,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-akari-primary">{formatPrice(coin.priceUsd)}</span>
-                      {coin.priceChange24h !== null && (
+                      {coin.change24hPct !== null && (
                         <span className={`text-[10px] font-medium ${change.color}`}>{change.text}</span>
                       )}
                     </div>
@@ -208,7 +221,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
             <div className="space-y-1.5">
               <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">High attention</p>
               {topByChange.map((coin) => {
-                const change = formatPriceChange(coin.priceChange24h);
+                const change = formatPriceChange(coin.change24hPct);
                 return (
                   <div key={coin.id} className="flex items-center justify-between text-xs">
                     <span className="text-akari-text uppercase">{coin.symbol}</span>
@@ -234,7 +247,7 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
             <div className="space-y-1.5">
               <p className="text-[10px] text-akari-muted uppercase tracking-[0.1em] mb-2">Top movers</p>
               {topByChange.map((coin) => {
-                const change = formatPriceChange(coin.priceChange24h);
+                const change = formatPriceChange(coin.change24hPct);
                 return (
                   <div key={coin.id} className="flex items-center justify-between text-xs">
                     <span className="text-akari-text">{coin.name}</span>
@@ -254,8 +267,20 @@ export default function MemesPage({ memecoins, error }: MemesPageProps) {
 
 export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () => {
   try {
-    const memecoins = await getTopPumpFunMemecoins(30);
+    const memeSnapshots = await getLatestMemeTokenSnapshots(30);
     
+    // Map to serializable DTOs
+    const memecoins: MemeSnapshotDto[] = memeSnapshots.map((s: MemeTokenSnapshot) => ({
+      id: s.id,
+      symbol: s.symbol,
+      name: s.name,
+      priceUsd: s.priceUsd,
+      marketCapUsd: s.marketCapUsd,
+      change24hPct: s.change24hPct,
+      source: s.source,
+      createdAt: s.createdAt.toISOString(),
+    }));
+
     return {
       props: {
         memecoins: JSON.parse(JSON.stringify(memecoins)),
