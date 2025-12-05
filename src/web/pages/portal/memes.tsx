@@ -399,7 +399,7 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
       processedSymbols.add(upperSymbol);
       
       const dexForSymbol = dexSnapshots.filter(
-        (d: DexMarketSnapshot) => d.symbol.toUpperCase() === upperSymbol
+        (d: DexMarketSnapshot) => d.symbol?.toUpperCase() === upperSymbol
       );
       
       if (dexForSymbol.length === 0) {
