@@ -30,6 +30,7 @@ export interface Project {
   name: string;
   bio: string | null;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   first_tracked_at: string | null;
   last_refreshed_at: string | null;
   is_active: boolean;
@@ -129,6 +130,7 @@ export interface TopMover {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   akari_score: number | null;
   akariChange24h: number;
   ctHeatChange24h: number;
@@ -145,6 +147,7 @@ export interface TopEngagement {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   ct_heat_score: number;
   sentiment_score: number | null;
   akari_score: number | null;
@@ -158,6 +161,7 @@ export interface TrendingUp {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   sentiment_score: number;
   sentimentChange24h: number;
   akari_score: number | null;
@@ -357,6 +361,7 @@ export function computeTopMovers(
     name: p.name,
     x_handle: p.x_handle,
     avatar_url: p.avatar_url,
+    twitter_profile_image_url: p.twitter_profile_image_url,
     akari_score: p.akari_score,
     akariChange24h: p.akariChange24h,
     ctHeatChange24h: p.ctHeatChange24h,
@@ -382,6 +387,7 @@ export function computeTopEngagement(
       name: p.name,
       x_handle: p.x_handle,
       avatar_url: p.avatar_url,
+      twitter_profile_image_url: p.twitter_profile_image_url,
       ct_heat_score: p.ct_heat_score ?? 0,
       sentiment_score: p.sentiment_score,
       akari_score: p.akari_score,
@@ -404,6 +410,7 @@ export function computeTrendingUp(
       name: p.name,
       x_handle: p.x_handle,
       avatar_url: p.avatar_url,
+      twitter_profile_image_url: p.twitter_profile_image_url,
       sentiment_score: p.sentiment_score ?? 0,
       sentimentChange24h: p.sentimentChange24h,
       akari_score: p.akari_score,

@@ -13,6 +13,7 @@ interface ProjectWithMetrics {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   sentiment_score: number | null;
   ct_heat_score: number | null;
   akari_score: number | null;
@@ -30,6 +31,7 @@ interface TopMover {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   akari_score: number | null;
   akariChange24h: number;
   ctHeatChange24h: number;
@@ -43,6 +45,7 @@ interface TopEngagement {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   ct_heat_score: number;
   sentiment_score: number | null;
   akari_score: number | null;
@@ -53,6 +56,7 @@ interface TrendingUp {
   name: string;
   x_handle: string;
   avatar_url: string | null;
+  twitter_profile_image_url: string | null;
   sentiment_score: number;
   sentimentChange24h: number;
   akari_score: number | null;
@@ -236,7 +240,7 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
               className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
             >
               <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-              <AvatarWithFallback url={mover.avatar_url} name={mover.name} size="sm" />
+              <AvatarWithFallback url={mover.twitter_profile_image_url || mover.avatar_url} name={mover.name} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
                   {mover.name}
@@ -274,7 +278,7 @@ function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
           >
             <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-            <AvatarWithFallback url={project.avatar_url} name={project.name} size="sm" />
+            <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
                 {project.name}
@@ -308,7 +312,7 @@ function TrendingUpWidget({ projects }: { projects: TrendingUp[] }) {
             className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
           >
             <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-            <AvatarWithFallback url={project.avatar_url} name={project.name} size="sm" />
+            <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
                 {project.name}
@@ -486,9 +490,10 @@ export default function SentimentOverview() {
                   Found {searchResults.length} profile(s)
                 </p>
                 {searchResults.map((user) => (
-                  <div
+                  <Link
                     key={user.handle}
-                    className="flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/30 transition"
+                    href={`/portal/sentiment/profile/${user.handle}`}
+                    className="flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer"
                   >
                     {/* Profile Image - use profileImageUrl or avatarUrl */}
                     {(user.profileImageUrl || user.avatarUrl) ? (
@@ -530,18 +535,13 @@ export default function SentimentOverview() {
                       </div>
                     </div>
                     
-                    {/* Actions */}
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      <a
-                        href={`https://x.com/${user.handle}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs px-3 py-1.5 rounded-lg bg-akari-card border border-akari-border/50 text-akari-muted hover:text-akari-text hover:border-akari-primary/50 transition text-center"
-                      >
-                        View on X →
-                      </a>
+                    {/* Arrow indicator */}
+                    <div className="flex items-center text-akari-muted">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -614,7 +614,7 @@ export default function SentimentOverview() {
                             href={`/portal/sentiment/${project.slug}`}
                             className="flex items-center gap-3 group"
                           >
-                            <AvatarWithFallback url={project.avatar_url} name={project.name} />
+                            <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} />
                             <div>
                               <p className="font-medium text-akari-text group-hover:text-akari-primary transition">
                                 {project.name}
@@ -677,7 +677,7 @@ export default function SentimentOverview() {
                     className="block rounded-2xl border border-akari-border/70 bg-akari-card p-4 transition hover:border-akari-primary/50"
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <AvatarWithFallback url={project.avatar_url} name={project.name} size="lg" />
+                      <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="lg" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-akari-text truncate">{project.name}</p>
                         <p className="text-xs text-akari-muted">@{project.x_handle}</p>
