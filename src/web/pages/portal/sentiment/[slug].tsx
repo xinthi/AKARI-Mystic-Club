@@ -712,20 +712,24 @@ export default function SentimentDetail() {
             </section>
           )}
 
-          {/* Trading Chart */}
-          {metrics.length > 1 && (
-            <section className="mb-6">
-              <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
-                Signal Chart (30d)
-              </h2>
+          {/* Trading Chart - Always show, even with 1 data point */}
+          <section className="mb-6">
+            <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
+              Signal Chart (30d)
+            </h2>
+            {metrics.length > 0 ? (
               <TradingChart 
                 metrics={metrics} 
                 tweets={tweets} 
                 projectHandle={project.x_handle}
                 projectImageUrl={projectImageUrl}
               />
-            </section>
-          )}
+            ) : (
+              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-8 text-center">
+                <p className="text-sm text-akari-muted">No metrics data available yet. Check back tomorrow!</p>
+              </div>
+            )}
+          </section>
 
           {/* Metrics History Table */}
           {metrics.length > 0 && (
