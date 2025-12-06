@@ -244,12 +244,18 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
     return map;
   }, [tweets]);
 
-  // Chart dimensions
+  // Chart dimensions - responsive
   const chartWidth = 600;
   const chartHeight = 200;
-  const padding = { top: 40, right: 20, bottom: 30, left: 50 };
+  const padding = { top: 40, right: 20, bottom: 30, left: 40 };
   const innerWidth = chartWidth - padding.left - padding.right;
   const innerHeight = chartHeight - padding.top - padding.bottom;
+  
+  // Calculate optimal bar width (max 30px, evenly spaced)
+  const barGap = 4;
+  const maxBarWidth = 30;
+  const calculatedBarWidth = Math.min(maxBarWidth, (innerWidth / Math.max(chartData.length, 1)) - barGap);
+  const barWidth = Math.max(8, calculatedBarWidth);
 
   // Calculate scales
   const values = chartData.map(d => d.value ?? 0);
@@ -280,14 +286,14 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
 
   return (
     <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-      {/* Chart Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
+      {/* Chart Controls - Mobile Optimized */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {(['sentiment', 'ctHeat', 'followersDelta'] as ChartMetric[]).map(m => (
             <button
               key={m}
               onClick={() => setMetric(m)}
-              className={`px-3 py-1 text-xs rounded-lg transition ${
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs rounded-lg transition ${
                 metric === m 
                   ? 'bg-akari-primary/20 text-akari-primary border border-akari-primary/30' 
                   : 'bg-akari-cardSoft text-akari-muted border border-akari-border/30 hover:text-akari-text'
@@ -297,10 +303,10 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 bg-akari-cardSoft rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-akari-cardSoft rounded-lg p-0.5 sm:p-1">
           <button
             onClick={() => setChartType('line')}
-            className={`px-2 py-1 text-xs rounded transition ${
+            className={`px-2 py-1 text-[10px] sm:text-xs rounded transition ${
               chartType === 'line' ? 'bg-akari-card text-akari-text' : 'text-akari-muted'
             }`}
           >
@@ -308,7 +314,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
           </button>
           <button
             onClick={() => setChartType('bar')}
-            className={`px-2 py-1 text-xs rounded transition ${
+            className={`px-2 py-1 text-[10px] sm:text-xs rounded transition ${
               chartType === 'bar' ? 'bg-akari-card text-akari-text' : 'text-akari-muted'
             }`}
           >
@@ -317,12 +323,12 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         </div>
       </div>
 
-      {/* Chart SVG */}
-      <div className="relative overflow-x-auto">
+      {/* Chart SVG - Responsive */}
+      <div className="relative w-full">
         <svg 
           viewBox={`0 0 ${chartWidth} ${chartHeight}`} 
-          className="w-full h-48 md:h-56"
-          style={{ minWidth: '400px' }}
+          className="w-full h-40 sm:h-48 md:h-56"
+          preserveAspectRatio="xMidYMid meet"
         >
           {/* Grid lines */}
           {[0, 25, 50, 75, 100].map(v => {
@@ -388,22 +394,39 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
               ))}
             </>
           ) : (
-            /* Bar chart */
+            /* Bar chart - properly spaced bars */
             chartData.map((d, i) => {
-              const barWidth = Math.max(4, innerWidth / chartData.length - 2);
               const val = d.value ?? 0;
-              const height = Math.abs(val - minVal) / range * innerHeight;
+              const barHeight = Math.max(2, Math.abs(val - minVal) / range * innerHeight);
+              const barX = getX(i) - barWidth / 2;
+              const barY = getY(val);
+              
               return (
-                <rect
-                  key={i}
-                  x={getX(i) - barWidth / 2}
-                  y={getY(val)}
-                  width={barWidth}
-                  height={height}
-                  fill={metricColors[metric]}
-                  fillOpacity={0.7}
-                  rx={2}
-                />
+                <g key={i}>
+                  {/* Bar with rounded top */}
+                  <rect
+                    x={barX}
+                    y={barY}
+                    width={barWidth}
+                    height={barHeight}
+                    fill={metricColors[metric]}
+                    fillOpacity={0.8}
+                    rx={3}
+                    ry={3}
+                  />
+                  {/* Subtle glow effect */}
+                  <rect
+                    x={barX}
+                    y={barY}
+                    width={barWidth}
+                    height={barHeight}
+                    fill={metricColors[metric]}
+                    fillOpacity={0.3}
+                    rx={3}
+                    ry={3}
+                    filter="blur(2px)"
+                  />
+                </g>
               );
             })
           )}
@@ -702,12 +725,14 @@ export default function SentimentDetail() {
               </div>
               <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Inner Circle</p>
-                <p className="text-2xl font-bold text-akari-text">{innerCircle.count}</p>
-                <p className="text-xs text-akari-muted mt-1">Power: {formatNumber(innerCircle.power)}</p>
+                <p className="text-2xl font-bold text-akari-text">{innerCircle.count || '-'}</p>
+                {innerCircle.power > 0 && (
+                  <p className="text-xs text-akari-muted mt-1">Power: {formatNumber(innerCircle.power)}</p>
+                )}
               </div>
               <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Tweets Today</p>
-                <p className="text-2xl font-bold text-akari-text">{latestMetrics.tweet_count ?? '-'}</p>
+                <p className="text-2xl font-bold text-akari-text">{latestMetrics.tweet_count || '-'}</p>
               </div>
             </section>
           )}
