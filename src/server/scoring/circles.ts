@@ -1,10 +1,13 @@
 /**
  * Circles Logic Module
  * 
- * Implements:
- * - Global Inner Circle: Top CT profiles based on AKARI scores
- * - Project Inner Circle: Profiles that engage with specific projects
- * - Common Inner Circle: Overlap between projects for competitor analysis
+ * ⚠️ CONFIDENTIAL - SERVER-SIDE ONLY ⚠️
+ * 
+ * This module contains proprietary algorithms for inner circle analysis.
+ * DO NOT import this file in any client-side/browser code.
+ * Only use in: scripts/, API routes (server functions), cron jobs.
+ * 
+ * Implements inner circle analysis and competitor matching.
  */
 
 // =============================================================================

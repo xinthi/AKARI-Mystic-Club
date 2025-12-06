@@ -1,20 +1,13 @@
 /**
  * Profile Scoring Module
  * 
- * Implements the AKARI Profile Score algorithm (0-1000) that:
- * - Rewards real signal creators and KOLs
- * - Punishes bots and farming pods
- * - Measures authenticity, influence, signal density, and farm risk
+ * ⚠️ CONFIDENTIAL - SERVER-SIDE ONLY ⚠️
  * 
- * Components:
- * - authenticity_score (0-100): Based on engagement, follower quality, account age
- * - influence_score (0-100): Based on followers, verification, high-profile followers
- * - signal_density_score (0-100): Based on tweet content quality vs noise
- * - farm_risk_score (0-100): Detects farming groups via engagement overlap
+ * This module contains proprietary scoring algorithms.
+ * DO NOT import this file in any client-side/browser code.
+ * Only use in: scripts/, API routes (server functions), cron jobs.
  * 
- * Final formula:
- *   ProfileScore_0_100 = 0.35 * auth_final + 0.35 * signal + 0.30 * influence
- *   AKARI_Profile_Score = round(ProfileScore_0_100 * 10)
+ * Implements the AKARI Profile Score algorithm (0-1000).
  */
 
 import {

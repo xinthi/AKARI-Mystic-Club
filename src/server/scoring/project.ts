@@ -1,24 +1,13 @@
 /**
  * Project Scoring Module
  * 
- * Implements the AKARI Project Score algorithm (0-1000) based on:
- * - Official account profile score
- * - Weighted average KOL profile score
- * - Sentiment score
- * - CT Heat score
- * - Inner Circle impact
- * - Community quality
+ * ⚠️ CONFIDENTIAL - SERVER-SIDE ONLY ⚠️
  * 
- * Final formula:
- *   Project_0_100 = 
- *     0.30 * Official_ProfileScore_0_100 +
- *     0.20 * Weighted_avg_KOL_ProfileScore_0_100 +
- *     0.15 * Sentiment_0_100 +
- *     0.15 * CT_Heat_0_100 +
- *     0.10 * InnerCircle_Impact_0_100 +
- *     0.10 * Community_Quality_0_100
- *   
- *   AKARI_Project_Score = round(Project_0_100 * 10)
+ * This module contains proprietary scoring algorithms.
+ * DO NOT import this file in any client-side/browser code.
+ * Only use in: scripts/, API routes (server functions), cron jobs.
+ * 
+ * Implements the AKARI Project Score algorithm (0-1000).
  */
 
 // =============================================================================

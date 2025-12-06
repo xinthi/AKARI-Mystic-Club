@@ -65,3 +65,20 @@ secrets/
 *.secrets.*
 *_secrets.*
 
+# API keys and credentials
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# Local development overrides
+.env.local.backup
+*.local.ts
+*.local.js
+
+# Scoring algorithm documentation (NEVER commit)
+**/scoring-formulas*
+**/algorithm-docs*
+FORMULAS.md
+ALGORITHM.md
+

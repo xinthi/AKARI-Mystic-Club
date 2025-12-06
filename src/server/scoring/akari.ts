@@ -1,14 +1,13 @@
 /**
  * AKARI Score Computation Module
  * 
- * Computes the AKARI credibility score (0-1000) for Twitter/X accounts.
- * This is a composite score that considers:
- * - Engagement quality
- * - Account age
- * - Follower/following ratio
- * - Engagement consistency (detects farm-like behavior)
+ * ⚠️ CONFIDENTIAL - SERVER-SIDE ONLY ⚠️
  * 
- * This module runs SERVER-SIDE only, never in the browser.
+ * This module contains proprietary scoring algorithms.
+ * DO NOT import this file in any client-side/browser code.
+ * Only use in: scripts/, API routes (server functions), cron jobs.
+ * 
+ * Computes the AKARI credibility score (0-1000) for Twitter/X accounts.
  */
 
 // =============================================================================
