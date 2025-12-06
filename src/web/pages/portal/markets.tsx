@@ -18,8 +18,19 @@ import {
   getLatestCexSnapshots,
   getDexLiquiditySnapshots,
   getCexMarketSnapshots,
+  getDexLiquidityRadar,
+  getCexMarketHeatmap,
+  getPortalMarketOverview,
+  getChainFlowRadar,
+  getWhaleRadar,
+  getTrendingMarkets,
+  getMemeRadarSnapshot,
   type DexLiquidityRow,
   type CexMarketRow,
+  type ChainFlowRow,
+  type WhaleRadarRow,
+  type TrendingMarketRow,
+  type MemeRadarRow,
 } from '../../lib/portal/db';
 import { getTrackedMarketMetrics, formatMetricValue } from '../../lib/portal/metrics';
 import { prisma } from '../../lib/prisma';
@@ -37,6 +48,7 @@ import {
   type LiquiditySignalDto,
 } from '../../components/portal/LiquiditySignalsCard';
 import { chainIcon, formatChainLabel, chainBadgeColor } from '../../lib/portal/chains';
+import Link from 'next/link';
 
 // Serializable version of MarketSnapshot for SSR props
 interface MarketSnapshotDto {
@@ -98,6 +110,46 @@ interface TopDexEntry {
   priceUsd: number | null;
 }
 
+// Chain Flow DTO for SSR
+interface ChainFlowDto {
+  chain: string;
+  netFlow24hUsd: number;
+  dominantStablecoin: string | null;
+  signalLabel: string | null;
+  lastUpdated: string;
+}
+
+// Whale Radar DTO for SSR
+interface WhaleRadarDto {
+  id: string;
+  occurredAt: string;
+  chain: string;
+  tokenSymbol: string;
+  side: 'Accumulating' | 'Distributing';
+  sizeUsd: number;
+  source: string;
+}
+
+// Trending Market DTO for SSR
+interface TrendingMarketDto {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  change24hPct: number;
+  volume24hUsd: number | null;
+  lastUpdated: string;
+}
+
+// Meme Preview DTO for SSR
+interface MemePreviewDto {
+  symbol: string;
+  name: string;
+  chain: string | null;
+  volume24hUsd: number | null;
+  source: string;
+}
+
 interface MarketsPageProps {
   pulse: MarketPulse | null;
   highlights: AkariHighlights | null;
@@ -111,12 +163,18 @@ interface MarketsPageProps {
   cexMarketRows: CexMarketRow[]; // Deduplicated CEX rows
   trackedMarketCap: string; // Formatted tracked market cap
   trackedVolume24h: string; // Formatted tracked 24h volume
+  // New radar data
+  chainFlows: ChainFlowDto[];
+  whaleRadar: WhaleRadarDto[];
+  trendingMarkets: TrendingMarketDto[];
+  memePreview: MemePreviewDto[];
   whaleEntriesRecent: WhaleEntryDto[];
   whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
   volumeLeaders: VolumeLeader[];
   liquiditySignalsRecent: LiquiditySignalDto[];
   liquidityLastAny: LiquiditySignalDto | null;
+  lastUpdated: string | null;
   error?: string;
 }
 
@@ -206,12 +264,17 @@ export default function MarketsPage({
   cexMarketRows,
   trackedMarketCap,
   trackedVolume24h,
+  chainFlows,
+  whaleRadar,
+  trendingMarkets,
+  memePreview,
   whaleEntriesRecent,
   whaleLastAny,
   narratives,
   volumeLeaders,
   liquiditySignalsRecent,
   liquidityLastAny,
+  lastUpdated,
   error,
 }: MarketsPageProps) {
   // Create a lookup map for trading venues by symbol
@@ -338,6 +401,118 @@ export default function MarketsPage({
             signals={liquiditySignalsRecent}
             lastAnySignal={liquidityLastAny}
           />
+        </section>
+      )}
+
+      {/* Chain Flow Radar & Whale Radar */}
+      {!error && (
+        <section className="mb-6 grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {/* Chain Flow Radar */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-akari-card p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-semibold text-akari-text">Chain Flow Radar</h3>
+              {chainFlows.length > 0 && (
+                <span className="text-[10px] text-akari-muted bg-akari-cardSoft px-2 py-0.5 rounded-full">
+                  Updated {formatRelativeTime(chainFlows[0].lastUpdated)}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-akari-muted mb-4">
+              Stablecoin inflows/outflows across tracked chains, last 24h.
+            </p>
+            {chainFlows.length > 0 ? (
+              <div className="space-y-2">
+                {chainFlows.map((flow, i) => {
+                  const isInflow = flow.netFlow24hUsd >= 0;
+                  const flowColor = isInflow ? 'text-green-400' : 'text-red-400';
+                  const flowBg = isInflow ? 'bg-green-500/10' : 'bg-red-500/10';
+                  return (
+                    <div
+                      key={`${flow.chain}-${i}`}
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs p-2 rounded-lg ${flowBg}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1 sm:mb-0">
+                        <span className="text-sm">{chainIcon(flow.chain)}</span>
+                        <span className="text-akari-text font-medium capitalize">{flow.chain}</span>
+                        {flow.signalLabel && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] hidden sm:inline">
+                            {flow.signalLabel}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <span className={`font-medium ${flowColor}`}>
+                          {isInflow ? '+' : ''}{formatLargeNumber(flow.netFlow24hUsd)}
+                        </span>
+                        {flow.dominantStablecoin && (
+                          <span className="px-1.5 py-0.5 rounded bg-akari-cardSoft text-akari-muted text-[10px]">
+                            {flow.dominantStablecoin}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-xs text-akari-muted">
+                <p className="text-sm mb-2">No measurable stablecoin rotations</p>
+                <p className="text-[10px]">Monitoring Ethereum, Solana, Base, and more.</p>
+                <p className="text-[10px] mt-1">We&apos;ll surface rotations as they appear.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Whale Radar */}
+          <div className="rounded-2xl border border-violet-500/30 bg-akari-card p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-semibold text-akari-text">Whale Radar – last 24h</h3>
+              {whaleRadar.length > 0 && (
+                <span className="text-[10px] text-akari-muted bg-akari-cardSoft px-2 py-0.5 rounded-full">
+                  {whaleRadar.length} entries
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-akari-muted mb-4">
+              Large onchain and CEX trades from tracked wallets.
+            </p>
+            {whaleRadar.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {whaleRadar.map((whale, i) => {
+                  const sideColor = whale.side === 'Accumulating' ? 'text-green-400 bg-green-500/15' : 'text-red-400 bg-red-500/15';
+                  return (
+                    <div
+                      key={`${whale.id}-${i}`}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs p-2 rounded-lg bg-akari-cardSoft/50"
+                    >
+                      <div className="flex items-center gap-2 mb-1 sm:mb-0">
+                        <span className="text-[10px] text-akari-muted min-w-[50px]">
+                          {formatRelativeTime(whale.occurredAt)}
+                        </span>
+                        <span className="text-sm">{chainIcon(whale.chain)}</span>
+                        <span className="text-akari-text font-medium uppercase">{whale.tokenSymbol}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${sideColor}`}>
+                          {whale.side}
+                        </span>
+                        <span className="text-akari-text font-medium">{formatLargeNumber(whale.sizeUsd)}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px] hidden sm:inline">
+                          {whale.source}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-xs text-akari-muted">
+                <p className="text-sm mb-2">No whale entries in the last 24 hours</p>
+                <p className="text-[10px]">We&apos;ll flag the next big wallets that move size.</p>
+                <p className="text-[10px] mt-1">Tracking resumes automatically.</p>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -823,38 +998,72 @@ export default function MarketsPage({
           </p>
         </div>
 
-        {/* Top Gainers 24h / Volume Leaders */}
+        {/* Trending Markets Card */}
         <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
-          <p className="text-xs text-akari-muted mb-1">Top Gainers 24h</p>
-          <p className="text-sm mb-1 text-akari-text">Volume Leaders</p>
-          {volumeLeaders.length > 0 ? (
+          <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">Top Movers</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Trending</p>
+          {trendingMarkets.length > 0 ? (
             <div className="space-y-1.5 mt-2">
-              {volumeLeaders.slice(0, 5).map((leader) => {
-                const changeColor = leader.change24hPct >= 0 ? 'text-green-400' : 'text-red-400';
+              {trendingMarkets.slice(0, 4).map((market) => {
+                const changeColor = market.change24hPct >= 0 ? 'text-green-400' : 'text-red-400';
                 return (
-                  <div key={leader.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-[11px]">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-akari-text font-medium">{leader.symbol}</span>
-                      <span className="text-akari-muted text-[10px] sm:text-[11px]">{formatPrice(leader.priceUsd)}</span>
+                  <div key={market.id} className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1">
+                      <span className="text-akari-text font-medium">{market.symbol}</span>
+                      <span className="text-akari-muted text-[10px] hidden sm:inline">{market.name}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`${changeColor} font-medium text-[10px] sm:text-[11px]`}>
-                        {leader.change24hPct >= 0 ? '+' : ''}
-                        {leader.change24hPct.toFixed(2)}%
-                      </span>
-                      <span className="text-akari-muted text-[9px] sm:text-[10px]">
-                        {formatVolumeOrMarketCap(leader.volume24hUsd)}
-                      </span>
-                    </div>
+                    <span className={`${changeColor} font-medium`}>
+                      {market.change24hPct >= 0 ? '+' : ''}{market.change24hPct.toFixed(2)}%
+                    </span>
                   </div>
                 );
               })}
             </div>
           ) : (
             <p className="text-[11px] text-akari-muted">
-              Volume leaders update every 5 minutes from CoinGecko. Data will appear once the cron finishes its first sync.
+              Trending data warming up. First snapshot appears after the next CoinGecko sync.
             </p>
           )}
+        </div>
+
+        {/* Meme Radar Preview */}
+        <div className="rounded-2xl border border-purple-500/30 bg-akari-card p-3 sm:p-4">
+          <p className="text-xs text-purple-400 mb-1 uppercase tracking-[0.1em]">Quick Look</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Meme Radar</p>
+          {memePreview.length > 0 ? (
+            <div className="space-y-1.5 mt-2">
+              {memePreview.map((meme, idx) => (
+                <div key={`${meme.symbol}-${idx}`} className="flex items-center justify-between text-[11px]">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm">{chainIcon(meme.chain)}</span>
+                    <span className="text-akari-text font-medium uppercase">{meme.symbol}</span>
+                  </div>
+                  <span className="text-purple-400 text-[10px]">
+                    {meme.volume24hUsd ? formatLargeNumber(meme.volume24hUsd) : '—'}
+                  </span>
+                </div>
+              ))}
+              <Link
+                href="/portal/memes"
+                className="block text-[10px] text-akari-primary hover:text-akari-accent mt-2 transition-colors"
+              >
+                Open full Meme Radar →
+              </Link>
+            </div>
+          ) : (
+            <p className="text-[11px] text-akari-muted">
+              Meme data warming up. Visit the full Meme Radar page for details.
+            </p>
+          )}
+        </div>
+
+        {/* Launchpad Winners */}
+        <div className="rounded-2xl border border-akari-border bg-akari-card p-3 sm:p-4">
+          <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">Coming Soon</p>
+          <p className="text-sm mb-1 text-akari-text font-medium">Launchpad Winners</p>
+          <p className="text-[11px] text-akari-muted">
+            This panel will showcase best ROI from AKARI launchpad campaigns once wired. For now, launch data is only visible internally.
+          </p>
         </div>
       </div>
     </PortalLayout>
@@ -877,6 +1086,11 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       dexLiquidityRows,
       cexMarketRows,
       trackedMetrics,
+      portalOverview,
+      chainFlowsRaw,
+      whaleRadarRaw,
+      trendingMarketsRaw,
+      memeRadarResult,
     ] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
@@ -898,6 +1112,11 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       getDexLiquiditySnapshots(20).catch(() => []),
       getCexMarketSnapshots(20).catch(() => []),
       getTrackedMarketMetrics(prisma).catch(() => ({ totalMarketCapUsd: null, totalVolume24hUsd: null, source: 'none' as const })),
+      getPortalMarketOverview().catch(() => ({ trackedMarketCapUsd: 0, trackedVolume24hUsd: 0, lastUpdated: null })),
+      getChainFlowRadar(8).catch(() => []),
+      getWhaleRadar(10, 24).catch(() => []),
+      getTrendingMarkets(6).catch(() => []),
+      getMemeRadarSnapshot(3).catch(() => ({ memes: [], source: 'none' as const, lastUpdated: null })),
     ]);
 
     // If no market snapshots, fetch live prices from Binance as a fallback
@@ -1049,6 +1268,49 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         }
       : null;
 
+    // Map chain flows to serializable DTOs
+    const chainFlows: ChainFlowDto[] = chainFlowsRaw.map((f: ChainFlowRow) => ({
+      chain: f.chain,
+      netFlow24hUsd: f.netFlow24hUsd,
+      dominantStablecoin: f.dominantStablecoin,
+      signalLabel: f.signalLabel,
+      lastUpdated: f.lastUpdated.toISOString(),
+    }));
+
+    // Map whale radar to serializable DTOs
+    const whaleRadar: WhaleRadarDto[] = whaleRadarRaw.map((w: WhaleRadarRow) => ({
+      id: w.id,
+      occurredAt: w.occurredAt.toISOString(),
+      chain: w.chain,
+      tokenSymbol: w.tokenSymbol,
+      side: w.side,
+      sizeUsd: w.sizeUsd,
+      source: w.source,
+    }));
+
+    // Map trending markets to serializable DTOs
+    const trendingMarkets: TrendingMarketDto[] = trendingMarketsRaw.map((t: TrendingMarketRow) => ({
+      id: t.id,
+      symbol: t.symbol,
+      name: t.name,
+      priceUsd: t.priceUsd,
+      change24hPct: t.change24hPct,
+      volume24hUsd: t.volume24hUsd,
+      lastUpdated: t.lastUpdated.toISOString(),
+    }));
+
+    // Map meme preview to serializable DTOs
+    const memePreview: MemePreviewDto[] = memeRadarResult.memes.slice(0, 3).map((m: MemeRadarRow) => ({
+      symbol: m.symbol,
+      name: m.name,
+      chain: m.chain,
+      volume24hUsd: m.volume24hUsd,
+      source: m.source,
+    }));
+
+    // Determine last updated time
+    const lastUpdated = portalOverview.lastUpdated?.toISOString() || null;
+
     return {
       props: {
         pulse: pulse ? JSON.parse(JSON.stringify(pulse)) : null,
@@ -1063,6 +1325,10 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         cexMarketRows: JSON.parse(JSON.stringify(cexMarketRows)),
         trackedMarketCap: formatMetricValue(trackedMetrics.totalMarketCapUsd),
         trackedVolume24h: formatMetricValue(trackedMetrics.totalVolume24hUsd),
+        chainFlows: JSON.parse(JSON.stringify(chainFlows)),
+        whaleRadar: JSON.parse(JSON.stringify(whaleRadar)),
+        trendingMarkets: JSON.parse(JSON.stringify(trendingMarkets)),
+        memePreview: JSON.parse(JSON.stringify(memePreview)),
         whaleEntriesRecent: JSON.parse(JSON.stringify(whaleEntriesRecent)),
         whaleLastAny: whaleLastAny ? JSON.parse(JSON.stringify(whaleLastAny)) : null,
         narratives: JSON.parse(JSON.stringify(narratives)),
@@ -1071,9 +1337,10 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         liquidityLastAny: liquidityLastAny
           ? JSON.parse(JSON.stringify(liquidityLastAny))
           : null,
+        lastUpdated,
       },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Markets Page] Error fetching market data:', error);
     return {
       props: {
@@ -1089,12 +1356,17 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         cexMarketRows: [],
         trackedMarketCap: 'Data warming up',
         trackedVolume24h: 'Data warming up',
+        chainFlows: [],
+        whaleRadar: [],
+        trendingMarkets: [],
+        memePreview: [],
         whaleEntriesRecent: [],
         whaleLastAny: null,
         narratives: [],
         volumeLeaders: [],
         liquiditySignalsRecent: [],
         liquidityLastAny: null,
+        lastUpdated: null,
         error: 'Failed to load market data',
       },
     };

@@ -895,3 +895,393 @@ export async function getMemeSnapshots(limit: number = 30): Promise<MemeTokenSna
   });
 }
 
+// ============================================
+// PORTAL MARKET OVERVIEW & RADAR HELPERS
+// ============================================
+
+// Symbols to exclude from meme listings (majors)
+export const MEME_EXCLUDED_SYMBOLS = [
+  'BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'BNB', 'XRP', 'LINK', 'WETH', 'WBTC',
+  'DOGE', 'ADA', 'DOT', 'MATIC', 'AVAX', 'TRX', 'SHIB', 'LTC', 'ATOM', 'UNI',
+];
+
+// Meme keywords for filtering
+export const MEME_KEYWORDS = [
+  'pepe', 'doge', 'shib', 'floki', 'bonk', 'wif', 'mog', 'popcat', 'cat', 'dog',
+  'frog', 'wojak', 'chad', 'npc', 'wen', 'moon', 'pump', 'inu', 'elon', 'meme',
+  'baby', 'safe', 'rocket', 'cum', 'ass', 'tits', 'cock', 'dick', 'boob',
+  'goat', 'act', 'turbo', 'brett', 'andy', 'toshi', 'neiro', 'pnut', 'chill',
+];
+
+/**
+ * Check if a symbol/name is meme-ish based on keywords
+ */
+export function isMemeToken(symbol: string | null, name: string | null): boolean {
+  const symbolLower = (symbol || '').toLowerCase();
+  const nameLower = (name || '').toLowerCase();
+  
+  // Exclude majors
+  if (MEME_EXCLUDED_SYMBOLS.includes(symbolLower.toUpperCase())) {
+    return false;
+  }
+  
+  // Check for meme keywords
+  return MEME_KEYWORDS.some(keyword => 
+    symbolLower.includes(keyword) || nameLower.includes(keyword)
+  );
+}
+
+/**
+ * Portal Market Overview
+ * Returns aggregated tracked market cap and 24h volume from CEX + DEX snapshots
+ */
+export interface PortalMarketOverview {
+  trackedMarketCapUsd: number;
+  trackedVolume24hUsd: number;
+  lastUpdated: Date | null;
+}
+
+export async function getPortalMarketOverview(): Promise<PortalMarketOverview> {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [dexSnapshots, cexSnapshots, marketSnapshots] = await Promise.all([
+    prisma.dexMarketSnapshot.findMany({
+      where: { createdAt: { gte: oneDayAgo } },
+      select: { liquidityUsd: true, volume24hUsd: true, createdAt: true },
+    }),
+    prisma.cexMarketSnapshot.findMany({
+      where: { createdAt: { gte: oneDayAgo } },
+      select: { volume24hUsd: true, createdAt: true },
+    }),
+    prisma.marketSnapshot.findMany({
+      where: { createdAt: { gte: oneDayAgo } },
+      select: { marketCapUsd: true, volume24hUsd: true, createdAt: true },
+    }),
+  ]);
+
+  // Sum market cap from MarketSnapshot (most accurate)
+  let trackedMarketCapUsd = marketSnapshots.reduce(
+    (sum, s) => sum + (s.marketCapUsd || 0), 0
+  );
+  
+  // Add DEX liquidity as proxy for smaller tokens
+  trackedMarketCapUsd += dexSnapshots.reduce(
+    (sum, s) => sum + (s.liquidityUsd || 0), 0
+  );
+
+  // Sum volumes from DEX + CEX
+  const dexVolume = dexSnapshots.reduce((sum, s) => sum + (s.volume24hUsd || 0), 0);
+  const cexVolume = cexSnapshots.reduce((sum, s) => sum + (s.volume24hUsd || 0), 0);
+  const marketVolume = marketSnapshots.reduce((sum, s) => sum + (s.volume24hUsd || 0), 0);
+
+  const trackedVolume24hUsd = dexVolume + cexVolume + marketVolume;
+
+  // Find most recent timestamp
+  const allDates = [
+    ...dexSnapshots.map(s => s.createdAt),
+    ...cexSnapshots.map(s => s.createdAt),
+    ...marketSnapshots.map(s => s.createdAt),
+  ].filter(Boolean);
+
+  const lastUpdated = allDates.length > 0
+    ? new Date(Math.max(...allDates.map(d => d.getTime())))
+    : null;
+
+  return {
+    trackedMarketCapUsd,
+    trackedVolume24hUsd,
+    lastUpdated,
+  };
+}
+
+/**
+ * DEX Liquidity Radar
+ * Returns top DEX pairs by liquidity
+ */
+export async function getDexLiquidityRadar(limit: number = 8): Promise<DexLiquidityRow[]> {
+  return getDexLiquiditySnapshots(limit);
+}
+
+/**
+ * CEX Market Heatmap
+ * Returns top CEX markets by volume
+ */
+export async function getCexMarketHeatmap(limit: number = 8): Promise<CexMarketRow[]> {
+  return getCexMarketSnapshots(limit);
+}
+
+/**
+ * Chain Flow Row for UI
+ */
+export interface ChainFlowRow {
+  chain: string;
+  netFlow24hUsd: number;
+  dominantStablecoin: string | null;
+  signalLabel: string | null;
+  lastUpdated: Date;
+}
+
+/**
+ * Chain Flow Radar
+ * Aggregates stablecoin flows per chain and attaches any matching signals
+ */
+export async function getChainFlowRadar(limit: number = 8): Promise<ChainFlowRow[]> {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [flows, signals] = await Promise.all([
+    prisma.stablecoinFlowSnapshot.findMany({
+      where: { windowEnd: { gte: oneDayAgo } },
+      orderBy: { windowEnd: 'desc' },
+    }),
+    prisma.liquiditySignal.findMany({
+      where: { triggeredAt: { gte: oneDayAgo } },
+      orderBy: { triggeredAt: 'desc' },
+    }),
+  ]);
+
+  // Aggregate flows by destination chain
+  const chainFlows = new Map<string, {
+    netFlow: number;
+    stablecoins: Map<string, number>;
+    lastUpdated: Date;
+  }>();
+
+  for (const flow of flows) {
+    const chain = flow.toChain;
+    const existing = chainFlows.get(chain) || {
+      netFlow: 0,
+      stablecoins: new Map<string, number>(),
+      lastUpdated: flow.windowEnd,
+    };
+
+    existing.netFlow += flow.netAmountUsd;
+    existing.stablecoins.set(
+      flow.stableSymbol,
+      (existing.stablecoins.get(flow.stableSymbol) || 0) + Math.abs(flow.netAmountUsd)
+    );
+    
+    if (flow.windowEnd > existing.lastUpdated) {
+      existing.lastUpdated = flow.windowEnd;
+    }
+
+    chainFlows.set(chain, existing);
+  }
+
+  // Create signal lookup by chain
+  const signalByChain = new Map<string, string>();
+  for (const signal of signals) {
+    if (signal.chain && !signalByChain.has(signal.chain)) {
+      signalByChain.set(signal.chain, signal.title);
+    }
+  }
+
+  // Convert to rows
+  const rows: ChainFlowRow[] = Array.from(chainFlows.entries())
+    .map(([chain, data]) => {
+      // Find dominant stablecoin
+      let dominantStablecoin: string | null = null;
+      let maxVolume = 0;
+      for (const [stable, volume] of data.stablecoins.entries()) {
+        if (volume > maxVolume) {
+          maxVolume = volume;
+          dominantStablecoin = stable;
+        }
+      }
+
+      return {
+        chain,
+        netFlow24hUsd: data.netFlow,
+        dominantStablecoin,
+        signalLabel: signalByChain.get(chain) || null,
+        lastUpdated: data.lastUpdated,
+      };
+    })
+    .sort((a, b) => Math.abs(b.netFlow24hUsd) - Math.abs(a.netFlow24hUsd))
+    .slice(0, limit);
+
+  return rows;
+}
+
+/**
+ * Whale Radar Row for UI
+ */
+export interface WhaleRadarRow {
+  id: string;
+  occurredAt: Date;
+  chain: string;
+  tokenSymbol: string;
+  side: 'Accumulating' | 'Distributing';
+  sizeUsd: number;
+  source: string;
+}
+
+/**
+ * Whale Radar
+ * Returns recent whale entries within lookback window
+ */
+export async function getWhaleRadar(limit: number = 10, lookbackHours: number = 24): Promise<WhaleRadarRow[]> {
+  const since = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+
+  const entries = await prisma.whaleEntry.findMany({
+    where: {
+      occurredAt: { gte: since },
+    },
+    orderBy: { occurredAt: 'desc' },
+    take: limit,
+  });
+
+  return entries.map(entry => ({
+    id: entry.id,
+    occurredAt: entry.occurredAt,
+    chain: entry.chain,
+    tokenSymbol: entry.tokenSymbol,
+    // Positive amount = accumulating, negative = distributing
+    side: entry.amountUsd >= 0 ? 'Accumulating' : 'Distributing',
+    sizeUsd: Math.abs(entry.amountUsd),
+    source: 'Uniblock',
+  }));
+}
+
+/**
+ * Trending Market Row for UI
+ */
+export interface TrendingMarketRow {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  change24hPct: number;
+  volume24hUsd: number | null;
+  lastUpdated: Date;
+}
+
+/**
+ * Trending Markets
+ * Returns top movers by absolute 24h change
+ */
+export async function getTrendingMarkets(limit: number = 6): Promise<TrendingMarketRow[]> {
+  // Get latest snapshots
+  const snapshots = await getLatestMarketSnapshots(100);
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  // Sort by absolute change and take top N
+  return snapshots
+    .filter(s => s.change24hPct !== null)
+    .sort((a, b) => Math.abs(b.change24hPct || 0) - Math.abs(a.change24hPct || 0))
+    .slice(0, limit)
+    .map(s => ({
+      id: s.id,
+      symbol: s.symbol,
+      name: s.name,
+      priceUsd: s.priceUsd,
+      change24hPct: s.change24hPct || 0,
+      volume24hUsd: s.volume24hUsd,
+      lastUpdated: s.createdAt,
+    }));
+}
+
+/**
+ * Meme Radar Row for UI
+ */
+export interface MemeRadarRow {
+  symbol: string;
+  name: string;
+  chain: string | null;
+  priceUsd: number | null;
+  volume24hUsd: number | null;
+  change24hPct: number | null;
+  source: string;
+  lastUpdated: Date;
+}
+
+/**
+ * Meme Radar Snapshot
+ * Prefers MemeTokenSnapshot, falls back to DEX with meme keyword filter
+ */
+export async function getMemeRadarSnapshot(limit: number = 15): Promise<{
+  memes: MemeRadarRow[];
+  source: 'meme_snapshots' | 'dex_fallback' | 'none';
+  lastUpdated: Date | null;
+}> {
+  // Try MemeTokenSnapshot first
+  const memeSnapshots = await getMemeSnapshots(50);
+
+  if (memeSnapshots.length > 0) {
+    // Filter out majors and non-meme tokens
+    const filtered = memeSnapshots
+      .filter(s => !MEME_EXCLUDED_SYMBOLS.includes(s.symbol.toUpperCase()))
+      .slice(0, limit);
+
+    const lastUpdated = filtered.length > 0 
+      ? filtered.reduce((max, s) => s.createdAt > max ? s.createdAt : max, filtered[0].createdAt)
+      : null;
+
+    return {
+      memes: filtered.map(s => ({
+        symbol: s.symbol,
+        name: s.name,
+        chain: null, // MemeTokenSnapshot doesn't have chain
+        priceUsd: s.priceUsd,
+        volume24hUsd: null, // MemeTokenSnapshot doesn't have volume
+        change24hPct: s.change24hPct,
+        source: s.source || 'coingecko',
+        lastUpdated: s.createdAt,
+      })),
+      source: 'meme_snapshots',
+      lastUpdated,
+    };
+  }
+
+  // Fallback to DEX snapshots with meme filter
+  const dexSnapshots = await prisma.dexMarketSnapshot.findMany({
+    where: {
+      volume24hUsd: { gt: 0 },
+    },
+    orderBy: { volume24hUsd: 'desc' },
+  });
+
+  if (dexSnapshots.length === 0) {
+    return { memes: [], source: 'none', lastUpdated: null };
+  }
+
+  // Filter for meme tokens and exclude majors
+  const memeDex = dexSnapshots
+    .filter(s => {
+      const symbol = s.symbol?.toUpperCase() || '';
+      // Exclude majors
+      if (MEME_EXCLUDED_SYMBOLS.includes(symbol)) return false;
+      // Include if meme-ish
+      return isMemeToken(s.symbol, s.name);
+    })
+    .slice(0, limit);
+
+  // If no meme tokens found after filtering, return top volume tokens (excluding majors)
+  const finalList = memeDex.length > 0 
+    ? memeDex 
+    : dexSnapshots
+        .filter(s => !MEME_EXCLUDED_SYMBOLS.includes((s.symbol || '').toUpperCase()))
+        .slice(0, limit);
+
+  const lastUpdated = finalList.length > 0
+    ? finalList.reduce((max, s) => s.createdAt > max ? s.createdAt : max, finalList[0].createdAt)
+    : null;
+
+  return {
+    memes: finalList.map(s => ({
+      symbol: s.symbol || 'UNKNOWN',
+      name: s.name || s.symbol || 'Unknown',
+      chain: s.chain,
+      priceUsd: s.priceUsd,
+      volume24hUsd: s.volume24hUsd,
+      change24hPct: null, // DEX doesn't have change %
+      source: s.dex || s.source || 'dexscreener',
+      lastUpdated: s.createdAt,
+    })),
+    source: 'dex_fallback',
+    lastUpdated,
+  };
+}
+
