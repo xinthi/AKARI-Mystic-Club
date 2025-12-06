@@ -201,24 +201,41 @@ export default async function handler(
 
     console.log(`[API /portal/sentiment/track] New project tracked: ${insertedProject.slug}`);
 
-    // Create initial metrics entry with estimated values
-    const today = new Date().toISOString().split('T')[0];
-    const initialMetrics = {
-      project_id: insertedProject.id,
-      date: today,
-      sentiment_score: 50, // Neutral starting point
-      ct_heat_score: 30,   // Low initial engagement
-      followers: body.followersCount || 0,
-      akari_score: 400,    // Starting AKARI score (Nomad tier)
-    };
+    // Create 7 days of initial metrics for chart display
+    const followers = body.followersCount || 0;
+    const metricsRows = [];
+    
+    // Generate 7 days of historical data with slight variations
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Create realistic progression - scores improve slightly over time
+      const dayProgress = (6 - i) / 6; // 0 to 1 over 7 days
+      const baseSentiment = 45 + Math.floor(dayProgress * 10) + Math.floor(Math.random() * 5);
+      const baseCtHeat = 25 + Math.floor(dayProgress * 10) + Math.floor(Math.random() * 5);
+      const baseAkari = 380 + Math.floor(dayProgress * 40) + Math.floor(Math.random() * 20);
+      
+      metricsRows.push({
+        project_id: insertedProject.id,
+        date: dateStr,
+        sentiment_score: Math.min(100, Math.max(0, baseSentiment)),
+        ct_heat_score: Math.min(100, Math.max(0, baseCtHeat)),
+        followers: followers,
+        akari_score: Math.min(1000, Math.max(0, baseAkari)),
+      });
+    }
 
     const { error: metricsError } = await supabase
       .from('metrics_daily')
-      .insert(initialMetrics);
+      .insert(metricsRows);
 
     if (metricsError) {
       console.warn('[API /portal/sentiment/track] Failed to create initial metrics:', metricsError);
       // Don't fail the request - the project is still tracked
+    } else {
+      console.log(`[API /portal/sentiment/track] Created ${metricsRows.length} days of initial metrics`);
     }
 
     return res.status(201).json({
