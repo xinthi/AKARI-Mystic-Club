@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
@@ -109,6 +109,28 @@ function formatNumber(num: number | null | undefined): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toString();
+}
+
+/**
+ * Sort indicator icon for table headers
+ */
+function SortIcon({ active, direction }: { active: boolean; direction: 'asc' | 'desc' }) {
+  if (!active) {
+    return (
+      <svg className="w-3 h-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  return direction === 'desc' ? (
+    <svg className="w-3 h-3 text-akari-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  ) : (
+    <svg className="w-3 h-3 text-akari-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+    </svg>
+  );
 }
 
 /**
@@ -343,6 +365,67 @@ export default function SentimentOverview() {
   const [trendingUp, setTrendingUp] = useState<TrendingUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Sort state
+  type SortColumn = 'name' | 'akari_score' | 'sentiment_score' | 'ct_heat_score' | 'followers' | 'date';
+  type SortDirection = 'asc' | 'desc';
+  const [sortColumn, setSortColumn] = useState<SortColumn>('akari_score');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Sort handler
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc'); // Default to descending for new column
+    }
+  };
+
+  // Sorted projects
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      let aVal: number | string | null = null;
+      let bVal: number | string | null = null;
+
+      switch (sortColumn) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'akari_score':
+          aVal = a.akari_score;
+          bVal = b.akari_score;
+          break;
+        case 'sentiment_score':
+          aVal = a.sentiment_score;
+          bVal = b.sentiment_score;
+          break;
+        case 'ct_heat_score':
+          aVal = a.ct_heat_score;
+          bVal = b.ct_heat_score;
+          break;
+        case 'followers':
+          aVal = a.followers;
+          bVal = b.followers;
+          break;
+        case 'date':
+          aVal = a.date;
+          bVal = b.date;
+          break;
+      }
+
+      // Handle nulls - put them at the end
+      if (aVal === null && bVal === null) return 0;
+      if (aVal === null) return 1;
+      if (bVal === null) return -1;
+
+      // Compare
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [projects, sortColumn, sortDirection]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -634,16 +717,64 @@ export default function SentimentOverview() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
-                    <th className="py-3 px-4">Project</th>
-                    <th className="py-3 px-4">AKARI Score</th>
-                    <th className="py-3 px-4">Sentiment</th>
-                    <th className="py-3 px-4">CT Heat</th>
-                    <th className="py-3 px-4">Followers</th>
-                    <th className="py-3 px-4">Updated</th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('name')}
+                    >
+                      <span className="flex items-center gap-1">
+                        Project
+                        <SortIcon active={sortColumn === 'name'} direction={sortDirection} />
+                      </span>
+                    </th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('akari_score')}
+                    >
+                      <span className="flex items-center gap-1">
+                        AKARI Score
+                        <SortIcon active={sortColumn === 'akari_score'} direction={sortDirection} />
+                      </span>
+                    </th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('sentiment_score')}
+                    >
+                      <span className="flex items-center gap-1">
+                        Sentiment
+                        <SortIcon active={sortColumn === 'sentiment_score'} direction={sortDirection} />
+                      </span>
+                    </th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('ct_heat_score')}
+                    >
+                      <span className="flex items-center gap-1">
+                        CT Heat
+                        <SortIcon active={sortColumn === 'ct_heat_score'} direction={sortDirection} />
+                      </span>
+                    </th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('followers')}
+                    >
+                      <span className="flex items-center gap-1">
+                        Followers
+                        <SortIcon active={sortColumn === 'followers'} direction={sortDirection} />
+                      </span>
+                    </th>
+                    <th 
+                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      onClick={() => handleSort('date')}
+                    >
+                      <span className="flex items-center gap-1">
+                        Updated
+                        <SortIcon active={sortColumn === 'date'} direction={sortDirection} />
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((project) => {
+                  {sortedProjects.map((project) => {
                     const tier = getAkariTier(project.akari_score);
                     return (
                       <tr
@@ -709,7 +840,7 @@ export default function SentimentOverview() {
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3">
-              {projects.map((project) => {
+              {sortedProjects.map((project) => {
                 const tier = getAkariTier(project.akari_score);
                 return (
                   <Link
