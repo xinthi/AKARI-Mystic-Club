@@ -90,6 +90,8 @@ function formatNumber(num: number | null): string {
 function AvatarWithFallback({ url, name, size = 'md' }: { 
   url: string | null; name: string; size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
+  const [imgError, setImgError] = React.useState(false);
+  
   const sizeClasses = {
     sm: 'h-8 w-8 text-sm',
     md: 'h-10 w-10 text-base',
@@ -97,22 +99,34 @@ function AvatarWithFallback({ url, name, size = 'md' }: {
     xl: 'h-16 w-16 text-2xl',
   };
 
+  // Generate a consistent color based on the name
+  const colors = [
+    'from-purple-500/30 to-purple-600/30 text-purple-400',
+    'from-blue-500/30 to-blue-600/30 text-blue-400',
+    'from-green-500/30 to-green-600/30 text-green-400',
+    'from-yellow-500/30 to-yellow-600/30 text-yellow-400',
+    'from-pink-500/30 to-pink-600/30 text-pink-400',
+    'from-cyan-500/30 to-cyan-600/30 text-cyan-400',
+  ];
+  const colorIndex = name.charCodeAt(0) % colors.length;
+  const colorClass = colors[colorIndex];
+
+  const showFallback = !url || imgError;
+
   return (
     <div className="relative flex-shrink-0">
-      {url ? (
+      {!showFallback ? (
         <img
           src={url}
           alt={name}
-          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-border`}
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-          }}
+          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-border/50`}
+          onError={() => setImgError(true)}
         />
-      ) : null}
-      <div className={`${url ? 'hidden' : 'flex'} ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold border border-akari-border`}>
-        {name.charAt(0).toUpperCase()}
-      </div>
+      ) : (
+        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-border/50`}>
+          {name.charAt(0).toUpperCase()}
+        </div>
+      )}
     </div>
   );
 }

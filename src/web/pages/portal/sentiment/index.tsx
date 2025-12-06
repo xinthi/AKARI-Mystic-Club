@@ -118,67 +118,42 @@ function getSentimentColor(score: number | null): string {
 }
 
 /**
- * Avatar component with fallback
- */
-function Avatar({ url, name, size = 'md' }: { url: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'h-8 w-8 text-sm',
-    md: 'h-10 w-10 text-base',
-    lg: 'h-12 w-12 text-lg',
-  };
-
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={name}
-        className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft`}
-        onError={(e) => {
-          // Hide broken image and show fallback
-          e.currentTarget.style.display = 'none';
-          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
-/**
  * Avatar with fallback wrapper
  */
 function AvatarWithFallback({ url, name, size = 'md' }: { url: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const [imgError, setImgError] = React.useState(false);
+  
   const sizeClasses = {
     sm: 'h-8 w-8 text-sm',
     md: 'h-10 w-10 text-base',
     lg: 'h-12 w-12 text-lg',
   };
 
+  // Generate a consistent color based on the name
+  const colors = [
+    'from-purple-500/30 to-purple-600/30 text-purple-400',
+    'from-blue-500/30 to-blue-600/30 text-blue-400',
+    'from-green-500/30 to-green-600/30 text-green-400',
+    'from-yellow-500/30 to-yellow-600/30 text-yellow-400',
+    'from-pink-500/30 to-pink-600/30 text-pink-400',
+    'from-cyan-500/30 to-cyan-600/30 text-cyan-400',
+  ];
+  const colorIndex = name.charCodeAt(0) % colors.length;
+  const colorClass = colors[colorIndex];
+
+  const showFallback = !url || imgError;
+
   return (
-    <div className="relative">
-      {url ? (
-        <>
-          <img
-            src={url}
-            alt={name}
-            className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft`}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const fallback = e.currentTarget.nextElementSibling;
-              if (fallback) fallback.classList.remove('hidden');
-            }}
-          />
-          <div className={`hidden flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
-            {name.charAt(0).toUpperCase()}
-          </div>
-        </>
+    <div className="relative flex-shrink-0">
+      {!showFallback ? (
+        <img
+          src={url}
+          alt={name}
+          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-border/50`}
+          onError={() => setImgError(true)}
+        />
       ) : (
-        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
+        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-border/50`}>
           {name.charAt(0).toUpperCase()}
         </div>
       )}
