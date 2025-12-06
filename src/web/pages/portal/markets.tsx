@@ -16,7 +16,13 @@ import {
   getTopDexByLiquidity,
   getLatestDexSnapshots,
   getLatestCexSnapshots,
+  getDexLiquiditySnapshots,
+  getCexMarketSnapshots,
+  type DexLiquidityRow,
+  type CexMarketRow,
 } from '../../lib/portal/db';
+import { getTrackedMarketMetrics, formatMetricValue } from '../../lib/portal/metrics';
+import { prisma } from '../../lib/prisma';
 import { fetchMajorPricesFromBinance } from '../../services/coingecko';
 import type { MarketSnapshot, DexMarketSnapshot, CexMarketSnapshot } from '@prisma/client';
 import { WhaleHeatmapCard, type WhaleEntryDto } from '../../components/portal/WhaleHeatmapCard';
@@ -101,6 +107,10 @@ interface MarketsPageProps {
   topDexLiquidity: TopDexEntry[]; // Top tokens by DEX liquidity
   dexSnapshots: DexSnapshotDto[]; // Latest DEX snapshots for DEX Radar card
   cexSnapshots: CexSnapshotDto[]; // Latest CEX snapshots for CEX Heatmap card
+  dexLiquidityRows: DexLiquidityRow[]; // Deduplicated DEX rows
+  cexMarketRows: CexMarketRow[]; // Deduplicated CEX rows
+  trackedMarketCap: string; // Formatted tracked market cap
+  trackedVolume24h: string; // Formatted tracked 24h volume
   whaleEntriesRecent: WhaleEntryDto[];
   whaleLastAny: WhaleEntryDto | null;
   narratives: NarrativeSummary[];
@@ -192,6 +202,10 @@ export default function MarketsPage({
   topDexLiquidity,
   dexSnapshots,
   cexSnapshots,
+  dexLiquidityRows,
+  cexMarketRows,
+  trackedMarketCap,
+  trackedVolume24h,
   whaleEntriesRecent,
   whaleLastAny,
   narratives,
@@ -256,25 +270,25 @@ export default function MarketsPage({
         </div>
       )}
 
-      {/* Market Pulse */}
-      {!error && pulse && (
+      {/* Market Pulse - always show with fallback metrics */}
+      {!error && (
         <div className="mb-6 grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <div className="rounded-2xl border border-akari-primary/30 bg-akari-card p-4">
             <p className="text-xs text-akari-primary mb-1 uppercase tracking-[0.1em]">Tracked Market Cap</p>
             <p className="text-lg font-semibold text-akari-text">
-              {pulse.trackedMarketCapUsd > 0 ? formatLargeNumber(pulse.trackedMarketCapUsd) : 'N/A'}
+              {trackedMarketCap}
             </p>
           </div>
           <div className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4">
             <p className="text-xs text-akari-accent mb-1 uppercase tracking-[0.1em]">Tracked 24h Volume</p>
             <p className="text-lg font-semibold text-akari-text">
-              {pulse.trackedVolume24hUsd > 0 ? formatLargeNumber(pulse.trackedVolume24hUsd) : 'N/A'}
+              {trackedVolume24h}
             </p>
           </div>
           <div className="rounded-2xl border border-akari-profit/30 bg-akari-card p-4">
             <p className="text-xs text-akari-profit mb-1 uppercase tracking-[0.1em]">Data Sources</p>
             <p className="text-sm font-semibold text-akari-text">
-              These data tracked using multiple sources.
+              DEX + CEX aggregated from multiple providers.
             </p>
           </div>
         </div>
@@ -694,7 +708,7 @@ export default function MarketsPage({
                 </>
               ) : (
                 <p className="text-[11px] text-akari-muted">
-                  Track AI tokens and projects. Monitor price movements and create prediction markets.
+                  Will track AI tokens, narratives and prediction pools as soon as category data is switched on. Top tokens like RENDER, FET, and TAO monitored.
                 </p>
               )}
             </div>
@@ -727,7 +741,7 @@ export default function MarketsPage({
                 </>
               ) : (
                 <p className="text-[11px] text-akari-muted">
-                  Gaming tokens, NFT projects and metaverse assets. Follow trends and bet on outcomes.
+                  Will surface gaming tokens and NFT projects once category filters go live. Track IMX, AXS, GALA and metaverse plays.
                 </p>
               )}
             </div>
@@ -760,7 +774,7 @@ export default function MarketsPage({
                 </>
               ) : (
                 <p className="text-[11px] text-akari-muted">
-                  Oracle networks, data tokens and information markets. Predict data value and usage.
+                  Will track oracle networks and data tokens (LINK, PYTH, API3) plus info marketplaces as category logic is wired.
                 </p>
               )}
             </div>
@@ -793,7 +807,7 @@ export default function MarketsPage({
                 </>
               ) : (
                 <p className="text-[11px] text-akari-muted">
-                  DeFi protocols, Layer 2 solutions and scaling technologies. Track TVL and adoption.
+                  Will show L2 adoption, DeFi rotation and TVL-linked prediction plays. ARB, OP, UNI, AAVE and more.
                 </p>
               )}
             </div>
@@ -838,7 +852,7 @@ export default function MarketsPage({
             </div>
           ) : (
             <p className="text-[11px] text-akari-muted">
-              No data available at this time.
+              Volume leaders update every 5 minutes from CoinGecko. Data will appear once the cron finishes its first sync.
             </p>
           )}
         </div>
@@ -860,6 +874,9 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       topDexSnapshots,
       latestDexSnapshots,
       latestCexSnapshots,
+      dexLiquidityRows,
+      cexMarketRows,
+      trackedMetrics,
     ] = await Promise.all([
       getMarketPulse().catch(() => null),
       getAkariHighlights().catch(() => null),
@@ -878,6 +895,9 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       getTopDexByLiquidity(10).catch(() => []),
       getLatestDexSnapshots(30).catch(() => []),
       getLatestCexSnapshots(30).catch(() => []),
+      getDexLiquiditySnapshots(20).catch(() => []),
+      getCexMarketSnapshots(20).catch(() => []),
+      getTrackedMarketMetrics(prisma).catch(() => ({ totalMarketCapUsd: null, totalVolume24hUsd: null, source: 'none' as const })),
     ]);
 
     // If no market snapshots, fetch live prices from Binance as a fallback
@@ -1039,6 +1059,10 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         topDexLiquidity: JSON.parse(JSON.stringify(topDexLiquidity)),
         dexSnapshots: JSON.parse(JSON.stringify(dexSnapshotsDto)),
         cexSnapshots: JSON.parse(JSON.stringify(cexSnapshotsDto)),
+        dexLiquidityRows: JSON.parse(JSON.stringify(dexLiquidityRows)),
+        cexMarketRows: JSON.parse(JSON.stringify(cexMarketRows)),
+        trackedMarketCap: formatMetricValue(trackedMetrics.totalMarketCapUsd),
+        trackedVolume24h: formatMetricValue(trackedMetrics.totalVolume24hUsd),
         whaleEntriesRecent: JSON.parse(JSON.stringify(whaleEntriesRecent)),
         whaleLastAny: whaleLastAny ? JSON.parse(JSON.stringify(whaleLastAny)) : null,
         narratives: JSON.parse(JSON.stringify(narratives)),
@@ -1061,6 +1085,10 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         topDexLiquidity: [],
         dexSnapshots: [],
         cexSnapshots: [],
+        dexLiquidityRows: [],
+        cexMarketRows: [],
+        trackedMarketCap: 'Data warming up',
+        trackedVolume24h: 'Data warming up',
         whaleEntriesRecent: [],
         whaleLastAny: null,
         narratives: [],

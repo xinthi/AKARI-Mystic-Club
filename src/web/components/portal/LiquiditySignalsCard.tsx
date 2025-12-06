@@ -42,14 +42,18 @@ export const LiquiditySignalsCard: React.FC<Props> = ({ signals, lastAnySignal }
       </div>
 
       {signals.length === 0 && !lastAnySignal ? (
-        <div className="text-sm text-slate-500 pt-2">
-          No active liquidity signals in the last 24 hours.
+        <div className="text-sm text-slate-400 pt-2 space-y-2">
+          <p>No active liquidity rotation signals in the last 24 hours.</p>
+          <p className="text-xs text-slate-500">
+            We&apos;ll surface Base/SOL/ETH rotations here as they happen. Signals are derived from stablecoin flows and whale entries across chains.
+          </p>
         </div>
       ) : signals.length === 0 && lastAnySignal ? (
-        <div className="text-sm text-slate-500 pt-2">
-          <p>No active liquidity signals in the last 24 hours.</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Last signal: {lastAnySignal.title} ({timeAgo(lastAnySignal.triggeredAt)}).
+        <div className="text-sm text-slate-400 pt-2 space-y-2">
+          <p>No new signals in the last 24 hours — markets are quiet.</p>
+          <p className="text-xs text-slate-500">
+            Last signal: &quot;{lastAnySignal.title}&quot; — {timeAgo(lastAnySignal.triggeredAt)}
+            {lastAnySignal.chain ? ` on ${lastAnySignal.chain}` : ''}.
           </p>
         </div>
       ) : (

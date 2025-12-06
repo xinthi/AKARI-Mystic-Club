@@ -1,7 +1,13 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import { PortalLayout } from '../../components/portal/PortalLayout';
-import { getLatestMemeTokenSnapshots, getDexSnapshotsForSymbols } from '../../lib/portal/db';
+import { 
+  getLatestMemeTokenSnapshots, 
+  getDexSnapshotsForSymbols,
+  getSolanaDexTokensByVolume,
+  getMemeSnapshots,
+  type DexLiquidityRow,
+} from '../../lib/portal/db';
 import type { MemeTokenSnapshot, DexMarketSnapshot } from '@prisma/client';
 import { chainIcon, formatChainLabel } from '../../lib/portal/chains';
 
@@ -29,6 +35,8 @@ interface MemeDexInfo {
 interface MemesPageProps {
   memecoins: MemeSnapshotDto[];
   memeDexInfo: MemeDexInfo[];
+  solanaDexFallback: DexLiquidityRow[]; // Fallback when memecoins is empty
+  dataSource: 'meme_snapshots' | 'dex_fallback' | 'none';
   error?: string;
 }
 
@@ -87,7 +95,7 @@ function formatPriceChange(change: number | null): { text: string; color: string
   };
 }
 
-export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPageProps) {
+export default function MemesPage({ memecoins, memeDexInfo, solanaDexFallback, dataSource, error }: MemesPageProps) {
   // Create lookup map for DEX info by symbol
   const dexBySymbol = React.useMemo(() => {
     const map = new Map<string, MemeDexInfo>();
@@ -249,11 +257,56 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
         </div>
       )}
 
-      {/* Empty State - when no snapshots */}
-      {!error && sortedMemecoins.length === 0 && (
-        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6">
-          <p className="text-sm text-akari-muted text-center">
-            No meme data yet. Waiting for first snapshot from cron.
+      {/* Empty State - when no meme snapshots, show DEX fallback */}
+      {!error && sortedMemecoins.length === 0 && solanaDexFallback.length > 0 && (
+        <div className="rounded-2xl border border-purple-500/30 bg-akari-card p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xl">🟣</span>
+            <div>
+              <h3 className="text-sm font-semibold text-akari-text">Top SOL Tokens by DEX Volume</h3>
+              <p className="text-[10px] text-akari-muted">MemeTokenSnapshot is warming up — showing Solana DEX data as fallback.</p>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {solanaDexFallback.slice(0, 12).map((token, idx) => (
+              <div 
+                key={`${token.symbol}-${idx}`}
+                className="flex items-center justify-between p-2 rounded-lg bg-akari-cardSoft/50"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{chainIcon(token.chain)}</span>
+                  <div>
+                    <span className="text-xs font-medium text-akari-text uppercase">{token.symbol || '—'}</span>
+                    {token.name && <span className="text-[10px] text-akari-muted ml-1">{token.name}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-right">
+                  <span className="text-xs text-akari-text">
+                    {token.priceUsd ? formatPrice(token.priceUsd) : '—'}
+                  </span>
+                  <span className="text-xs text-purple-400 font-medium">
+                    {token.volume24hUsd ? formatLargeNumber(token.volume24hUsd) : '—'} vol
+                  </span>
+                  {token.dex && (
+                    <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px]">
+                      {token.dex}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Complete Empty State - when both meme and DEX fallback are empty */}
+      {!error && sortedMemecoins.length === 0 && solanaDexFallback.length === 0 && (
+        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6 text-center">
+          <p className="text-sm text-akari-muted mb-2">
+            Meme Radar is warming up.
+          </p>
+          <p className="text-xs text-akari-muted">
+            Both MemeTokenSnapshot and DexMarketSnapshot are still syncing. Check back in a few minutes as our crons collect data from CoinGecko, DexScreener, and GeckoTerminal.
           </p>
         </div>
       )}
@@ -292,7 +345,9 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
               })}
             </div>
           ) : (
-            <p className="text-xs text-akari-muted">No meme data available</p>
+            <p className="text-xs text-akari-muted">
+              SOL meme data warming up. DEX cron collecting first snapshots from DexScreener and GeckoTerminal.
+            </p>
           )}
         </div>
 
@@ -318,7 +373,9 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
               })}
             </div>
           ) : (
-            <p className="text-xs text-akari-muted">No data available</p>
+            <p className="text-xs text-akari-muted">
+              Will separate AI memes (GOAT, ACT, etc.) from pure degen plays once meme data syncs. Track performance by narrative.
+            </p>
           )}
         </div>
 
@@ -359,7 +416,9 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
               })}
             </div>
           ) : (
-            <p className="text-xs text-akari-muted">No candidates available</p>
+            <p className="text-xs text-akari-muted">
+              Prediction candidates ranked by DEX liquidity will appear here. Best candidates can become new pools with one tap.
+            </p>
           )}
         </div>
       </div>
@@ -369,7 +428,13 @@ export default function MemesPage({ memecoins, memeDexInfo, error }: MemesPagePr
 
 export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () => {
   try {
-    const memeSnapshots = await getLatestMemeTokenSnapshots(30);
+    // Try to get meme snapshots from the last 24h first
+    let memeSnapshots = await getMemeSnapshots(30).catch(() => []);
+    
+    // If no recent memes, fall back to latest batch
+    if (memeSnapshots.length === 0) {
+      memeSnapshots = await getLatestMemeTokenSnapshots(30).catch(() => []);
+    }
     
     // Map to serializable DTOs
     const memecoins: MemeSnapshotDto[] = memeSnapshots.map((s: MemeTokenSnapshot) => ({
@@ -431,10 +496,26 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
       });
     }
 
+    // Fallback: if memecoins is empty, fetch top Solana DEX tokens
+    let solanaDexFallback: DexLiquidityRow[] = [];
+    let dataSource: 'meme_snapshots' | 'dex_fallback' | 'none' = 'none';
+
+    if (memecoins.length > 0) {
+      dataSource = 'meme_snapshots';
+    } else {
+      // Fetch Solana DEX tokens as fallback
+      solanaDexFallback = await getSolanaDexTokensByVolume(20).catch(() => []);
+      if (solanaDexFallback.length > 0) {
+        dataSource = 'dex_fallback';
+      }
+    }
+
     return {
       props: {
         memecoins: JSON.parse(JSON.stringify(memecoins)),
         memeDexInfo: JSON.parse(JSON.stringify(memeDexInfo)),
+        solanaDexFallback: JSON.parse(JSON.stringify(solanaDexFallback)),
+        dataSource,
       },
     };
   } catch (error: any) {
@@ -443,6 +524,8 @@ export const getServerSideProps: GetServerSideProps<MemesPageProps> = async () =
       props: {
         memecoins: [],
         memeDexInfo: [],
+        solanaDexFallback: [],
+        dataSource: 'none',
         error: 'Failed to load meme radar',
       },
     };

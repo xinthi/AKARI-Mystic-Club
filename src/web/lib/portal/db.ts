@@ -682,3 +682,216 @@ export async function getLatestCexSnapshots(limit: number = 30): Promise<CexMark
   });
 }
 
+// ============================================
+// DEDUPLICATED DEX/CEX SNAPSHOTS (Best Pair Logic)
+// ============================================
+
+/**
+ * Simplified DEX liquidity row for UI
+ */
+export interface DexLiquidityRow {
+  symbol: string | null;
+  name: string | null;
+  chain: string | null;
+  dex: string | null;
+  priceUsd: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+  txns24h: number | null;
+}
+
+/**
+ * Get deduplicated DEX liquidity snapshots.
+ * Picks best pair per (tokenAddress, chain) by highest liquidity, then volume.
+ */
+export async function getDexLiquiditySnapshots(limit: number = 20): Promise<DexLiquidityRow[]> {
+  const snapshots = await prisma.dexMarketSnapshot.findMany({
+    where: {
+      liquidityUsd: { gt: 0 },
+    },
+    orderBy: [
+      { liquidityUsd: 'desc' },
+      { volume24hUsd: 'desc' },
+    ],
+  });
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  // Deduplicate by tokenAddress+chain (or symbol+chain if no tokenAddress)
+  const bestByKey = new Map<string, DexMarketSnapshot>();
+
+  for (const snap of snapshots) {
+    const key = snap.tokenAddress 
+      ? `${snap.tokenAddress}-${snap.chain || 'unknown'}`
+      : `${(snap.symbol || 'unknown').toUpperCase()}-${snap.chain || 'unknown'}`;
+
+    const existing = bestByKey.get(key);
+    if (!existing) {
+      bestByKey.set(key, snap);
+      continue;
+    }
+
+    // Compare: prefer higher liquidity, then higher volume
+    const existingLiq = existing.liquidityUsd || 0;
+    const snapLiq = snap.liquidityUsd || 0;
+    const existingVol = existing.volume24hUsd || 0;
+    const snapVol = snap.volume24hUsd || 0;
+
+    if (snapLiq > existingLiq || (snapLiq === existingLiq && snapVol > existingVol)) {
+      bestByKey.set(key, snap);
+    }
+  }
+
+  // Convert to simplified rows and sort
+  const rows: DexLiquidityRow[] = Array.from(bestByKey.values())
+    .sort((a, b) => {
+      const liqA = a.liquidityUsd || 0;
+      const liqB = b.liquidityUsd || 0;
+      if (liqB !== liqA) return liqB - liqA;
+      return (b.volume24hUsd || 0) - (a.volume24hUsd || 0);
+    })
+    .slice(0, limit)
+    .map(snap => ({
+      symbol: snap.symbol,
+      name: snap.name,
+      chain: snap.chain,
+      dex: snap.dex,
+      priceUsd: snap.priceUsd,
+      liquidityUsd: snap.liquidityUsd,
+      volume24hUsd: snap.volume24hUsd,
+      txns24h: snap.txns24h,
+    }));
+
+  return rows;
+}
+
+/**
+ * Simplified CEX market row for UI
+ */
+export interface CexMarketRow {
+  symbol: string;
+  pair: string | null;
+  exchange: string;
+  priceUsd: number | null;
+  volume24hUsd: number | null;
+}
+
+/**
+ * Get deduplicated CEX market snapshots.
+ * Picks best entry per symbol by highest volume.
+ */
+export async function getCexMarketSnapshots(limit: number = 20): Promise<CexMarketRow[]> {
+  const snapshots = await prisma.cexMarketSnapshot.findMany({
+    where: {
+      volume24hUsd: { gt: 0 },
+    },
+    orderBy: [
+      { volume24hUsd: 'desc' },
+    ],
+  });
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  // Deduplicate by symbol (keep highest volume)
+  const bestBySymbol = new Map<string, CexMarketSnapshot>();
+
+  for (const snap of snapshots) {
+    const key = snap.symbol.toUpperCase();
+    const existing = bestBySymbol.get(key);
+
+    if (!existing) {
+      bestBySymbol.set(key, snap);
+      continue;
+    }
+
+    // Compare: prefer higher volume
+    if ((snap.volume24hUsd || 0) > (existing.volume24hUsd || 0)) {
+      bestBySymbol.set(key, snap);
+    }
+  }
+
+  // Convert to simplified rows
+  const rows: CexMarketRow[] = Array.from(bestBySymbol.values())
+    .sort((a, b) => (b.volume24hUsd || 0) - (a.volume24hUsd || 0))
+    .slice(0, limit)
+    .map(snap => ({
+      symbol: snap.symbol,
+      pair: snap.baseAsset && snap.quoteAsset 
+        ? `${snap.baseAsset}/${snap.quoteAsset}` 
+        : null,
+      exchange: snap.source.toUpperCase().replace('CEX_AGGREGATOR_V1', 'CEX'),
+      priceUsd: snap.priceUsd,
+      volume24hUsd: snap.volume24hUsd,
+    }));
+
+  return rows;
+}
+
+/**
+ * Get Solana DEX tokens by volume (for meme fallback)
+ */
+export async function getSolanaDexTokensByVolume(limit: number = 20): Promise<DexLiquidityRow[]> {
+  const snapshots = await prisma.dexMarketSnapshot.findMany({
+    where: {
+      chain: {
+        contains: 'sol',
+        mode: 'insensitive',
+      },
+      volume24hUsd: { gt: 0 },
+    },
+    orderBy: { volume24hUsd: 'desc' },
+  });
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  // Deduplicate by symbol
+  const bestBySymbol = new Map<string, DexMarketSnapshot>();
+
+  for (const snap of snapshots) {
+    const key = (snap.symbol || 'unknown').toUpperCase();
+    const existing = bestBySymbol.get(key);
+
+    if (!existing || (snap.volume24hUsd || 0) > (existing.volume24hUsd || 0)) {
+      bestBySymbol.set(key, snap);
+    }
+  }
+
+  return Array.from(bestBySymbol.values())
+    .sort((a, b) => (b.volume24hUsd || 0) - (a.volume24hUsd || 0))
+    .slice(0, limit)
+    .map(snap => ({
+      symbol: snap.symbol,
+      name: snap.name,
+      chain: snap.chain,
+      dex: snap.dex,
+      priceUsd: snap.priceUsd,
+      liquidityUsd: snap.liquidityUsd,
+      volume24hUsd: snap.volume24hUsd,
+      txns24h: snap.txns24h,
+    }));
+}
+
+/**
+ * Get meme token snapshots from the last 24 hours
+ */
+export async function getMemeSnapshots(limit: number = 30): Promise<MemeTokenSnapshot[]> {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  return prisma.memeTokenSnapshot.findMany({
+    where: {
+      createdAt: { gte: oneDayAgo },
+    },
+    orderBy: [
+      { marketCapUsd: 'desc' },
+      { priceUsd: 'desc' },
+    ],
+    take: limit,
+  });
+}
+

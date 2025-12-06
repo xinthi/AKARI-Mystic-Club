@@ -84,14 +84,17 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ recentEntries, lastAnyEntry 
       </div>
 
       {recentEntries.length === 0 && !lastAnyEntry ? (
-        <div className="text-sm text-slate-500 pt-2">
-          No large whale entries detected in the last period.
+        <div className="text-sm text-slate-400 pt-2 space-y-2">
+          <p>No large onchain moves detected from tracked wallets in the last 7 days.</p>
+          <p className="text-xs text-slate-500">
+            This panel will light up when Uniblock flags a big whale entry. We monitor major tokens across Ethereum, Solana, and Base.
+          </p>
         </div>
       ) : recentEntries.length === 0 && lastAnyEntry ? (
-        <div className="text-sm text-slate-500 pt-2">
-          <p>No large whale entries in the last 24 hours.</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Last detected activity was {timeAgo(lastAnyEntry.occurredAt)}.
+        <div className="text-sm text-slate-400 pt-2 space-y-2">
+          <p>No whale entries in the recent window.</p>
+          <p className="text-xs text-slate-500">
+            Last detected activity was {timeAgo(lastAnyEntry.occurredAt)} — {lastAnyEntry.tokenSymbol} on {lastAnyEntry.chain} ({formatUsd(lastAnyEntry.amountUsd)}).
           </p>
         </div>
       ) : (
