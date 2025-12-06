@@ -82,6 +82,22 @@ interface DailyMetrics {
   akari_score: number;
 }
 
+interface ProjectTweetRow {
+  project_id: string;
+  tweet_id: string;
+  tweet_url: string;
+  author_handle: string;
+  author_name: string;
+  author_profile_image_url: string | null;
+  created_at: string;
+  text: string;
+  likes: number;
+  replies: number;
+  retweets: number;
+  is_official: boolean;
+  is_kol: boolean;
+}
+
 interface ProjectUpdateData {
   avatar_url?: string;
   bio?: string;
@@ -91,6 +107,7 @@ interface ProjectUpdateData {
 interface ProcessingResult {
   metrics: DailyMetrics;
   projectUpdate: ProjectUpdateData;
+  tweets: ProjectTweetRow[];
 }
 
 // =============================================================================
@@ -182,7 +199,7 @@ async function main() {
             failCount++;
           } else {
             console.log(`   ✅ Metrics saved successfully`);
-            console.log(`      AKARI: ${result.metrics.akari_score} | Sentiment: ${result.metrics.sentiment_score} | CT Heat: ${result.metrics.ct_heat_score}`);
+            console.log(`      AKARI: ${result.metrics.akari_score} | Sentiment: ${result.metrics.sentiment_score} | CT Heat: ${result.metrics.ct_heat_score} | Tweets: ${result.metrics.tweet_count}`);
             successCount++;
 
             // Update project with profile data (avatar, bio, etc.)
@@ -195,6 +212,21 @@ async function main() {
               console.error(`   ⚠️  Failed to update project profile:`, updateError.message);
             } else if (result.projectUpdate.avatar_url) {
               console.log(`   📷 Updated avatar URL`);
+            }
+
+            // Save tweets to project_tweets table
+            if (result.tweets.length > 0) {
+              const { error: tweetsError } = await supabase
+                .from('project_tweets')
+                .upsert(result.tweets, {
+                  onConflict: 'project_id,tweet_id',
+                });
+
+              if (tweetsError) {
+                console.error(`   ⚠️  Failed to save tweets:`, tweetsError.message);
+              } else {
+                console.log(`   📝 Saved ${result.tweets.length} tweets`);
+              }
             }
           }
         } else {
@@ -422,18 +454,36 @@ async function processProject(project: Project, date: string): Promise<Processin
     projectUpdate.bio = profile.bio;
   }
 
-  // Return compiled metrics and project update data
+  // Build tweet rows for saving to DB
+  const tweetRows: ProjectTweetRow[] = tweets.slice(0, 10).map((t) => ({
+    project_id: project.id,
+    tweet_id: t.id,
+    tweet_url: `https://x.com/${t.authorUsername}/status/${t.id}`,
+    author_handle: t.authorUsername || handle,
+    author_name: t.authorName || handle,
+    author_profile_image_url: t.authorProfileImageUrl || profile.profileImageUrl || null,
+    created_at: t.createdAt || new Date().toISOString(),
+    text: t.text || '',
+    likes: t.likeCount || 0,
+    replies: t.replyCount || 0,
+    retweets: t.retweetCount || 0,
+    is_official: t.authorUsername?.toLowerCase() === handle.toLowerCase(),
+    is_kol: false, // Will be marked later if author is a KOL
+  }));
+
+  // Return compiled metrics, project update data, and tweets
   return {
     metrics: {
       project_id: project.id,
       date,
       sentiment_score: sentimentScore,
       ct_heat_score: ctHeatScore,
-      tweet_count: tweets.length + mentions.length,
+      tweet_count: tweets.length + mentions.length, // Activity count for the day
       followers: followersCount,
       akari_score: akariScore,
     },
     projectUpdate,
+    tweets: tweetRows,
   };
 }
 
