@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
-import PortalLayout from '@/components/portal/PortalLayout';
+import { PortalLayout } from '@/components/portal/PortalLayout';
 
 // =============================================================================
 // TYPES

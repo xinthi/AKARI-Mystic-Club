@@ -178,7 +178,16 @@ async function taioSearchUsers(q: string, limit: number): Promise<TwitterUserPro
     count: limit,
   });
 
+  console.log('[TwitterAPI.io] Search response:', JSON.stringify(response).slice(0, 200));
+  
   const users = extractArray(response, 'users', 'data', 'results', 'people');
+  console.log('[TwitterAPI.io] Extracted users count:', users.length);
+  
+  // If no results from primary, throw to trigger fallback
+  if (users.length === 0) {
+    throw new Error('TwitterAPI.io returned no results');
+  }
+  
   return users.map(normalizeTaioUser);
 }
 
