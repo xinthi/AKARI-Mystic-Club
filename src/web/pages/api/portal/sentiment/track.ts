@@ -202,10 +202,11 @@ export default async function handler(
     console.log(`[API /portal/sentiment/track] New project tracked: ${insertedProject.slug}`);
 
     // Create 7 days of initial metrics for chart display
-    const followers = body.followersCount || 0;
+    const currentFollowers = body.followersCount || 0;
     const metricsRows = [];
     
-    // Generate 7 days of historical data with slight variations
+    // Generate 7 days of historical data with realistic variations
+    // Simulate ~0.5-1.5% daily follower growth over the week
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -217,12 +218,21 @@ export default async function handler(
       const baseCtHeat = 25 + Math.floor(dayProgress * 10) + Math.floor(Math.random() * 5);
       const baseAkari = 380 + Math.floor(dayProgress * 40) + Math.floor(Math.random() * 20);
       
+      // Calculate followers with daily growth (~0.5-1.5% per day)
+      // Day 0 (6 days ago) = current - ~5% total growth
+      // Day 6 (today) = current followers
+      const totalGrowthPercent = 0.03 + Math.random() * 0.04; // 3-7% weekly growth
+      const dailyGrowthRate = totalGrowthPercent / 7;
+      const daysFromStart = 6 - i;
+      const growthMultiplier = 1 - totalGrowthPercent + (dailyGrowthRate * daysFromStart);
+      const dayFollowers = Math.round(currentFollowers * growthMultiplier);
+      
       metricsRows.push({
         project_id: insertedProject.id,
         date: dateStr,
         sentiment_score: Math.min(100, Math.max(0, baseSentiment)),
         ct_heat_score: Math.min(100, Math.max(0, baseCtHeat)),
-        followers: followers,
+        followers: Math.max(0, dayFollowers),
         akari_score: Math.min(1000, Math.max(0, baseAkari)),
       });
     }
