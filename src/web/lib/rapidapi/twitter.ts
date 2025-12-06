@@ -20,7 +20,19 @@ import axios from 'axios';
 // CONFIGURATION
 // =============================================================================
 
-const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? 'twitterapiio';
+type Provider = 'twitterapiio' | 'rapidapi';
+
+/**
+ * Get the primary Twitter provider from environment
+ * Defaults to 'twitterapiio' if not set or invalid
+ */
+function getPrimaryProvider(): Provider {
+  const raw = process.env.TWITTER_PRIMARY_PROVIDER?.toLowerCase().trim();
+  if (raw === 'rapidapi') return 'rapidapi';
+  return 'twitterapiio'; // Default to twitterapiio
+}
+
+const PRIMARY_PROVIDER: Provider = getPrimaryProvider();
 
 // TwitterAPI.io config
 const TAIO_BASE_URL = process.env.TWITTERAPIIO_BASE_URL ?? 'https://api.twitterapi.io';
@@ -31,6 +43,13 @@ const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const TWITTER_API_AUTH = process.env.TWITTER_API65_AUTH_TOKEN;
 const TWITTER_API_HOST = 'twitter-api65.p.rapidapi.com';
 const TWITTER_API_BASE = `https://${TWITTER_API_HOST}`;
+
+// Log configuration on first import (server-side only)
+if (typeof window === 'undefined') {
+  console.log(`[TwitterClient/Web] Primary provider: ${PRIMARY_PROVIDER}`);
+  console.log(`[TwitterClient/Web] TWITTERAPIIO_API_KEY: ${TAIO_API_KEY ? 'SET' : 'NOT SET'}`);
+  console.log(`[TwitterClient/Web] RAPIDAPI_KEY: ${RAPIDAPI_KEY ? 'SET' : 'NOT SET'}`);
+}
 
 // =============================================================================
 // UNIFIED TYPE DEFINITIONS
@@ -74,21 +93,39 @@ export interface TwitterTweet {
 /**
  * Execute with automatic fallback to secondary provider
  */
+/**
+ * Get secondary provider (opposite of primary)
+ */
+function getSecondaryProvider(): Provider {
+  return PRIMARY_PROVIDER === 'twitterapiio' ? 'rapidapi' : 'twitterapiio';
+}
+
+/**
+ * Execute with fallback - tries primary provider first, then secondary
+ * Logs which provider was used for debugging
+ */
 async function withFallback<T>(
   primary: () => Promise<T>,
   fallback: () => Promise<T>,
-  context: string
+  operation: string
 ): Promise<T> {
+  const secondary = getSecondaryProvider();
+  
   try {
-    return await primary();
-  } catch (err) {
-    console.error(`[twitterClient] Primary (${PRIMARY_PROVIDER}) failed for ${context}:`, err);
+    const result = await primary();
+    console.log(`[TwitterClient] ${operation} - SUCCESS using primary: ${PRIMARY_PROVIDER}`);
+    return result;
+  } catch (err: any) {
+    console.warn(`[TwitterClient] ${operation} - FAILED on primary (${PRIMARY_PROVIDER}): ${err.message}`);
+    console.log(`[TwitterClient] ${operation} - Trying fallback: ${secondary}`);
+    
     try {
-      console.log(`[twitterClient] Trying fallback for ${context}...`);
-      return await fallback();
-    } catch (err2) {
-      console.error(`[twitterClient] Fallback also failed for ${context}:`, err2);
-      throw err2;
+      const result = await fallback();
+      console.log(`[TwitterClient] ${operation} - SUCCESS using fallback: ${secondary}`);
+      return result;
+    } catch (err2: any) {
+      console.error(`[TwitterClient] ${operation} - FAILED on fallback (${secondary}): ${err2.message}`);
+      throw new Error(`Twitter API request failed for ${operation} - both providers failed`);
     }
   }
 }

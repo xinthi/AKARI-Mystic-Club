@@ -23,10 +23,22 @@ import * as rapidapi from './rapidapi/twitter';
 
 type Provider = 'twitterapiio' | 'rapidapi';
 
-const TWITTER_PRIMARY_PROVIDER: Provider = 
-  (process.env.TWITTER_PRIMARY_PROVIDER as Provider) || 'rapidapi';
+/**
+ * Get the primary Twitter provider from environment
+ * Defaults to 'twitterapiio' if not set or invalid
+ */
+function getPrimaryProvider(): Provider {
+  const raw = process.env.TWITTER_PRIMARY_PROVIDER?.toLowerCase().trim();
+  if (raw === 'rapidapi') return 'rapidapi';
+  return 'twitterapiio'; // Default to twitterapiio
+}
 
+const TWITTER_PRIMARY_PROVIDER: Provider = getPrimaryProvider();
+
+// Log configuration on module load
 console.log(`[TwitterClient] Primary provider: ${TWITTER_PRIMARY_PROVIDER}`);
+console.log(`[TwitterClient] TWITTERAPIIO_API_KEY: ${process.env.TWITTERAPIIO_API_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`[TwitterClient] RAPIDAPI_KEY: ${process.env.RAPIDAPI_KEY ? 'SET' : 'NOT SET'}`);
 
 // =============================================================================
 // UNIFIED TYPES
@@ -160,22 +172,39 @@ function normalizeTweetFromRapidApi(tweet: rapidapi.TwitterTweet): UnifiedTweet 
 // =============================================================================
 
 /**
+ * Get the secondary provider (opposite of primary)
+ */
+function getSecondaryProvider(): Provider {
+  return TWITTER_PRIMARY_PROVIDER === 'twitterapiio' ? 'rapidapi' : 'twitterapiio';
+}
+
+/**
  * Execute with fallback: tries primary provider first, then secondary
+ * Logs which provider was used for debugging
  */
 async function withFallback<T>(
   primaryFn: () => Promise<T>,
   fallbackFn: () => Promise<T>,
-  errorMessage: string
+  operation: string
 ): Promise<T> {
+  const primary = TWITTER_PRIMARY_PROVIDER;
+  const secondary = getSecondaryProvider();
+
   try {
-    return await primaryFn();
-  } catch (primaryError) {
-    console.warn(`[TwitterClient] Primary provider failed, trying fallback: ${errorMessage}`);
+    const result = await primaryFn();
+    console.log(`[TwitterClient] ${operation} - SUCCESS using primary: ${primary}`);
+    return result;
+  } catch (primaryError: any) {
+    console.warn(`[TwitterClient] ${operation} - FAILED on primary (${primary}): ${primaryError.message}`);
+    console.log(`[TwitterClient] ${operation} - Trying fallback: ${secondary}`);
+    
     try {
-      return await fallbackFn();
-    } catch (fallbackError) {
-      console.error(`[TwitterClient] Both providers failed for: ${errorMessage}`);
-      throw new Error(`Twitter API request failed: ${errorMessage}`);
+      const result = await fallbackFn();
+      console.log(`[TwitterClient] ${operation} - SUCCESS using fallback: ${secondary}`);
+      return result;
+    } catch (fallbackError: any) {
+      console.error(`[TwitterClient] ${operation} - FAILED on fallback (${secondary}): ${fallbackError.message}`);
+      throw new Error(`Twitter API request failed for ${operation} - both providers failed`);
     }
   }
 }

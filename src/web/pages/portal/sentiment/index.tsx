@@ -71,21 +71,20 @@ interface SentimentOverviewResponse {
   error?: string;
 }
 
-interface TwitterUserProfile {
-  handle: string;
-  userId?: string;
-  name?: string;
-  bio?: string;
-  avatarUrl?: string;
-  followersCount?: number;
-  followingCount?: number;
-  tweetCount?: number;
-  verified?: boolean;
+interface SearchResultUser {
+  id: string;
+  username: string;
+  name: string;
+  profileImageUrl: string | null;
+  bio: string | null;
+  followersCount: number;
+  followingCount: number;
+  verified: boolean;
 }
 
 interface SearchResponse {
   ok: boolean;
-  users?: TwitterUserProfile[];
+  users?: SearchResultUser[];
   error?: string;
 }
 
@@ -346,7 +345,7 @@ export default function SentimentOverview() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<TwitterUserProfile[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResultUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -491,15 +490,15 @@ export default function SentimentOverview() {
                 </p>
                 {searchResults.map((user) => (
                   <Link
-                    key={user.handle}
-                    href={`/portal/sentiment/profile/${user.handle}`}
+                    key={user.username}
+                    href={`/portal/sentiment/profile/${user.username}`}
                     className="flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer"
                   >
-                    {/* Profile Image - use profileImageUrl or avatarUrl */}
-                    {(user.profileImageUrl || user.avatarUrl) ? (
+                    {/* Profile Image */}
+                    {user.profileImageUrl ? (
                       <img
-                        src={user.profileImageUrl || user.avatarUrl}
-                        alt={user.name || user.handle}
+                        src={user.profileImageUrl}
+                        alt={user.name || user.username}
                         className="h-12 w-12 rounded-full object-cover bg-akari-card border border-akari-border/50 flex-shrink-0"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -509,29 +508,26 @@ export default function SentimentOverview() {
                       />
                     ) : null}
                     <div 
-                      className={`${(user.profileImageUrl || user.avatarUrl) ? 'hidden' : 'flex'} h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold text-lg flex-shrink-0`}
+                      className={`${user.profileImageUrl ? 'hidden' : 'flex'} h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold text-lg flex-shrink-0`}
                     >
-                      {(user.name || user.handle).charAt(0).toUpperCase()}
+                      {(user.name || user.username).charAt(0).toUpperCase()}
                     </div>
                     
                     {/* Profile Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-akari-text truncate">{user.name || user.handle}</p>
+                        <p className="font-medium text-akari-text truncate">{user.name}</p>
                         {user.verified && (
                           <span className="text-blue-400 text-sm" title="Verified">✓</span>
                         )}
                       </div>
-                      <p className="text-xs text-akari-muted mb-2">@{user.handle}</p>
+                      <p className="text-xs text-akari-muted mb-2">@{user.username}</p>
                       {user.bio && (
                         <p className="text-xs text-akari-text/70 line-clamp-2 mb-2">{user.bio}</p>
                       )}
                       <div className="flex items-center gap-4 text-xs text-akari-muted">
                         <span><strong className="text-akari-text">{formatNumber(user.followersCount)}</strong> followers</span>
                         <span><strong className="text-akari-text">{formatNumber(user.followingCount)}</strong> following</span>
-                        {user.tweetCount && (
-                          <span><strong className="text-akari-text">{formatNumber(user.tweetCount)}</strong> tweets</span>
-                        )}
                       </div>
                     </div>
                     

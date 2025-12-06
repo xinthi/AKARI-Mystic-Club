@@ -12,7 +12,12 @@ import axios from 'axios';
 // =============================================================================
 
 const TAIO_API_KEY = process.env.TWITTERAPIIO_API_KEY;
-const TAIO_BASE_URL = 'https://api.twitterapi.io';
+const TAIO_BASE_URL = process.env.TWITTERAPIIO_BASE_URL || 'https://api.twitterapi.io';
+
+// Log configuration on module load (only key presence, not the actual key)
+if (!TAIO_API_KEY) {
+  console.warn('[TwitterAPI.io] TWITTERAPIIO_API_KEY is NOT configured - requests will fail');
+}
 
 // =============================================================================
 // TYPES
@@ -63,7 +68,8 @@ interface TaioResponse<T> {
  */
 async function taioGet<T>(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<T> {
   if (!TAIO_API_KEY) {
-    throw new Error('TWITTERAPIIO_API_KEY is not set');
+    console.error('[TwitterAPI.io] Missing TWITTERAPIIO_API_KEY - cannot make API request');
+    throw new Error('TwitterAPI.io API key not configured');
   }
 
   try {
@@ -90,7 +96,8 @@ async function taioGet<T>(path: string, params: Record<string, string | number |
  */
 async function taioPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
   if (!TAIO_API_KEY) {
-    throw new Error('TWITTERAPIIO_API_KEY is not set');
+    console.error('[TwitterAPI.io] Missing TWITTERAPIIO_API_KEY - cannot make API request');
+    throw new Error('TwitterAPI.io API key not configured');
   }
 
   try {

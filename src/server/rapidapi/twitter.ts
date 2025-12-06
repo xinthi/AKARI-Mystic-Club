@@ -18,13 +18,23 @@ import axios from 'axios';
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const TWITTER_API_AUTH = process.env.TWITTER_API65_AUTH_TOKEN;
 
-// Validate required env vars at module load
+// Log configuration on module load (only presence, not actual values)
 if (!RAPIDAPI_KEY) {
-  throw new Error('RAPIDAPI_KEY environment variable is not set');
+  console.warn('[RapidAPI] RAPIDAPI_KEY is NOT configured - RapidAPI requests will fail');
 }
 
 if (!TWITTER_API_AUTH) {
-  console.warn('[twitter-api65] TWITTER_API65_AUTH_TOKEN is not set – requests will likely fail');
+  console.warn('[RapidAPI] TWITTER_API65_AUTH_TOKEN is not set – some requests may fail');
+}
+
+/**
+ * Validate RapidAPI key is available before making requests
+ */
+function validateRapidApiKey(): void {
+  if (!RAPIDAPI_KEY) {
+    console.error('[RapidAPI] Missing RAPIDAPI_KEY - cannot make API request');
+    throw new Error('RapidAPI key not configured');
+  }
 }
 
 // API Hosts
@@ -240,12 +250,14 @@ interface RawScraperTweet {
  * Includes all required headers (Authorization, RapidAPI).
  */
 async function twitterApiPost<T>(path: string, body: unknown): Promise<T> {
+  validateRapidApiKey();
+  
   try {
     const res = await axios.post<T>(`${TWITTER_API_BASE}${path}`, body, {
       headers: {
         'Authorization': TWITTER_API_AUTH ?? '',
         'Content-Type': 'application/json',
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
+        'X-RapidAPI-Key': RAPIDAPI_KEY!,
         'X-RapidAPI-Host': TWITTER_API_HOST,
       },
       timeout: 30000,
