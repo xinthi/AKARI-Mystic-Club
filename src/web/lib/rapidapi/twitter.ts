@@ -107,7 +107,8 @@ function getSecondaryProvider(): Provider {
 async function withFallback<T>(
   primary: () => Promise<T>,
   fallback: () => Promise<T>,
-  operation: string
+  operation: string,
+  emptyValue?: T
 ): Promise<T> {
   const secondary = getSecondaryProvider();
   
@@ -125,6 +126,11 @@ async function withFallback<T>(
       return result;
     } catch (err2: any) {
       console.error(`[TwitterClient] ${operation} - FAILED on fallback (${secondary}): ${err2.message}`);
+      // If emptyValue is provided, return it instead of throwing
+      if (emptyValue !== undefined) {
+        console.warn(`[TwitterClient] ${operation} - Returning empty result`);
+        return emptyValue;
+      }
       throw new Error(`Twitter API request failed for ${operation} - both providers failed`);
     }
   }
@@ -182,11 +188,6 @@ async function taioSearchUsers(q: string, limit: number): Promise<TwitterUserPro
   
   const users = extractArray(response, 'users', 'data', 'results', 'people');
   console.log('[TwitterAPI.io] Extracted users count:', users.length);
-  
-  // If no results from primary, throw to trigger fallback
-  if (users.length === 0) {
-    throw new Error('TwitterAPI.io returned no results');
-  }
   
   return users.map(normalizeTaioUser);
 }
@@ -297,12 +298,19 @@ async function rapidApiPost<T>(path: string, body: unknown): Promise<T> {
  * Search users via RapidAPI
  */
 async function rapidSearchUsers(q: string, limit: number): Promise<TwitterUserProfile[]> {
-  const response = await rapidApiPost<unknown>('/search', {
+  console.log('[RapidAPI] Searching for:', q);
+  
+  const response = await rapidApiPost<unknown>('/api/v1/search', {
     query: q,
-    type: 'People',
+    section: 'people',
   });
 
-  const users = extractArray(response as Record<string, unknown>, 'users', 'people', 'results', 'data');
+  console.log('[RapidAPI] Search response:', JSON.stringify(response).slice(0, 300));
+  
+  const data = response as Record<string, unknown>;
+  const users = extractArray(data, 'users', 'people', 'results', 'data', 'search_result');
+  console.log('[RapidAPI] Extracted users count:', users.length);
+  
   return users.map(normalizeRapidUser).slice(0, limit);
 }
 
@@ -418,13 +426,15 @@ export async function searchUsers(
     return withFallback(
       () => taioSearchUsers(query, limit),
       () => rapidSearchUsers(query, limit),
-      `searchUsers("${query}")`
+      `searchUsers("${query}")`,
+      [] // Return empty array if both fail
     );
   } else {
     return withFallback(
       () => rapidSearchUsers(query, limit),
       () => taioSearchUsers(query, limit),
-      `searchUsers("${query}")`
+      `searchUsers("${query}")`,
+      [] // Return empty array if both fail
     );
   }
 }

@@ -95,11 +95,12 @@ export default async function handler(
     });
   } catch (error: unknown) {
     const err = error as Error;
-    console.error('[API /portal/sentiment/search] Error:', err.message);
+    console.error('[API /portal/sentiment/search] Error:', err.message, err.stack);
 
-    return res.status(500).json({
-      ok: false,
-      error: 'Failed to search users',
+    // Return empty result instead of error for better UX
+    return res.status(200).json({
+      ok: true,
+      users: [],
     });
   }
 }
