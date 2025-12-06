@@ -526,13 +526,14 @@ export default function SentimentOverview() {
             {searchResults.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-akari-muted uppercase tracking-wider mb-2">
-                  Found {searchResults.length} profile(s)
+                  Found {searchResults.length} profile(s) – Click to track
                 </p>
                 {searchResults.map((user) => (
-                  <Link
+                  <button
                     key={user.username}
-                    href={`/portal/sentiment/profile/${user.username}`}
-                    className="flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer"
+                    onClick={() => handleTrackAndNavigate(user)}
+                    disabled={trackingUser === user.username}
+                    className="w-full text-left flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer disabled:opacity-70 disabled:cursor-wait"
                   >
                     {/* Profile Image */}
                     {user.profileImageUrl ? (
@@ -571,13 +572,17 @@ export default function SentimentOverview() {
                       </div>
                     </div>
                     
-                    {/* Arrow indicator */}
+                    {/* Loading/Arrow indicator */}
                     <div className="flex items-center text-akari-muted">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      {trackingUser === user.username ? (
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
                     </div>
-                  </Link>
+                  </button>
                 ))}
               </div>
             )}
