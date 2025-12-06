@@ -276,11 +276,15 @@ export default function MemesPage({ memes, memeDexInfo, dataSource, lastUpdated,
       {/* Complete Empty State */}
       {!error && sortedMemes.length === 0 && (
         <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-6 mb-6 text-center">
-          <p className="text-sm text-akari-muted mb-2">
-            Meme Radar is warming up.
+          <p className="text-sm text-akari-text mb-2 font-medium">
+            No meme tokens cleared our filters in the last 24h.
           </p>
-          <p className="text-xs text-akari-muted">
-            Both MemeTokenSnapshot and DexMarketSnapshot are still syncing. Check back in a few minutes as our crons collect data from CoinGecko, DexScreener, and GeckoTerminal.
+          <p className="text-xs text-akari-muted mb-3">
+            The radar hides majors like ETH/SOL/BTC and only shows true memecoins once liquidity builds up.
+            We require tokens to match meme keywords (pepe, bonk, wif, doge, etc.) to appear here.
+          </p>
+          <p className="text-[10px] text-akari-muted">
+            Data sources: CoinGecko, DexScreener, GeckoTerminal · Updated every few minutes
           </p>
         </div>
       )}

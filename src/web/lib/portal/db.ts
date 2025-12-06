@@ -899,19 +899,51 @@ export async function getMemeSnapshots(limit: number = 30): Promise<MemeTokenSna
 // PORTAL MARKET OVERVIEW & RADAR HELPERS
 // ============================================
 
-// Symbols to exclude from meme listings (majors)
+// Symbols to exclude from meme listings (majors) - comprehensive list
 export const MEME_EXCLUDED_SYMBOLS = [
   'BTC', 'ETH', 'SOL', 'USDT', 'USDC', 'BNB', 'XRP', 'LINK', 'WETH', 'WBTC',
   'DOGE', 'ADA', 'DOT', 'MATIC', 'AVAX', 'TRX', 'SHIB', 'LTC', 'ATOM', 'UNI',
+  'TON', 'DAI', 'STETH', 'WBNB', 'LEO', 'OKB', 'NEAR', 'ICP', 'APT', 'FIL',
+  'ARB', 'OP', 'IMX', 'INJ', 'STX', 'MKR', 'AAVE', 'GRT', 'FTM', 'ALGO',
+  'HBAR', 'EOS', 'SAND', 'MANA', 'XLM', 'VET', 'THETA', 'EGLD', 'AXS',
+  'WRAPPED', 'STAKED', 'BRIDGED',
+];
+
+// Major names to exclude (case-insensitive contains check)
+export const MEME_EXCLUDED_NAMES = [
+  'bitcoin', 'ethereum', 'solana', 'binance', 'tether', 'usd coin', 'wrapped',
+  'staked', 'bridged', 'liquid', 'lido', 'compound', 'aave', 'uniswap',
+  'chainlink', 'polygon', 'avalanche', 'cardano', 'polkadot', 'cosmos',
 ];
 
 // Meme keywords for filtering
 export const MEME_KEYWORDS = [
   'pepe', 'doge', 'shib', 'floki', 'bonk', 'wif', 'mog', 'popcat', 'cat', 'dog',
   'frog', 'wojak', 'chad', 'npc', 'wen', 'moon', 'pump', 'inu', 'elon', 'meme',
-  'baby', 'safe', 'rocket', 'cum', 'ass', 'tits', 'cock', 'dick', 'boob',
-  'goat', 'act', 'turbo', 'brett', 'andy', 'toshi', 'neiro', 'pnut', 'chill',
+  'baby', 'safe', 'rocket', 'goat', 'act', 'turbo', 'brett', 'andy', 'toshi', 
+  'neiro', 'pnut', 'chill', 'hamster', 'pengu', 'trump', 'biden', 'milady',
+  'boden', 'tremp', 'jeo', 'based', 'retard', 'autist', 'degen', 'ape',
 ];
+
+/**
+ * Check if a token is a major (should be excluded from meme lists)
+ */
+export function isMajorToken(symbol: string | null, name: string | null): boolean {
+  const symbolUpper = (symbol || '').toUpperCase();
+  const nameLower = (name || '').toLowerCase();
+  
+  // Check symbol against excluded list
+  if (MEME_EXCLUDED_SYMBOLS.includes(symbolUpper)) {
+    return true;
+  }
+  
+  // Check name against excluded patterns
+  if (MEME_EXCLUDED_NAMES.some(pattern => nameLower.includes(pattern))) {
+    return true;
+  }
+  
+  return false;
+}
 
 /**
  * Check if a symbol/name is meme-ish based on keywords
@@ -920,8 +952,8 @@ export function isMemeToken(symbol: string | null, name: string | null): boolean
   const symbolLower = (symbol || '').toLowerCase();
   const nameLower = (name || '').toLowerCase();
   
-  // Exclude majors
-  if (MEME_EXCLUDED_SYMBOLS.includes(symbolLower.toUpperCase())) {
+  // Must NOT be a major
+  if (isMajorToken(symbol, name)) {
     return false;
   }
   
@@ -1199,7 +1231,8 @@ export interface MemeRadarRow {
 
 /**
  * Meme Radar Snapshot
- * Prefers MemeTokenSnapshot, falls back to DEX with meme keyword filter
+ * Prefers MemeTokenSnapshot, falls back to DEX with strict meme keyword filter
+ * STRICTLY excludes majors like ETH, SOL, BTC etc.
  */
 export async function getMemeRadarSnapshot(limit: number = 15): Promise<{
   memes: MemeRadarRow[];
@@ -1210,78 +1243,251 @@ export async function getMemeRadarSnapshot(limit: number = 15): Promise<{
   const memeSnapshots = await getMemeSnapshots(50);
 
   if (memeSnapshots.length > 0) {
-    // Filter out majors and non-meme tokens
+    // Strictly filter out majors using both symbol AND name check
     const filtered = memeSnapshots
-      .filter(s => !MEME_EXCLUDED_SYMBOLS.includes(s.symbol.toUpperCase()))
+      .filter(s => !isMajorToken(s.symbol, s.name))
       .slice(0, limit);
 
-    const lastUpdated = filtered.length > 0 
-      ? filtered.reduce((max, s) => s.createdAt > max ? s.createdAt : max, filtered[0].createdAt)
-      : null;
+    // If we have at least 5 memes after filtering, use them
+    if (filtered.length >= 5) {
+      const lastUpdated = filtered.reduce((max, s) => s.createdAt > max ? s.createdAt : max, filtered[0].createdAt);
 
-    return {
-      memes: filtered.map(s => ({
-        symbol: s.symbol,
-        name: s.name,
-        chain: null, // MemeTokenSnapshot doesn't have chain
-        priceUsd: s.priceUsd,
-        volume24hUsd: null, // MemeTokenSnapshot doesn't have volume
-        change24hPct: s.change24hPct,
-        source: s.source || 'coingecko',
-        lastUpdated: s.createdAt,
-      })),
-      source: 'meme_snapshots',
-      lastUpdated,
-    };
+      return {
+        memes: filtered.map(s => ({
+          symbol: s.symbol,
+          name: s.name,
+          chain: null,
+          priceUsd: s.priceUsd,
+          volume24hUsd: null,
+          change24hPct: s.change24hPct,
+          source: s.source || 'coingecko',
+          lastUpdated: s.createdAt,
+        })),
+        source: 'meme_snapshots',
+        lastUpdated,
+      };
+    }
   }
 
-  // Fallback to DEX snapshots with meme filter
+  // Fallback to DEX snapshots with STRICT meme filter
   const dexSnapshots = await prisma.dexMarketSnapshot.findMany({
     where: {
       volume24hUsd: { gt: 0 },
     },
     orderBy: { volume24hUsd: 'desc' },
+    take: 200, // Get more to filter from
   });
 
   if (dexSnapshots.length === 0) {
     return { memes: [], source: 'none', lastUpdated: null };
   }
 
-  // Filter for meme tokens and exclude majors
+  // STRICTLY filter: must NOT be a major AND must pass meme keyword check
   const memeDex = dexSnapshots
     .filter(s => {
-      const symbol = s.symbol?.toUpperCase() || '';
-      // Exclude majors
-      if (MEME_EXCLUDED_SYMBOLS.includes(symbol)) return false;
-      // Include if meme-ish
+      // Must not be a major
+      if (isMajorToken(s.symbol, s.name)) return false;
+      // Must have meme keywords
       return isMemeToken(s.symbol, s.name);
     })
     .slice(0, limit);
 
-  // If no meme tokens found after filtering, return top volume tokens (excluding majors)
-  const finalList = memeDex.length > 0 
-    ? memeDex 
-    : dexSnapshots
-        .filter(s => !MEME_EXCLUDED_SYMBOLS.includes((s.symbol || '').toUpperCase()))
-        .slice(0, limit);
+  // If no meme tokens found, return empty - DO NOT fall back to non-meme tokens
+  if (memeDex.length === 0) {
+    return { memes: [], source: 'none', lastUpdated: null };
+  }
 
-  const lastUpdated = finalList.length > 0
-    ? finalList.reduce((max, s) => s.createdAt > max ? s.createdAt : max, finalList[0].createdAt)
-    : null;
+  const lastUpdated = memeDex.reduce((max, s) => s.createdAt > max ? s.createdAt : max, memeDex[0].createdAt);
 
   return {
-    memes: finalList.map(s => ({
+    memes: memeDex.map(s => ({
       symbol: s.symbol || 'UNKNOWN',
       name: s.name || s.symbol || 'Unknown',
       chain: s.chain,
       priceUsd: s.priceUsd,
       volume24hUsd: s.volume24hUsd,
-      change24hPct: null, // DEX doesn't have change %
+      change24hPct: null,
       source: s.dex || s.source || 'dexscreener',
       lastUpdated: s.createdAt,
     })),
     source: 'dex_fallback',
     lastUpdated,
   };
+}
+
+/**
+ * Chain Volume Row for UI (aggregated from DEX data)
+ */
+export interface ChainVolumeRow {
+  chain: string;
+  totalVolume24hUsd: number;
+  totalLiquidityUsd: number;
+  pairCount: number;
+  lastUpdated: Date;
+}
+
+/**
+ * Get aggregated DEX volume by chain
+ * Used as fallback when stablecoin flow data is empty
+ */
+export async function getChainVolumeAggregation(limit: number = 6): Promise<ChainVolumeRow[]> {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const dexSnapshots = await prisma.dexMarketSnapshot.findMany({
+    where: { createdAt: { gte: oneDayAgo } },
+    select: { 
+      chain: true, 
+      volume24hUsd: true, 
+      liquidityUsd: true, 
+      createdAt: true 
+    },
+  });
+
+  if (dexSnapshots.length === 0) {
+    return [];
+  }
+
+  // Aggregate by chain
+  const chainData = new Map<string, {
+    volume: number;
+    liquidity: number;
+    count: number;
+    lastUpdated: Date;
+  }>();
+
+  for (const snap of dexSnapshots) {
+    const chain = snap.chain || 'Unknown';
+    const existing = chainData.get(chain) || {
+      volume: 0,
+      liquidity: 0,
+      count: 0,
+      lastUpdated: snap.createdAt,
+    };
+
+    existing.volume += snap.volume24hUsd || 0;
+    existing.liquidity += snap.liquidityUsd || 0;
+    existing.count += 1;
+    if (snap.createdAt > existing.lastUpdated) {
+      existing.lastUpdated = snap.createdAt;
+    }
+
+    chainData.set(chain, existing);
+  }
+
+  return Array.from(chainData.entries())
+    .map(([chain, data]) => ({
+      chain,
+      totalVolume24hUsd: data.volume,
+      totalLiquidityUsd: data.liquidity,
+      pairCount: data.count,
+      lastUpdated: data.lastUpdated,
+    }))
+    .sort((a, b) => b.totalVolume24hUsd - a.totalVolume24hUsd)
+    .slice(0, limit);
+}
+
+/**
+ * Enhanced Chain Flow Radar with DEX volume fallback
+ */
+export async function getEnhancedChainFlowRadar(limit: number = 6): Promise<{
+  flows: ChainFlowRow[];
+  source: 'stablecoin_flows' | 'dex_volume' | 'none';
+  lastUpdated: Date | null;
+}> {
+  // First try stablecoin flow data
+  const chainFlows = await getChainFlowRadar(limit);
+  
+  if (chainFlows.length > 0) {
+    const lastUpdated = chainFlows.reduce(
+      (max, f) => f.lastUpdated > max ? f.lastUpdated : max, 
+      chainFlows[0].lastUpdated
+    );
+    return {
+      flows: chainFlows,
+      source: 'stablecoin_flows',
+      lastUpdated,
+    };
+  }
+
+  // Fallback to DEX volume aggregation
+  const chainVolumes = await getChainVolumeAggregation(limit);
+  
+  if (chainVolumes.length === 0) {
+    return { flows: [], source: 'none', lastUpdated: null };
+  }
+
+  // Convert to ChainFlowRow format (using volume as proxy for "flow")
+  const lastUpdated = chainVolumes.reduce(
+    (max, v) => v.lastUpdated > max ? v.lastUpdated : max, 
+    chainVolumes[0].lastUpdated
+  );
+
+  return {
+    flows: chainVolumes.map(v => ({
+      chain: v.chain,
+      netFlow24hUsd: v.totalVolume24hUsd, // Use volume as proxy
+      dominantStablecoin: null,
+      signalLabel: `${v.pairCount} pairs tracked`,
+      lastUpdated: v.lastUpdated,
+    })),
+    source: 'dex_volume',
+    lastUpdated,
+  };
+}
+
+/**
+ * Get top liquidity rotation signals (simplified)
+ */
+export interface LiquidityRotationSignal {
+  chain: string;
+  direction: 'inflow' | 'outflow' | 'neutral';
+  changePercent: number | null;
+  description: string;
+  lastUpdated: Date;
+}
+
+export async function getLiquidityRotationSignals(limit: number = 4): Promise<{
+  signals: LiquidityRotationSignal[];
+  source: 'computed' | 'none';
+  lastUpdated: Date | null;
+}> {
+  const chainVolumes = await getChainVolumeAggregation(10);
+  
+  if (chainVolumes.length < 2) {
+    return { signals: [], source: 'none', lastUpdated: null };
+  }
+
+  // Calculate total and per-chain share
+  const totalVolume = chainVolumes.reduce((sum, c) => sum + c.totalVolume24hUsd, 0);
+  
+  if (totalVolume === 0) {
+    return { signals: [], source: 'none', lastUpdated: null };
+  }
+
+  const signals: LiquidityRotationSignal[] = chainVolumes
+    .slice(0, limit)
+    .map(chain => {
+      const share = (chain.totalVolume24hUsd / totalVolume) * 100;
+      let direction: 'inflow' | 'outflow' | 'neutral' = 'neutral';
+      let description = `${share.toFixed(1)}% of tracked DEX volume`;
+      
+      // Top chain gets "inflow" label
+      if (chain === chainVolumes[0]) {
+        direction = 'inflow';
+        description = `Leading with ${share.toFixed(1)}% of volume`;
+      }
+
+      return {
+        chain: chain.chain,
+        direction,
+        changePercent: null, // Would need historical data
+        description,
+        lastUpdated: chain.lastUpdated,
+      };
+    });
+
+  const lastUpdated = signals.length > 0 ? signals[0].lastUpdated : null;
+
+  return { signals, source: 'computed', lastUpdated };
 }
 

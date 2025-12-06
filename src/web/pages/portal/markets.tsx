@@ -21,16 +21,18 @@ import {
   getDexLiquidityRadar,
   getCexMarketHeatmap,
   getPortalMarketOverview,
-  getChainFlowRadar,
+  getEnhancedChainFlowRadar,
   getWhaleRadar,
   getTrendingMarkets,
   getMemeRadarSnapshot,
+  getChainVolumeAggregation,
   type DexLiquidityRow,
   type CexMarketRow,
   type ChainFlowRow,
   type WhaleRadarRow,
   type TrendingMarketRow,
   type MemeRadarRow,
+  type ChainVolumeRow,
 } from '../../lib/portal/db';
 import { getTrackedMarketMetrics, formatMetricValue } from '../../lib/portal/metrics';
 import { prisma } from '../../lib/prisma';
@@ -119,6 +121,12 @@ interface ChainFlowDto {
   lastUpdated: string;
 }
 
+// Chain Flow container (includes source indicator)
+interface ChainFlowData {
+  flows: ChainFlowDto[];
+  source: 'stablecoin_flows' | 'dex_volume' | 'none';
+}
+
 // Whale Radar DTO for SSR
 interface WhaleRadarDto {
   id: string;
@@ -165,6 +173,7 @@ interface MarketsPageProps {
   trackedVolume24h: string; // Formatted tracked 24h volume
   // New radar data
   chainFlows: ChainFlowDto[];
+  chainFlowSource: 'stablecoin_flows' | 'dex_volume' | 'none';
   whaleRadar: WhaleRadarDto[];
   trendingMarkets: TrendingMarketDto[];
   memePreview: MemePreviewDto[];
@@ -265,6 +274,7 @@ export default function MarketsPage({
   trackedMarketCap,
   trackedVolume24h,
   chainFlows,
+  chainFlowSource,
   whaleRadar,
   trendingMarkets,
   memePreview,
@@ -418,7 +428,11 @@ export default function MarketsPage({
               )}
             </div>
             <p className="text-xs text-akari-muted mb-4">
-              Stablecoin inflows/outflows across tracked chains, last 24h.
+              {chainFlowSource === 'stablecoin_flows' 
+                ? 'Stablecoin inflows/outflows across tracked chains, last 24h.'
+                : chainFlowSource === 'dex_volume'
+                ? 'DEX volume distribution by chain (stablecoin flow data warming up).'
+                : 'Chain activity tracking across Ethereum, Solana, and Base.'}
             </p>
             {chainFlows.length > 0 ? (
               <div className="space-y-2">
@@ -1113,7 +1127,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
       getCexMarketSnapshots(20).catch(() => []),
       getTrackedMarketMetrics(prisma).catch(() => ({ totalMarketCapUsd: null, totalVolume24hUsd: null, source: 'none' as const })),
       getPortalMarketOverview().catch(() => ({ trackedMarketCapUsd: 0, trackedVolume24hUsd: 0, lastUpdated: null })),
-      getChainFlowRadar(8).catch(() => []),
+      getEnhancedChainFlowRadar(8).catch(() => ({ flows: [], source: 'none' as const, lastUpdated: null })),
       getWhaleRadar(10, 24).catch(() => []),
       getTrendingMarkets(6).catch(() => []),
       getMemeRadarSnapshot(3).catch(() => ({ memes: [], source: 'none' as const, lastUpdated: null })),
@@ -1268,14 +1282,15 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         }
       : null;
 
-    // Map chain flows to serializable DTOs
-    const chainFlows: ChainFlowDto[] = chainFlowsRaw.map((f: ChainFlowRow) => ({
+    // Map chain flows to serializable DTOs (chainFlowsRaw is now { flows, source, lastUpdated })
+    const chainFlows: ChainFlowDto[] = chainFlowsRaw.flows.map((f: ChainFlowRow) => ({
       chain: f.chain,
       netFlow24hUsd: f.netFlow24hUsd,
       dominantStablecoin: f.dominantStablecoin,
       signalLabel: f.signalLabel,
       lastUpdated: f.lastUpdated.toISOString(),
     }));
+    const chainFlowSource = chainFlowsRaw.source;
 
     // Map whale radar to serializable DTOs
     const whaleRadar: WhaleRadarDto[] = whaleRadarRaw.map((w: WhaleRadarRow) => ({
@@ -1326,6 +1341,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         trackedMarketCap: formatMetricValue(trackedMetrics.totalMarketCapUsd),
         trackedVolume24h: formatMetricValue(trackedMetrics.totalVolume24hUsd),
         chainFlows: JSON.parse(JSON.stringify(chainFlows)),
+        chainFlowSource,
         whaleRadar: JSON.parse(JSON.stringify(whaleRadar)),
         trendingMarkets: JSON.parse(JSON.stringify(trendingMarkets)),
         memePreview: JSON.parse(JSON.stringify(memePreview)),
@@ -1357,6 +1373,7 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
         trackedMarketCap: 'Data warming up',
         trackedVolume24h: 'Data warming up',
         chainFlows: [],
+        chainFlowSource: 'none',
         whaleRadar: [],
         trendingMarkets: [],
         memePreview: [],
