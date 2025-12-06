@@ -121,7 +121,7 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
       {/* Feature strip */}
       <section
         id="markets"
-        className="mt-10 grid gap-4 text-xs md:grid-cols-3"
+        className="mt-10 grid gap-4 text-xs md:grid-cols-2 lg:grid-cols-4"
       >
         <Link
           href="/portal/markets"
@@ -147,6 +147,19 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
           <p className="mb-1 text-sm">Where the real degen flow is.</p>
           <p className="text-[11px] text-akari-muted">
             Track new pairs, liquidity and velocity, then turn the best ideas into calls inside the MiniApp.
+          </p>
+        </Link>
+
+        <Link
+          href="/portal/sentiment"
+          className="rounded-2xl border border-akari-accent/30 bg-akari-card p-4 transition hover:border-akari-primary/70"
+        >
+          <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-purple-400">
+            Sentiment Terminal
+          </p>
+          <p className="mb-1 text-sm">Track CT sentiment in real-time.</p>
+          <p className="text-[11px] text-akari-muted">
+            Monitor social sentiment, engagement heat, and AKARI credibility scores for tracked projects.
           </p>
         </Link>
 

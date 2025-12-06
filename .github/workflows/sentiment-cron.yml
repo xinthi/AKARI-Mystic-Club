@@ -1,0 +1,106 @@
+# =============================================================================
+# AKARI Sentiment Update Cron Job
+# =============================================================================
+# This workflow runs the sentiment update script on a schedule.
+# It fetches Twitter data and updates sentiment metrics in Supabase.
+#
+# Schedule: Every 6 hours (0:00, 6:00, 12:00, 18:00 UTC)
+#
+# Required Secrets:
+# - SUPABASE_URL: Your Supabase project URL
+# - SUPABASE_SERVICE_ROLE_KEY: Service role key for write access
+# - RAPIDAPI_KEY: Your RapidAPI key for Twitter APIs
+# =============================================================================
+
+name: Sentiment Update Cron
+
+on:
+  # Run on schedule (every 6 hours)
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug logging'
+        required: false
+        default: 'false'
+
+# Prevent concurrent runs
+concurrency:
+  group: sentiment-cron
+  cancel-in-progress: false
+
+jobs:
+  update-sentiment:
+    name: Update Project Sentiment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # Step 1: Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Step 3: Setup pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      # Step 4: Get pnpm store directory
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      # Step 5: Setup pnpm cache
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      # Step 6: Install dependencies
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Step 7: Compile TypeScript (if needed)
+      - name: Compile TypeScript
+        run: |
+          # Install ts-node for running TypeScript directly
+          pnpm add -D ts-node typescript @types/node
+          
+      # Step 8: Run sentiment update script
+      - name: Run sentiment update
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          NODE_ENV: production
+        run: |
+          echo "Starting sentiment update..."
+          npx ts-node scripts/sentiment/updateAllProjects.ts
+          echo "Sentiment update complete!"
+
+      # Step 9: Report status (on failure)
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Sentiment update failed! Check the logs above for details."
+          echo "Common issues:"
+          echo "- Missing or invalid SUPABASE_URL secret"
+          echo "- Missing or invalid SUPABASE_SERVICE_ROLE_KEY secret"
+          echo "- Missing or invalid RAPIDAPI_KEY secret"
+          echo "- RapidAPI rate limits exceeded"
+          echo "- Network connectivity issues"
+

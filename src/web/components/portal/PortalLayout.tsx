@@ -13,6 +13,7 @@ const navItems = [
   { href: '/portal', label: 'Home' },
   { href: '/portal/markets', label: 'Markets' },
   { href: '/portal/memes', label: 'Meme Radar' },
+  { href: '/portal/sentiment', label: 'Sentiment' },
   { href: '/portal/new-launches', label: 'New Launches' },
 ];
 

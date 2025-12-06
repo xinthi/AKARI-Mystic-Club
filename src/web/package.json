@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@prisma/client": "^5.9.1",
+    "@supabase/supabase-js": "^2.86.2",
     "@twa-dev/sdk": "^8.0.2",
     "autoprefixer": "^10.4.17",
+    "axios": "^1.13.2",
     "canvas-confetti": "^1.9.2",
     "grammy": "^1.21.1",
     "lucide-react": "^0.309.0",
