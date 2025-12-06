@@ -1,9 +1,15 @@
 /**
- * Web-Local Twitter API Helper
+ * Unified Twitter Client for Next.js Web App
  * 
- * This is a self-contained version of the Twitter API helpers for use within
- * the Next.js app (src/web). It's separate from src/server/rapidapi/twitter.ts
- * to allow Next.js/Webpack to transpile it properly.
+ * This is a self-contained unified Twitter client for use within the Next.js app (src/web).
+ * It supports both TwitterAPI.io and RapidAPI with automatic fallback.
+ * 
+ * Environment variables:
+ * - TWITTER_PRIMARY_PROVIDER: "twitterapiio" or "rapidapi" (default: "twitterapiio")
+ * - TWITTERAPIIO_API_KEY: API key for TwitterAPI.io
+ * - TWITTERAPIIO_BASE_URL: Base URL for TwitterAPI.io (default: https://api.twitterapi.io)
+ * - RAPIDAPI_KEY: API key for RapidAPI
+ * - TWITTER_API65_AUTH_TOKEN: Auth token for twitter-api65 RapidAPI
  * 
  * ⚠️ SERVER-SIDE ONLY - This file should only be imported in API routes!
  */
@@ -14,18 +20,24 @@ import axios from 'axios';
 // CONFIGURATION
 // =============================================================================
 
+const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? 'twitterapiio';
+
+// TwitterAPI.io config
+const TAIO_BASE_URL = process.env.TWITTERAPIIO_BASE_URL ?? 'https://api.twitterapi.io';
+const TAIO_API_KEY = process.env.TWITTERAPIIO_API_KEY;
+
+// RapidAPI config
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const TWITTER_API_AUTH = process.env.TWITTER_API65_AUTH_TOKEN;
-
 const TWITTER_API_HOST = 'twitter-api65.p.rapidapi.com';
 const TWITTER_API_BASE = `https://${TWITTER_API_HOST}`;
 
 // =============================================================================
-// TYPE DEFINITIONS
+// UNIFIED TYPE DEFINITIONS
 // =============================================================================
 
 /**
- * Normalized Twitter user profile
+ * Unified Twitter user profile with guaranteed profileImageUrl
  */
 export interface TwitterUserProfile {
   handle: string;
@@ -33,6 +45,7 @@ export interface TwitterUserProfile {
   name?: string;
   bio?: string;
   avatarUrl?: string;
+  profileImageUrl?: string; // Alias for avatarUrl
   followersCount?: number;
   followingCount?: number;
   tweetCount?: number;
@@ -41,184 +54,380 @@ export interface TwitterUserProfile {
 }
 
 /**
- * Raw API response shape (internal use only)
+ * Unified tweet type
  */
-interface RawTwitterApiUser {
-  id?: number | string;
-  id_str?: string;
-  rest_id?: string;
-  screen_name?: string;
-  username?: string;
-  name?: string;
-  description?: string;
-  bio?: string;
-  profile_image_url_https?: string;
-  profile_image_url?: string;
-  avatar_url?: string;
-  followers_count?: number;
-  followersCount?: number;
-  friends_count?: number;
-  following_count?: number;
-  followingCount?: number;
-  statuses_count?: number;
-  tweet_count?: number;
-  created_at?: string;
-  verified?: boolean;
-  is_blue_verified?: boolean;
-  legacy?: {
-    screen_name?: string;
-    name?: string;
-    description?: string;
-    profile_image_url_https?: string;
-    followers_count?: number;
-    friends_count?: number;
-    statuses_count?: number;
-    created_at?: string;
-    verified?: boolean;
+export interface TwitterTweet {
+  id: string;
+  text: string;
+  authorHandle: string;
+  createdAt: string;
+  likeCount?: number;
+  replyCount?: number;
+  retweetCount?: number;
+  quoteCount?: number;
+}
+
+// =============================================================================
+// FALLBACK HELPER
+// =============================================================================
+
+/**
+ * Execute with automatic fallback to secondary provider
+ */
+async function withFallback<T>(
+  primary: () => Promise<T>,
+  fallback: () => Promise<T>,
+  context: string
+): Promise<T> {
+  try {
+    return await primary();
+  } catch (err) {
+    console.error(`[twitterClient] Primary (${PRIMARY_PROVIDER}) failed for ${context}:`, err);
+    try {
+      console.log(`[twitterClient] Trying fallback for ${context}...`);
+      return await fallback();
+    } catch (err2) {
+      console.error(`[twitterClient] Fallback also failed for ${context}:`, err2);
+      throw err2;
+    }
+  }
+}
+
+// =============================================================================
+// TWITTERAPI.IO IMPLEMENTATION
+// =============================================================================
+
+/**
+ * Build query string from params object
+ */
+function buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
+  const entries = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  
+  return entries.length > 0 ? `?${entries.join('&')}` : '';
+}
+
+/**
+ * Make a GET request to TwitterAPI.io
+ */
+async function taioGet<T>(
+  path: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<T> {
+  if (!TAIO_API_KEY) {
+    throw new Error('[twitterapiio] TWITTERAPIIO_API_KEY is not set');
+  }
+
+  const url = `${TAIO_BASE_URL}${path}${buildQueryString(params)}`;
+
+  const response = await axios.get<T>(url, {
+    headers: {
+      'X-API-Key': TAIO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    timeout: 30000,
+  });
+
+  return response.data;
+}
+
+/**
+ * Search users via TwitterAPI.io
+ */
+async function taioSearchUsers(q: string, limit: number): Promise<TwitterUserProfile[]> {
+  const response = await taioGet<Record<string, unknown>>('/twitter/user/search', {
+    query: q,
+    count: limit,
+  });
+
+  const users = extractArray(response, 'users', 'data', 'results', 'people');
+  return users.map(normalizeTaioUser);
+}
+
+/**
+ * Get user info via TwitterAPI.io
+ */
+async function taioGetUserInfo(userName: string): Promise<TwitterUserProfile | null> {
+  try {
+    const response = await taioGet<Record<string, unknown>>('/twitter/user/info', {
+      userName: userName.replace('@', ''),
+    });
+
+    const userData = (response.data as Record<string, unknown>) ?? response;
+    if (!userData || (!userData.id && !userData.userName)) {
+      return null;
+    }
+
+    return normalizeTaioUser(userData);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get user tweets via TwitterAPI.io
+ */
+async function taioGetUserTweets(userName: string, limit: number): Promise<TwitterTweet[]> {
+  const response = await taioGet<Record<string, unknown>>('/twitter/user/last_tweets', {
+    userName: userName.replace('@', ''),
+    count: limit,
+  });
+
+  const tweets = extractArray(response, 'tweets', 'data', 'results', 'timeline');
+  return tweets.map(normalizeTaioTweet);
+}
+
+/**
+ * Normalize TwitterAPI.io user to unified format
+ */
+function normalizeTaioUser(raw: Record<string, unknown>): TwitterUserProfile {
+  const profileImageUrl = 
+    raw.profileImageUrl as string ??
+    raw.profile_image_url as string ??
+    raw.profilePicture as string ??
+    raw.profile_picture as string ??
+    raw.avatar_url as string ??
+    raw.avatarUrl as string;
+
+  return {
+    handle: String(raw.userName ?? raw.username ?? raw.screen_name ?? ''),
+    userId: String(raw.id ?? raw.userId ?? ''),
+    name: String(raw.name ?? raw.displayName ?? ''),
+    bio: raw.description as string ?? raw.bio as string,
+    avatarUrl: profileImageUrl,
+    profileImageUrl: profileImageUrl,
+    followersCount: raw.followers as number ?? raw.followersCount as number ?? raw.followers_count as number,
+    followingCount: raw.following as number ?? raw.followingCount as number ?? raw.friends_count as number,
+    tweetCount: raw.statusesCount as number ?? raw.statuses_count as number ?? raw.tweetCount as number,
+    createdAt: raw.createdAt as string ?? raw.created_at as string,
+    verified: raw.isBlueVerified as boolean ?? raw.is_blue_verified as boolean ?? raw.verified as boolean,
+  };
+}
+
+/**
+ * Normalize TwitterAPI.io tweet to unified format
+ */
+function normalizeTaioTweet(raw: Record<string, unknown>): TwitterTweet {
+  const author = raw.author as Record<string, unknown> | undefined;
+  return {
+    id: String(raw.id ?? raw.tweetId ?? ''),
+    text: String(raw.text ?? raw.full_text ?? ''),
+    authorHandle: author?.userName as string ?? author?.username as string ?? '',
+    createdAt: String(raw.createdAt ?? raw.created_at ?? ''),
+    likeCount: raw.likeCount as number ?? raw.like_count as number ?? raw.favoriteCount as number,
+    replyCount: raw.replyCount as number ?? raw.reply_count as number,
+    retweetCount: raw.retweetCount as number ?? raw.retweet_count as number,
+    quoteCount: raw.quoteCount as number ?? raw.quote_count as number,
   };
 }
 
 // =============================================================================
-// INTERNAL HELPERS
+// RAPIDAPI IMPLEMENTATION
 // =============================================================================
 
 /**
- * POST request to twitter-api65
+ * POST request to twitter-api65 RapidAPI
  */
-async function twitterApiPost<T>(path: string, body: unknown): Promise<T> {
+async function rapidApiPost<T>(path: string, body: unknown): Promise<T> {
   if (!RAPIDAPI_KEY) {
     throw new Error('RAPIDAPI_KEY environment variable is not set');
   }
 
+  const res = await axios.post<T>(`${TWITTER_API_BASE}${path}`, body, {
+    headers: {
+      'Authorization': TWITTER_API_AUTH ?? '',
+      'Content-Type': 'application/json',
+      'X-RapidAPI-Key': RAPIDAPI_KEY,
+      'X-RapidAPI-Host': TWITTER_API_HOST,
+    },
+    timeout: 30000,
+  });
+
+  return res.data;
+}
+
+/**
+ * Search users via RapidAPI
+ */
+async function rapidSearchUsers(q: string, limit: number): Promise<TwitterUserProfile[]> {
+  const response = await rapidApiPost<unknown>('/search', {
+    query: q,
+    type: 'People',
+  });
+
+  const users = extractArray(response as Record<string, unknown>, 'users', 'people', 'results', 'data');
+  return users.map(normalizeRapidUser).slice(0, limit);
+}
+
+/**
+ * Get user info via RapidAPI
+ */
+async function rapidGetUserInfo(userName: string): Promise<TwitterUserProfile | null> {
   try {
-    const res = await axios.post<T>(`${TWITTER_API_BASE}${path}`, body, {
-      headers: {
-        'Authorization': TWITTER_API_AUTH ?? '',
-        'Content-Type': 'application/json',
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': TWITTER_API_HOST,
-      },
-      timeout: 30000,
+    const response = await rapidApiPost<unknown>('/user-details-by-screen-name', {
+      username: userName.replace('@', ''),
     });
-    return res.data;
-  } catch (error: unknown) {
-    const axiosError = error as { response?: { data?: unknown }; message?: string };
-    console.error(
-      `[twitter-api65] ${path} failed`,
-      axiosError.response?.data ?? axiosError.message
-    );
-    throw new Error(`twitter-api65 request failed for ${path}`);
-  }
-}
 
-/**
- * Extract array from potentially nested response
- */
-function extractArrayFromResponse(data: unknown, ...keys: string[]): unknown[] {
-  if (Array.isArray(data)) {
-    return data;
-  }
+    const data = response as Record<string, unknown>;
+    const userData = (data.data as Record<string, unknown>) ?? 
+                     (data.user as Record<string, unknown>) ?? 
+                     data;
 
-  if (data && typeof data === 'object') {
-    const record = data as Record<string, unknown>;
-    
-    // Try each key in order
-    for (const key of keys) {
-      const value = record[key];
-      if (Array.isArray(value)) {
-        return value;
-      }
+    if (!userData || (!userData.id && !userData.screen_name)) {
+      return null;
     }
 
-    // Try nested structures
-    if (record.data && typeof record.data === 'object') {
-      return extractArrayFromResponse(record.data, ...keys);
-    }
-    if (record.result && typeof record.result === 'object') {
-      return extractArrayFromResponse(record.result, ...keys);
-    }
-  }
-
-  return [];
-}
-
-/**
- * Normalize raw API user data to TwitterUserProfile
- */
-function normalizeUserFromApi(raw: unknown): TwitterUserProfile | null {
-  if (!raw || typeof raw !== 'object') {
+    return normalizeRapidUser(userData);
+  } catch {
     return null;
   }
+}
 
-  const data = raw as RawTwitterApiUser;
+/**
+ * Normalize RapidAPI user to unified format
+ */
+function normalizeRapidUser(raw: Record<string, unknown>): TwitterUserProfile {
+  const legacy = raw.legacy as Record<string, unknown> | undefined;
   
-  // Handle nested legacy structure
-  const legacy = data.legacy;
+  const handle = raw.screen_name ?? raw.username ?? legacy?.screen_name ?? '';
+  const profileImageUrl = 
+    raw.profile_image_url_https as string ??
+    raw.profile_image_url as string ??
+    raw.avatar_url as string ??
+    legacy?.profile_image_url_https as string;
 
-  // Extract handle - required
-  const handle = data.screen_name || data.username || legacy?.screen_name;
-  if (!handle) {
-    return null;
-  }
-
-  // Extract userId
-  const userId = data.id?.toString() || data.id_str || data.rest_id;
-
-  // Normalize created_at to ISO string if possible
-  let createdAt = data.created_at || legacy?.created_at;
+  let createdAt = raw.created_at as string ?? legacy?.created_at as string;
   if (createdAt) {
     try {
       createdAt = new Date(createdAt).toISOString();
     } catch {
-      // Keep original if parsing fails
+      // Keep original
     }
   }
 
   return {
     handle: String(handle),
-    userId: userId ? String(userId) : undefined,
-    name: data.name || legacy?.name,
-    bio: data.description || data.bio || legacy?.description,
-    avatarUrl: data.profile_image_url_https || data.profile_image_url || data.avatar_url || legacy?.profile_image_url_https,
-    followersCount: data.followers_count ?? data.followersCount ?? legacy?.followers_count,
-    followingCount: data.friends_count ?? data.following_count ?? data.followingCount ?? legacy?.friends_count,
-    tweetCount: data.statuses_count ?? data.tweet_count ?? legacy?.statuses_count,
+    userId: String(raw.id ?? raw.id_str ?? raw.rest_id ?? ''),
+    name: raw.name as string ?? legacy?.name as string,
+    bio: raw.description as string ?? raw.bio as string ?? legacy?.description as string,
+    avatarUrl: profileImageUrl,
+    profileImageUrl: profileImageUrl,
+    followersCount: raw.followers_count as number ?? raw.followersCount as number ?? legacy?.followers_count as number,
+    followingCount: raw.friends_count as number ?? raw.following_count as number ?? legacy?.friends_count as number,
+    tweetCount: raw.statuses_count as number ?? raw.tweet_count as number ?? legacy?.statuses_count as number,
     createdAt,
-    verified: data.verified ?? data.is_blue_verified ?? legacy?.verified,
+    verified: raw.verified as boolean ?? raw.is_blue_verified as boolean ?? legacy?.verified as boolean,
   };
 }
 
 // =============================================================================
-// PUBLIC API
+// SHARED HELPERS
 // =============================================================================
 
 /**
- * Search for Twitter users by query.
- * Uses twitter-api65 /search endpoint with type "People".
- * 
- * @param query - Search query string
- * @param limit - Maximum results to return (default 20)
- * @returns Array of normalized user profiles
+ * Extract array from API response
+ */
+function extractArray(
+  data: Record<string, unknown>,
+  ...keys: string[]
+): Record<string, unknown>[] {
+  // If data itself is an array
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  // Try each key
+  for (const key of keys) {
+    const value = data[key];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  // Try nested data/result objects
+  if (data.data && typeof data.data === 'object') {
+    return extractArray(data.data as Record<string, unknown>, ...keys);
+  }
+  if (data.result && typeof data.result === 'object') {
+    return extractArray(data.result as Record<string, unknown>, ...keys);
+  }
+
+  return [];
+}
+
+// =============================================================================
+// UNIFIED PUBLIC API
+// =============================================================================
+
+/**
+ * Search for Twitter users by query
+ * Uses primary provider with automatic fallback
  */
 export async function searchUsers(
   query: string,
   limit: number = 20
 ): Promise<TwitterUserProfile[]> {
-  const response = await twitterApiPost<unknown>('/search', {
-    query,
-    type: 'People',
-  });
-
-  const rawUsers = extractArrayFromResponse(response, 'users', 'people', 'results', 'data');
-  
-  const users: TwitterUserProfile[] = [];
-  for (const rawUser of rawUsers) {
-    const normalized = normalizeUserFromApi(rawUser);
-    if (normalized) {
-      users.push(normalized);
-    }
+  if (PRIMARY_PROVIDER === 'twitterapiio') {
+    return withFallback(
+      () => taioSearchUsers(query, limit),
+      () => rapidSearchUsers(query, limit),
+      `searchUsers("${query}")`
+    );
+  } else {
+    return withFallback(
+      () => rapidSearchUsers(query, limit),
+      () => taioSearchUsers(query, limit),
+      `searchUsers("${query}")`
+    );
   }
-
-  return users.slice(0, limit);
 }
 
+/**
+ * Get user profile by handle
+ * Uses primary provider with automatic fallback
+ */
+export async function getUserProfile(
+  userName: string
+): Promise<TwitterUserProfile | null> {
+  const cleanHandle = userName.replace('@', '');
+
+  if (PRIMARY_PROVIDER === 'twitterapiio') {
+    return withFallback(
+      () => taioGetUserInfo(cleanHandle),
+      () => rapidGetUserInfo(cleanHandle),
+      `getUserProfile("${cleanHandle}")`
+    );
+  } else {
+    return withFallback(
+      () => rapidGetUserInfo(cleanHandle),
+      () => taioGetUserInfo(cleanHandle),
+      `getUserProfile("${cleanHandle}")`
+    );
+  }
+}
+
+/**
+ * Get user's recent tweets
+ * Uses primary provider with automatic fallback
+ */
+export async function getUserTweets(
+  userName: string,
+  limit: number = 10
+): Promise<TwitterTweet[]> {
+  const cleanHandle = userName.replace('@', '');
+
+  // For now, only TwitterAPI.io supports this cleanly
+  // RapidAPI would need additional implementation
+  if (PRIMARY_PROVIDER === 'twitterapiio' || !RAPIDAPI_KEY) {
+    return taioGetUserTweets(cleanHandle, limit);
+  }
+
+  // Fallback to TwitterAPI.io if RapidAPI fails
+  try {
+    return await taioGetUserTweets(cleanHandle, limit);
+  } catch {
+    console.warn(`[twitterClient] getUserTweets fallback not fully implemented`);
+    return [];
+  }
+}

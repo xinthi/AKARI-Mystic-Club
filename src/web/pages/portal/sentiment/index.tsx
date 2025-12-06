@@ -18,7 +18,6 @@ interface ProjectWithMetrics {
   akari_score: number | null;
   followers: number | null;
   date: string | null;
-  // 24h changes
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
@@ -39,10 +38,32 @@ interface TopMover {
   ctHeatDirection24h: ChangeDirection;
 }
 
+interface TopEngagement {
+  slug: string;
+  name: string;
+  x_handle: string;
+  avatar_url: string | null;
+  ct_heat_score: number;
+  sentiment_score: number | null;
+  akari_score: number | null;
+}
+
+interface TrendingUp {
+  slug: string;
+  name: string;
+  x_handle: string;
+  avatar_url: string | null;
+  sentiment_score: number;
+  sentimentChange24h: number;
+  akari_score: number | null;
+}
+
 interface SentimentOverviewResponse {
   ok: boolean;
   projects?: ProjectWithMetrics[];
   topMovers?: TopMover[];
+  topEngagement?: TopEngagement[];
+  trendingUp?: TrendingUp[];
   error?: string;
 }
 
@@ -97,6 +118,75 @@ function getSentimentColor(score: number | null): string {
 }
 
 /**
+ * Avatar component with fallback
+ */
+function Avatar({ url, name, size = 'md' }: { url: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClasses = {
+    sm: 'h-8 w-8 text-sm',
+    md: 'h-10 w-10 text-base',
+    lg: 'h-12 w-12 text-lg',
+  };
+
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft`}
+        onError={(e) => {
+          // Hide broken image and show fallback
+          e.currentTarget.style.display = 'none';
+          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
+      {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+/**
+ * Avatar with fallback wrapper
+ */
+function AvatarWithFallback({ url, name, size = 'md' }: { url: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClasses = {
+    sm: 'h-8 w-8 text-sm',
+    md: 'h-10 w-10 text-base',
+    lg: 'h-12 w-12 text-lg',
+  };
+
+  return (
+    <div className="relative">
+      {url ? (
+        <>
+          <img
+            src={url}
+            alt={name}
+            className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft`}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fallback = e.currentTarget.nextElementSibling;
+              if (fallback) fallback.classList.remove('hidden');
+            }}
+          />
+          <div className={`hidden flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
+            {name.charAt(0).toUpperCase()}
+          </div>
+        </>
+      ) : (
+        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold`}>
+          {name.charAt(0).toUpperCase()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Change indicator component for 24h deltas
  */
 function ChangeIndicator({ 
@@ -129,71 +219,137 @@ function ChangeIndicator({
 }
 
 /**
- * Top Movers Panel Component
+ * Widget Card Component
  */
-function TopMoversPanel({ movers }: { movers: TopMover[] }) {
+function WidgetCard({ 
+  title, 
+  icon, 
+  children,
+  gradient = 'from-akari-primary/10 to-transparent'
+}: { 
+  title: string; 
+  icon: string;
+  children: React.ReactNode;
+  gradient?: string;
+}) {
+  return (
+    <div className={`rounded-2xl border border-akari-border/70 bg-gradient-to-br ${gradient} p-4`}>
+      <h3 className="text-xs uppercase tracking-wider text-akari-muted mb-3 flex items-center gap-2">
+        <span>{icon}</span>
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Top Movers Widget
+ */
+function TopMoversWidget({ movers }: { movers: TopMover[] }) {
   if (movers.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-      <h3 className="text-xs uppercase tracking-wider text-akari-muted mb-3 flex items-center gap-2">
-        <span className="text-akari-primary">⚡</span>
-        Top Movers (24h)
-      </h3>
+    <WidgetCard title="Top Movers (24h)" icon="⚡" gradient="from-yellow-500/10 to-transparent">
       <div className="space-y-2">
-        {movers.map((mover) => {
+        {movers.map((mover, idx) => {
           const tier = getAkariTier(mover.akari_score);
           return (
             <Link
               key={mover.slug}
               href={`/portal/sentiment/${mover.slug}`}
-              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft transition group"
+              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
             >
-              {/* Avatar */}
-              {mover.avatar_url ? (
-                <img
-                  src={mover.avatar_url}
-                  alt={mover.name}
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-akari-cardSoft text-akari-primary text-sm">
-                  {mover.name.charAt(0)}
-                </div>
-              )}
-
-              {/* Info */}
+              <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+              <AvatarWithFallback url={mover.avatar_url} name={mover.name} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
                   {mover.name}
                 </p>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                  <span className="text-akari-muted">Sentiment:</span>
-                  <ChangeIndicator 
-                    change={mover.sentimentChange24h} 
-                    direction={mover.sentimentDirection24h}
-                    compact
-                  />
+                <div className="flex items-center gap-2 text-xs">
+                  <ChangeIndicator change={mover.sentimentChange24h} direction={mover.sentimentDirection24h} compact />
                   <span className="text-akari-muted">CT:</span>
-                  <ChangeIndicator 
-                    change={mover.ctHeatChange24h} 
-                    direction={mover.ctHeatDirection24h}
-                    compact
-                  />
+                  <ChangeIndicator change={mover.ctHeatChange24h} direction={mover.ctHeatDirection24h} compact />
                 </div>
               </div>
-
-              {/* AKARI Score */}
-              <div className="text-right">
-                <p className={`font-mono text-sm font-medium ${tier.color}`}>
-                  {mover.akari_score ?? '-'}
-                </p>
+              <div className={`font-mono text-sm font-medium ${tier.color}`}>
+                {mover.akari_score ?? '-'}
               </div>
             </Link>
           );
         })}
       </div>
-    </div>
+    </WidgetCard>
+  );
+}
+
+/**
+ * Top Engagement Widget
+ */
+function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
+  if (projects.length === 0) return null;
+
+  return (
+    <WidgetCard title="Hot Engagement" icon="🔥" gradient="from-orange-500/10 to-transparent">
+      <div className="space-y-2">
+        {projects.map((project, idx) => (
+          <Link
+            key={project.slug}
+            href={`/portal/sentiment/${project.slug}`}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+          >
+            <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+            <AvatarWithFallback url={project.avatar_url} name={project.name} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                {project.name}
+              </p>
+              <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
+              <p className="text-[10px] text-akari-muted">CT Heat</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </WidgetCard>
+  );
+}
+
+/**
+ * Trending Up Widget
+ */
+function TrendingUpWidget({ projects }: { projects: TrendingUp[] }) {
+  if (projects.length === 0) return null;
+
+  return (
+    <WidgetCard title="Trending Up" icon="📈" gradient="from-green-500/10 to-transparent">
+      <div className="space-y-2">
+        {projects.map((project, idx) => (
+          <Link
+            key={project.slug}
+            href={`/portal/sentiment/${project.slug}`}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+          >
+            <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+            <AvatarWithFallback url={project.avatar_url} name={project.name} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                {project.name}
+              </p>
+              <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-sm font-medium text-akari-primary">
+                {project.sentiment_score}
+              </p>
+              <p className="text-[10px] text-akari-primary">▲ +{project.sentimentChange24h}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </WidgetCard>
   );
 }
 
@@ -204,6 +360,8 @@ function TopMoversPanel({ movers }: { movers: TopMover[] }) {
 export default function SentimentOverview() {
   const [projects, setProjects] = useState<ProjectWithMetrics[]>([]);
   const [topMovers, setTopMovers] = useState<TopMover[]>([]);
+  const [topEngagement, setTopEngagement] = useState<TopEngagement[]>([]);
+  const [trendingUp, setTrendingUp] = useState<TrendingUp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -228,6 +386,8 @@ export default function SentimentOverview() {
 
         setProjects(data.projects);
         setTopMovers(data.topMovers || []);
+        setTopEngagement(data.topEngagement || []);
+        setTrendingUp(data.trendingUp || []);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[SentimentOverview] Fetch error:', err);
@@ -271,7 +431,6 @@ export default function SentimentOverview() {
     }
   }, [searchQuery]);
 
-  // Handle Enter key in search input
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch();
@@ -285,9 +444,20 @@ export default function SentimentOverview() {
         <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
           Social Sentiment Terminal
         </p>
-        <h1 className="mb-2 text-2xl font-semibold md:text-3xl">
-          Track <span className="text-akari-primary">Sentiment</span> Across Crypto Twitter
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+          <h1 className="text-2xl font-semibold md:text-3xl">
+            Track <span className="text-akari-primary">Sentiment</span> Across Crypto Twitter
+          </h1>
+          <Link
+            href="/portal/sentiment/compare"
+            className="inline-flex items-center gap-2 rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-2 text-sm text-akari-text hover:border-akari-primary/50 hover:text-akari-primary transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Compare Projects
+          </Link>
+        </div>
         <p className="max-w-2xl text-sm text-akari-muted">
           Monitor real-time sentiment, engagement heat, and AKARI credibility scores for tracked projects. 
           Click any project to see detailed metrics and influencer activity.
@@ -313,7 +483,6 @@ export default function SentimentOverview() {
 
         {showSearch && (
           <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-            {/* Search input */}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
@@ -328,23 +497,14 @@ export default function SentimentOverview() {
                 disabled={searching}
                 className="rounded-xl bg-akari-primary px-4 py-2 text-sm font-medium text-black hover:opacity-90 transition disabled:opacity-50"
               >
-                {searching ? (
-                  <span className="flex items-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                    Searching
-                  </span>
-                ) : (
-                  'Search'
-                )}
+                {searching ? 'Searching...' : 'Search'}
               </button>
             </div>
 
-            {/* Search error */}
             {searchError && (
               <p className="text-sm text-akari-danger mb-3">{searchError}</p>
             )}
 
-            {/* Search results */}
             {searchResults.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-akari-muted uppercase tracking-wider mb-2">
@@ -358,39 +518,13 @@ export default function SentimentOverview() {
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 p-3 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 transition"
                   >
-                    {/* Avatar */}
-                    {user.avatarUrl ? (
-                      <img
-                        src={user.avatarUrl}
-                        alt={user.name || user.handle}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-akari-card text-akari-primary">
-                        {(user.name || user.handle).charAt(0).toUpperCase()}
-                      </div>
-                    )}
-
-                    {/* Info */}
+                    <AvatarWithFallback url={user.avatarUrl || null} name={user.name || user.handle} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-akari-text truncate">
-                          {user.name || user.handle}
-                        </p>
-                        {user.verified && (
-                          <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z" />
-                          </svg>
-                        )}
-                      </div>
+                      <p className="font-medium text-akari-text truncate">{user.name || user.handle}</p>
                       <p className="text-xs text-akari-muted">@{user.handle}</p>
                     </div>
-
-                    {/* Stats */}
                     <div className="text-right text-xs">
-                      <p className="text-akari-text font-mono">
-                        {formatNumber(user.followersCount)}
-                      </p>
+                      <p className="text-akari-text font-mono">{formatNumber(user.followersCount)}</p>
                       <p className="text-akari-muted">followers</p>
                     </div>
                   </a>
@@ -415,7 +549,7 @@ export default function SentimentOverview() {
         </div>
       )}
 
-      {/* Empty state - only show if not loading and no error and no projects */}
+      {/* Empty state */}
       {!loading && !error && projects.length === 0 && (
         <div className="rounded-2xl border border-akari-border bg-akari-card p-8 text-center">
           <p className="text-sm text-akari-muted">
@@ -424,35 +558,33 @@ export default function SentimentOverview() {
         </div>
       )}
 
-      {/* Tracked Projects Section */}
+      {/* Main Content */}
       {!loading && !error && projects.length > 0 && (
         <>
-          {/* Top Movers - positioned at top right on desktop */}
-          {topMovers.length > 0 && (
-            <div className="mb-6 flex justify-end">
-              <div className="w-full md:w-80">
-                <TopMoversPanel movers={topMovers} />
-              </div>
-            </div>
-          )}
+          {/* Signal Widgets Grid */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <TopMoversWidget movers={topMovers} />
+            <TopEngagementWidget projects={topEngagement} />
+            <TrendingUpWidget projects={trendingUp} />
+          </section>
 
-          {/* Main projects table/list */}
-          <div>
+          {/* Tracked Projects Section */}
+          <section>
             <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
               Tracked Projects
             </h2>
 
             {/* Desktop table view */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-akari-border text-left text-xs uppercase tracking-wider text-akari-muted">
-                    <th className="pb-3 pr-4">Project</th>
-                    <th className="pb-3 px-4">AKARI Score</th>
-                    <th className="pb-3 px-4">Sentiment</th>
-                    <th className="pb-3 px-4">CT Heat</th>
-                    <th className="pb-3 px-4">Followers</th>
-                    <th className="pb-3 pl-4">Updated</th>
+                  <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
+                    <th className="py-3 px-4">Project</th>
+                    <th className="py-3 px-4">AKARI Score</th>
+                    <th className="py-3 px-4">Sentiment</th>
+                    <th className="py-3 px-4">CT Heat</th>
+                    <th className="py-3 px-4">Followers</th>
+                    <th className="py-3 px-4">Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -461,68 +593,38 @@ export default function SentimentOverview() {
                     return (
                       <tr
                         key={project.id}
-                        className="border-b border-akari-border/50 transition hover:bg-akari-cardSoft"
+                        className="border-b border-akari-border/30 transition hover:bg-akari-cardSoft/50"
                       >
-                        {/* Project name & handle */}
-                        <td className="py-4 pr-4">
+                        <td className="py-4 px-4">
                           <Link
                             href={`/portal/sentiment/${project.slug}`}
                             className="flex items-center gap-3 group"
                           >
-                            {project.avatar_url ? (
-                              <img
-                                src={project.avatar_url}
-                                alt={project.name}
-                                className="h-9 w-9 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-akari-cardSoft text-akari-primary">
-                                {project.name.charAt(0)}
-                              </div>
-                            )}
+                            <AvatarWithFallback url={project.avatar_url} name={project.name} />
                             <div>
                               <p className="font-medium text-akari-text group-hover:text-akari-primary transition">
                                 {project.name}
                               </p>
-                              <p className="text-xs text-akari-muted">
-                                @{project.x_handle}
-                              </p>
+                              <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                             </div>
                           </Link>
                         </td>
-
-                        {/* AKARI Score with tier badge */}
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-medium">
-                              {project.akari_score ?? '-'}
-                            </span>
-                            <span
-                              className={`rounded-full bg-akari-cardSoft px-2 py-0.5 text-[10px] uppercase tracking-wider ${tier.color}`}
-                            >
+                            <span className="font-mono font-medium">{project.akari_score ?? '-'}</span>
+                            <span className={`rounded-full bg-akari-cardSoft px-2 py-0.5 text-[10px] uppercase tracking-wider ${tier.color}`}>
                               {tier.name}
                             </span>
                           </div>
                         </td>
-
-                        {/* Sentiment score with 24h change */}
                         <td className="py-4 px-4">
                           <div className="flex flex-col gap-0.5">
-                            <span
-                              className={`font-mono font-medium ${getSentimentColor(
-                                project.sentiment_score
-                              )}`}
-                            >
+                            <span className={`font-mono font-medium ${getSentimentColor(project.sentiment_score)}`}>
                               {project.sentiment_score ?? '-'}
                             </span>
-                            <ChangeIndicator 
-                              change={project.sentimentChange24h} 
-                              direction={project.sentimentDirection24h}
-                            />
+                            <ChangeIndicator change={project.sentimentChange24h} direction={project.sentimentDirection24h} />
                           </div>
                         </td>
-
-                        {/* CT Heat with 24h change */}
                         <td className="py-4 px-4">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
@@ -532,27 +634,16 @@ export default function SentimentOverview() {
                                   style={{ width: `${project.ct_heat_score ?? 0}%` }}
                                 />
                               </div>
-                              <span className="font-mono text-xs text-akari-muted">
-                                {project.ct_heat_score ?? '-'}
-                              </span>
+                              <span className="font-mono text-xs text-akari-muted">{project.ct_heat_score ?? '-'}</span>
                             </div>
-                            <ChangeIndicator 
-                              change={project.ctHeatChange24h} 
-                              direction={project.ctHeatDirection24h}
-                            />
+                            <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} />
                           </div>
                         </td>
-
-                        {/* Followers */}
                         <td className="py-4 px-4 font-mono text-akari-muted">
                           {formatNumber(project.followers)}
                         </td>
-
-                        {/* Last updated */}
-                        <td className="py-4 pl-4 text-xs text-akari-muted">
-                          {project.date
-                            ? new Date(project.date).toLocaleDateString()
-                            : '-'}
+                        <td className="py-4 px-4 text-xs text-akari-muted">
+                          {project.date ? new Date(project.date).toLocaleDateString() : '-'}
                         </td>
                       </tr>
                     );
@@ -571,85 +662,39 @@ export default function SentimentOverview() {
                     href={`/portal/sentiment/${project.slug}`}
                     className="block rounded-2xl border border-akari-border/70 bg-akari-card p-4 transition hover:border-akari-primary/50"
                   >
-                    {/* Project header */}
                     <div className="flex items-center gap-3 mb-3">
-                      {project.avatar_url ? (
-                        <img
-                          src={project.avatar_url}
-                          alt={project.name}
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-akari-cardSoft text-akari-primary text-lg">
-                          {project.name.charAt(0)}
-                        </div>
-                      )}
+                      <AvatarWithFallback url={project.avatar_url} name={project.name} size="lg" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-akari-text truncate">
-                          {project.name}
-                        </p>
-                        <p className="text-xs text-akari-muted">
-                          @{project.x_handle}
-                        </p>
+                        <p className="font-medium text-akari-text truncate">{project.name}</p>
+                        <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                       </div>
-                      {/* Tier badge */}
-                      <span
-                        className={`rounded-full bg-akari-cardSoft px-2 py-1 text-[10px] uppercase tracking-wider ${tier.color}`}
-                      >
+                      <span className={`rounded-full bg-akari-cardSoft px-2 py-1 text-[10px] uppercase tracking-wider ${tier.color}`}>
                         {tier.name}
                       </span>
                     </div>
-
-                    {/* Metrics grid */}
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-xl bg-akari-cardSoft p-2">
-                        <p className="text-[10px] uppercase text-akari-muted mb-1">
-                          AKARI
-                        </p>
-                        <p className="font-mono font-medium">
-                          {project.akari_score ?? '-'}
-                        </p>
+                        <p className="text-[10px] uppercase text-akari-muted mb-1">AKARI</p>
+                        <p className="font-mono font-medium">{project.akari_score ?? '-'}</p>
                       </div>
                       <div className="rounded-xl bg-akari-cardSoft p-2">
-                        <p className="text-[10px] uppercase text-akari-muted mb-0.5">
-                          Sentiment
-                        </p>
-                        <p
-                          className={`font-mono font-medium ${getSentimentColor(
-                            project.sentiment_score
-                          )}`}
-                        >
+                        <p className="text-[10px] uppercase text-akari-muted mb-0.5">Sentiment</p>
+                        <p className={`font-mono font-medium ${getSentimentColor(project.sentiment_score)}`}>
                           {project.sentiment_score ?? '-'}
                         </p>
-                        <div className="mt-0.5">
-                          <ChangeIndicator 
-                            change={project.sentimentChange24h} 
-                            direction={project.sentimentDirection24h}
-                            compact
-                          />
-                        </div>
+                        <ChangeIndicator change={project.sentimentChange24h} direction={project.sentimentDirection24h} compact />
                       </div>
                       <div className="rounded-xl bg-akari-cardSoft p-2">
-                        <p className="text-[10px] uppercase text-akari-muted mb-0.5">
-                          CT Heat
-                        </p>
-                        <p className="font-mono font-medium">
-                          {project.ct_heat_score ?? '-'}
-                        </p>
-                        <div className="mt-0.5">
-                          <ChangeIndicator 
-                            change={project.ctHeatChange24h} 
-                            direction={project.ctHeatDirection24h}
-                            compact
-                          />
-                        </div>
+                        <p className="text-[10px] uppercase text-akari-muted mb-0.5">CT Heat</p>
+                        <p className="font-mono font-medium">{project.ct_heat_score ?? '-'}</p>
+                        <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
                     </div>
                   </Link>
                 );
               })}
             </div>
-          </div>
+          </section>
         </>
       )}
     </PortalLayout>

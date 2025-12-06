@@ -86,21 +86,40 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          TWITTERAPIIO_API_KEY: ${{ secrets.TWITTERAPIIO_API_KEY }}
+          TWITTER_API65_AUTH_TOKEN: ${{ secrets.TWITTER_API65_AUTH_TOKEN }}
+          TWITTER_PRIMARY_PROVIDER: ${{ secrets.TWITTER_PRIMARY_PROVIDER }}
           NODE_ENV: production
         run: |
           echo "Starting sentiment update..."
-          npx ts-node scripts/sentiment/updateAllProjects.ts
+          npx ts-node --transpile-only scripts/sentiment/updateAllProjects.ts
           echo "Sentiment update complete!"
 
-      # Step 9: Report status (on failure)
+      # Step 9: Run circles update script
+      - name: Run circles update
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          TWITTERAPIIO_API_KEY: ${{ secrets.TWITTERAPIIO_API_KEY }}
+          TWITTER_API65_AUTH_TOKEN: ${{ secrets.TWITTER_API65_AUTH_TOKEN }}
+          TWITTER_PRIMARY_PROVIDER: ${{ secrets.TWITTER_PRIMARY_PROVIDER }}
+          NODE_ENV: production
+        run: |
+          echo "Starting circles update..."
+          npx ts-node --transpile-only scripts/sentiment/updateCircles.ts
+          echo "Circles update complete!"
+
+      # Step 11: Report status (on failure)
       - name: Report failure
         if: failure()
         run: |
-          echo "::error::Sentiment update failed! Check the logs above for details."
+          echo "::error::Update failed! Check the logs above for details."
           echo "Common issues:"
           echo "- Missing or invalid SUPABASE_URL secret"
           echo "- Missing or invalid SUPABASE_SERVICE_ROLE_KEY secret"
           echo "- Missing or invalid RAPIDAPI_KEY secret"
-          echo "- RapidAPI rate limits exceeded"
+          echo "- Missing or invalid TWITTERAPIIO_API_KEY secret"
+          echo "- RapidAPI or TwitterAPI.io rate limits exceeded"
           echo "- Network connectivity issues"
 

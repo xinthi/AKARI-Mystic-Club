@@ -12,7 +12,9 @@
  * Environment variables required:
  * - SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
- * - RAPIDAPI_KEY
+ * - TWITTER_PRIMARY_PROVIDER: "twitterapiio" or "rapidapi" (default: "twitterapiio")
+ * - TWITTERAPIIO_API_KEY (if using TwitterAPI.io)
+ * - RAPIDAPI_KEY (if using RapidAPI or as fallback)
  */
 
 // Load environment variables from .env at project root
@@ -20,16 +22,17 @@ import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
 
-// Import our helper modules
+// Import unified Twitter client
 import {
-  fetchUserProfile,
-  fetchUserTweets,
-  fetchUserFollowersSample,
+  unifiedGetUserInfo,
+  unifiedGetUserLastTweets,
+  unifiedGetUserFollowers,
   calculateFollowerQuality,
-  scrapeTweetsBySearch,
-  TwitterTweet,
-  TwitterUserProfile,
-} from '../../src/server/rapidapi/twitter';
+  UnifiedUserProfile,
+  UnifiedTweet,
+} from '../../src/server/twitterClient';
+
+// Import other helper modules
 import {
   fetchProjectMentions,
   calculateMentionStats,
@@ -51,6 +54,7 @@ import {
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? 'twitterapiio';
 
 // Rate limiting settings
 const DELAY_BETWEEN_PROJECTS_MS = 2000; // 2 seconds between projects
@@ -97,6 +101,7 @@ async function main() {
   console.log('='.repeat(60));
   console.log('AKARI Sentiment Update Script');
   console.log('Started at:', new Date().toISOString());
+  console.log('Primary Twitter provider:', PRIMARY_PROVIDER);
   console.log('='.repeat(60));
 
   // Validate environment variables
@@ -107,10 +112,21 @@ async function main() {
     process.exit(1);
   }
 
-  if (!process.env.RAPIDAPI_KEY) {
-    console.error('❌ Missing RAPIDAPI_KEY environment variable');
+  // Check for at least one Twitter API key
+  const hasTwitterApiIo = Boolean(process.env.TWITTERAPIIO_API_KEY);
+  const hasRapidApi = Boolean(process.env.RAPIDAPI_KEY);
+  
+  if (!hasTwitterApiIo && !hasRapidApi) {
+    console.error('❌ Missing Twitter API credentials:');
+    console.error('   - TWITTERAPIIO_API_KEY:', hasTwitterApiIo ? '✓' : '✗');
+    console.error('   - RAPIDAPI_KEY:', hasRapidApi ? '✓' : '✗');
+    console.error('   At least one provider must be configured.');
     process.exit(1);
   }
+
+  console.log('API credentials:');
+  console.log('   - TwitterAPI.io:', hasTwitterApiIo ? '✓' : '✗');
+  console.log('   - RapidAPI:', hasRapidApi ? '✓' : '✗');
 
   // Create Supabase client with service role (write access)
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -223,11 +239,11 @@ async function main() {
 async function processProject(project: Project, date: string): Promise<ProcessingResult | null> {
   const handle = project.x_handle;
 
-  // Step 1: Fetch user profile
+  // Step 1: Fetch user profile using unified client
   console.log(`   Fetching profile for @${handle}...`);
-  let profile: TwitterUserProfile | null = null;
+  let profile: UnifiedUserProfile | null = null;
   try {
-    profile = await fetchUserProfile(handle);
+    profile = await unifiedGetUserInfo(handle);
   } catch (e: unknown) {
     const err = e as Error;
     console.log(`   ⚠️  Could not fetch profile: ${err.message}`);
@@ -242,11 +258,11 @@ async function processProject(project: Project, date: string): Promise<Processin
   const followersCount = profile.followersCount ?? 0;
   console.log(`   Followers: ${followersCount.toLocaleString()}`);
 
-  // Step 2: Fetch recent tweets
+  // Step 2: Fetch recent tweets using unified client
   console.log(`   Fetching recent tweets...`);
-  let tweets: TwitterTweet[] = [];
+  let tweets: UnifiedTweet[] = [];
   try {
-    tweets = await fetchUserTweets(handle, 20);
+    tweets = await unifiedGetUserLastTweets(handle, 20);
     console.log(`   Found ${tweets.length} tweets`);
   } catch (e: unknown) {
     const err = e as Error;
@@ -254,11 +270,11 @@ async function processProject(project: Project, date: string): Promise<Processin
   }
   await delay(DELAY_BETWEEN_API_CALLS_MS);
 
-  // Step 3: Fetch follower sample for quality score
+  // Step 3: Fetch follower sample for quality score using unified client
   console.log(`   Fetching follower sample...`);
   let followerQuality = 50; // Default neutral
   try {
-    const followers = await fetchUserFollowersSample(handle, 30);
+    const followers = await unifiedGetUserFollowers(handle, 30);
     if (followers.length > 0) {
       followerQuality = calculateFollowerQuality(followers);
       console.log(`   Follower quality score: ${followerQuality}`);
@@ -269,11 +285,10 @@ async function processProject(project: Project, date: string): Promise<Processin
   }
   await delay(DELAY_BETWEEN_API_CALLS_MS);
 
-  // Step 4: Fetch mentions
+  // Step 4: Fetch mentions (still using RapidAPI mentions helper)
   console.log(`   Fetching mentions...`);
   let mentions: MentionResult[] = [];
   try {
-    // Fetch mentions for the handle
     mentions = await fetchProjectMentions({
       keyword: `@${handle}`,
       periodDays: 1,
@@ -395,10 +410,11 @@ async function processProject(project: Project, date: string): Promise<Processin
     last_refreshed_at: new Date().toISOString(),
   };
 
-  // Add avatar URL if we got one from the profile
-  if (profile.avatarUrl) {
-    projectUpdate.avatar_url = profile.avatarUrl;
-    console.log(`   📷 Found avatar: ${profile.avatarUrl.substring(0, 50)}...`);
+  // Add avatar URL if we got one from the profile (check both fields)
+  const avatarUrl = profile.profileImageUrl ?? (profile as Record<string, unknown>).avatarUrl as string;
+  if (avatarUrl) {
+    projectUpdate.avatar_url = avatarUrl;
+    console.log(`   📷 Found avatar: ${avatarUrl.substring(0, 50)}...`);
   }
 
   // Add bio if we got one from the profile

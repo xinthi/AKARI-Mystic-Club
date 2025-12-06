@@ -138,6 +138,32 @@ export interface TopMover {
 }
 
 /**
+ * Top engagement entry (highest CT Heat / engagement scores)
+ */
+export interface TopEngagement {
+  slug: string;
+  name: string;
+  x_handle: string;
+  avatar_url: string | null;
+  ct_heat_score: number;
+  sentiment_score: number | null;
+  akari_score: number | null;
+}
+
+/**
+ * Trending up entry (positive sentiment momentum)
+ */
+export interface TrendingUp {
+  slug: string;
+  name: string;
+  x_handle: string;
+  avatar_url: string | null;
+  sentiment_score: number;
+  sentimentChange24h: number;
+  akari_score: number | null;
+}
+
+/**
  * Influencer with project relationship data
  */
 export interface InfluencerWithRelation extends Influencer {
@@ -338,6 +364,50 @@ export function computeTopMovers(
     sentimentDirection24h: p.sentimentDirection24h,
     ctHeatDirection24h: p.ctHeatDirection24h,
   }));
+}
+
+/**
+ * Compute top engagement projects (highest CT Heat scores)
+ */
+export function computeTopEngagement(
+  projects: ProjectWithMetrics[],
+  limit: number = 3
+): TopEngagement[] {
+  return projects
+    .filter(p => p.ct_heat_score !== null && p.ct_heat_score > 0)
+    .sort((a, b) => (b.ct_heat_score ?? 0) - (a.ct_heat_score ?? 0))
+    .slice(0, limit)
+    .map(p => ({
+      slug: p.slug,
+      name: p.name,
+      x_handle: p.x_handle,
+      avatar_url: p.avatar_url,
+      ct_heat_score: p.ct_heat_score ?? 0,
+      sentiment_score: p.sentiment_score,
+      akari_score: p.akari_score,
+    }));
+}
+
+/**
+ * Compute trending up projects (positive sentiment with upward momentum)
+ */
+export function computeTrendingUp(
+  projects: ProjectWithMetrics[],
+  limit: number = 3
+): TrendingUp[] {
+  return projects
+    .filter(p => p.sentiment_score !== null && p.sentimentChange24h > 0)
+    .sort((a, b) => b.sentimentChange24h - a.sentimentChange24h)
+    .slice(0, limit)
+    .map(p => ({
+      slug: p.slug,
+      name: p.name,
+      x_handle: p.x_handle,
+      avatar_url: p.avatar_url,
+      sentiment_score: p.sentiment_score ?? 0,
+      sentimentChange24h: p.sentimentChange24h,
+      akari_score: p.akari_score,
+    }));
 }
 
 /**

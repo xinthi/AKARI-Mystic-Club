@@ -2,7 +2,7 @@
  * API Route: GET /api/portal/sentiment
  * 
  * Returns a list of all active projects with their latest sentiment metrics,
- * 24h changes, and top movers.
+ * 24h changes, top movers, top engagement, and trending projects.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -10,8 +10,12 @@ import {
   createPortalClient,
   getProjectsWithLatestMetrics,
   computeTopMovers,
+  computeTopEngagement,
+  computeTrendingUp,
   ProjectWithMetrics,
   TopMover,
+  TopEngagement,
+  TrendingUp,
 } from '@/lib/portal/supabase';
 
 /**
@@ -22,6 +26,8 @@ type SentimentOverviewResponse =
       ok: true;
       projects: ProjectWithMetrics[];
       topMovers: TopMover[];
+      topEngagement: TopEngagement[];
+      trendingUp: TrendingUp[];
     }
   | {
       ok: false;
@@ -55,13 +61,17 @@ export default async function handler(
       return b.akari_score - a.akari_score;
     });
 
-    // Compute top movers (projects with biggest 24h changes)
-    const topMovers = computeTopMovers(projects, 5);
+    // Compute widgets
+    const topMovers = computeTopMovers(projects, 3);
+    const topEngagement = computeTopEngagement(projects, 3);
+    const trendingUp = computeTrendingUp(projects, 3);
 
     return res.status(200).json({
       ok: true,
       projects,
       topMovers,
+      topEngagement,
+      trendingUp,
     });
   } catch (error: any) {
     console.error('[API /portal/sentiment] Error:', error);
