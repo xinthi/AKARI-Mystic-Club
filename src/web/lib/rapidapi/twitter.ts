@@ -415,13 +415,54 @@ function extractArray(
 // =============================================================================
 
 /**
+ * Check if a query looks like a username (not a general search term)
+ */
+function looksLikeUsername(query: string): boolean {
+  const cleaned = query.replace('@', '').trim();
+  // Username: alphanumeric + underscores, no spaces, 1-15 chars
+  return /^[a-zA-Z0-9_]{1,15}$/.test(cleaned);
+}
+
+/**
  * Search for Twitter users by query
+ * If the query looks like a username, tries direct lookup first for accuracy
  * Uses primary provider with automatic fallback
  */
 export async function searchUsers(
   query: string,
   limit: number = 20
 ): Promise<TwitterUserProfile[]> {
+  const cleanQuery = query.trim();
+  
+  // If query looks like a username, try direct lookup first
+  if (looksLikeUsername(cleanQuery)) {
+    console.log(`[TwitterClient] Query "${cleanQuery}" looks like username, trying direct lookup first`);
+    
+    try {
+      const directUser = await getUserProfile(cleanQuery);
+      if (directUser && directUser.handle) {
+        console.log(`[TwitterClient] Direct lookup found: @${directUser.handle}`);
+        // Return the direct match as first result, then search for similar
+        const searchResults = await doSearch(cleanQuery, limit - 1);
+        // Filter out the direct match from search results to avoid duplicates
+        const filteredResults = searchResults.filter(
+          u => u.handle.toLowerCase() !== directUser.handle.toLowerCase()
+        );
+        return [directUser, ...filteredResults].slice(0, limit);
+      }
+    } catch (err) {
+      console.log(`[TwitterClient] Direct lookup failed, falling back to search`);
+    }
+  }
+  
+  // Fall back to regular search
+  return doSearch(cleanQuery, limit);
+}
+
+/**
+ * Internal search function
+ */
+async function doSearch(query: string, limit: number): Promise<TwitterUserProfile[]> {
   if (PRIMARY_PROVIDER === 'twitterapiio') {
     return withFallback(
       () => taioSearchUsers(query, limit),
