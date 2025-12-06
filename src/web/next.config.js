@@ -7,6 +7,28 @@ const nextConfig = {
   env: {
     VERCEL_URL: process.env.VERCEL_URL,
   },
+  // Allow external images from Twitter CDN
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'pbs.twimg.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'abs.twimg.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.twimg.com',
+        pathname: '/**',
+      },
+    ],
+    // Also support unoptimized images for external URLs
+    unoptimized: false,
+  },
   webpack: (config, { isServer }) => {
     // Client-side fallbacks
     if (!isServer) {

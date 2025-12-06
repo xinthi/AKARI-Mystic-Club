@@ -486,23 +486,62 @@ export default function SentimentOverview() {
                   Found {searchResults.length} profile(s)
                 </p>
                 {searchResults.map((user) => (
-                  <a
+                  <div
                     key={user.handle}
-                    href={`https://x.com/${user.handle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 transition"
+                    className="flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/30 transition"
                   >
-                    <AvatarWithFallback url={user.avatarUrl || null} name={user.name || user.handle} />
+                    {/* Profile Image - use profileImageUrl or avatarUrl */}
+                    {(user.profileImageUrl || user.avatarUrl) ? (
+                      <img
+                        src={user.profileImageUrl || user.avatarUrl}
+                        alt={user.name || user.handle}
+                        className="h-12 w-12 rounded-full object-cover bg-akari-card border border-akari-border/50 flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div 
+                      className={`${(user.profileImageUrl || user.avatarUrl) ? 'hidden' : 'flex'} h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 text-akari-primary font-semibold text-lg flex-shrink-0`}
+                    >
+                      {(user.name || user.handle).charAt(0).toUpperCase()}
+                    </div>
+                    
+                    {/* Profile Details */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-akari-text truncate">{user.name || user.handle}</p>
-                      <p className="text-xs text-akari-muted">@{user.handle}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-akari-text truncate">{user.name || user.handle}</p>
+                        {user.verified && (
+                          <span className="text-blue-400 text-sm" title="Verified">✓</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-akari-muted mb-2">@{user.handle}</p>
+                      {user.bio && (
+                        <p className="text-xs text-akari-text/70 line-clamp-2 mb-2">{user.bio}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-akari-muted">
+                        <span><strong className="text-akari-text">{formatNumber(user.followersCount)}</strong> followers</span>
+                        <span><strong className="text-akari-text">{formatNumber(user.followingCount)}</strong> following</span>
+                        {user.tweetCount && (
+                          <span><strong className="text-akari-text">{formatNumber(user.tweetCount)}</strong> tweets</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right text-xs">
-                      <p className="text-akari-text font-mono">{formatNumber(user.followersCount)}</p>
-                      <p className="text-akari-muted">followers</p>
+                    
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <a
+                        href={`https://x.com/${user.handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs px-3 py-1.5 rounded-lg bg-akari-card border border-akari-border/50 text-akari-muted hover:text-akari-text hover:border-akari-primary/50 transition text-center"
+                      >
+                        View on X →
+                      </a>
                     </div>
-                  </a>
+                  </div>
                 ))}
               </div>
             )}
