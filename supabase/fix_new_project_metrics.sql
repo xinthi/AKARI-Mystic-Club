@@ -5,6 +5,7 @@
 
 -- This script finds projects with less than 7 days of metrics
 -- and creates historical data so charts can render properly
+-- INCLUDING realistic follower variation for the Followers Δ chart
 
 DO $$
 DECLARE
@@ -16,6 +17,8 @@ DECLARE
   base_ct_heat INTEGER;
   base_akari INTEGER;
   base_followers INTEGER;
+  day_followers INTEGER;
+  growth_rate NUMERIC;
 BEGIN
   -- Loop through all active projects
   FOR proj IN 
@@ -39,18 +42,26 @@ BEGIN
       base_akari := COALESCE(existing_metrics.akari_score, 400);
       base_followers := COALESCE(existing_metrics.followers, 0);
       
-      RAISE NOTICE 'Backfilling metrics for project: % (%)', proj.name, proj.slug;
+      -- Calculate daily growth rate (~0.5-1% per day = 3-7% weekly)
+      growth_rate := 0.005 + (random() * 0.005);
+      
+      RAISE NOTICE 'Backfilling metrics for project: % (%) with growth rate: %', proj.name, proj.slug, growth_rate;
       
       -- Create 7 days of data (going backwards from today)
       FOR i IN 1..7 LOOP
         target_date := CURRENT_DATE - (i - 1);
+        
+        -- Calculate followers with daily decrease going back in time
+        -- Day 1 (today) = base_followers
+        -- Day 7 (6 days ago) = base_followers - ~5%
+        day_followers := GREATEST(0, ROUND(base_followers * (1 - growth_rate * (i - 1))));
         
         -- Skip if data already exists for this date
         IF NOT EXISTS (
           SELECT 1 FROM metrics_daily 
           WHERE project_id = proj.id AND date = target_date
         ) THEN
-          -- Insert with slight variations for realism
+          -- Insert with variations for realism
           INSERT INTO metrics_daily (
             project_id, 
             date, 
@@ -63,9 +74,14 @@ BEGIN
             target_date,
             LEAST(100, GREATEST(0, base_sentiment - (i * 2) + floor(random() * 5)::int)),
             LEAST(100, GREATEST(0, base_ct_heat - (i * 2) + floor(random() * 5)::int)),
-            base_followers,
+            day_followers,
             LEAST(1000, GREATEST(0, base_akari - (i * 5) + floor(random() * 10)::int))
           );
+        ELSE
+          -- Update existing row's followers to add variation
+          UPDATE metrics_daily 
+          SET followers = day_followers
+          WHERE project_id = proj.id AND date = target_date;
         END IF;
       END LOOP;
       
