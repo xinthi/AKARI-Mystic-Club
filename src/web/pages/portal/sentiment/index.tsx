@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 
 /**
@@ -349,6 +350,45 @@ export default function SentimentOverview() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [trackingUser, setTrackingUser] = useState<string | null>(null);
+  
+  const router = useRouter();
+
+  // Track a profile and navigate to its detail page
+  const handleTrackAndNavigate = useCallback(async (user: SearchResultUser) => {
+    setTrackingUser(user.username);
+    
+    try {
+      // Track the profile first (saves to DB)
+      const trackRes = await fetch('/api/portal/sentiment/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.username,
+          name: user.name,
+          bio: user.bio,
+          profileImageUrl: user.profileImageUrl,
+          followersCount: user.followersCount,
+        }),
+      });
+
+      const trackData = await trackRes.json();
+      
+      if (trackData.ok && trackData.project) {
+        // Navigate to the tracked project's page
+        router.push(`/portal/sentiment/${trackData.project.slug}`);
+      } else {
+        // Fallback to profile page if tracking fails
+        router.push(`/portal/sentiment/profile/${user.username}`);
+      }
+    } catch (err) {
+      console.error('[Sentiment] Track error:', err);
+      // Fallback to profile page on error
+      router.push(`/portal/sentiment/profile/${user.username}`);
+    } finally {
+      setTrackingUser(null);
+    }
+  }, [router]);
 
   // Fetch tracked projects
   useEffect(() => {
