@@ -217,6 +217,38 @@ interface TradingChartProps {
   projectImageUrl: string | null;
 }
 
+/**
+ * Generate nice grid values for non-percentage metrics (like followers delta)
+ */
+function generateGridValues(min: number, max: number): number[] {
+  const range = max - min;
+  if (range === 0) return [0];
+  
+  // Find a nice step size
+  const roughStep = range / 4;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(Math.abs(roughStep) || 1)));
+  const normalizedStep = roughStep / magnitude;
+  
+  let niceStep: number;
+  if (normalizedStep <= 1) niceStep = magnitude;
+  else if (normalizedStep <= 2) niceStep = 2 * magnitude;
+  else if (normalizedStep <= 5) niceStep = 5 * magnitude;
+  else niceStep = 10 * magnitude;
+  
+  const values: number[] = [];
+  const start = Math.floor(min / niceStep) * niceStep;
+  for (let v = start; v <= max; v += niceStep) {
+    values.push(Math.round(v));
+  }
+  
+  // Ensure we have at least the min and max represented
+  if (values.length === 0) {
+    values.push(0);
+  }
+  
+  return values.slice(0, 5); // Max 5 grid lines
+}
+
 function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: TradingChartProps) {
   const [chartType, setChartType] = useState<ChartType>('line');
   const [metric, setMetric] = useState<ChartMetric>('sentiment');
@@ -225,11 +257,21 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
 
   // Prepare chart data (reverse for oldest-first)
   const chartData = useMemo(() => {
-    return [...metrics].reverse().map(m => ({
+    const reversed = [...metrics].reverse();
+    
+    // Calculate followers delta (change from previous day)
+    const followersDeltas: (number | null)[] = reversed.map((m, i) => {
+      if (i === 0) return 0; // First day has no delta
+      const prev = reversed[i - 1];
+      if (m.followers === null || prev.followers === null) return null;
+      return m.followers - prev.followers;
+    });
+    
+    return reversed.map((m, i) => ({
       date: m.date,
       value: metric === 'sentiment' ? m.sentiment_score :
              metric === 'ctHeat' ? m.ct_heat_score :
-             m.followers_delta ?? 0,
+             followersDeltas[i] ?? 0,
     }));
   }, [metrics, metric]);
 
@@ -257,11 +299,21 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
   const calculatedBarWidth = Math.min(maxBarWidth, (innerWidth / Math.max(chartData.length, 1)) - barGap);
   const barWidth = Math.max(8, calculatedBarWidth);
 
-  // Calculate scales
+  // Calculate scales - dynamic for followers delta
   const values = chartData.map(d => d.value ?? 0);
-  const minVal = Math.min(...values, 0);
-  const maxVal = Math.max(...values, 100);
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  
+  // For sentiment/ctHeat use 0-100, for followers delta use actual range
+  const isPercentMetric = metric === 'sentiment' || metric === 'ctHeat';
+  const minVal = isPercentMetric ? 0 : Math.min(dataMin, 0);
+  const maxVal = isPercentMetric ? 100 : Math.max(dataMax, 0) * 1.1 || 100; // Add 10% padding
   const range = maxVal - minVal || 1;
+  
+  // Generate grid values based on metric type
+  const gridValues = isPercentMetric 
+    ? [0, 25, 50, 75, 100]
+    : generateGridValues(minVal, maxVal);
 
   const getX = (i: number) => padding.left + (i / (chartData.length - 1 || 1)) * innerWidth;
   const getY = (val: number) => padding.top + innerHeight - ((val - minVal) / range) * innerHeight;
@@ -330,10 +382,10 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
           className="w-full h-40 sm:h-48 md:h-56"
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Grid lines */}
-          {[0, 25, 50, 75, 100].map(v => {
+          {/* Grid lines - dynamic based on metric */}
+          {gridValues.map(v => {
             const y = getY(v);
-            if (y < padding.top || y > chartHeight - padding.bottom) return null;
+            if (y < padding.top - 5 || y > chartHeight - padding.bottom + 5) return null;
             return (
               <g key={v}>
                 <line
@@ -351,7 +403,9 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                   textAnchor="end"
                   className="fill-akari-muted text-[10px]"
                 >
-                  {v}
+                  {metric === 'followersDelta' && Math.abs(v) >= 1000 
+                    ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}K`
+                    : v}
                 </text>
               </g>
             );
