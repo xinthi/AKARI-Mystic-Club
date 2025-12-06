@@ -8,7 +8,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { searchUsers, TwitterUserProfile } from '@/../../src/server/rapidapi/twitter';
+import { searchUsers } from '@/lib/rapidapi/twitter';
+import type { TwitterUserProfile } from '@/lib/rapidapi/twitter';
 
 type SearchResponse =
   | {
@@ -60,4 +61,3 @@ export default async function handler(
     });
   }
 }
-
