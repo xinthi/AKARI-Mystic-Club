@@ -264,6 +264,19 @@ async function main() {
 // =============================================================================
 
 /**
+ * Clean a string for Twitter search (remove emojis, special chars)
+ */
+function cleanSearchQuery(query: string): string {
+  // Remove emojis and special Unicode characters
+  return query
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Emojis
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+    .replace(/[^\w\s-]/g, '')               // Non-word characters
+    .trim();
+}
+
+/**
  * Auto-discover Twitter username for a project that doesn't have one.
  * Searches by project name, slug, and picks the best match.
  */
@@ -274,12 +287,26 @@ async function autoDiscoverTwitterUsername(
   console.log(`   🔍 Auto-discovering Twitter username for ${project.name}...`);
 
   try {
-    const searchQueries = [project.name, project.slug];
+    // Clean the project name and create search variants
+    const cleanName = cleanSearchQuery(project.name);
+    const cleanSlug = cleanSearchQuery(project.slug);
+    
+    // Build search queries - try multiple variants
+    const searchQueries = [
+      cleanName,
+      cleanSlug,
+      // Also try without spaces (common for crypto projects)
+      cleanName.replace(/\s+/g, ''),
+    ].filter((q, i, arr) => q.length >= 2 && arr.indexOf(q) === i); // Dedupe and filter short queries
+
+    console.log(`      Search queries: ${searchQueries.map(q => `"${q}"`).join(', ')}`);
+    
     const allCandidates: UnifiedUserProfile[] = [];
 
     for (const query of searchQueries) {
       try {
-        const results = await unifiedSearchUsers(query, 5);
+        const results = await unifiedSearchUsers(query, 10);
+        console.log(`      Search "${query}": found ${results.length} results`);
         allCandidates.push(...results);
         await delay(500);
       } catch (e: any) {
@@ -288,7 +315,7 @@ async function autoDiscoverTwitterUsername(
     }
 
     if (allCandidates.length === 0) {
-      console.log(`      No candidates found for ${project.name}`);
+      console.log(`      No candidates found for ${project.name} - you may need to set twitter_username manually`);
       return null;
     }
 
@@ -297,13 +324,25 @@ async function autoDiscoverTwitterUsername(
       new Map(allCandidates.map(c => [c.username.toLowerCase(), c])).values()
     );
 
+    // Log top candidates for debugging
+    console.log(`      Found ${uniqueCandidates.length} unique candidates:`);
+    uniqueCandidates.slice(0, 5).forEach((c, i) => {
+      console.log(`        ${i + 1}. @${c.username} (${c.name || 'no name'}) - ${c.followers} followers`);
+    });
+
     // Find best match:
-    // 1. Exact name match (case-insensitive)
-    // 2. Highest follower count
-    const exactMatch = uniqueCandidates.find(
-      c => c.name?.toLowerCase() === project.name.toLowerCase() ||
-           c.username.toLowerCase() === project.slug.toLowerCase()
-    );
+    // 1. Exact name match (case-insensitive, cleaned)
+    // 2. Username matches slug
+    // 3. Name contains project name
+    // 4. Highest follower count
+    const cleanProjectName = cleanSearchQuery(project.name).toLowerCase();
+    const exactMatch = uniqueCandidates.find(c => {
+      const cleanCandidateName = cleanSearchQuery(c.name || '').toLowerCase();
+      return cleanCandidateName === cleanProjectName ||
+             c.username.toLowerCase() === project.slug.toLowerCase() ||
+             cleanCandidateName.includes(cleanProjectName) ||
+             cleanProjectName.includes(cleanCandidateName);
+    });
 
     const bestCandidate = exactMatch || 
       uniqueCandidates.sort((a, b) => b.followers - a.followers)[0];
