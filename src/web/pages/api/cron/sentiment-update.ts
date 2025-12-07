@@ -15,7 +15,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { runSentimentUpdate } from '../../../../scripts/sentiment/updateAllProjects';
+import { runSentimentUpdate } from '@/lib/cron/sentimentJob';
 
 type SentimentUpdateResponse = {
   ok: boolean;

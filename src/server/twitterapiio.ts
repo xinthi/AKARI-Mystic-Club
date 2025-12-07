@@ -315,7 +315,7 @@ export async function taioGetUserFollowers(
       return { users: [], hasNextPage: false, nextCursor: null };
     }
 
-    const raw = await res.json();
+    const raw: any = await res.json();
     
     // Log raw response structure for debugging
     console.log(`[TwitterAPI.io] followers response keys:`, Object.keys(raw || {}));
@@ -407,7 +407,7 @@ export async function taioGetUserVerifiedFollowers(
       return { users: [], hasNextPage: false, nextCursor: null };
     }
 
-    const raw = await res.json();
+    const raw: any = await res.json();
 
     // Defensive parsing
     let rawUsers: any[] = [];

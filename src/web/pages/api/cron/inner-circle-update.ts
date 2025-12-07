@@ -15,7 +15,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { runInnerCircleUpdate } from '../../../../scripts/sentiment/updateInnerCircle';
+import { runInnerCircleUpdate } from '@/lib/cron/innerCircleJob';
 
 type InnerCircleUpdateResponse = {
   ok: boolean;
