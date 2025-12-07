@@ -214,18 +214,50 @@ export async function taioBatchGetUserInfoByIds(userIds: string[]): Promise<IUse
 
 /**
  * Get user's followers
+ * 
+ * Uses direct fetch instead of taioGet because the followers endpoint
+ * returns data directly (not wrapped in { status, data }).
+ * 
+ * API docs: https://docs.twitterapi.io/api-reference/endpoint/get_user_followers
  */
 export async function taioGetUserFollowers(
-  username: string,
+  userName: string,
+  pageSize: number = 200,
   cursor?: string
-): Promise<{ users: IUserInfo[]; nextCursor: string | null }> {
+): Promise<{ users: IUserInfo[]; hasNextPage: boolean; nextCursor: string | null }> {
+  if (!TAIO_API_KEY) {
+    console.error('[TwitterAPI.io] Missing TWITTERAPIIO_API_KEY');
+    return { users: [], hasNextPage: false, nextCursor: null };
+  }
+
   try {
-    const params: Record<string, string | number> = { userName: username };
-    if (cursor) params.cursor = cursor;
+    const url = new URL(`${TAIO_BASE_URL}/twitter/user/followers`);
+    url.searchParams.set('userName', userName);
+    url.searchParams.set('pageSize', String(pageSize));
+    if (cursor) url.searchParams.set('cursor', cursor);
+
+    console.log(`[TwitterAPI.io] Fetching followers for @${userName} (pageSize=${pageSize})`);
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'X-API-Key': TAIO_API_KEY,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[TwitterAPI.io] followers HTTP ${res.status}:`, errorText);
+      return { users: [], hasNextPage: false, nextCursor: null };
+    }
+
+    const raw = await res.json();
     
-    const raw = await taioGet<any>('/twitter/user/followers', params);
-    
-    // Handle various response formats
+    // Log raw response structure for debugging
+    console.log(`[TwitterAPI.io] followers response keys:`, Object.keys(raw || {}));
+
+    // Defensive parsing - support followers, users, data, or raw array
     let rawUsers: any[] = [];
     if (raw?.followers && Array.isArray(raw.followers)) {
       rawUsers = raw.followers;
@@ -235,34 +267,86 @@ export async function taioGetUserFollowers(
       rawUsers = raw.data;
     } else if (Array.isArray(raw)) {
       rawUsers = raw;
+    } else {
+      console.error('[TwitterAPI.io] followers unexpected response shape:', JSON.stringify(raw).slice(0, 500));
+      return { users: [], hasNextPage: false, nextCursor: null };
     }
-    
-    const users = rawUsers.map((u: any) => normalizeUser(u));
-    
-    return {
-      users,
-      nextCursor: raw?.next_cursor ?? raw?.cursor ?? null,
-    };
-  } catch (error) {
-    console.error('[TwitterAPI.io] taioGetUserFollowers failed', error);
-    return { users: [], nextCursor: null };
+
+    // Normalize each follower to IUserInfo
+    const users = rawUsers.map((u: any) => normalizeFollowerToUser(u));
+
+    const hasNextPage = Boolean(raw?.has_next_page ?? raw?.hasNextPage ?? false);
+    const nextCursor = raw?.next_cursor ?? raw?.nextCursor ?? null;
+
+    console.log(`[TwitterAPI.io] followers for @${userName}: ${users.length} users, hasNextPage=${hasNextPage}`);
+
+    return { users, hasNextPage, nextCursor };
+  } catch (error: any) {
+    console.error('[TwitterAPI.io] taioGetUserFollowers exception:', error?.message || error);
+    return { users: [], hasNextPage: false, nextCursor: null };
   }
 }
 
 /**
+ * Normalize follower data from TwitterAPI.io to IUserInfo
+ * Handles both camelCase and snake_case field names
+ */
+function normalizeFollowerToUser(u: any): IUserInfo {
+  return {
+    id: String(u.id ?? u.user_id ?? u.userId ?? ''),
+    username: u.userName ?? u.username ?? u.screen_name ?? '',
+    name: u.name ?? '',
+    profileImageUrl: (u.profileImageUrl ?? u.profile_image_url ?? u.profile_image_url_https ?? '')
+      .replace('_normal', '_400x400'),
+    description: u.description ?? u.bio ?? '',
+    followers: Number(u.followersCount ?? u.followers_count ?? u.followers ?? 0),
+    following: Number(u.followingCount ?? u.following_count ?? u.friends_count ?? 0),
+    tweetCount: Number(u.tweetCount ?? u.statuses_count ?? u.tweet_count ?? 0),
+    isBlueVerified: Boolean(u.isBlueVerified ?? u.is_blue_verified ?? u.verified ?? false),
+    verifiedType: u.verifiedType ?? u.verified_type ?? null,
+    createdAt: u.createdAt ?? u.created_at ?? '',
+  };
+}
+
+/**
  * Get user's verified followers
+ * 
+ * Uses direct fetch instead of taioGet because the endpoint
+ * returns data directly (not wrapped in { status, data }).
  */
 export async function taioGetUserVerifiedFollowers(
-  username: string,
+  userName: string,
+  pageSize: number = 100,
   cursor?: string
-): Promise<{ users: IUserInfo[]; nextCursor: string | null }> {
+): Promise<{ users: IUserInfo[]; hasNextPage: boolean; nextCursor: string | null }> {
+  if (!TAIO_API_KEY) {
+    console.error('[TwitterAPI.io] Missing TWITTERAPIIO_API_KEY');
+    return { users: [], hasNextPage: false, nextCursor: null };
+  }
+
   try {
-    const params: Record<string, string | number> = { userName: username };
-    if (cursor) params.cursor = cursor;
-    
-    const raw = await taioGet<any>('/twitter/user/verified_followers', params);
-    
-    // Handle various response formats
+    const url = new URL(`${TAIO_BASE_URL}/twitter/user/verified_followers`);
+    url.searchParams.set('userName', userName);
+    url.searchParams.set('pageSize', String(pageSize));
+    if (cursor) url.searchParams.set('cursor', cursor);
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'X-API-Key': TAIO_API_KEY,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[TwitterAPI.io] verified_followers HTTP ${res.status}:`, errorText);
+      return { users: [], hasNextPage: false, nextCursor: null };
+    }
+
+    const raw = await res.json();
+
+    // Defensive parsing
     let rawUsers: any[] = [];
     if (raw?.followers && Array.isArray(raw.followers)) {
       rawUsers = raw.followers;
@@ -273,16 +357,15 @@ export async function taioGetUserVerifiedFollowers(
     } else if (Array.isArray(raw)) {
       rawUsers = raw;
     }
-    
-    const users = rawUsers.map((u: any) => normalizeUser(u));
-    
-    return {
-      users,
-      nextCursor: raw?.next_cursor ?? raw?.cursor ?? null,
-    };
-  } catch (error) {
-    console.error('[TwitterAPI.io] taioGetUserVerifiedFollowers failed', error);
-    return { users: [], nextCursor: null };
+
+    const users = rawUsers.map((u: any) => normalizeFollowerToUser(u));
+    const hasNextPage = Boolean(raw?.has_next_page ?? raw?.hasNextPage ?? false);
+    const nextCursor = raw?.next_cursor ?? raw?.nextCursor ?? null;
+
+    return { users, hasNextPage, nextCursor };
+  } catch (error: any) {
+    console.error('[TwitterAPI.io] taioGetUserVerifiedFollowers exception:', error?.message || error);
+    return { users: [], hasNextPage: false, nextCursor: null };
   }
 }
 

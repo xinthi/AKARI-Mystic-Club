@@ -287,7 +287,16 @@ export async function unifiedGetUserFollowers(
   limit: number = 100
 ): Promise<UnifiedUserProfile[]> {
   const taioFetch = async (): Promise<UnifiedUserProfile[]> => {
-    const result = await taio.taioGetUserFollowers(username);
+    // Request more than limit to account for filtering/deduplication
+    const pageSize = Math.min(500, Math.max(200, limit));
+    const result = await taio.taioGetUserFollowers(username, pageSize);
+    
+    // If we got 0 followers, treat this as an error to trigger fallback
+    if (result.users.length === 0) {
+      console.warn(`[TwitterClient] taioGetUserFollowers returned 0 followers for @${username}`);
+      throw new Error(`No followers returned for @${username}`);
+    }
+    
     return result.users.slice(0, limit).map(normalizeFromTaio);
   };
 
@@ -311,7 +320,8 @@ export async function unifiedGetUserVerifiedFollowers(
   limit: number = 50
 ): Promise<UnifiedUserProfile[]> {
   const taioFetch = async (): Promise<UnifiedUserProfile[]> => {
-    const result = await taio.taioGetUserVerifiedFollowers(username);
+    const pageSize = Math.min(200, Math.max(100, limit));
+    const result = await taio.taioGetUserVerifiedFollowers(username, pageSize);
     return result.users.slice(0, limit).map(normalizeFromTaio);
   };
 
