@@ -27,6 +27,7 @@ import {
   unifiedGetUserInfo,
   unifiedGetUserLastTweets,
   unifiedGetUserFollowers,
+  unifiedSearchUsers,
   calculateFollowerQuality,
   UnifiedUserProfile,
   UnifiedTweet,
@@ -67,7 +68,7 @@ const DELAY_BETWEEN_API_CALLS_MS = 500; // 500ms between API calls
 interface Project {
   id: string;
   slug: string;
-  twitter_username: string;
+  twitter_username: string | null;
   name: string;
   is_active: boolean;
 }
@@ -154,13 +155,12 @@ async function main() {
   });
 
   try {
-    // Fetch all active projects with a twitter_username
-    console.log('\n📋 Fetching active projects with Twitter username...');
+    // Fetch all active projects
+    console.log('\n📋 Fetching active projects...');
     const { data: projects, error: fetchError } = await supabase
       .from('projects')
       .select('*')
       .eq('is_active', true)
-      .not('twitter_username', 'is', null)
       .order('name');
 
     if (fetchError) {
@@ -185,7 +185,7 @@ async function main() {
       console.log(`\n[${i + 1}/${projects.length}] Processing: ${project.name} (@${project.twitter_username})`);
 
       try {
-        const result = await processProject(project, today);
+        const result = await processProject(project, today, supabase);
         
         if (result) {
           // Upsert metrics to Supabase
@@ -262,6 +262,77 @@ async function main() {
 }
 
 // =============================================================================
+// AUTO-DISCOVERY
+// =============================================================================
+
+/**
+ * Auto-discover Twitter username for a project that doesn't have one.
+ * Searches by project name, slug, and picks the best match.
+ */
+async function autoDiscoverTwitterUsername(
+  supabase: any,
+  project: Project
+): Promise<string | null> {
+  console.log(`   🔍 Auto-discovering Twitter username for ${project.name}...`);
+
+  try {
+    const searchQueries = [project.name, project.slug];
+    const allCandidates: UnifiedUserProfile[] = [];
+
+    for (const query of searchQueries) {
+      try {
+        const results = await unifiedSearchUsers(query, 5);
+        allCandidates.push(...results);
+        await delay(500);
+      } catch (e: any) {
+        console.log(`      Search for "${query}" failed: ${e.message}`);
+      }
+    }
+
+    if (allCandidates.length === 0) {
+      console.log(`      No candidates found for ${project.name}`);
+      return null;
+    }
+
+    // Deduplicate by username
+    const uniqueCandidates = Array.from(
+      new Map(allCandidates.map(c => [c.username.toLowerCase(), c])).values()
+    );
+
+    // Find best match:
+    // 1. Exact name match (case-insensitive)
+    // 2. Highest follower count
+    const exactMatch = uniqueCandidates.find(
+      c => c.name?.toLowerCase() === project.name.toLowerCase() ||
+           c.username.toLowerCase() === project.slug.toLowerCase()
+    );
+
+    const bestCandidate = exactMatch || 
+      uniqueCandidates.sort((a, b) => b.followers - a.followers)[0];
+
+    if (bestCandidate) {
+      // Update the project with discovered username
+      const { error } = await supabase
+        .from('projects')
+        .update({ twitter_username: bestCandidate.username })
+        .eq('id', project.id);
+
+      if (error) {
+        console.log(`      Failed to update twitter_username: ${error.message}`);
+        return null;
+      }
+
+      console.log(`   ✓ Auto-discovered twitter_username: @${bestCandidate.username}`);
+      return bestCandidate.username;
+    }
+  } catch (error: any) {
+    console.log(`      Auto-discovery error: ${error.message}`);
+  }
+
+  return null;
+}
+
+// =============================================================================
 // PROJECT PROCESSING
 // =============================================================================
 
@@ -269,8 +340,21 @@ async function main() {
  * Process a single project and compute its daily metrics.
  * Also returns profile data (avatar, bio) to update the project.
  */
-async function processProject(project: Project, date: string): Promise<ProcessingResult | null> {
-  const handle = project.twitter_username;
+async function processProject(
+  project: Project, 
+  date: string,
+  supabase: any
+): Promise<ProcessingResult | null> {
+  // Get the Twitter handle, with auto-discovery if needed
+  let handle = project.twitter_username;
+  
+  if (!handle) {
+    handle = await autoDiscoverTwitterUsername(supabase, project);
+    if (!handle) {
+      console.log(`   ⚠️ No twitter_username for ${project.name}, skipping`);
+      return null;
+    }
+  }
 
   // Step 1: Fetch user profile using unified client
   console.log(`   Fetching profile for @${handle}...`);
@@ -472,6 +556,15 @@ async function processProject(project: Project, date: string): Promise<Processin
     is_official: t.authorUsername?.toLowerCase() === handle.toLowerCase(),
     is_kol: false, // Will be marked later if author is a KOL
   }));
+
+  // Validation logging
+  console.log(`   📊 VALIDATION LOG:`);
+  console.log(`      - project.slug: ${project.slug}`);
+  console.log(`      - twitter_username: ${handle} (${project.twitter_username ? 'existing' : 'auto-discovered'})`);
+  console.log(`      - tweets fetched: ${tweets.length}`);
+  console.log(`      - tweets to upsert: ${tweetRows.length}`);
+  console.log(`      - mentions found: ${mentions.length}`);
+  console.log(`      - followers: ${followersCount}`);
 
   // Return compiled metrics, project update data, and tweets
   return {

@@ -19,6 +19,7 @@ import {
   unifiedGetUserFollowers,
   unifiedGetUserVerifiedFollowers,
   unifiedAdvancedSearchTweets,
+  unifiedSearchUsers,
   UnifiedUserProfile,
 } from '../../src/server/twitterClient';
 import {
@@ -93,7 +94,6 @@ interface DbProfile {
 interface DbProject {
   id: string;
   slug: string;
-  x_handle: string;
   name: string;
   twitter_username: string | null;
 }
@@ -190,7 +190,7 @@ async function getScoredProfiles(supabase: SupabaseClient): Promise<DbProfile[]>
 async function getActiveProjects(supabase: SupabaseClient): Promise<DbProject[]> {
   const { data, error } = await supabase
     .from('projects')
-    .select('id, slug, x_handle, name, twitter_username')
+    .select('id, slug, name, twitter_username')
     .eq('is_active', true);
 
   if (error) {
@@ -331,6 +331,95 @@ async function updateCompetitors(
 }
 
 // =============================================================================
+// AUTO-DISCOVERY
+// =============================================================================
+
+/**
+ * Auto-discover Twitter username for a project that doesn't have one.
+ * Searches by project name, slug, and picks the best match.
+ */
+async function autoDiscoverTwitterUsername(
+  supabase: SupabaseClient,
+  project: DbProject
+): Promise<string | null> {
+  log(`  Auto-discovering Twitter username for ${project.name}...`);
+
+  try {
+    // Search candidates
+    const searchQueries = [project.name, project.slug];
+    const allCandidates: UnifiedUserProfile[] = [];
+
+    for (const query of searchQueries) {
+      try {
+        const results = await unifiedSearchUsers(query, 5);
+        allCandidates.push(...results);
+        await sleep(500);
+      } catch (e: any) {
+        log(`    Search for "${query}" failed: ${e.message}`);
+      }
+    }
+
+    if (allCandidates.length === 0) {
+      log(`    No candidates found for ${project.name}`);
+      return null;
+    }
+
+    // Deduplicate by username
+    const uniqueCandidates = Array.from(
+      new Map(allCandidates.map(c => [c.username.toLowerCase(), c])).values()
+    );
+
+    // Find best match:
+    // 1. Exact name match (case-insensitive)
+    // 2. Highest follower count
+    const exactMatch = uniqueCandidates.find(
+      c => c.name?.toLowerCase() === project.name.toLowerCase() ||
+           c.username.toLowerCase() === project.slug.toLowerCase()
+    );
+
+    const bestCandidate = exactMatch || 
+      uniqueCandidates.sort((a, b) => b.followers - a.followers)[0];
+
+    if (bestCandidate) {
+      // Update the project with discovered username
+      const { error } = await supabase
+        .from('projects')
+        .update({ twitter_username: bestCandidate.username })
+        .eq('id', project.id);
+
+      if (error) {
+        log(`    Failed to update twitter_username: ${error.message}`);
+        return null;
+      }
+
+      log(`    ✓ Auto-discovered twitter_username for ${project.slug}: @${bestCandidate.username}`);
+      return bestCandidate.username;
+    }
+  } catch (error: any) {
+    log(`    Auto-discovery error: ${error.message}`);
+  }
+
+  return null;
+}
+
+/**
+ * Get the Twitter handle for a project, with auto-discovery fallback
+ */
+async function getProjectTwitterHandle(
+  supabase: SupabaseClient,
+  project: DbProject
+): Promise<string | null> {
+  // If we have twitter_username, use it
+  if (project.twitter_username) {
+    return project.twitter_username;
+  }
+
+  // Try auto-discovery
+  const discovered = await autoDiscoverTwitterUsername(supabase, project);
+  return discovered;
+}
+
+// =============================================================================
 // MAIN FUNCTIONS
 // =============================================================================
 
@@ -348,8 +437,15 @@ async function discoverNewProfiles(
     log(`Discovering profiles for ${project.name}...`);
     
     try {
+      // Get the Twitter handle (with auto-discovery if needed)
+      const handle = await getProjectTwitterHandle(supabase, project);
+      
+      if (!handle) {
+        log(`  ⚠️ No twitter_username for ${project.name}, skipping`);
+        continue;
+      }
+
       // Get followers sample
-      const handle = project.twitter_username || project.x_handle;
       const followers = await unifiedGetUserFollowers(handle, MAX_FOLLOWERS_TO_SAMPLE);
       
       for (const follower of followers) {
@@ -514,7 +610,13 @@ async function buildProjectInnerCircles(
     let totalInfluence = 0;
 
     try {
-      const handle = project.twitter_username || project.x_handle;
+      // Get the Twitter handle (with auto-discovery if needed)
+      const handle = await getProjectTwitterHandle(supabase, project);
+      
+      if (!handle) {
+        log(`  ⚠️ No twitter_username for ${project.name}, skipping`);
+        continue;
+      }
 
       // Find followers who are in inner circle
       const followers = await unifiedGetUserFollowers(handle, 100);
@@ -542,8 +644,8 @@ async function buildProjectInnerCircles(
       }
 
       // Find authors who tweeted about the project
-      const searchQuery = `@${handle} OR ${project.name}`;
-      const { tweets } = await unifiedAdvancedSearchTweets(searchQuery, 'Latest', 50);
+      const searchQuery = `@${handle} OR "${project.name}"`;
+      const tweets = await unifiedAdvancedSearchTweets(searchQuery, 'Latest', 50);
       
       for (const tweet of tweets) {
         const key = tweet.authorUsername.toLowerCase();

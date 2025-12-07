@@ -50,7 +50,7 @@ async function main() {
   
   const { data: projects, error: projErr } = await supabase
     .from('projects')
-    .select('id, slug, name, x_handle')
+    .select('id, slug, name, twitter_username')
     .eq('is_active', true);
 
   if (projErr) {
