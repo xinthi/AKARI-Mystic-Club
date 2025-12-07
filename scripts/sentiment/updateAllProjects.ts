@@ -110,10 +110,15 @@ interface ProcessingResult {
 }
 
 // =============================================================================
-// MAIN SCRIPT
+// MAIN FUNCTION (Exported for API routes)
 // =============================================================================
 
-async function main() {
+/**
+ * Run the sentiment update job.
+ * This function can be called from CLI or from an API route.
+ * Returns a summary of the update results.
+ */
+export async function runSentimentUpdate(): Promise<{ successCount: number; failCount: number }> {
   console.log('='.repeat(60));
   console.log('AKARI Sentiment Update Script');
   console.log('Started at:', new Date().toISOString());
@@ -125,7 +130,7 @@ async function main() {
     console.error('❌ Missing required environment variables:');
     console.error('   - SUPABASE_URL:', SUPABASE_URL ? '✓' : '✗');
     console.error('   - SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? '✓' : '✗');
-    process.exit(1);
+    throw new Error('Missing required Supabase environment variables');
   }
 
   // Check for at least one Twitter API key
@@ -137,7 +142,7 @@ async function main() {
     console.error('   - TWITTERAPIIO_API_KEY:', hasTwitterApiIo ? '✓' : '✗');
     console.error('   - RAPIDAPI_KEY:', hasRapidApi ? '✓' : '✗');
     console.error('   At least one provider must be configured.');
-    process.exit(1);
+    throw new Error('Missing Twitter API credentials');
   }
 
   console.log('API credentials:');
@@ -164,12 +169,12 @@ async function main() {
 
     if (fetchError) {
       console.error('❌ Error fetching projects:', fetchError);
-      process.exit(1);
+      throw new Error(`Failed to fetch projects: ${fetchError.message}`);
     }
 
     if (!projects || projects.length === 0) {
       console.log('⚠️  No active projects with twitter_username found. Nothing to update.');
-      process.exit(0);
+      return { successCount: 0, failCount: 0 };
     }
 
     // Double-check: filter out any projects with empty twitter_username
@@ -178,7 +183,7 @@ async function main() {
     
     if (validProjects.length === 0) {
       console.log('⚠️  All projects have empty twitter_username. Nothing to update.');
-      process.exit(0);
+      return { successCount: 0, failCount: 0 };
     }
 
     // Process each project
@@ -259,11 +264,11 @@ async function main() {
     console.log('Finished at:', new Date().toISOString());
     console.log('='.repeat(60));
 
-    process.exit(failCount > 0 ? 1 : 0);
+    return { successCount, failCount };
   } catch (error: unknown) {
     const err = error as Error;
     console.error('\n❌ Fatal error:', err.message);
-    process.exit(1);
+    throw err;
   }
 }
 
@@ -709,7 +714,17 @@ function delay(ms: number): Promise<void> {
 }
 
 // =============================================================================
-// RUN
+// CLI ENTRY POINT
 // =============================================================================
 
-main();
+// Run when executed directly (not imported)
+if (require.main === module) {
+  runSentimentUpdate()
+    .then((result) => {
+      process.exit(result.failCount > 0 ? 1 : 0);
+    })
+    .catch((err) => {
+      console.error('Script failed:', err);
+      process.exit(1);
+    });
+}

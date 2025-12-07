@@ -526,7 +526,18 @@ async function processProject(
   return stats;
 }
 
-async function main() {
+/**
+ * Run the inner circle update job.
+ * This function can be called from CLI or from an API route.
+ * Returns a summary of the update results.
+ */
+export async function runInnerCircleUpdate(): Promise<{
+  projectsProcessed: number;
+  followersPulled: number;
+  profilesUpserted: number;
+  innerCircleMembers: number;
+  totalPower: number;
+}> {
   log('========================================');
   log('AKARI Inner Circle Update Script');
   log('========================================');
@@ -547,7 +558,13 @@ async function main() {
 
   if (projects.length === 0) {
     log('No projects to process. Exiting.');
-    return;
+    return {
+      projectsProcessed: 0,
+      followersPulled: 0,
+      profilesUpserted: 0,
+      innerCircleMembers: 0,
+      totalPower: 0,
+    };
   }
 
   // Process each project
@@ -585,11 +602,26 @@ async function main() {
   log(`Total circle power: ${totals.totalPower}`);
   log('========================================');
   log('Inner circle update complete!');
+
+  return {
+    projectsProcessed: projects.length,
+    ...totals,
+  };
 }
 
-// Run
-main().catch((error) => {
-  console.error('Script failed:', error);
-  process.exit(1);
-});
+// =============================================================================
+// CLI ENTRY POINT
+// =============================================================================
+
+// Run when executed directly (not imported)
+if (require.main === module) {
+  runInnerCircleUpdate()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Script failed:', error);
+      process.exit(1);
+    });
+}
 
