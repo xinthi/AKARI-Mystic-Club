@@ -506,7 +506,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             })
           )}
 
-          {/* Tweet markers - show multiple if both official and KOL tweets exist */}
+          {/* Tweet markers - show top-engagement tweet for each date */}
           {chartData.map((d, i) => {
             const dateTweets = tweetsByDate.get(d.date) || [];
             if (dateTweets.length === 0) return null;
@@ -515,9 +515,22 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             const officialTweets = dateTweets.filter(t => t.isOfficial);
             const kolTweets = dateTweets.filter(t => t.isKOL && !t.isOfficial);
             
-            // If we have both, show the KOL tweet (yellow) as primary
-            // Otherwise show official (green) or any other tweet
-            const displayTweet = kolTweets[0] || officialTweets[0] || dateTweets[0];
+            // Helper to get top engagement tweet from a list
+            const getTopEngagement = (list: ProjectTweet[]): ProjectTweet | null => {
+              if (list.length === 0) return null;
+              return list.reduce((best, t) => {
+                const score = (t.engagementScore ?? 0);
+                const bestScore = (best.engagementScore ?? 0);
+                return score > bestScore ? t : best;
+              }, list[0]);
+            };
+            
+            // Get top engagement official tweet and top KOL tweet
+            const topOfficial = getTopEngagement(officialTweets);
+            const topKol = getTopEngagement(kolTweets);
+            
+            // Priority: KOL mention (more interesting) > Official > any other
+            const displayTweet = topKol || topOfficial || dateTweets[0];
             const isKolTweet = displayTweet.isKOL && !displayTweet.isOfficial;
             const isOfficialTweet = displayTweet.isOfficial;
             
@@ -642,14 +655,22 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 text-xs text-akari-muted">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full border border-akari-primary bg-akari-cardSoft" />
+          <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: '#00E5A0' }} />
           Project Tweet
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full border-2 border-yellow-400 bg-akari-cardSoft" />
+          <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: '#FBBF24' }} />
           KOL Mention
         </span>
       </div>
+
+      {/* Empty state when no tweets */}
+      {tweets.length === 0 && !hoveredTweet && (
+        <div className="mt-4 rounded-xl bg-akari-cardSoft/50 border border-akari-border/30 p-4 text-center">
+          <p className="text-sm text-akari-muted">No recent tweets found</p>
+          <p className="text-xs text-akari-muted/70 mt-1">Run sentiment update to fetch real tweets from X</p>
+        </div>
+      )}
 
       {/* Most Recent Tweet - always visible if tweets exist */}
       {tweets.length > 0 && !hoveredTweet && (
