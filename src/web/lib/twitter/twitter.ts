@@ -337,3 +337,76 @@ export async function getUserTweets(
     []
   );
 }
+
+/**
+ * Follower profile for inner circle
+ */
+export interface TwitterFollower {
+  id: string;
+  username: string;
+  name: string;
+  profileImageUrl: string | null;
+  bio: string | null;
+  followers: number;
+  following: number;
+  tweetCount: number;
+  verified: boolean;
+}
+
+/**
+ * Get user's followers (for inner circle)
+ * Uses TwitterAPI.io exclusively
+ */
+export async function getUserFollowers(
+  userName: string,
+  limit: number = 100
+): Promise<TwitterFollower[]> {
+  const cleanHandle = userName.replace('@', '');
+
+  return safeExecute(
+    async () => {
+      const url = `${TAIO_BASE_URL}/twitter/user/followers`;
+      const params = new URLSearchParams({
+        userName: cleanHandle,
+        pageSize: String(Math.min(limit, 200)),
+      });
+
+      const res = await axios.get(`${url}?${params.toString()}`, {
+        headers: {
+          'X-API-Key': TAIO_API_KEY || '',
+          'Accept': 'application/json',
+        },
+      });
+
+      const data = res.data as any;
+      
+      // Parse followers from response
+      let rawFollowers: any[] = [];
+      if (data?.followers && Array.isArray(data.followers)) {
+        rawFollowers = data.followers;
+      } else if (data?.users && Array.isArray(data.users)) {
+        rawFollowers = data.users;
+      } else if (data?.data && Array.isArray(data.data)) {
+        rawFollowers = data.data;
+      } else if (Array.isArray(data)) {
+        rawFollowers = data;
+      }
+
+      // Normalize followers
+      return rawFollowers.slice(0, limit).map((f: any) => ({
+        id: String(f.id ?? f.user_id ?? ''),
+        username: f.userName ?? f.username ?? f.screen_name ?? '',
+        name: f.name ?? '',
+        profileImageUrl: (f.profileImageUrl ?? f.profile_image_url ?? f.profile_image_url_https ?? '')
+          .replace('_normal', '_400x400') || null,
+        bio: f.description ?? f.bio ?? null,
+        followers: Number(f.followers ?? f.followersCount ?? f.followers_count ?? 0),
+        following: Number(f.following ?? f.followingCount ?? f.following_count ?? 0),
+        tweetCount: Number(f.tweetCount ?? f.tweet_count ?? f.statuses_count ?? 0),
+        verified: Boolean(f.verified ?? f.is_blue_verified ?? false),
+      }));
+    },
+    `getUserFollowers("${cleanHandle}")`,
+    []
+  );
+}

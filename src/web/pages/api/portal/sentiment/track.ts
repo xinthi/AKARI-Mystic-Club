@@ -24,7 +24,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Use web-local Twitter client (inside src/web, can be compiled by Next.js)
-import { getUserProfile, getUserTweets, TwitterTweet } from '@/lib/twitter/twitter';
+import { getUserProfile, getUserTweets, getUserFollowers, TwitterTweet, TwitterFollower } from '@/lib/twitter/twitter';
 
 // =============================================================================
 // LOCAL HELPERS (inlined to avoid cross-package imports)
@@ -205,13 +205,126 @@ async function fetchAndSaveRealData(
       }
     }
     
-    // 5. Set default follower quality (will be updated by inner-circle:update)
-    await supabase
-      .from('projects')
-      .update({
-        quality_follower_ratio: 50, // Default, updated by inner-circle script
-      })
-      .eq('id', projectId);
+    // 5. Fetch followers and build initial inner circle
+    console.log(`[Track] Fetching followers for inner circle...`);
+    try {
+      const followers = await getUserFollowers(username, 200);
+      console.log(`[Track] Found ${followers.length} followers`);
+      
+      if (followers.length > 0) {
+        // Score and filter followers for inner circle
+        const scoredFollowers = followers.map((f: TwitterFollower) => {
+          // Calculate simple influence score
+          const followerRatio = f.followers > 0 ? Math.min(f.followers / Math.max(f.following, 1), 100) : 0;
+          const influenceScore = Math.min(100, Math.round(
+            (f.followers > 1000 ? 30 : f.followers > 100 ? 15 : 5) +
+            (followerRatio > 10 ? 30 : followerRatio > 1 ? 15 : 5) +
+            (f.verified ? 20 : 0) +
+            (f.bio ? 10 : 0) +
+            (f.tweetCount > 100 ? 10 : f.tweetCount > 10 ? 5 : 0)
+          ));
+          
+          // Calculate farm risk (lower is better)
+          const farmRisk = Math.round(
+            (f.followers < 10 ? 40 : 0) +
+            (f.following > f.followers * 5 ? 30 : 0) +
+            (!f.bio ? 15 : 0) +
+            (f.tweetCount < 5 ? 15 : 0)
+          );
+          
+          return { ...f, influenceScore, farmRisk };
+        });
+        
+        // Filter out likely bots/farms and sort by influence
+        const qualifiedFollowers = scoredFollowers
+          .filter(f => f.farmRisk < 50 && f.followers >= 50)
+          .sort((a, b) => b.influenceScore - a.influenceScore)
+          .slice(0, 100); // Top 100 for inner circle
+        
+        console.log(`[Track] Qualified ${qualifiedFollowers.length} followers for inner circle`);
+        
+        // Upsert profiles
+        const profileRows = qualifiedFollowers.map(f => ({
+          twitter_id: f.id,
+          username: f.username,
+          name: f.name,
+          profile_image_url: f.profileImageUrl,
+          bio: f.bio,
+          followers: f.followers,
+          following: f.following,
+          tweet_count: f.tweetCount,
+          is_blue_verified: f.verified,
+          influence_score: f.influenceScore,
+          farm_risk_score: f.farmRisk,
+          akari_profile_score: Math.round(f.influenceScore * 10 - f.farmRisk * 5),
+        }));
+        
+        if (profileRows.length > 0) {
+          const { error: profilesError } = await supabase
+            .from('profiles')
+            .upsert(profileRows, { onConflict: 'twitter_id' });
+          
+          if (profilesError) {
+            console.warn(`[Track] Failed to upsert profiles:`, profilesError.message);
+          } else {
+            console.log(`[Track] Upserted ${profileRows.length} profiles`);
+            
+            // Get profile IDs for inner circle
+            const { data: savedProfiles } = await supabase
+              .from('profiles')
+              .select('id, twitter_id, akari_profile_score')
+              .in('twitter_id', profileRows.map(p => p.twitter_id));
+            
+            if (savedProfiles && savedProfiles.length > 0) {
+              // Create inner_circle_members entries
+              const memberRows = savedProfiles.map(p => ({
+                profile_id: p.id,
+                akari_profile_score: p.akari_profile_score || 0,
+                influence_score: profileRows.find(pr => pr.twitter_id === p.twitter_id)?.influence_score || 0,
+                segment: 'follower',
+              }));
+              
+              await supabase
+                .from('inner_circle_members')
+                .upsert(memberRows, { onConflict: 'profile_id' });
+              
+              // Create project_inner_circle entries
+              const circleRows = savedProfiles.map(p => ({
+                project_id: projectId,
+                profile_id: p.id,
+                is_follower: true,
+                is_author: false,
+                weight: (p.akari_profile_score || 0) / 100,
+                last_interaction_at: new Date().toISOString(),
+              }));
+              
+              const { error: circleError } = await supabase
+                .from('project_inner_circle')
+                .upsert(circleRows, { onConflict: 'project_id,profile_id' });
+              
+              if (circleError) {
+                console.warn(`[Track] Failed to create inner circle:`, circleError.message);
+              } else {
+                // Update project with inner circle stats
+                const totalPower = savedProfiles.reduce((sum, p) => sum + (p.akari_profile_score || 0), 0);
+                await supabase
+                  .from('projects')
+                  .update({
+                    inner_circle_count: savedProfiles.length,
+                    inner_circle_power: Math.round(totalPower),
+                    quality_follower_ratio: Math.round(qualifiedFollowers.length / Math.max(followers.length, 1) * 100),
+                  })
+                  .eq('id', projectId);
+                
+                console.log(`[Track] ✅ Inner circle created: ${savedProfiles.length} members, power: ${totalPower}`);
+              }
+            }
+          }
+        }
+      }
+    } catch (icError: any) {
+      console.warn(`[Track] Inner circle error (non-fatal):`, icError.message);
+    }
     
   } catch (error: any) {
     console.error(`[Track] Error fetching real data:`, error.message);
