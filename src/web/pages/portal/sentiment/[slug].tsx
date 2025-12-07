@@ -506,7 +506,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             })
           )}
 
-          {/* Tweet markers - show top-engagement tweet for each date */}
+          {/* Tweet markers - show BOTH official and KOL markers when both exist on same day */}
           {chartData.map((d, i) => {
             const dateTweets = tweetsByDate.get(d.date) || [];
             if (dateTweets.length === 0) return null;
@@ -529,86 +529,108 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             const topOfficial = getTopEngagement(officialTweets);
             const topKol = getTopEngagement(kolTweets);
             
-            // Priority: KOL mention (more interesting) > Official > any other
-            const displayTweet = topKol || topOfficial || dateTweets[0];
-            const isKolTweet = displayTweet.isKOL && !displayTweet.isOfficial;
-            const isOfficialTweet = displayTweet.isOfficial;
+            // Build array of markers to render (can be both official AND KOL)
+            const markersToRender: Array<{ tweet: ProjectTweet; isKol: boolean; offset: number }> = [];
             
-            // Use yellow for KOL, green for official
-            const strokeColor = isKolTweet ? '#FBBF24' : '#00E5A0';
-            const strokeWidth = isKolTweet ? 2 : 1;
-            const radius = isKolTweet ? 12 : 10;
-            const innerRadius = isKolTweet ? 10 : 8;
-            const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
-            
-            const isHovered = hoveredTweet?.tweetId === displayTweet.tweetId;
+            // If we have both, show both stacked vertically
+            if (topOfficial && topKol) {
+              markersToRender.push({ tweet: topOfficial, isKol: false, offset: -10 }); // Green on top
+              markersToRender.push({ tweet: topKol, isKol: true, offset: 10 }); // Yellow below
+            } else if (topKol) {
+              markersToRender.push({ tweet: topKol, isKol: true, offset: 0 });
+            } else if (topOfficial) {
+              markersToRender.push({ tweet: topOfficial, isKol: false, offset: 0 });
+            } else if (dateTweets[0]) {
+              // Fallback to first tweet
+              const t = dateTweets[0];
+              markersToRender.push({ tweet: t, isKol: t.isKOL && !t.isOfficial, offset: 0 });
+            }
             
             return (
-              <g 
-                key={`marker-${i}`}
-                className="cursor-pointer"
-                style={{ pointerEvents: 'all' }}
-                onMouseEnter={(e) => {
-                  setHoveredTweet(displayTweet);
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setTooltipPos({ x: rect.x, y: rect.y });
-                }}
-                onMouseLeave={() => setHoveredTweet(null)}
-                onClick={() => {
-                  if (displayTweet.tweetUrl) {
-                    window.open(displayTweet.tweetUrl, '_blank');
-                  }
-                }}
-              >
-                {/* Invisible larger hit area for easier hovering */}
-                <circle
-                  cx={getX(i)}
-                  cy={padding.top - 15}
-                  r={20}
-                  fill="transparent"
-                  style={{ pointerEvents: 'all' }}
-                />
-                {/* Hover glow effect */}
-                {isHovered && (
-                  <circle
-                    cx={getX(i)}
-                    cy={padding.top - 15}
-                    r={radius + 4}
-                    fill="none"
-                    stroke={strokeColor}
-                    strokeWidth={2}
-                    strokeOpacity={0.5}
-                    className="animate-pulse"
-                  />
-                )}
-                {/* Main marker circle */}
-                <circle
-                  cx={getX(i)}
-                  cy={padding.top - 15}
-                  r={isHovered ? radius + 2 : radius}
-                  fill="url(#avatarGradient)"
-                  stroke={strokeColor}
-                  strokeWidth={isHovered ? strokeWidth + 1 : strokeWidth}
-                  className="transition-all duration-150"
-                />
-                {imageUrl && (
-                  <>
-                    <defs>
-                      <clipPath id={`clip-${i}`}>
-                        <circle cx={getX(i)} cy={padding.top - 15} r={innerRadius} />
-                      </clipPath>
-                    </defs>
-                    <image
-                      href={imageUrl}
-                      x={getX(i) - innerRadius}
-                      y={padding.top - 15 - innerRadius}
-                      width={innerRadius * 2}
-                      height={innerRadius * 2}
-                      clipPath={`url(#clip-${i})`}
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  </>
-                )}
+              <g key={`markers-${i}`}>
+                {markersToRender.map((marker, mIdx) => {
+                  const { tweet: displayTweet, isKol: isKolTweet, offset } = marker;
+                  const isOfficialTweet = displayTweet.isOfficial;
+                  
+                  // Use yellow for KOL, green for official
+                  const strokeColor = isKolTweet ? '#FBBF24' : '#00E5A0';
+                  const strokeWidth = isKolTweet ? 2 : 1;
+                  const radius = 10;
+                  const innerRadius = 8;
+                  const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
+                  
+                  const isHovered = hoveredTweet?.tweetId === displayTweet.tweetId;
+                  const markerY = padding.top - 15 + offset;
+                  
+                  return (
+                    <g 
+                      key={`marker-${i}-${mIdx}`}
+                      className="cursor-pointer"
+                      style={{ pointerEvents: 'all' }}
+                      onMouseEnter={(e) => {
+                        setHoveredTweet(displayTweet);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setTooltipPos({ x: rect.x, y: rect.y });
+                      }}
+                      onMouseLeave={() => setHoveredTweet(null)}
+                      onClick={() => {
+                        if (displayTweet.tweetUrl) {
+                          window.open(displayTweet.tweetUrl, '_blank');
+                        }
+                      }}
+                    >
+                      {/* Invisible larger hit area for easier hovering */}
+                      <circle
+                        cx={getX(i)}
+                        cy={markerY}
+                        r={16}
+                        fill="transparent"
+                        style={{ pointerEvents: 'all' }}
+                      />
+                      {/* Hover glow effect */}
+                      {isHovered && (
+                        <circle
+                          cx={getX(i)}
+                          cy={markerY}
+                          r={radius + 4}
+                          fill="none"
+                          stroke={strokeColor}
+                          strokeWidth={2}
+                          strokeOpacity={0.5}
+                          className="animate-pulse"
+                        />
+                      )}
+                      {/* Main marker circle */}
+                      <circle
+                        cx={getX(i)}
+                        cy={markerY}
+                        r={isHovered ? radius + 2 : radius}
+                        fill="url(#avatarGradient)"
+                        stroke={strokeColor}
+                        strokeWidth={isHovered ? strokeWidth + 1 : strokeWidth}
+                        className="transition-all duration-150"
+                      />
+                      {imageUrl && (
+                        <>
+                          <defs>
+                            <clipPath id={`clip-${i}-${mIdx}`}>
+                              <circle cx={getX(i)} cy={markerY} r={innerRadius} />
+                            </clipPath>
+                          </defs>
+                          <image
+                            href={imageUrl}
+                            x={getX(i) - innerRadius}
+                            y={markerY - innerRadius}
+                            width={innerRadius * 2}
+                            height={innerRadius * 2}
+                            clipPath={`url(#clip-${i}-${mIdx})`}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
