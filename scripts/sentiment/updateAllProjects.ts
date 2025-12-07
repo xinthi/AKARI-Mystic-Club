@@ -67,7 +67,7 @@ const DELAY_BETWEEN_API_CALLS_MS = 500; // 500ms between API calls
 interface Project {
   id: string;
   slug: string;
-  x_handle: string;
+  twitter_username: string;
   name: string;
   is_active: boolean;
 }
@@ -99,7 +99,7 @@ interface ProjectTweetRow {
 }
 
 interface ProjectUpdateData {
-  avatar_url?: string;
+  twitter_profile_image_url?: string;
   bio?: string;
   last_refreshed_at: string;
 }
@@ -154,12 +154,13 @@ async function main() {
   });
 
   try {
-    // Fetch all active projects
-    console.log('\n📋 Fetching active projects...');
+    // Fetch all active projects with a twitter_username
+    console.log('\n📋 Fetching active projects with Twitter username...');
     const { data: projects, error: fetchError } = await supabase
       .from('projects')
       .select('*')
       .eq('is_active', true)
+      .not('twitter_username', 'is', null)
       .order('name');
 
     if (fetchError) {
@@ -181,7 +182,7 @@ async function main() {
 
     for (let i = 0; i < projects.length; i++) {
       const project = projects[i];
-      console.log(`\n[${i + 1}/${projects.length}] Processing: ${project.name} (@${project.x_handle})`);
+      console.log(`\n[${i + 1}/${projects.length}] Processing: ${project.name} (@${project.twitter_username})`);
 
       try {
         const result = await processProject(project, today);
@@ -210,8 +211,8 @@ async function main() {
 
             if (updateError) {
               console.error(`   ⚠️  Failed to update project profile:`, updateError.message);
-            } else if (result.projectUpdate.avatar_url) {
-              console.log(`   📷 Updated avatar URL`);
+            } else if (result.projectUpdate.twitter_profile_image_url) {
+              console.log(`   📷 Updated profile image URL`);
             }
 
             // Save tweets to project_tweets table
@@ -269,7 +270,7 @@ async function main() {
  * Also returns profile data (avatar, bio) to update the project.
  */
 async function processProject(project: Project, date: string): Promise<ProcessingResult | null> {
-  const handle = project.x_handle;
+  const handle = project.twitter_username;
 
   // Step 1: Fetch user profile using unified client
   console.log(`   Fetching profile for @${handle}...`);
@@ -284,7 +285,7 @@ async function processProject(project: Project, date: string): Promise<Processin
 
   if (!profile) {
     console.log(`   ⚠️  Profile not found for @${handle}, using defaults`);
-    profile = { handle };
+    profile = { handle } as UnifiedUserProfile;
   }
 
   const followersCount = profile.followersCount ?? 0;
@@ -317,16 +318,17 @@ async function processProject(project: Project, date: string): Promise<Processin
   }
   await delay(DELAY_BETWEEN_API_CALLS_MS);
 
-  // Step 4: Fetch mentions (still using RapidAPI mentions helper)
+  // Step 4: Fetch mentions (using @handle OR "project name")
   console.log(`   Fetching mentions...`);
   let mentions: MentionResult[] = [];
+  const mentionQuery = `@${handle} OR "${project.name}"`;
   try {
     mentions = await fetchProjectMentions({
-      keyword: `@${handle}`,
+      keyword: mentionQuery,
       periodDays: 1,
       limit: 100,
     });
-    console.log(`   Found ${mentions.length} mentions`);
+    console.log(`   Found ${mentions.length} mentions for: ${mentionQuery}`);
   } catch (e: unknown) {
     const err = e as Error;
     console.log(`   ⚠️  Could not fetch mentions: ${err.message}`);
@@ -437,16 +439,16 @@ async function processProject(project: Project, date: string): Promise<Processin
 
   console.log(`   AKARI score: ${akariScore}`);
 
-  // Build project update data (avatar, bio from profile)
+  // Build project update data (profile image, bio from profile)
   const projectUpdate: ProjectUpdateData = {
     last_refreshed_at: new Date().toISOString(),
   };
 
-  // Add avatar URL if we got one from the profile (check both fields)
-  const avatarUrl = profile.profileImageUrl ?? (profile as Record<string, unknown>).avatarUrl as string;
-  if (avatarUrl) {
-    projectUpdate.avatar_url = avatarUrl;
-    console.log(`   📷 Found avatar: ${avatarUrl.substring(0, 50)}...`);
+  // Add profile image URL if we got one from the Twitter profile
+  const profileImageUrl = profile.profileImageUrl;
+  if (profileImageUrl) {
+    projectUpdate.twitter_profile_image_url = profileImageUrl;
+    console.log(`   📷 Found profile image: ${profileImageUrl.substring(0, 50)}...`);
   }
 
   // Add bio if we got one from the profile
