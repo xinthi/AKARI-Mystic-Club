@@ -380,7 +380,10 @@ export function computeTopEngagement(
   projects: ProjectWithMetrics[],
   limit: number = 3
 ): TopEngagement[] {
-  // Sort by CT heat score descending, with fallback to akari_score (v2)
+  // FIX: Sort by CT heat score descending, with fallback to akari_score
+  // Always show at least 3 projects even if CT heat is 0
+  console.log(`[computeTopEngagement] Input: ${projects.length} projects, limit: ${limit}`);
+  
   const sorted = [...projects]
     .filter(p => p.date !== null)
     .sort((a, b) => {
@@ -390,6 +393,8 @@ export function computeTopEngagement(
       return (b.akari_score ?? 0) - (a.akari_score ?? 0);
     });
 
+  console.log(`[computeTopEngagement] Sorted: ${sorted.length}, returning: ${Math.min(limit, sorted.length)}`);
+  
   // Always return up to limit projects
   return sorted.slice(0, limit).map(p => ({
     slug: p.slug,
@@ -411,7 +416,10 @@ export function computeTrendingUp(
   projects: ProjectWithMetrics[],
   limit: number = 3
 ): TrendingUp[] {
-  // Sort by sentiment change descending, with fallback to sentiment score
+  // FIX: Sort by sentiment change descending, with fallback to sentiment score
+  // Always show at least 3 projects even with negative changes
+  console.log(`[computeTrendingUp] Input: ${projects.length} projects, limit: ${limit}`);
+  
   const sorted = [...projects]
     .filter(p => p.date !== null)
     .sort((a, b) => {
@@ -423,6 +431,8 @@ export function computeTrendingUp(
       return (b.sentiment_score ?? 0) - (a.sentiment_score ?? 0);
     });
 
+  console.log(`[computeTrendingUp] Sorted: ${sorted.length}, returning: ${Math.min(limit, sorted.length)}`);
+  
   // Always return up to limit projects
   return sorted.slice(0, limit).map(p => ({
     slug: p.slug,
