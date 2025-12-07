@@ -39,6 +39,16 @@ interface InnerCircleOverlap {
   similarityPercent: number;
 }
 
+/**
+ * Type for storing project inner circle data in the Map
+ */
+interface ProjectProfiles {
+  id: string;
+  slug: string;
+  profileIds: Set<string>;
+  power: number;
+}
+
 type CompareResponse =
   | {
       ok: true;
@@ -93,7 +103,7 @@ export default async function handler(
 
     // Build projects array with latest metrics
     const projects: ProjectComparison[] = [];
-    const projectCircles: Map<string, { id: string; slug: string; profileIds: Set<string> }> = new Map();
+    const projectCircles: Map<string, ProjectProfiles> = new Map();
 
     for (const project of projectsData) {
       // Get latest metrics
