@@ -602,33 +602,40 @@ async function processProject(
   }
 
   // Build tweet rows for saving to DB - project's own tweets
-  const projectTweetRows: ProjectTweetRow[] = tweets.slice(0, 10).map((t) => ({
-    project_id: project.id,
-    tweet_id: t.id,
-    tweet_url: `https://x.com/${t.authorUsername}/status/${t.id}`,
-    author_handle: t.authorUsername || handle,
-    author_name: t.authorName || handle,
-    author_profile_image_url: t.authorProfileImageUrl || profile.profileImageUrl || null,
-    created_at: t.createdAt || new Date().toISOString(),
-    text: t.text || '',
-    likes: t.likeCount || 0,
-    replies: t.replyCount || 0,
-    retweets: t.retweetCount || 0,
-    is_official: true, // These are the project's own tweets
-    is_kol: false,
-  }));
+  // IMPORTANT: Always use project handle as fallback for author since these are project's own tweets
+  const projectTweetRows: ProjectTweetRow[] = tweets.slice(0, 10).map((t) => {
+    const authorUsername = t.authorUsername || handle; // Fallback to project handle
+    return {
+      project_id: project.id,
+      tweet_id: t.id,
+      tweet_url: `https://x.com/${authorUsername}/status/${t.id}`,
+      author_handle: authorUsername,
+      author_name: t.authorName || handle,
+      author_profile_image_url: t.authorProfileImageUrl || profile.profileImageUrl || null,
+      created_at: t.createdAt || new Date().toISOString(),
+      text: t.text || '',
+      likes: t.likeCount ?? 0,
+      replies: t.replyCount ?? 0,
+      retweets: t.retweetCount ?? 0,
+      is_official: true, // These are the project's own tweets
+      is_kol: false,
+    };
+  });
 
   // Build tweet rows for mentions - tweets from others mentioning the project
   // A mention is considered "KOL" if it has high engagement (likes + retweets > threshold)
   const KOL_ENGAGEMENT_THRESHOLD = 50; // Consider KOL if engagement > 50
   const mentionTweetRows: ProjectTweetRow[] = mentions.slice(0, 20).map((m) => {
     const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
+    const authorHandle = m.author || 'unknown';
+    // IMPORTANT: Use the URL from API response, which contains correct username
+    const tweetUrl = m.url || `https://x.com/${authorHandle}/status/${m.id}`;
     return {
       project_id: project.id,
       tweet_id: m.id,
-      tweet_url: `https://x.com/${m.author}/status/${m.id}`,
-      author_handle: m.author || 'unknown',
-      author_name: m.author || 'Unknown',
+      tweet_url: tweetUrl,
+      author_handle: authorHandle,
+      author_name: authorHandle, // Use handle as name since we don't have display name
       author_profile_image_url: null, // We don't have this from mentions API
       created_at: m.createdAt || new Date().toISOString(),
       text: m.text || '',
@@ -651,6 +658,20 @@ async function processProject(
   console.log(`      - mention tweets: ${mentionTweetRows.length} (${mentionTweetRows.filter(t => t.is_kol).length} KOL)`);
   console.log(`      - total to upsert: ${tweetRows.length}`);
   console.log(`      - followers: ${followersCount}`);
+  
+  // Debug: Show first tweet's engagement data
+  if (projectTweetRows.length > 0) {
+    const firstTweet = projectTweetRows[0];
+    console.log(`      - Sample project tweet: ${firstTweet.tweet_id}`);
+    console.log(`        URL: ${firstTweet.tweet_url}`);
+    console.log(`        Engagement: ❤️${firstTweet.likes} 🔁${firstTweet.retweets} 💬${firstTweet.replies}`);
+  }
+  if (mentionTweetRows.length > 0) {
+    const firstMention = mentionTweetRows[0];
+    console.log(`      - Sample mention: ${firstMention.tweet_id}`);
+    console.log(`        URL: ${firstMention.tweet_url}`);
+    console.log(`        Engagement: ❤️${firstMention.likes} 🔁${firstMention.retweets} 💬${firstMention.replies}`);
+  }
 
   // Return compiled metrics, project update data, and tweets
   return {

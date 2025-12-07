@@ -364,6 +364,7 @@ export interface UnifiedMention {
   id: string;
   text: string;
   author: string;
+  url: string; // Full tweet URL from API
   createdAt: string;
   likeCount: number;
   retweetCount: number;
@@ -389,6 +390,7 @@ export async function unifiedGetUserMentions(
       id: m.id,
       text: m.text,
       author: m.authorUsername || 'unknown',
+      url: m.url || `https://x.com/${m.authorUsername || 'i'}/status/${m.id}`, // Use API URL or construct
       createdAt: m.createdAt,
       likeCount: m.likeCount,
       retweetCount: m.retweetCount,

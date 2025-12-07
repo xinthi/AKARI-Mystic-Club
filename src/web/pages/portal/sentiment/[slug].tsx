@@ -541,10 +541,13 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             const innerRadius = isKolTweet ? 10 : 8;
             const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
             
+            const isHovered = hoveredTweet?.tweetId === displayTweet.tweetId;
+            
             return (
               <g 
                 key={`marker-${i}`}
                 className="cursor-pointer"
+                style={{ pointerEvents: 'all' }}
                 onMouseEnter={(e) => {
                   setHoveredTweet(displayTweet);
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -557,13 +560,36 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                   }
                 }}
               >
+                {/* Invisible larger hit area for easier hovering */}
                 <circle
                   cx={getX(i)}
                   cy={padding.top - 15}
-                  r={radius}
+                  r={20}
+                  fill="transparent"
+                  style={{ pointerEvents: 'all' }}
+                />
+                {/* Hover glow effect */}
+                {isHovered && (
+                  <circle
+                    cx={getX(i)}
+                    cy={padding.top - 15}
+                    r={radius + 4}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={2}
+                    strokeOpacity={0.5}
+                    className="animate-pulse"
+                  />
+                )}
+                {/* Main marker circle */}
+                <circle
+                  cx={getX(i)}
+                  cy={padding.top - 15}
+                  r={isHovered ? radius + 2 : radius}
                   fill="url(#avatarGradient)"
                   stroke={strokeColor}
-                  strokeWidth={strokeWidth}
+                  strokeWidth={isHovered ? strokeWidth + 1 : strokeWidth}
+                  className="transition-all duration-150"
                 />
                 {imageUrl && (
                   <>
@@ -579,6 +605,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                       width={innerRadius * 2}
                       height={innerRadius * 2}
                       clipPath={`url(#clip-${i})`}
+                      style={{ pointerEvents: 'none' }}
                     />
                   </>
                 )}
@@ -604,12 +631,23 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         </div>
       )}
 
-      {/* Tooltip - positioned ABOVE the chart, not below */}
+      {/* Tooltip - shows when hovering over tweet marker */}
       {hoveredTweet && (
         <div 
-          className="mt-3 rounded-xl bg-akari-cardSoft border border-akari-border p-3 shadow-lg"
+          className="mt-3 rounded-xl bg-akari-card border-2 border-akari-primary/50 p-4 shadow-xl shadow-akari-primary/10 animate-in fade-in duration-150"
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] uppercase tracking-wider text-akari-muted">
+              {hoveredTweet.isKOL ? '🟡 KOL Mention' : '🟢 Project Tweet'}
+            </span>
+            {hoveredTweet.isKOL && (
+              <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">KOL</span>
+            )}
+            {hoveredTweet.isOfficial && (
+              <span className="text-[10px] bg-akari-primary/20 text-akari-primary px-2 py-0.5 rounded-full">Official</span>
+            )}
+          </div>
+          <div className="flex items-start gap-3">
             <AvatarWithFallback 
               url={hoveredTweet.authorProfileImageUrl} 
               name={hoveredTweet.authorName || hoveredTweet.authorHandle}
@@ -617,36 +655,30 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <p className="text-sm font-medium text-akari-text truncate">
+                <p className="text-sm font-semibold text-akari-text truncate">
                   {hoveredTweet.authorName || hoveredTweet.authorHandle}
                 </p>
                 <p className="text-xs text-akari-muted">@{hoveredTweet.authorHandle}</p>
-                {hoveredTweet.isKOL && (
-                  <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded flex-shrink-0">KOL</span>
-                )}
               </div>
-              <p className="text-xs text-akari-text line-clamp-2">
+              <p className="text-sm text-akari-text line-clamp-3">
                 {hoveredTweet.text || 'No text available'}
               </p>
-              <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-akari-muted">
-                <span>❤️ {hoveredTweet.likes}</span>
-                <span>🔁 {hoveredTweet.retweets}</span>
-                <span>💬 {hoveredTweet.replies}</span>
-                {hoveredTweet.sentimentScore !== null && (
-                  <span className="text-akari-primary">Sentiment: {hoveredTweet.sentimentScore}</span>
-                )}
-                {hoveredTweet.engagementScore !== null && (
-                  <span className="text-akari-accent">Engagement: {Math.round(hoveredTweet.engagementScore)}</span>
-                )}
-                <a 
-                  href={hoveredTweet.tweetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-akari-primary hover:underline ml-auto"
-                >
-                  View on X →
-                </a>
+              <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-akari-muted">
+                <span className="flex items-center gap-1">❤️ <span className="text-akari-text">{hoveredTweet.likes}</span></span>
+                <span className="flex items-center gap-1">🔁 <span className="text-akari-text">{hoveredTweet.retweets}</span></span>
+                <span className="flex items-center gap-1">💬 <span className="text-akari-text">{hoveredTweet.replies}</span></span>
+                <span className="text-akari-muted/70">
+                  {new Date(hoveredTweet.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
               </div>
+              <a 
+                href={hoveredTweet.tweetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-3 text-sm text-akari-primary hover:underline font-medium"
+              >
+                View on X →
+              </a>
             </div>
           </div>
         </div>
