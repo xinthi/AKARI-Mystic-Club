@@ -124,7 +124,7 @@ export default async function handler(
         common_inner_circle_power,
         similarity_score,
         projects!project_competitors_competitor_id_fkey (
-          id, slug, name, x_handle, avatar_url, twitter_profile_image_url, inner_circle_count
+          id, slug, name, twitter_username, avatar_url, twitter_profile_image_url, inner_circle_count, inner_circle_power
         )
       `)
       .eq('project_id', project.id)
