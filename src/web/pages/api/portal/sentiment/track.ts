@@ -463,6 +463,32 @@ export default async function handler(
         console.log(`[API /portal/sentiment/track] Updated today's metrics: followers=${realData.followerCount}`);
       } else {
         console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has data (tweets: ${tweetCount}, inner_circle: ${innerCircleCount})`);
+        
+        // Even if we have tweets/inner_circle, check if followers is 0 and update it
+        const today = new Date().toISOString().split('T')[0];
+        const { data: todayMetrics } = await supabase
+          .from('metrics_daily')
+          .select('followers')
+          .eq('project_id', existingProject.id)
+          .eq('date', today)
+          .single();
+        
+        if (!todayMetrics || !todayMetrics.followers || todayMetrics.followers === 0) {
+          console.log(`[API /portal/sentiment/track] Followers is 0, fetching profile to update...`);
+          
+          // Just fetch profile to get follower count
+          const profile = await getUserProfile(handleToUse);
+          if (profile && profile.followersCount) {
+            await supabase
+              .from('metrics_daily')
+              .upsert({
+                project_id: existingProject.id,
+                date: today,
+                followers: profile.followersCount,
+              }, { onConflict: 'project_id,date' });
+            console.log(`[API /portal/sentiment/track] Updated followers: ${profile.followersCount}`);
+          }
+        }
       }
 
       return res.status(200).json({
