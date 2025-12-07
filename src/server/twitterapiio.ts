@@ -155,20 +155,72 @@ function normalizeUser(raw: any): IUserInfo {
  */
 function normalizeTweet(raw: any): ITweet {
   const author = raw.user ?? raw.author ?? {};
+  
+  // Handle nested engagement structures (Twitter API v2 style)
+  const publicMetrics = raw.public_metrics ?? {};
+  const engagement = raw.engagement ?? {};
+  const extendedTweet = raw.extended_tweet ?? {};
+  
+  // Try multiple sources for engagement data
+  const likeCount = Number(
+    raw.favorite_count ?? 
+    raw.like_count ?? 
+    raw.likeCount ??
+    publicMetrics.like_count ?? 
+    engagement.like_count ?? 
+    engagement.favorites ??
+    0
+  );
+  
+  const replyCount = Number(
+    raw.reply_count ?? 
+    raw.replyCount ??
+    publicMetrics.reply_count ?? 
+    engagement.reply_count ?? 
+    engagement.replies ??
+    0
+  );
+  
+  const retweetCount = Number(
+    raw.retweet_count ?? 
+    raw.retweetCount ??
+    publicMetrics.retweet_count ?? 
+    engagement.retweet_count ?? 
+    engagement.retweets ??
+    0
+  );
+  
+  const quoteCount = Number(
+    raw.quote_count ?? 
+    raw.quoteCount ??
+    publicMetrics.quote_count ?? 
+    engagement.quote_count ?? 
+    0
+  );
+  
+  const viewCount = Number(
+    raw.views ?? 
+    raw.view_count ?? 
+    raw.viewCount ??
+    publicMetrics.impression_count ?? 
+    engagement.views ?? 
+    0
+  );
+  
   return {
     id: String(raw.id ?? raw.tweet_id ?? ''),
-    text: raw.full_text ?? raw.text ?? '',
+    text: raw.full_text ?? raw.text ?? extendedTweet.full_text ?? '',
     authorId: String(author.id ?? raw.user_id ?? ''),
-    authorUsername: author.screen_name ?? author.username ?? raw.author_username ?? '',
+    authorUsername: author.screen_name ?? author.username ?? author.userName ?? raw.author_username ?? '',
     authorName: author.name ?? raw.author_name ?? '',
     authorProfileImageUrl: (author.profile_image_url_https ?? author.profile_image_url ?? '')
       .replace('_normal', '_400x400'),
-    createdAt: raw.created_at ?? '',
-    likeCount: Number(raw.favorite_count ?? raw.like_count ?? 0),
-    replyCount: Number(raw.reply_count ?? 0),
-    retweetCount: Number(raw.retweet_count ?? 0),
-    quoteCount: Number(raw.quote_count ?? 0),
-    viewCount: Number(raw.views ?? raw.view_count ?? 0),
+    createdAt: raw.created_at ?? raw.createdAt ?? '',
+    likeCount,
+    replyCount,
+    retweetCount,
+    quoteCount,
+    viewCount,
     isRetweet: Boolean(raw.retweeted_status || raw.is_retweet),
     isReply: Boolean(raw.in_reply_to_status_id || raw.is_reply),
   };
@@ -407,23 +459,11 @@ export async function taioGetUserLastTweets(
     const raw = await taioGet<any>('/twitter/user/last_tweets', params);
     const rawTweets = raw.tweets ?? raw ?? [];
     
-    // DEBUG: Log first raw tweet to see actual field names
+    // DEBUG: Log first raw tweet to see ALL field names
     if (rawTweets.length > 0) {
       const firstRaw = rawTweets[0];
-      console.log(`[TwitterAPI.io] Raw tweet sample for @${username}:`, JSON.stringify({
-        id: firstRaw.id,
-        favorite_count: firstRaw.favorite_count,
-        like_count: firstRaw.like_count,
-        likeCount: firstRaw.likeCount,
-        retweet_count: firstRaw.retweet_count,
-        retweetCount: firstRaw.retweetCount,
-        reply_count: firstRaw.reply_count,
-        replyCount: firstRaw.replyCount,
-        views: firstRaw.views,
-        // Also check nested structures
-        engagement: firstRaw.engagement,
-        public_metrics: firstRaw.public_metrics,
-      }, null, 2));
+      console.log(`[TwitterAPI.io] Raw tweet ALL KEYS for @${username}:`, Object.keys(firstRaw));
+      console.log(`[TwitterAPI.io] Raw tweet FULL OBJECT for @${username}:`, JSON.stringify(firstRaw, null, 2));
     }
     
     const tweets = rawTweets.map((t: any) => normalizeTweet(t));
@@ -495,37 +535,46 @@ export async function taioGetUserMentions(
 
       const rawMentions = data.tweets ?? [];
       
-      // DEBUG: Log first raw mention to see actual field names
+      // DEBUG: Log first raw mention to see ALL field names
       if (rawMentions.length > 0 && all.length === 0) {
         const firstRaw = rawMentions[0];
-        console.log(`[TwitterAPI.io] Raw mention sample for @${username}:`, JSON.stringify({
-          id: firstRaw.id,
-          likeCount: firstRaw.likeCount,
-          favoriteCount: firstRaw.favoriteCount,
-          favorite_count: firstRaw.favorite_count,
-          retweetCount: firstRaw.retweetCount,
-          retweet_count: firstRaw.retweet_count,
-          replyCount: firstRaw.replyCount,
-          reply_count: firstRaw.reply_count,
-          author: firstRaw.author,
-          // Check nested structures
-          engagement: firstRaw.engagement,
-          public_metrics: firstRaw.public_metrics,
-        }, null, 2));
+        console.log(`[TwitterAPI.io] Raw mention ALL KEYS for @${username}:`, Object.keys(firstRaw));
+        console.log(`[TwitterAPI.io] Raw mention FULL OBJECT for @${username}:`, JSON.stringify(firstRaw, null, 2));
       }
       
-      const pageTweets: IMention[] = rawMentions.map((t: any) => ({
-        id: String(t.id ?? ''),
-        text: t.text ?? t.full_text ?? '',
-        url: t.url ?? `https://x.com/${t.author?.userName ?? t.author?.screenName ?? 'i'}/status/${t.id}`,
-        createdAt: t.createdAt ?? t.created_at ?? '',
-        likeCount: Number(t.likeCount ?? t.favoriteCount ?? t.favorite_count ?? 0),
-        replyCount: Number(t.replyCount ?? t.reply_count ?? 0),
-        retweetCount: Number(t.retweetCount ?? t.retweet_count ?? 0),
-        quoteCount: Number(t.quoteCount ?? t.quote_count ?? 0),
-        viewCount: Number(t.viewCount ?? t.view_count ?? 0),
-        authorUsername: t.author?.userName ?? t.author?.screenName ?? t.author?.username ?? undefined,
-      }));
+      const pageTweets: IMention[] = rawMentions.map((t: any) => {
+        // Handle nested engagement structures
+        const publicMetrics = t.public_metrics ?? {};
+        const engagement = t.engagement ?? {};
+        
+        return {
+          id: String(t.id ?? ''),
+          text: t.text ?? t.full_text ?? '',
+          url: t.url ?? `https://x.com/${t.author?.userName ?? t.author?.screenName ?? 'i'}/status/${t.id}`,
+          createdAt: t.createdAt ?? t.created_at ?? '',
+          likeCount: Number(
+            t.likeCount ?? t.favoriteCount ?? t.favorite_count ?? 
+            publicMetrics.like_count ?? engagement.like_count ?? engagement.favorites ?? 0
+          ),
+          replyCount: Number(
+            t.replyCount ?? t.reply_count ?? 
+            publicMetrics.reply_count ?? engagement.reply_count ?? engagement.replies ?? 0
+          ),
+          retweetCount: Number(
+            t.retweetCount ?? t.retweet_count ?? 
+            publicMetrics.retweet_count ?? engagement.retweet_count ?? engagement.retweets ?? 0
+          ),
+          quoteCount: Number(
+            t.quoteCount ?? t.quote_count ?? 
+            publicMetrics.quote_count ?? engagement.quote_count ?? 0
+          ),
+          viewCount: Number(
+            t.viewCount ?? t.view_count ?? 
+            publicMetrics.impression_count ?? engagement.views ?? 0
+          ),
+          authorUsername: t.author?.userName ?? t.author?.screenName ?? t.author?.username ?? undefined,
+        };
+      });
 
       all.push(...pageTweets);
 
