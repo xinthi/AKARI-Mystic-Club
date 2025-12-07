@@ -26,13 +26,13 @@ interface CompetitorProject {
   id: string;
   slug: string;
   name: string;
-  x_handle: string;
+  twitter_username: string | null;
   avatar_url: string | null;
   akari_score: number | null;
   inner_circle_count: number;
-  similarity_score: number;
-  common_inner_circle_count: number;
-  common_inner_circle_power: number;
+  inner_circle_power: number;
+  similarity_percent: number;
+  common_profiles_count: number;
 }
 
 interface CompareData {
@@ -40,7 +40,7 @@ interface CompareData {
     id: string;
     slug: string;
     name: string;
-    x_handle: string;
+    twitter_username: string | null;
     avatar_url: string | null;
     akari_score: number | null;
     inner_circle_count: number;
@@ -51,7 +51,7 @@ interface CompareData {
     id: string;
     slug: string;
     name: string;
-    x_handle: string;
+    twitter_username: string | null;
     avatar_url: string | null;
     akari_score: number | null;
     inner_circle_count: number;
@@ -59,7 +59,8 @@ interface CompareData {
     followers: number | null;
   };
   commonProfiles: CommonProfile[];
-  similarityScore: number;
+  similarityPercent: number;
+  commonProfilesCount: number;
 }
 
 type CompetitorsResponse =
@@ -97,7 +98,7 @@ export default async function handler(
     // Get the main project
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, inner_circle_count, inner_circle_power')
+      .select('id, slug, name, twitter_username, avatar_url, twitter_profile_image_url, inner_circle_count, inner_circle_power')
       .eq('slug', slug)
       .single();
 

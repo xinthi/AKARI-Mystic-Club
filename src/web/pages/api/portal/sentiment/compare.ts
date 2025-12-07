@@ -157,25 +157,31 @@ export default async function handler(
         if (!circleA || !circleB) continue;
 
         // Compute intersection
-        const common = [...circleA.profileIds].filter(id => circleB.profileIds.has(id)).length;
+        const commonCount = [...circleA.profileIds].filter(id => circleB.profileIds.has(id)).length;
         
-        // Compute union
-        const union = new Set([...circleA.profileIds, ...circleB.profileIds]).size;
-        
-        // Compute Jaccard similarity
-        const overlap = union === 0 ? 0 : common / union;
+        // Compute similarity percentage using formula:
+        // similarity = (2 * commonCount) / (countA + countB) * 100
+        const countA = circleA.profileIds.size;
+        const countB = circleB.profileIds.size;
+        const similarityPercent = (countA + countB) > 0 
+          ? Math.round((2 * commonCount) / (countA + countB) * 100 * 100) / 100
+          : 0;
 
         inner_circle_overlap.push({
           a: slugA,
           b: slugB,
-          common_inner_circle_count: common,
-          inner_circle_overlap: Math.round(overlap * 10000) / 10000,
+          innerCircleCountA: countA,
+          innerCircleCountB: countB,
+          circlePowerA: circleA.power,
+          circlePowerB: circleB.power,
+          commonProfilesCount: commonCount,
+          similarityPercent,
         });
       }
     }
 
     // Sort overlap by similarity descending
-    inner_circle_overlap.sort((a, b) => b.inner_circle_overlap - a.inner_circle_overlap);
+    inner_circle_overlap.sort((a, b) => b.similarityPercent - a.similarityPercent);
 
     return res.status(200).json({
       ok: true,
