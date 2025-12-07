@@ -372,7 +372,7 @@ async function processProject(
     profile = { handle } as UnifiedUserProfile;
   }
 
-  const followersCount = profile.followersCount ?? 0;
+  const followersCount = profile.followers ?? 0;
   console.log(`   Followers: ${followersCount.toLocaleString()}`);
 
   // Step 2: Fetch recent tweets using unified client
@@ -492,7 +492,7 @@ async function processProject(
 
     akariScore = computeAkariScore({
       followers: followersCount,
-      following: profile.followingCount ?? 0,
+      following: profile.following ?? 0,
       accountAgeYears,
       avgLikesPerTweet: avgLikes,
       avgRepliesPerTweet: avgReplies,
@@ -515,7 +515,7 @@ async function processProject(
 
     akariScore = computeSimplifiedAkariScore(
       followersCount,
-      profile.followingCount ?? 0,
+      profile.following ?? 0,
       avgEngagement,
       accountAgeYears
     );
