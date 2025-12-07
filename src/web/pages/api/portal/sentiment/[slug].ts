@@ -127,22 +127,33 @@ export default async function handler(
     ]);
 
     // Map tweets to camelCase for frontend
-    const tweets: ProjectTweet[] = (tweetsResult.data || []).map((t: any) => ({
-      tweetId: t.tweet_id,
-      createdAt: t.created_at,
-      authorHandle: t.author_handle,
-      authorName: t.author_name || t.author_handle,
-      authorProfileImageUrl: t.author_profile_image_url || null,
-      text: t.text || '',
-      likes: t.likes || 0,
-      replies: t.replies || 0,
-      retweets: t.retweets || 0,
-      sentimentScore: t.sentiment_score ?? null,
-      engagementScore: t.engagement_score ?? ((t.likes || 0) + (t.retweets || 0) * 2 + (t.replies || 0) * 3),
-      tweetUrl: t.tweet_url || `https://x.com/${t.author_handle}/status/${t.tweet_id}`,
-      isKOL: t.is_kol || false,
-      isOfficial: t.is_official || false,
-    }));
+    // Use project's x_handle as fallback for author when constructing URLs
+    const projectHandle = project.x_handle || project.slug;
+    const tweets: ProjectTweet[] = (tweetsResult.data || []).map((t: any) => {
+      const authorHandle = t.author_handle || projectHandle;
+      // Prefer stored tweet_url, but validate it's not malformed (no double slashes)
+      let tweetUrl = t.tweet_url;
+      if (!tweetUrl || tweetUrl.includes('//status/')) {
+        // Reconstruct URL if missing or malformed
+        tweetUrl = `https://x.com/${authorHandle}/status/${t.tweet_id}`;
+      }
+      return {
+        tweetId: t.tweet_id,
+        createdAt: t.created_at,
+        authorHandle,
+        authorName: t.author_name || authorHandle,
+        authorProfileImageUrl: t.author_profile_image_url || null,
+        text: t.text || '',
+        likes: t.likes || 0,
+        replies: t.replies || 0,
+        retweets: t.retweets || 0,
+        sentimentScore: t.sentiment_score ?? null,
+        engagementScore: t.engagement_score ?? ((t.likes || 0) + (t.retweets || 0) * 2 + (t.replies || 0) * 3),
+        tweetUrl,
+        isKOL: t.is_kol || false,
+        isOfficial: t.is_official || false,
+      };
+    });
 
     // Extract latest and previous metrics for 24h changes
     const latestMetrics = metrics.length > 0 ? metrics[0] : null;
