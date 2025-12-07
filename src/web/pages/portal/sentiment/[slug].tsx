@@ -42,21 +42,20 @@ interface MetricsChange24h {
 }
 
 interface ProjectTweet {
-  id: string;
-  tweet_id: string;
-  tweet_url: string | null;
-  author_handle: string;
-  author_name: string | null;
-  author_profile_image_url: string | null;
-  created_at: string;
-  text: string | null;
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  authorName: string | null;
+  authorProfileImageUrl: string | null;
+  text: string;
   likes: number;
   replies: number;
   retweets: number;
-  sentiment_score: number | null;
-  engagement_score: number | null;
-  is_kol: boolean;
-  is_official: boolean;
+  sentimentScore: number | null;
+  engagementScore: number | null;
+  tweetUrl: string;
+  isKOL: boolean;
+  isOfficial: boolean;
 }
 
 interface Influencer {
@@ -279,7 +278,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
   const tweetsByDate = useMemo(() => {
     const map = new Map<string, ProjectTweet[]>();
     tweets.forEach(t => {
-      const date = t.created_at.split('T')[0];
+      const date = t.createdAt.split('T')[0];
       if (!map.has(date)) map.set(date, []);
       map.get(date)!.push(t);
     });
@@ -490,11 +489,11 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             const dateTweets = tweetsByDate.get(d.date) || [];
             if (dateTweets.length === 0) return null;
             
-            const kolTweet = dateTweets.find(t => t.is_kol);
-            const officialTweet = dateTweets.find(t => t.is_official);
+            const kolTweet = dateTweets.find(t => t.isKOL);
+            const officialTweet = dateTweets.find(t => t.isOfficial);
             const displayTweet = kolTweet || officialTweet || dateTweets[0];
-            const isKol = displayTweet.is_kol;
-            const imageUrl = displayTweet.author_profile_image_url || projectImageUrl;
+            const isKol = displayTweet.isKOL;
+            const imageUrl = displayTweet.authorProfileImageUrl || projectImageUrl;
             
             return (
               <g 
@@ -507,8 +506,8 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                 }}
                 onMouseLeave={() => setHoveredTweet(null)}
                 onClick={() => {
-                  if (displayTweet.tweet_url) {
-                    window.open(displayTweet.tweet_url, '_blank');
+                  if (displayTweet.tweetUrl) {
+                    window.open(displayTweet.tweetUrl, '_blank');
                   }
                 }}
               >
@@ -551,29 +550,35 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         >
           <div className="flex items-center gap-3">
             <AvatarWithFallback 
-              url={hoveredTweet.author_profile_image_url} 
-              name={hoveredTweet.author_name || hoveredTweet.author_handle}
+              url={hoveredTweet.authorProfileImageUrl} 
+              name={hoveredTweet.authorName || hoveredTweet.authorHandle}
               size="md"
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <p className="text-sm font-medium text-akari-text truncate">
-                  {hoveredTweet.author_name || hoveredTweet.author_handle}
+                  {hoveredTweet.authorName || hoveredTweet.authorHandle}
                 </p>
-                <p className="text-xs text-akari-muted">@{hoveredTweet.author_handle}</p>
-                {hoveredTweet.is_kol && (
+                <p className="text-xs text-akari-muted">@{hoveredTweet.authorHandle}</p>
+                {hoveredTweet.isKOL && (
                   <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded flex-shrink-0">KOL</span>
                 )}
               </div>
               <p className="text-xs text-akari-text line-clamp-2">
                 {hoveredTweet.text || 'No text available'}
               </p>
-              <div className="flex items-center gap-4 mt-2 text-[10px] text-akari-muted">
+              <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-akari-muted">
                 <span>❤️ {hoveredTweet.likes}</span>
                 <span>🔁 {hoveredTweet.retweets}</span>
                 <span>💬 {hoveredTweet.replies}</span>
+                {hoveredTweet.sentimentScore !== null && (
+                  <span className="text-akari-primary">Sentiment: {hoveredTweet.sentimentScore}</span>
+                )}
+                {hoveredTweet.engagementScore !== null && (
+                  <span className="text-akari-accent">Engagement: {Math.round(hoveredTweet.engagementScore)}</span>
+                )}
                 <a 
-                  href={hoveredTweet.tweet_url || '#'}
+                  href={hoveredTweet.tweetUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-akari-primary hover:underline ml-auto"

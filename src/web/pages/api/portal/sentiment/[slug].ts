@@ -27,22 +27,24 @@ import {
 // TYPES
 // =============================================================================
 
+/**
+ * Tweet data for chart markers - uses camelCase for frontend consistency
+ */
 interface ProjectTweet {
-  id: string;
-  tweet_id: string;
-  tweet_url: string | null;
-  author_handle: string;
-  author_name: string | null;
-  author_profile_image_url: string | null;
-  created_at: string;
-  text: string | null;
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  authorName: string | null;
+  authorProfileImageUrl: string | null;
+  text: string;
   likes: number;
   replies: number;
   retweets: number;
-  sentiment_score: number | null;
-  engagement_score: number | null;
-  is_kol: boolean;
-  is_official: boolean;
+  sentimentScore: number | null;
+  engagementScore: number | null;
+  tweetUrl: string;
+  isKOL: boolean;
+  isOfficial: boolean;
 }
 
 interface InnerCircleSummary {
@@ -103,29 +105,43 @@ export default async function handler(
       getProjectInfluencers(supabase, project.id, 10),
       supabase
         .from('project_tweets')
-        .select('*')
+        .select(`
+          tweet_id,
+          created_at,
+          author_handle,
+          author_name,
+          author_profile_image_url,
+          text,
+          likes,
+          replies,
+          retweets,
+          sentiment_score,
+          engagement_score,
+          tweet_url,
+          is_kol,
+          is_official
+        `)
         .eq('project_id', project.id)
         .order('created_at', { ascending: false })
         .limit(50),
     ]);
 
-    // Process tweets
+    // Map tweets to camelCase for frontend
     const tweets: ProjectTweet[] = (tweetsResult.data || []).map((t: any) => ({
-      id: t.id,
-      tweet_id: t.tweet_id,
-      tweet_url: t.tweet_url || `https://x.com/i/status/${t.tweet_id}`,
-      author_handle: t.author_handle,
-      author_name: t.author_name || t.author_handle,
-      author_profile_image_url: t.author_profile_image_url || null,
-      created_at: t.created_at,
-      text: t.text,
+      tweetId: t.tweet_id,
+      createdAt: t.created_at,
+      authorHandle: t.author_handle,
+      authorName: t.author_name || t.author_handle,
+      authorProfileImageUrl: t.author_profile_image_url || null,
+      text: t.text || '',
       likes: t.likes || 0,
       replies: t.replies || 0,
       retweets: t.retweets || 0,
-      sentiment_score: t.sentiment_score,
-      engagement_score: t.engagement_score || (t.likes + t.retweets * 2 + t.replies * 3),
-      is_kol: t.is_kol || false,
-      is_official: t.is_official || false,
+      sentimentScore: t.sentiment_score ?? null,
+      engagementScore: t.engagement_score ?? ((t.likes || 0) + (t.retweets || 0) * 2 + (t.replies || 0) * 3),
+      tweetUrl: t.tweet_url || `https://x.com/${t.author_handle}/status/${t.tweet_id}`,
+      isKOL: t.is_kol || false,
+      isOfficial: t.is_official || false,
     }));
 
     // Extract latest and previous metrics for 24h changes
