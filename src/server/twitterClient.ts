@@ -414,6 +414,62 @@ export async function unifiedGetTweetReplies(
 }
 
 // =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Calculate follower quality score from a sample of user profiles.
+ * Uses the unified profile type.
+ * 
+ * @param profiles - Array of unified user profiles
+ * @returns Quality score 0-100
+ */
+export function calculateFollowerQuality(profiles: UnifiedUserProfile[]): number {
+  if (profiles.length === 0) {
+    return 50; // Default neutral
+  }
+
+  let totalScore = 0;
+
+  for (const profile of profiles) {
+    let profileScore = 0;
+
+    // Factor 1: Follower count (0-30 points)
+    const followers = profile.followers || 0;
+    if (followers >= 10000) profileScore += 30;
+    else if (followers >= 1000) profileScore += 20;
+    else if (followers >= 100) profileScore += 10;
+    else if (followers >= 10) profileScore += 5;
+
+    // Factor 2: Verified status (0-25 points)
+    if (profile.isVerified) profileScore += 25;
+
+    // Factor 3: Account age based on tweet count heuristic (0-20 points)
+    const tweets = profile.tweetCount || 0;
+    if (tweets >= 1000) profileScore += 20;
+    else if (tweets >= 100) profileScore += 10;
+    else if (tweets >= 10) profileScore += 5;
+
+    // Factor 4: Follower/following ratio (0-15 points)
+    const following = profile.following || 1;
+    const ratio = followers / following;
+    if (ratio >= 10) profileScore += 15;
+    else if (ratio >= 2) profileScore += 10;
+    else if (ratio >= 0.5) profileScore += 5;
+
+    // Factor 5: Bio presence (0-10 points)
+    if (profile.bio && profile.bio.length > 20) profileScore += 10;
+    else if (profile.bio && profile.bio.length > 0) profileScore += 5;
+
+    totalScore += profileScore;
+  }
+
+  // Average and normalize to 0-100
+  const avgScore = totalScore / profiles.length;
+  return Math.round(Math.min(100, avgScore));
+}
+
+// =============================================================================
 // RE-EXPORTS for convenience
 // =============================================================================
 
