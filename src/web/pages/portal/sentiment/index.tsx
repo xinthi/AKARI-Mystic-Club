@@ -248,37 +248,40 @@ function WidgetCard({
  * Top Movers Widget
  */
 function TopMoversWidget({ movers }: { movers: TopMover[] }) {
-  if (movers.length === 0) return null;
-
+  // Always show widget, display placeholder if no movers
   return (
     <WidgetCard title="Top Movers (24h)" icon="⚡" gradient="from-yellow-500/10 to-transparent">
       <div className="space-y-2">
-        {movers.map((mover, idx) => {
-          const tier = getAkariTier(mover.akari_score);
-          return (
-            <Link
-              key={mover.slug}
-              href={`/portal/sentiment/${mover.slug}`}
-              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
-            >
-              <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-              <AvatarWithFallback url={mover.twitter_profile_image_url || mover.avatar_url} name={mover.name} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
-                  {mover.name}
-                </p>
-                <div className="flex items-center gap-2 text-xs">
-                  <ChangeIndicator change={mover.sentimentChange24h} direction={mover.sentimentDirection24h} compact />
-                  <span className="text-akari-muted">CT:</span>
-                  <ChangeIndicator change={mover.ctHeatChange24h} direction={mover.ctHeatDirection24h} compact />
+        {movers.length === 0 ? (
+          <p className="text-xs text-akari-muted py-4 text-center">No movers data yet</p>
+        ) : (
+          movers.map((mover, idx) => {
+            const tier = getAkariTier(mover.akari_score);
+            return (
+              <Link
+                key={mover.slug}
+                href={`/portal/sentiment/${mover.slug}`}
+                className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+              >
+                <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+                <AvatarWithFallback url={mover.twitter_profile_image_url || mover.avatar_url} name={mover.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                    {mover.name}
+                  </p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <ChangeIndicator change={mover.sentimentChange24h} direction={mover.sentimentDirection24h} compact />
+                    <span className="text-akari-muted">CT:</span>
+                    <ChangeIndicator change={mover.ctHeatChange24h} direction={mover.ctHeatDirection24h} compact />
+                  </div>
                 </div>
-              </div>
-              <div className={`font-mono text-sm font-medium ${tier.color}`}>
-                {mover.akari_score ?? '-'}
-              </div>
-            </Link>
-          );
-        })}
+                <div className={`font-mono text-sm font-medium ${tier.color}`}>
+                  {mover.akari_score ?? '-'}
+                </div>
+              </Link>
+            );
+          })
+        )}
       </div>
     </WidgetCard>
   );
@@ -288,31 +291,34 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
  * Top Engagement Widget
  */
 function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
-  if (projects.length === 0) return null;
-
+  // Always show widget, display placeholder if no projects
   return (
     <WidgetCard title="Hot Engagement" icon="🔥" gradient="from-orange-500/10 to-transparent">
       <div className="space-y-2">
-        {projects.map((project, idx) => (
-          <Link
-            key={project.slug}
-            href={`/portal/sentiment/${project.slug}`}
-            className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
-          >
-            <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-            <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
-                {project.name}
-              </p>
-              <p className="text-xs text-akari-muted">@{project.x_handle}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
-              <p className="text-[10px] text-akari-muted">CT Heat</p>
-            </div>
-          </Link>
-        ))}
+        {projects.length === 0 ? (
+          <p className="text-xs text-akari-muted py-4 text-center">No engagement data yet</p>
+        ) : (
+          projects.map((project, idx) => (
+            <Link
+              key={project.slug}
+              href={`/portal/sentiment/${project.slug}`}
+              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+            >
+              <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+              <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                  {project.name}
+                </p>
+                <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
+                <p className="text-[10px] text-akari-muted">CT Heat</p>
+              </div>
+            </Link>
+          ))
+        )}
       </div>
     </WidgetCard>
   );
@@ -322,33 +328,42 @@ function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
  * Trending Up Widget
  */
 function TrendingUpWidget({ projects }: { projects: TrendingUp[] }) {
-  if (projects.length === 0) return null;
-
+  // Always show widget, display placeholder if no projects
   return (
     <WidgetCard title="Trending Up" icon="📈" gradient="from-green-500/10 to-transparent">
       <div className="space-y-2">
-        {projects.map((project, idx) => (
-          <Link
-            key={project.slug}
-            href={`/portal/sentiment/${project.slug}`}
-            className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
-          >
-            <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-            <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
-                {project.name}
-              </p>
-              <p className="text-xs text-akari-muted">@{project.x_handle}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-mono text-sm font-medium text-akari-primary">
-                {project.sentiment_score}
-              </p>
-              <p className="text-[10px] text-akari-primary">▲ +{project.sentimentChange24h}</p>
-            </div>
-          </Link>
-        ))}
+        {projects.length === 0 ? (
+          <p className="text-xs text-akari-muted py-4 text-center">No trending data yet</p>
+        ) : (
+          projects.map((project, idx) => (
+            <Link
+              key={project.slug}
+              href={`/portal/sentiment/${project.slug}`}
+              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+            >
+              <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+              <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                  {project.name}
+                </p>
+                <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-sm font-medium text-akari-primary">
+                  {project.sentiment_score}
+                </p>
+                {project.sentimentChange24h > 0 ? (
+                  <p className="text-[10px] text-akari-primary">▲ +{project.sentimentChange24h}</p>
+                ) : project.sentimentChange24h < 0 ? (
+                  <p className="text-[10px] text-akari-danger">▼ {project.sentimentChange24h}</p>
+                ) : (
+                  <p className="text-[10px] text-akari-muted">–</p>
+                )}
+              </div>
+            </Link>
+          ))
+        )}
       </div>
     </WidgetCard>
   );

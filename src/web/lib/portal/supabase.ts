@@ -341,7 +341,7 @@ export async function getProjectsWithLatestMetrics(
  */
 export function computeTopMovers(
   projects: ProjectWithMetrics[],
-  limit: number = 5
+  limit: number = 3
 ): TopMover[] {
   // Calculate mover score for each project
   const withMoverScore = projects
@@ -349,13 +349,15 @@ export function computeTopMovers(
     .map(p => ({
       ...p,
       moverScore: Math.max(Math.abs(p.akariChange24h), Math.abs(p.ctHeatChange24h)),
-    }))
-    .filter(p => p.moverScore > 0); // Only include projects with actual changes
+    }));
 
-  // Sort by mover score descending
-  withMoverScore.sort((a, b) => b.moverScore - a.moverScore);
+  // Sort by mover score descending (projects with changes first, then by akari_score)
+  withMoverScore.sort((a, b) => {
+    if (b.moverScore !== a.moverScore) return b.moverScore - a.moverScore;
+    return (b.akari_score ?? 0) - (a.akari_score ?? 0);
+  });
 
-  // Take top N and map to TopMover interface
+  // Take top N and map to TopMover interface (always return up to limit, even if no changes)
   return withMoverScore.slice(0, limit).map(p => ({
     slug: p.slug,
     name: p.name,
@@ -378,43 +380,60 @@ export function computeTopEngagement(
   projects: ProjectWithMetrics[],
   limit: number = 3
 ): TopEngagement[] {
-  return projects
-    .filter(p => p.ct_heat_score !== null && p.ct_heat_score > 0)
-    .sort((a, b) => (b.ct_heat_score ?? 0) - (a.ct_heat_score ?? 0))
-    .slice(0, limit)
-    .map(p => ({
-      slug: p.slug,
-      name: p.name,
-      x_handle: p.x_handle,
-      avatar_url: p.avatar_url,
-      twitter_profile_image_url: p.twitter_profile_image_url,
-      ct_heat_score: p.ct_heat_score ?? 0,
-      sentiment_score: p.sentiment_score,
-      akari_score: p.akari_score,
-    }));
+  // Sort by CT heat score descending, with fallback to akari_score
+  const sorted = [...projects]
+    .filter(p => p.date !== null)
+    .sort((a, b) => {
+      const aHeat = a.ct_heat_score ?? 0;
+      const bHeat = b.ct_heat_score ?? 0;
+      if (bHeat !== aHeat) return bHeat - aHeat;
+      return (b.akari_score ?? 0) - (a.akari_score ?? 0);
+    });
+
+  // Always return up to limit projects
+  return sorted.slice(0, limit).map(p => ({
+    slug: p.slug,
+    name: p.name,
+    x_handle: p.x_handle,
+    avatar_url: p.avatar_url,
+    twitter_profile_image_url: p.twitter_profile_image_url,
+    ct_heat_score: p.ct_heat_score ?? 0,
+    sentiment_score: p.sentiment_score,
+    akari_score: p.akari_score,
+  }));
 }
 
 /**
  * Compute trending up projects (positive sentiment with upward momentum)
+ * Always returns up to limit projects, prioritizing those with positive momentum
  */
 export function computeTrendingUp(
   projects: ProjectWithMetrics[],
   limit: number = 3
 ): TrendingUp[] {
-  return projects
-    .filter(p => p.sentiment_score !== null && p.sentimentChange24h > 0)
-    .sort((a, b) => b.sentimentChange24h - a.sentimentChange24h)
-    .slice(0, limit)
-    .map(p => ({
-      slug: p.slug,
-      name: p.name,
-      x_handle: p.x_handle,
-      avatar_url: p.avatar_url,
-      twitter_profile_image_url: p.twitter_profile_image_url,
-      sentiment_score: p.sentiment_score ?? 0,
-      sentimentChange24h: p.sentimentChange24h,
-      akari_score: p.akari_score,
-    }));
+  // Sort by sentiment change descending, with fallback to sentiment score
+  const sorted = [...projects]
+    .filter(p => p.date !== null)
+    .sort((a, b) => {
+      // First prioritize positive changes
+      if (b.sentimentChange24h !== a.sentimentChange24h) {
+        return b.sentimentChange24h - a.sentimentChange24h;
+      }
+      // Then by sentiment score
+      return (b.sentiment_score ?? 0) - (a.sentiment_score ?? 0);
+    });
+
+  // Always return up to limit projects
+  return sorted.slice(0, limit).map(p => ({
+    slug: p.slug,
+    name: p.name,
+    x_handle: p.x_handle,
+    avatar_url: p.avatar_url,
+    twitter_profile_image_url: p.twitter_profile_image_url,
+    sentiment_score: p.sentiment_score ?? 0,
+    sentimentChange24h: p.sentimentChange24h,
+    akari_score: p.akari_score,
+  }));
 }
 
 /**
