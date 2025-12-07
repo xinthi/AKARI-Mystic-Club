@@ -405,7 +405,28 @@ export async function taioGetUserLastTweets(
     if (cursor) params.cursor = cursor;
     
     const raw = await taioGet<any>('/twitter/user/last_tweets', params);
-    const tweets = (raw.tweets ?? raw ?? []).map((t: any) => normalizeTweet(t));
+    const rawTweets = raw.tweets ?? raw ?? [];
+    
+    // DEBUG: Log first raw tweet to see actual field names
+    if (rawTweets.length > 0) {
+      const firstRaw = rawTweets[0];
+      console.log(`[TwitterAPI.io] Raw tweet sample for @${username}:`, JSON.stringify({
+        id: firstRaw.id,
+        favorite_count: firstRaw.favorite_count,
+        like_count: firstRaw.like_count,
+        likeCount: firstRaw.likeCount,
+        retweet_count: firstRaw.retweet_count,
+        retweetCount: firstRaw.retweetCount,
+        reply_count: firstRaw.reply_count,
+        replyCount: firstRaw.replyCount,
+        views: firstRaw.views,
+        // Also check nested structures
+        engagement: firstRaw.engagement,
+        public_metrics: firstRaw.public_metrics,
+      }, null, 2));
+    }
+    
+    const tweets = rawTweets.map((t: any) => normalizeTweet(t));
     
     return {
       tweets,
@@ -472,7 +493,28 @@ export async function taioGetUserMentions(
 
       const data = await res.json() as any;
 
-      const pageTweets: IMention[] = (data.tweets ?? []).map((t: any) => ({
+      const rawMentions = data.tweets ?? [];
+      
+      // DEBUG: Log first raw mention to see actual field names
+      if (rawMentions.length > 0 && all.length === 0) {
+        const firstRaw = rawMentions[0];
+        console.log(`[TwitterAPI.io] Raw mention sample for @${username}:`, JSON.stringify({
+          id: firstRaw.id,
+          likeCount: firstRaw.likeCount,
+          favoriteCount: firstRaw.favoriteCount,
+          favorite_count: firstRaw.favorite_count,
+          retweetCount: firstRaw.retweetCount,
+          retweet_count: firstRaw.retweet_count,
+          replyCount: firstRaw.replyCount,
+          reply_count: firstRaw.reply_count,
+          author: firstRaw.author,
+          // Check nested structures
+          engagement: firstRaw.engagement,
+          public_metrics: firstRaw.public_metrics,
+        }, null, 2));
+      }
+      
+      const pageTweets: IMention[] = rawMentions.map((t: any) => ({
         id: String(t.id ?? ''),
         text: t.text ?? t.full_text ?? '',
         url: t.url ?? `https://x.com/${t.author?.userName ?? t.author?.screenName ?? 'i'}/status/${t.id}`,

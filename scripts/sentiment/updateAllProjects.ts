@@ -153,12 +153,13 @@ async function main() {
   });
 
   try {
-    // Fetch all active projects
-    console.log('\n📋 Fetching active projects...');
+    // Fetch all active projects with twitter_username set
+    console.log('\n📋 Fetching active projects with twitter_username...');
     const { data: projects, error: fetchError } = await supabase
       .from('projects')
       .select('*')
       .eq('is_active', true)
+      .not('twitter_username', 'is', null) // Only process projects with twitter_username
       .order('name');
 
     if (fetchError) {
@@ -167,20 +168,27 @@ async function main() {
     }
 
     if (!projects || projects.length === 0) {
-      console.log('⚠️  No active projects found. Nothing to update.');
+      console.log('⚠️  No active projects with twitter_username found. Nothing to update.');
       process.exit(0);
     }
 
-    console.log(`✅ Found ${projects.length} active project(s)\n`);
+    // Double-check: filter out any projects with empty twitter_username
+    const validProjects = projects.filter(p => p.twitter_username?.trim());
+    console.log(`✅ Found ${validProjects.length} active project(s) with twitter_username\n`);
+    
+    if (validProjects.length === 0) {
+      console.log('⚠️  All projects have empty twitter_username. Nothing to update.');
+      process.exit(0);
+    }
 
     // Process each project
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     let successCount = 0;
     let failCount = 0;
 
-    for (let i = 0; i < projects.length; i++) {
-      const project = projects[i];
-      console.log(`\n[${i + 1}/${projects.length}] Processing: ${project.name} (@${project.twitter_username})`);
+    for (let i = 0; i < validProjects.length; i++) {
+      const project = validProjects[i];
+      console.log(`\n[${i + 1}/${validProjects.length}] Processing: ${project.name} (@${project.twitter_username})`);
 
       try {
         const result = await processProject(project, today, supabase);
@@ -239,7 +247,7 @@ async function main() {
       }
 
       // Rate limiting delay between projects
-      if (i < projects.length - 1) {
+      if (i < validProjects.length - 1) {
         await delay(DELAY_BETWEEN_PROJECTS_MS);
       }
     }
