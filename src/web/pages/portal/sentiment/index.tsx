@@ -271,6 +271,8 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
           movers.map((mover, idx) => {
             const tier = getAkariTier(mover.akari_score);
             const emoji = getMoverEmoji(mover.sentimentDirection24h, mover.ctHeatDirection24h);
+            // Calculate total change for display
+            const totalChange = mover.sentimentChange24h + mover.ctHeatChange24h;
             return (
               <Link
                 key={mover.slug}
@@ -283,17 +285,22 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
                   <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
                     {mover.name}
                   </p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <ChangeIndicator change={mover.sentimentChange24h} direction={mover.sentimentDirection24h} compact />
-                    <span className="text-akari-muted">CT:</span>
-                    <ChangeIndicator change={mover.ctHeatChange24h} direction={mover.ctHeatDirection24h} compact />
-                  </div>
+                  <p className="text-xs text-akari-muted">@{mover.x_handle}</p>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="text-right flex items-center gap-1">
                   <span>{emoji}</span>
-                  <span className={`font-mono text-sm font-medium ${tier.color}`}>
-                    {mover.akari_score ?? '-'}
-                  </span>
+                  <div>
+                    <p className={`font-mono text-sm font-medium ${tier.color}`}>
+                      {mover.akari_score ?? '-'}
+                    </p>
+                    {totalChange > 0 ? (
+                      <p className="text-[10px] text-akari-primary">▲ +{totalChange}</p>
+                    ) : totalChange < 0 ? (
+                      <p className="text-[10px] text-akari-danger">▼ {totalChange}</p>
+                    ) : (
+                      <p className="text-[10px] text-akari-muted">–</p>
+                    )}
+                  </div>
                 </div>
               </Link>
             );
@@ -341,29 +348,39 @@ function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
         {projects.length === 0 ? (
           <p className="text-xs text-akari-muted py-4 text-center">No engagement data yet</p>
         ) : (
-          projects.map((project, idx) => (
-            <Link
-              key={project.slug}
-              href={`/portal/sentiment/${project.slug}`}
-              className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
-            >
-              <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
-              <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
-                  {project.name}
-                </p>
-                <p className="text-xs text-akari-muted">@{project.x_handle}</p>
-              </div>
-              <div className="text-right flex items-center gap-1">
-                <span>{getHeatEmoji(project.ct_heat_score)}</span>
-                <div>
-                  <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
-                  <p className="text-[10px] text-akari-muted">CT Heat</p>
+          projects.map((project, idx) => {
+            // Calculate heat level for visual indicator
+            const heatLevel = project.ct_heat_score >= 70 ? 'high' : project.ct_heat_score >= 50 ? 'medium' : 'low';
+            return (
+              <Link
+                key={project.slug}
+                href={`/portal/sentiment/${project.slug}`}
+                className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+              >
+                <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
+                <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                    {project.name}
+                  </p>
+                  <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                 </div>
-              </div>
-            </Link>
-          ))
+                <div className="text-right flex items-center gap-1">
+                  <span>{getHeatEmoji(project.ct_heat_score)}</span>
+                  <div>
+                    <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
+                    {heatLevel === 'high' ? (
+                      <p className="text-[10px] text-orange-400">🔥 Hot</p>
+                    ) : heatLevel === 'medium' ? (
+                      <p className="text-[10px] text-yellow-400">🌡️ Warm</p>
+                    ) : (
+                      <p className="text-[10px] text-akari-muted">💤 Cool</p>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })
         )}
       </div>
     </WidgetCard>
