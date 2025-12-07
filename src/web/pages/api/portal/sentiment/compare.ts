@@ -122,13 +122,13 @@ export default async function handler(
         x_handle: project.x_handle,
         twitter_username: project.twitter_username,
         twitter_profile_image_url: project.twitter_profile_image_url || project.avatar_url,
-        akari_project_score: metrics?.akari_score || null,
-        sentiment_score: metrics?.sentiment_score || null,
-        ct_heat_score: metrics?.ct_heat_score || null,
-        followers: metrics?.followers || null,
-        followers_delta: metrics?.followers_delta || null,
-        inner_circle_count: metrics?.inner_circle_count || project.inner_circle_count || null,
-        quality_follower_ratio: metrics?.quality_follower_ratio || project.quality_follower_ratio || null,
+        akari_project_score: metrics?.akari_score ?? null,
+        sentiment_score: metrics?.sentiment_score ?? null,
+        ct_heat_score: metrics?.ct_heat_score ?? null,
+        followers: metrics?.followers ?? null,
+        followers_delta: metrics?.followers_delta ?? null,
+        inner_circle_count: metrics?.inner_circle_count ?? project.inner_circle_count ?? null,
+        quality_follower_ratio: metrics?.quality_follower_ratio ?? project.quality_follower_ratio ?? null,
       });
 
       // Load inner circle profile IDs and weights for this project

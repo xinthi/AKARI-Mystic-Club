@@ -59,7 +59,7 @@ interface CompareData {
     followers: number | null;
   };
   commonProfiles: CommonProfile[];
-  similarityPercent: number;
+  similarityScore: number;  // As decimal (0.0571 = 5.71%)
   commonProfilesCount: number;
 }
 
@@ -241,10 +241,10 @@ export default async function handler(
             name: project.name,
             twitter_username: project.twitter_username,
             avatar_url: project.twitter_profile_image_url || project.avatar_url,
-            akari_score: latestMetrics?.akari_score || null,
+            akari_score: latestMetrics?.akari_score ?? null,
             inner_circle_count: project.inner_circle_count || 0,
             inner_circle_power: project.inner_circle_power || 0,
-            followers: latestMetrics?.followers || null,
+            followers: latestMetrics?.followers ?? null,
           },
           projectB: {
             id: projectB.id,
@@ -252,13 +252,14 @@ export default async function handler(
             name: projectB.name,
             twitter_username: projectB.twitter_username,
             avatar_url: projectB.twitter_profile_image_url || projectB.avatar_url,
-            akari_score: projectBMetrics?.akari_score || null,
+            akari_score: projectBMetrics?.akari_score ?? null,
             inner_circle_count: projectB.inner_circle_count || 0,
             inner_circle_power: projectB.inner_circle_power || 0,
-            followers: projectBMetrics?.followers || null,
+            followers: projectBMetrics?.followers ?? null,
           },
           commonProfiles,
-          similarityPercent,
+          // Return as decimal (0.0571) so frontend can display as percentage
+          similarityScore: similarityPercent / 100,
           commonProfilesCount: commonIds.length,
         };
       }
