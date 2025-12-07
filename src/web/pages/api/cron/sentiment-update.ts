@@ -2,94 +2,39 @@
  * Cron API Route: Sentiment Update
  * 
  * Runs the sentiment update job for all active projects.
- * This fetches Twitter data, analyzes sentiment, and updates metrics.
+ * This fetches Twitter data from twitterapi.io, analyzes sentiment, and updates metrics.
  * 
- * Security: Requires CRON_SECRET in header, query param, or x-cron-token.
+ * Security: Requires CRON_SECRET in query param.
  * 
- * Usage: 
- *   GET /api/cron/sentiment-update?token=YOUR_CRON_SECRET
- *   or with header: Authorization: Bearer YOUR_CRON_SECRET
- *   or with header: x-cron-token: YOUR_CRON_SECRET
- * 
- * Schedule: Recommended to run every 4-6 hours via Vercel cron or external service.
+ * Usage: GET /api/cron/sentiment-update?token=CRON_SECRET
+ * Schedule: Daily at 06:00 UTC (configured in vercel.json)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { runSentimentUpdate } from '@/lib/cron/sentimentJob';
 
-type SentimentUpdateResponse = {
-  ok: boolean;
-  startedAt?: string;
-  finishedAt?: string;
-  successCount?: number;
-  failCount?: number;
-  error?: string;
-};
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<SentimentUpdateResponse>
-) {
-  // Only allow GET requests (Vercel cron uses GET)
-  if (req.method !== 'GET') {
-    return res.status(405).json({
-      ok: false,
-      error: 'Method not allowed',
-    });
-  }
-
-  // Security: Check CRON_SECRET
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) {
-    console.error('[Cron/SentimentUpdate] CRON_SECRET not set in environment');
-    return res.status(500).json({
-      ok: false,
-      error: 'Cron secret not configured',
-    });
-  }
-
-  // Check secret from multiple sources
-  const providedSecret =
-    req.headers.authorization?.replace('Bearer ', '') ||
-    (req.headers['x-cron-token'] as string | undefined) ||
-    (req.headers['x-cron-secret'] as string | undefined) ||
-    (req.query.token as string | undefined) ||
-    (req.query.secret as string | undefined);
-
-  if (providedSecret !== cronSecret) {
-    return res.status(401).json({
-      ok: false,
-      error: 'Unauthorized',
-    });
-  }
-
-  const startedAt = new Date().toISOString();
-  console.log(`[Cron/SentimentUpdate] Starting at ${startedAt}`);
-
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
+    const token = req.query.token;
+
+    // Protect with CRON_SECRET
+    if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+
+    console.log('[CRON] Starting sentiment update...');
+
     const result = await runSentimentUpdate();
-    
-    const finishedAt = new Date().toISOString();
-    console.log(`[Cron/SentimentUpdate] Finished at ${finishedAt}`);
-    console.log(`[Cron/SentimentUpdate] Success: ${result.successCount}, Failed: ${result.failCount}`);
+
+    console.log('[CRON] Sentiment update complete.');
 
     return res.status(200).json({
       ok: true,
-      startedAt,
-      finishedAt,
-      successCount: result.successCount,
-      failCount: result.failCount,
+      message: 'Sentiment update completed.',
+      result,
     });
   } catch (error: any) {
-    const finishedAt = new Date().toISOString();
-    console.error(`[Cron/SentimentUpdate] Error at ${finishedAt}:`, error);
-
-    return res.status(500).json({
-      ok: false,
-      startedAt,
-      finishedAt,
-      error: error.message || 'Internal error',
-    });
+    console.error('[CRON] Sentiment update failed:', error);
+    return res.status(500).json({ ok: false, error: error.message });
   }
 }
-
