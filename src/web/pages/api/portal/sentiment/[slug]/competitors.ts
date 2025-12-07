@@ -147,17 +147,25 @@ export default async function handler(
         .limit(1)
         .single();
 
+      // Calculate similarity percent using formula: (2 * common) / (countA + countB) * 100
+      const countA = project.inner_circle_count || 0;
+      const countB = compProject.inner_circle_count || 0;
+      const commonCount = comp.common_inner_circle_count || 0;
+      const similarityPercent = (countA + countB) > 0 
+        ? Math.round((2 * commonCount) / (countA + countB) * 100 * 100) / 100
+        : 0;
+
       competitors.push({
         id: compProject.id,
         slug: compProject.slug,
         name: compProject.name,
-        x_handle: compProject.x_handle,
+        twitter_username: compProject.twitter_username,
         avatar_url: compProject.twitter_profile_image_url || compProject.avatar_url,
         akari_score: compMetrics?.akari_score || null,
         inner_circle_count: compProject.inner_circle_count || 0,
-        similarity_score: comp.similarity_score || 0,
-        common_inner_circle_count: comp.common_inner_circle_count || 0,
-        common_inner_circle_power: comp.common_inner_circle_power || 0,
+        inner_circle_power: compProject.inner_circle_power || 0,
+        similarity_percent: similarityPercent,
+        common_profiles_count: commonCount,
       });
     }
 
