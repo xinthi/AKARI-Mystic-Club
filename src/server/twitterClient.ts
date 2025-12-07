@@ -470,8 +470,110 @@ export function calculateFollowerQuality(profiles: UnifiedUserProfile[]): number
 }
 
 // =============================================================================
+// MENTIONS (using TwitterAPI.io only - no RapidAPI fallback)
+// =============================================================================
+
+/**
+ * Normalized mention result for unified API
+ */
+export interface UnifiedMention {
+  id: string;
+  text: string;
+  author: string;
+  createdAt: string;
+  likeCount: number;
+  retweetCount: number;
+  replyCount: number;
+}
+
+/**
+ * Get tweets that mention a user.
+ * Uses TwitterAPI.io's /twitter/user/mentions endpoint.
+ * 
+ * @param username - Twitter handle (without @)
+ * @param limit - Maximum tweets to return
+ */
+export async function unifiedGetUserMentions(
+  username: string,
+  limit: number = 50
+): Promise<UnifiedMention[]> {
+  try {
+    const mentions = await taio.taioGetUserMentions(username, limit);
+    console.log(`[TwitterClient] getUserMentions(${username}) - using twitterapiio, got ${mentions.length} tweets`);
+    
+    return mentions.map(m => ({
+      id: m.id,
+      text: m.text,
+      author: m.authorUsername || 'unknown',
+      createdAt: m.createdAt,
+      likeCount: m.likeCount,
+      retweetCount: m.retweetCount,
+      replyCount: m.replyCount,
+    }));
+  } catch (err) {
+    console.error('[TwitterClient] getUserMentions error', err);
+    // Return empty array instead of calling RapidAPI
+    return [];
+  }
+}
+
+/**
+ * Fetch mentions for a project (by handle and/or name)
+ * Returns normalized mention results compatible with the old RapidAPI format
+ */
+export async function fetchProjectMentionsViaTwitterApiIo(
+  handle: string,
+  limit: number = 100
+): Promise<UnifiedMention[]> {
+  const cleanHandle = handle.replace('@', '');
+  return unifiedGetUserMentions(cleanHandle, limit);
+}
+
+/**
+ * Calculate statistics from mentions
+ */
+export function calculateMentionStats(mentions: UnifiedMention[]): {
+  count: number;
+  totalLikes: number;
+  totalRetweets: number;
+  avgLikes: number;
+  avgRetweets: number;
+  uniqueAuthors: number;
+} {
+  if (mentions.length === 0) {
+    return {
+      count: 0,
+      totalLikes: 0,
+      totalRetweets: 0,
+      avgLikes: 0,
+      avgRetweets: 0,
+      uniqueAuthors: 0,
+    };
+  }
+
+  const authorSet = new Set<string>();
+  let totalLikes = 0;
+  let totalRetweets = 0;
+
+  for (const mention of mentions) {
+    totalLikes += mention.likeCount ?? 0;
+    totalRetweets += mention.retweetCount ?? 0;
+    authorSet.add(mention.author.toLowerCase());
+  }
+
+  return {
+    count: mentions.length,
+    totalLikes,
+    totalRetweets,
+    avgLikes: totalLikes / mentions.length,
+    avgRetweets: totalRetweets / mentions.length,
+    uniqueAuthors: authorSet.size,
+  };
+}
+
+// =============================================================================
 // RE-EXPORTS for convenience
 // =============================================================================
 
-export type { IUserInfo, ITweet } from './twitterapiio';
+export type { IUserInfo, ITweet, IMention } from './twitterapiio';
 export type { TwitterUserProfile, TwitterTweet } from './rapidapi/twitter';

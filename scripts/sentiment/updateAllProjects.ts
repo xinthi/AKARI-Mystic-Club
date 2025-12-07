@@ -29,16 +29,14 @@ import {
   unifiedGetUserFollowers,
   unifiedSearchUsers,
   calculateFollowerQuality,
+  unifiedGetUserMentions,
+  calculateMentionStats,
   UnifiedUserProfile,
   UnifiedTweet,
+  UnifiedMention,
 } from '../../src/server/twitterClient';
 
-// Import other helper modules
-import {
-  fetchProjectMentions,
-  calculateMentionStats,
-  MentionResult,
-} from '../../src/server/rapidapi/mentions';
+// Note: We no longer use RapidAPI for mentions - using TwitterAPI.io instead
 import {
   analyzeTweetSentiments,
 } from '../../src/server/rapidapi/sentiment';
@@ -402,17 +400,12 @@ async function processProject(
   }
   await delay(DELAY_BETWEEN_API_CALLS_MS);
 
-  // Step 4: Fetch mentions (using @handle OR "project name")
-  console.log(`   Fetching mentions...`);
-  let mentions: MentionResult[] = [];
-  const mentionQuery = `@${handle} OR "${project.name}"`;
+  // Step 4: Fetch mentions using TwitterAPI.io (not RapidAPI)
+  console.log(`   Fetching mentions via TwitterAPI.io...`);
+  let mentions: UnifiedMention[] = [];
   try {
-    mentions = await fetchProjectMentions({
-      keyword: mentionQuery,
-      periodDays: 1,
-      limit: 100,
-    });
-    console.log(`   Found ${mentions.length} mentions for: ${mentionQuery}`);
+    mentions = await unifiedGetUserMentions(handle, 100);
+    console.log(`   Found ${mentions.length} mentions for @${handle}`);
   } catch (e: unknown) {
     const err = e as Error;
     console.log(`   ⚠️  Could not fetch mentions: ${err.message}`);
