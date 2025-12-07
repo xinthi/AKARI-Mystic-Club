@@ -185,6 +185,19 @@ function normalizeTaioUser(raw: Record<string, unknown>): TwitterUserProfile {
     raw.avatar_url as string ??
     raw.avatarUrl as string;
 
+  // Parse followers - try multiple field names and convert to number
+  const followersCount = Number(
+    raw.followers ?? raw.followersCount ?? raw.followers_count ?? 
+    raw.followerCount ?? raw.public_metrics?.followers_count ?? 0
+  );
+  
+  const followingCount = Number(
+    raw.following ?? raw.followingCount ?? raw.following_count ?? 
+    raw.friends_count ?? raw.public_metrics?.following_count ?? 0
+  );
+  
+  console.log(`[TwitterClient/Web] Profile parsed: followers=${followersCount}, following=${followingCount}`);
+  
   return {
     handle: String(raw.userName ?? raw.username ?? raw.screen_name ?? ''),
     userId: String(raw.id ?? raw.userId ?? ''),
@@ -192,11 +205,11 @@ function normalizeTaioUser(raw: Record<string, unknown>): TwitterUserProfile {
     bio: raw.description as string ?? raw.bio as string,
     avatarUrl: profileImageUrl,
     profileImageUrl: profileImageUrl,
-    followersCount: raw.followers as number ?? raw.followersCount as number ?? raw.followers_count as number,
-    followingCount: raw.following as number ?? raw.followingCount as number ?? raw.friends_count as number,
-    tweetCount: raw.statusesCount as number ?? raw.statuses_count as number ?? raw.tweetCount as number,
+    followersCount,
+    followingCount,
+    tweetCount: Number(raw.statusesCount ?? raw.statuses_count ?? raw.tweetCount ?? raw.tweet_count ?? 0),
     createdAt: raw.createdAt as string ?? raw.created_at as string,
-    verified: raw.isBlueVerified as boolean ?? raw.is_blue_verified as boolean ?? raw.verified as boolean,
+    verified: Boolean(raw.isBlueVerified ?? raw.is_blue_verified ?? raw.verified ?? false),
   };
 }
 

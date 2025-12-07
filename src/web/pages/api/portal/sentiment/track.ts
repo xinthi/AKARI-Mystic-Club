@@ -448,20 +448,19 @@ export default async function handler(
           .eq('date', today)
           .single();
 
-        if (!existingMetrics || existingMetrics.tweet_count === 0) {
-          await supabase
-            .from('metrics_daily')
-            .upsert({
-              project_id: existingProject.id,
-              date: today,
-              sentiment_score: realData.sentimentScore,
-              ct_heat_score: realData.ctHeatScore,
-              tweet_count: realData.tweetCount,
-              followers: realData.followerCount || existingMetrics?.followers || 0,
-              akari_score: existingMetrics?.akari_score || 400,
-            }, { onConflict: 'project_id,date' });
-          console.log(`[API /portal/sentiment/track] Updated today's metrics for ${existingProject.slug}`);
-        }
+        // Always update metrics with real data (especially followers which might be 0)
+        await supabase
+          .from('metrics_daily')
+          .upsert({
+            project_id: existingProject.id,
+            date: today,
+            sentiment_score: realData.sentimentScore || existingMetrics?.sentiment_score || 50,
+            ct_heat_score: realData.ctHeatScore || existingMetrics?.ct_heat_score || 30,
+            tweet_count: realData.tweetCount || existingMetrics?.tweet_count || 0,
+            followers: realData.followerCount || existingMetrics?.followers || 0,
+            akari_score: existingMetrics?.akari_score || 400,
+          }, { onConflict: 'project_id,date' });
+        console.log(`[API /portal/sentiment/track] Updated today's metrics: followers=${realData.followerCount}`);
       } else {
         console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has data (tweets: ${tweetCount}, inner_circle: ${innerCircleCount})`);
       }
