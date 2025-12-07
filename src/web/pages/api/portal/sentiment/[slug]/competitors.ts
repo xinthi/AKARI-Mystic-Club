@@ -176,7 +176,7 @@ export default async function handler(
       // Get the comparison project
       const { data: projectB } = await supabase
         .from('projects')
-        .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, inner_circle_count, inner_circle_power')
+        .select('id, slug, name, twitter_username, avatar_url, twitter_profile_image_url, inner_circle_count, inner_circle_power')
         .eq('slug', compareWith)
         .single();
 
