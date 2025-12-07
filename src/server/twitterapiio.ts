@@ -261,11 +261,24 @@ export async function taioGetUserVerifiedFollowers(
     if (cursor) params.cursor = cursor;
     
     const raw = await taioGet<any>('/twitter/user/verified_followers', params);
-    const users = (raw.users ?? raw ?? []).map((u: any) => normalizeUser(u));
+    
+    // Handle various response formats
+    let rawUsers: any[] = [];
+    if (raw?.followers && Array.isArray(raw.followers)) {
+      rawUsers = raw.followers;
+    } else if (raw?.users && Array.isArray(raw.users)) {
+      rawUsers = raw.users;
+    } else if (raw?.data && Array.isArray(raw.data)) {
+      rawUsers = raw.data;
+    } else if (Array.isArray(raw)) {
+      rawUsers = raw;
+    }
+    
+    const users = rawUsers.map((u: any) => normalizeUser(u));
     
     return {
       users,
-      nextCursor: raw.next_cursor ?? null,
+      nextCursor: raw?.next_cursor ?? raw?.cursor ?? null,
     };
   } catch (error) {
     console.error('[TwitterAPI.io] taioGetUserVerifiedFollowers failed', error);
