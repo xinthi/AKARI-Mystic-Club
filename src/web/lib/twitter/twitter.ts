@@ -149,13 +149,25 @@ async function taioGetUserInfo(userName: string): Promise<TwitterUserProfile | n
       userName: userName.replace('@', ''),
     });
 
+    console.log(`[TwitterAPI.io] User info response keys:`, Object.keys(response));
+    
     const userData = (response.data as Record<string, unknown>) ?? response;
     if (!userData || (!userData.id && !userData.userName)) {
+      console.log(`[TwitterAPI.io] No user data found for @${userName}`);
       return null;
     }
 
+    // Debug: log followers-related fields
+    console.log(`[TwitterAPI.io] User data for @${userName}:`, {
+      followers: userData.followers,
+      followersCount: userData.followersCount,
+      followers_count: userData.followers_count,
+      public_metrics: userData.public_metrics,
+    });
+
     return normalizeTaioUser(userData);
-  } catch {
+  } catch (error) {
+    console.error(`[TwitterAPI.io] Error fetching user info for @${userName}:`, error);
     return null;
   }
 }
@@ -186,14 +198,15 @@ function normalizeTaioUser(raw: Record<string, unknown>): TwitterUserProfile {
     raw.avatarUrl as string;
 
   // Parse followers - try multiple field names and convert to number
+  const publicMetrics = raw.public_metrics as Record<string, unknown> | undefined;
   const followersCount = Number(
     raw.followers ?? raw.followersCount ?? raw.followers_count ?? 
-    raw.followerCount ?? raw.public_metrics?.followers_count ?? 0
+    raw.followerCount ?? publicMetrics?.followers_count ?? 0
   );
   
   const followingCount = Number(
     raw.following ?? raw.followingCount ?? raw.following_count ?? 
-    raw.friends_count ?? raw.public_metrics?.following_count ?? 0
+    raw.friends_count ?? publicMetrics?.following_count ?? 0
   );
   
   console.log(`[TwitterClient/Web] Profile parsed: followers=${followersCount}, following=${followingCount}`);
