@@ -295,7 +295,7 @@ export default async function handler(
       throw selectError;
     }
 
-    // If project exists, update it if needed and return
+    // If project exists, update it if needed and check if it needs data refresh
     if (existingProject) {
       console.log(`[API /portal/sentiment/track] Project already tracked: ${existingProject.slug}`);
       
@@ -311,6 +311,7 @@ export default async function handler(
       }
       
       // IMPORTANT: Set twitter_username if it's missing (for older projects)
+      const handleToUse = existingProject.twitter_username || username;
       if (!existingProject.twitter_username) {
         updates.twitter_username = username;
         console.log(`[API /portal/sentiment/track] Setting missing twitter_username: @${username}`);
@@ -322,6 +323,46 @@ export default async function handler(
           .from('projects')
           .update(updates)
           .eq('id', existingProject.id);
+      }
+
+      // Check if this project is missing tweet data - if so, fetch it now
+      const { count: tweetCount } = await supabase
+        .from('project_tweets')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', existingProject.id);
+
+      if (!tweetCount || tweetCount === 0) {
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has no tweets - fetching real data...`);
+        
+        // Fetch real data from Twitter API for this existing project
+        const realData = await fetchAndSaveRealData(supabase, existingProject.id, handleToUse);
+        console.log(`[API /portal/sentiment/track] Fetched: ${realData.tweetCount} tweets, ${realData.followerCount} followers`);
+        
+        // Update today's metrics with real data if we don't have any
+        const today = new Date().toISOString().split('T')[0];
+        const { data: existingMetrics } = await supabase
+          .from('metrics_daily')
+          .select('*')
+          .eq('project_id', existingProject.id)
+          .eq('date', today)
+          .single();
+
+        if (!existingMetrics || existingMetrics.tweet_count === 0) {
+          await supabase
+            .from('metrics_daily')
+            .upsert({
+              project_id: existingProject.id,
+              date: today,
+              sentiment_score: realData.sentimentScore,
+              ct_heat_score: realData.ctHeatScore,
+              tweet_count: realData.tweetCount,
+              followers: realData.followerCount || existingMetrics?.followers || 0,
+              akari_score: existingMetrics?.akari_score || 400,
+            }, { onConflict: 'project_id,date' });
+          console.log(`[API /portal/sentiment/track] Updated today's metrics for ${existingProject.slug}`);
+        }
+      } else {
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} already has ${tweetCount} tweets`);
       }
 
       return res.status(200).json({

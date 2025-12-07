@@ -126,6 +126,13 @@ export default async function handler(
         .limit(50),
     ]);
 
+    // DEBUG: Log tweet query results
+    console.log(`[API /portal/sentiment/${slug}] Project ID: ${project.id}`);
+    console.log(`[API /portal/sentiment/${slug}] Tweets query result: ${tweetsResult.data?.length || 0} tweets, error: ${tweetsResult.error?.message || 'none'}`);
+    if (tweetsResult.data && tweetsResult.data.length > 0) {
+      console.log(`[API /portal/sentiment/${slug}] Sample tweet:`, JSON.stringify(tweetsResult.data[0], null, 2));
+    }
+
     // Map tweets to camelCase for frontend
     // Use project's x_handle as fallback for author when constructing URLs
     const projectHandle = project.x_handle || project.slug;
@@ -159,6 +166,11 @@ export default async function handler(
     const latestMetrics = metrics.length > 0 ? metrics[0] : null;
     const previousMetrics = metrics.length > 1 ? metrics[1] : null;
     const changes24h = compute24hChanges(latestMetrics, previousMetrics);
+
+    // DEBUG: Log metrics and influencers
+    console.log(`[API /portal/sentiment/${slug}] Metrics: ${metrics.length} days, latest tweet_count: ${metrics[0]?.tweet_count ?? 'N/A'}`);
+    console.log(`[API /portal/sentiment/${slug}] Influencers: ${influencers.length}`);
+    console.log(`[API /portal/sentiment/${slug}] Project inner_circle_count: ${(project as any).inner_circle_count}, inner_circle_power: ${(project as any).inner_circle_power}`);
 
     // Compute inner circle summary from project data or estimate from influencers
     const innerCircle: InnerCircleSummary = {
