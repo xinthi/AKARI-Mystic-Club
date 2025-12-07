@@ -31,8 +31,12 @@ interface ProjectComparison {
 interface InnerCircleOverlap {
   a: string;  // slug A
   b: string;  // slug B
-  common_inner_circle_count: number;
-  inner_circle_overlap: number;
+  innerCircleCountA: number;
+  innerCircleCountB: number;
+  circlePowerA: number;
+  circlePowerB: number;
+  commonProfilesCount: number;
+  similarityPercent: number;
 }
 
 type CompareResponse =
