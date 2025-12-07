@@ -380,7 +380,7 @@ export function computeTopEngagement(
   projects: ProjectWithMetrics[],
   limit: number = 3
 ): TopEngagement[] {
-  // Sort by CT heat score descending, with fallback to akari_score
+  // Sort by CT heat score descending, with fallback to akari_score (v2)
   const sorted = [...projects]
     .filter(p => p.date !== null)
     .sort((a, b) => {
