@@ -121,16 +121,20 @@ export default async function handler(
         quality_follower_ratio: metrics?.quality_follower_ratio || project.quality_follower_ratio || null,
       });
 
-      // Load inner circle profile IDs for this project
+      // Load inner circle profile IDs and weights for this project
       const { data: circleData } = await supabase
         .from('project_inner_circle')
-        .select('profile_id')
+        .select('profile_id, weight')
         .eq('project_id', project.id);
+
+      const profileIds = new Set((circleData || []).map(c => c.profile_id));
+      const totalPower = (circleData || []).reduce((sum, c) => sum + (c.weight || 0), 0);
 
       projectCircles.set(project.slug, {
         id: project.id,
         slug: project.slug,
-        profileIds: new Set((circleData || []).map(c => c.profile_id)),
+        profileIds,
+        power: Math.round(totalPower * 100), // Scale power for readability
       });
     }
 
