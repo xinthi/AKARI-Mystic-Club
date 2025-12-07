@@ -119,11 +119,11 @@ export default async function handler(
     // Create service client for write access
     const supabase = createServiceClient();
 
-    // Check if project already exists
+    // Check if project already exists (by x_handle OR twitter_username)
     const { data: existingProject, error: selectError } = await supabase
       .from('projects')
       .select('*')
-      .eq('x_handle', username.toLowerCase())
+      .or(`x_handle.eq.${username.toLowerCase()},twitter_username.ilike.${username}`)
       .single();
 
     if (selectError && selectError.code !== 'PGRST116') {
@@ -136,15 +136,28 @@ export default async function handler(
     if (existingProject) {
       console.log(`[API /portal/sentiment/track] Project already tracked: ${existingProject.slug}`);
       
-      // Optionally update avatar if we have a new one
+      // Update missing fields (avatar, twitter_username if not set)
+      const updates: Record<string, any> = {
+        last_refreshed_at: new Date().toISOString(),
+      };
+      
+      // Update avatar if we have a new one and current is missing
       if (body.profileImageUrl && !existingProject.avatar_url) {
+        updates.avatar_url = body.profileImageUrl;
+        updates.twitter_profile_image_url = body.profileImageUrl;
+      }
+      
+      // IMPORTANT: Set twitter_username if it's missing (for older projects)
+      if (!existingProject.twitter_username) {
+        updates.twitter_username = username;
+        console.log(`[API /portal/sentiment/track] Setting missing twitter_username: @${username}`);
+      }
+      
+      // Apply updates if any
+      if (Object.keys(updates).length > 1) {
         await supabase
           .from('projects')
-          .update({ 
-            avatar_url: body.profileImageUrl,
-            twitter_profile_image_url: body.profileImageUrl,
-            last_refreshed_at: new Date().toISOString(),
-          })
+          .update(updates)
           .eq('id', existingProject.id);
       }
 
@@ -156,9 +169,11 @@ export default async function handler(
     }
 
     // Create new project
+    // IMPORTANT: Set twitter_username to the same as x_handle so sentiment:update works immediately
     const newProject = {
       slug,
       x_handle: username.toLowerCase(),
+      twitter_username: username, // Keep original casing for Twitter API calls
       name: displayName,
       bio: body.bio || null,
       avatar_url: body.profileImageUrl || null,
