@@ -247,6 +247,19 @@ function WidgetCard({
 /**
  * Top Movers Widget
  */
+/**
+ * Get emoji for mover based on overall direction
+ */
+function getMoverEmoji(sentimentDir: ChangeDirection, ctHeatDir: ChangeDirection): string {
+  const sentimentUp = sentimentDir === 'up';
+  const ctHeatUp = ctHeatDir === 'up';
+  
+  if (sentimentUp && ctHeatUp) return '🚀';
+  if (sentimentUp || ctHeatUp) return '📊';
+  if (sentimentDir === 'down' && ctHeatDir === 'down') return '📉';
+  return '⚡';
+}
+
 function TopMoversWidget({ movers }: { movers: TopMover[] }) {
   // Always show widget, display placeholder if no movers
   return (
@@ -257,6 +270,7 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
         ) : (
           movers.map((mover, idx) => {
             const tier = getAkariTier(mover.akari_score);
+            const emoji = getMoverEmoji(mover.sentimentDirection24h, mover.ctHeatDirection24h);
             return (
               <Link
                 key={mover.slug}
@@ -275,8 +289,11 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
                     <ChangeIndicator change={mover.ctHeatChange24h} direction={mover.ctHeatDirection24h} compact />
                   </div>
                 </div>
-                <div className={`font-mono text-sm font-medium ${tier.color}`}>
-                  {mover.akari_score ?? '-'}
+                <div className="flex items-center gap-1">
+                  <span>{emoji}</span>
+                  <span className={`font-mono text-sm font-medium ${tier.color}`}>
+                    {mover.akari_score ?? '-'}
+                  </span>
                 </div>
               </Link>
             );
@@ -285,6 +302,32 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
       </div>
     </WidgetCard>
   );
+}
+
+/**
+ * Get emoji for CT Heat score
+ */
+function getHeatEmoji(score: number): string {
+  if (score >= 70) return '🔥';
+  if (score >= 50) return '🌡️';
+  if (score >= 30) return '✨';
+  return '💤';
+}
+
+/**
+ * Get emoji for sentiment score
+ */
+function getSentimentEmoji(score: number, change: number): string {
+  if (change > 0) {
+    if (score >= 70) return '🚀';
+    if (score >= 50) return '📈';
+    return '⬆️';
+  }
+  if (change < 0) {
+    if (score <= 30) return '📉';
+    return '⬇️';
+  }
+  return '➡️';
 }
 
 /**
@@ -312,9 +355,12 @@ function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
                 </p>
                 <p className="text-xs text-akari-muted">@{project.x_handle}</p>
               </div>
-              <div className="text-right">
-                <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
-                <p className="text-[10px] text-akari-muted">CT Heat</p>
+              <div className="text-right flex items-center gap-1">
+                <span>{getHeatEmoji(project.ct_heat_score)}</span>
+                <div>
+                  <p className="font-mono text-sm font-medium text-orange-400">{project.ct_heat_score}</p>
+                  <p className="text-[10px] text-akari-muted">CT Heat</p>
+                </div>
               </div>
             </Link>
           ))
@@ -349,17 +395,20 @@ function TrendingUpWidget({ projects }: { projects: TrendingUp[] }) {
                 </p>
                 <p className="text-xs text-akari-muted">@{project.x_handle}</p>
               </div>
-              <div className="text-right">
-                <p className="font-mono text-sm font-medium text-akari-primary">
-                  {project.sentiment_score}
-                </p>
-                {project.sentimentChange24h > 0 ? (
-                  <p className="text-[10px] text-akari-primary">▲ +{project.sentimentChange24h}</p>
-                ) : project.sentimentChange24h < 0 ? (
-                  <p className="text-[10px] text-akari-danger">▼ {project.sentimentChange24h}</p>
-                ) : (
-                  <p className="text-[10px] text-akari-muted">–</p>
-                )}
+              <div className="text-right flex items-center gap-1">
+                <span>{getSentimentEmoji(project.sentiment_score, project.sentimentChange24h)}</span>
+                <div>
+                  <p className="font-mono text-sm font-medium text-akari-primary">
+                    {project.sentiment_score}
+                  </p>
+                  {project.sentimentChange24h > 0 ? (
+                    <p className="text-[10px] text-akari-primary">▲ +{project.sentimentChange24h}</p>
+                  ) : project.sentimentChange24h < 0 ? (
+                    <p className="text-[10px] text-akari-danger">▼ {project.sentimentChange24h}</p>
+                  ) : (
+                    <p className="text-[10px] text-akari-muted">–</p>
+                  )}
+                </div>
               </div>
             </Link>
           ))

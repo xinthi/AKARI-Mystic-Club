@@ -123,19 +123,30 @@ async function taioPost<T>(path: string, body: Record<string, unknown>): Promise
  * Normalize raw user data from API to IUserInfo
  */
 function normalizeUser(raw: any): IUserInfo {
+  // TwitterAPI.io uses camelCase (followersCount) while some APIs use snake_case (followers_count)
+  const followers = Number(
+    raw.followersCount ?? raw.followers_count ?? raw.followers ?? 0
+  );
+  const following = Number(
+    raw.followingCount ?? raw.friends_count ?? raw.following ?? 0
+  );
+  const tweetCount = Number(
+    raw.tweetCount ?? raw.statusesCount ?? raw.statuses_count ?? raw.tweet_count ?? 0
+  );
+  
   return {
     id: String(raw.id ?? raw.user_id ?? ''),
-    username: raw.screen_name ?? raw.username ?? '',
+    username: raw.userName ?? raw.screen_name ?? raw.username ?? '',
     name: raw.name ?? '',
-    profileImageUrl: (raw.profile_image_url_https ?? raw.profile_image_url ?? '')
+    profileImageUrl: (raw.profileImageUrl ?? raw.profile_image_url_https ?? raw.profile_image_url ?? '')
       .replace('_normal', '_400x400'),
     description: raw.description ?? '',
-    followers: Number(raw.followers_count ?? raw.followers ?? 0),
-    following: Number(raw.friends_count ?? raw.following ?? 0),
-    tweetCount: Number(raw.statuses_count ?? raw.tweet_count ?? 0),
-    isBlueVerified: Boolean(raw.is_blue_verified ?? raw.verified ?? false),
-    verifiedType: raw.verified_type ?? null,
-    createdAt: raw.created_at ?? '',
+    followers,
+    following,
+    tweetCount,
+    isBlueVerified: Boolean(raw.isBlueVerified ?? raw.is_blue_verified ?? raw.verified ?? false),
+    verifiedType: raw.verifiedType ?? raw.verified_type ?? null,
+    createdAt: raw.createdAt ?? raw.created_at ?? '',
   };
 }
 
