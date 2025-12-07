@@ -20,7 +20,8 @@
     "db:cleanup": "pnpm exec tsx prisma/cleanup.ts",
     "sentiment:update": "ts-node --transpile-only scripts/sentiment/updateAllProjects.ts",
     "circles:update": "ts-node --transpile-only scripts/sentiment/updateCircles.ts",
-    "circles:quick": "ts-node --transpile-only scripts/sentiment/buildCirclesQuick.ts"
+    "circles:quick": "ts-node --transpile-only scripts/sentiment/buildCirclesQuick.ts",
+    "inner-circle:update": "ts-node --transpile-only scripts/sentiment/updateInnerCircle.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",
