@@ -176,7 +176,11 @@ function quickScoreProfile(user: UnifiedUserProfile): {
 // =============================================================================
 
 /**
- * Get all active projects with twitter_username
+ * Get all active projects with twitter_username.
+ * 
+ * IMPORTANT: twitter_username is an admin-controlled field.
+ * This script only processes projects that already have a handle set.
+ * It does NOT modify twitter_username.
  */
 async function getActiveProjects(supabase: SupabaseClient): Promise<DbProject[]> {
   const { data, error } = await supabase
@@ -190,7 +194,8 @@ async function getActiveProjects(supabase: SupabaseClient): Promise<DbProject[]>
     return [];
   }
 
-  return (data || []).filter(p => p.twitter_username) as DbProject[];
+  // Only return projects with a valid twitter_username
+  return (data || []).filter(p => p.twitter_username?.trim()) as DbProject[];
 }
 
 /**

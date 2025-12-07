@@ -279,11 +279,21 @@ function cleanSearchQuery(query: string): string {
 /**
  * Auto-discover Twitter username for a project that doesn't have one.
  * Searches by project name, slug, and picks the best match.
+ * 
+ * IMPORTANT: twitter_username is an admin-controlled field.
+ * Never overwrite a non-empty value. Auto-discovery only runs if empty.
  */
 async function autoDiscoverTwitterUsername(
   supabase: any,
   project: Project
 ): Promise<string | null> {
+  // IMPORTANT: twitter_username is an admin-controlled field.
+  // Never overwrite a non-empty value. Auto-discovery only runs if empty.
+  if (project.twitter_username && project.twitter_username.trim() !== '') {
+    console.log(`   ℹ️ twitter_username already set to @${project.twitter_username}, using existing value`);
+    return project.twitter_username;
+  }
+
   console.log(`   🔍 Auto-discovering Twitter username for ${project.name}...`);
 
   try {
@@ -348,11 +358,14 @@ async function autoDiscoverTwitterUsername(
       uniqueCandidates.sort((a, b) => b.followers - a.followers)[0];
 
     if (bestCandidate) {
-      // Update the project with discovered username
+      // IMPORTANT: Only write to twitter_username if it was empty.
+      // This is a one-time discovery. After this, admin controls the value.
+      // The .is('twitter_username', null) ensures we never overwrite an existing value.
       const { error } = await supabase
         .from('projects')
         .update({ twitter_username: bestCandidate.username })
-        .eq('id', project.id);
+        .eq('id', project.id)
+        .is('twitter_username', null); // Only update if still NULL
 
       if (error) {
         console.log(`      Failed to update twitter_username: ${error.message}`);
@@ -376,14 +389,18 @@ async function autoDiscoverTwitterUsername(
 /**
  * Process a single project and compute its daily metrics.
  * Also returns profile data (avatar, bio) to update the project.
+ * 
+ * IMPORTANT: This function NEVER modifies twitter_username.
+ * It only reads the existing handle or auto-discovers if empty.
  */
 async function processProject(
   project: Project, 
   date: string,
   supabase: any
 ): Promise<ProcessingResult | null> {
-  // Get the Twitter handle, with auto-discovery if needed
-  let handle = project.twitter_username;
+  // IMPORTANT: twitter_username is an admin-controlled field.
+  // Use existing handle if set, only auto-discover if NULL/empty.
+  let handle = project.twitter_username?.trim() || null;
   
   if (!handle) {
     handle = await autoDiscoverTwitterUsername(supabase, project);

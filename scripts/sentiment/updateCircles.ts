@@ -337,11 +337,21 @@ async function updateCompetitors(
 /**
  * Auto-discover Twitter username for a project that doesn't have one.
  * Searches by project name, slug, and picks the best match.
+ * 
+ * IMPORTANT: twitter_username is an admin-controlled field.
+ * Never overwrite a non-empty value. Auto-discovery only runs if empty.
  */
 async function autoDiscoverTwitterUsername(
   supabase: SupabaseClient,
   project: DbProject
 ): Promise<string | null> {
+  // IMPORTANT: twitter_username is an admin-controlled field.
+  // Never overwrite a non-empty value. Auto-discovery only runs if empty.
+  if (project.twitter_username && project.twitter_username.trim() !== '') {
+    log(`  ℹ️ twitter_username already set to @${project.twitter_username}, using existing value`);
+    return project.twitter_username;
+  }
+
   log(`  Auto-discovering Twitter username for ${project.name}...`);
 
   try {
@@ -360,7 +370,7 @@ async function autoDiscoverTwitterUsername(
     }
 
     if (allCandidates.length === 0) {
-      log(`    No candidates found for ${project.name}`);
+      log(`    No candidates found for ${project.name} - set twitter_username manually in Supabase`);
       return null;
     }
 
@@ -381,11 +391,13 @@ async function autoDiscoverTwitterUsername(
       uniqueCandidates.sort((a, b) => b.followers - a.followers)[0];
 
     if (bestCandidate) {
-      // Update the project with discovered username
+      // IMPORTANT: Only write to twitter_username if it was empty.
+      // This is a one-time discovery. After this, admin controls the value.
       const { error } = await supabase
         .from('projects')
         .update({ twitter_username: bestCandidate.username })
-        .eq('id', project.id);
+        .eq('id', project.id)
+        .is('twitter_username', null); // Only update if still NULL
 
       if (error) {
         log(`    Failed to update twitter_username: ${error.message}`);
@@ -403,18 +415,23 @@ async function autoDiscoverTwitterUsername(
 }
 
 /**
- * Get the Twitter handle for a project, with auto-discovery fallback
+ * Get the Twitter handle for a project, with auto-discovery fallback.
+ * 
+ * IMPORTANT: twitter_username is an admin-controlled field.
+ * We use existing value if set, only auto-discover if NULL/empty.
  */
 async function getProjectTwitterHandle(
   supabase: SupabaseClient,
   project: DbProject
 ): Promise<string | null> {
-  // If we have twitter_username, use it
-  if (project.twitter_username) {
-    return project.twitter_username;
+  // IMPORTANT: twitter_username is an admin-controlled field.
+  // Always use existing handle if set.
+  const existingHandle = project.twitter_username?.trim();
+  if (existingHandle) {
+    return existingHandle;
   }
 
-  // Try auto-discovery
+  // Only try auto-discovery if handle is empty
   const discovered = await autoDiscoverTwitterUsername(supabase, project);
   return discovered;
 }
