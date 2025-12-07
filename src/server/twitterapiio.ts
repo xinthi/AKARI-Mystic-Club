@@ -418,6 +418,95 @@ export async function taioGetUserLastTweets(
 }
 
 /**
+ * Get tweets that mention a given user (screen name)
+ * Uses the /twitter/user/mentions endpoint
+ * 
+ * API docs: https://docs.twitterapi.io/api-reference/endpoint/get_user_mentions
+ */
+export interface IMention {
+  id: string;
+  text: string;
+  url: string;
+  createdAt: string;
+  likeCount: number;
+  replyCount: number;
+  retweetCount: number;
+  quoteCount: number;
+  viewCount: number;
+  authorUsername: string | undefined;
+}
+
+export async function taioGetUserMentions(
+  username: string,
+  limit: number = 50
+): Promise<IMention[]> {
+  if (!TAIO_API_KEY) {
+    console.error('[TwitterAPI.io] Missing TWITTERAPIIO_API_KEY - cannot fetch mentions');
+    throw new Error('TwitterAPI.io API key not configured');
+  }
+
+  const all: IMention[] = [];
+  let cursor: string | undefined;
+
+  console.log(`[TwitterAPI.io] Fetching mentions for @${username} (limit=${limit})`);
+
+  while (all.length < limit) {
+    const params = new URLSearchParams({ userName: username });
+    if (cursor) params.set('cursor', cursor);
+
+    const url = `${TAIO_BASE_URL}/twitter/user/mentions?${params.toString()}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'X-API-Key': TAIO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('[TwitterAPI.io] mentions error', res.status, text);
+        throw new Error(`twitterapi.io mentions failed with status ${res.status}`);
+      }
+
+      const data = await res.json() as any;
+
+      const pageTweets: IMention[] = (data.tweets ?? []).map((t: any) => ({
+        id: String(t.id ?? ''),
+        text: t.text ?? t.full_text ?? '',
+        url: t.url ?? `https://x.com/${t.author?.userName ?? t.author?.screenName ?? 'i'}/status/${t.id}`,
+        createdAt: t.createdAt ?? t.created_at ?? '',
+        likeCount: Number(t.likeCount ?? t.favoriteCount ?? t.favorite_count ?? 0),
+        replyCount: Number(t.replyCount ?? t.reply_count ?? 0),
+        retweetCount: Number(t.retweetCount ?? t.retweet_count ?? 0),
+        quoteCount: Number(t.quoteCount ?? t.quote_count ?? 0),
+        viewCount: Number(t.viewCount ?? t.view_count ?? 0),
+        authorUsername: t.author?.userName ?? t.author?.screenName ?? t.author?.username ?? undefined,
+      }));
+
+      all.push(...pageTweets);
+
+      // Check for next page
+      const hasNext =
+        data.has_next_page === true ||
+        data.hasNext === true ||
+        data.hasNextPage === true;
+
+      cursor = data.next_cursor ?? data.nextCursor ?? undefined;
+
+      if (!hasNext || !cursor) break;
+    } catch (error) {
+      console.error('[TwitterAPI.io] taioGetUserMentions fetch error', error);
+      break;
+    }
+  }
+
+  console.log(`[TwitterAPI.io] mentions for @${username}: ${all.length} tweets`);
+  return all.slice(0, limit);
+}
+
+/**
  * Advanced search for tweets
  */
 export async function taioAdvancedSearchTweets(
