@@ -227,16 +227,19 @@ export default async function handler(
           }));
         }
 
-        // Calculate similarity
-        const unionSize = new Set([...setA, ...setB]).size;
-        const similarityScore = unionSize > 0 ? commonIds.length / unionSize : 0;
+        // Calculate similarity using formula: (2 * common) / (countA + countB) * 100
+        const countA = setA.size;
+        const countB = setB.size;
+        const similarityPercent = (countA + countB) > 0 
+          ? Math.round((2 * commonIds.length) / (countA + countB) * 100 * 100) / 100
+          : 0;
 
         compare = {
           projectA: {
             id: project.id,
             slug: project.slug,
             name: project.name,
-            x_handle: project.x_handle,
+            twitter_username: project.twitter_username,
             avatar_url: project.twitter_profile_image_url || project.avatar_url,
             akari_score: latestMetrics?.akari_score || null,
             inner_circle_count: project.inner_circle_count || 0,
@@ -247,7 +250,7 @@ export default async function handler(
             id: projectB.id,
             slug: projectB.slug,
             name: projectB.name,
-            x_handle: projectB.x_handle,
+            twitter_username: projectB.twitter_username,
             avatar_url: projectB.twitter_profile_image_url || projectB.avatar_url,
             akari_score: projectBMetrics?.akari_score || null,
             inner_circle_count: projectB.inner_circle_count || 0,
@@ -255,7 +258,8 @@ export default async function handler(
             followers: projectBMetrics?.followers || null,
           },
           commonProfiles,
-          similarityScore: Math.round(similarityScore * 10000) / 10000,
+          similarityPercent,
+          commonProfilesCount: commonIds.length,
         };
       }
     }
