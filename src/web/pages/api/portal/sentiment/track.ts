@@ -23,17 +23,46 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Import Twitter client functions for fetching real data
-import {
-  unifiedGetUserInfo,
-  unifiedGetUserLastTweets,
-  unifiedGetUserMentions,
-  unifiedGetUserFollowers,
-  calculateFollowerQuality,
-} from '../../../../server/twitterClient';
+// Use web-local Twitter client (inside src/web, can be compiled by Next.js)
+import { getUserProfile, getUserTweets, TwitterTweet } from '@/lib/twitter/twitter';
 
-// Import local sentiment analyzer
-import { analyzeTweetSentiments } from '../../../../server/sentiment/localAnalyzer';
+// =============================================================================
+// LOCAL HELPERS (inlined to avoid cross-package imports)
+// =============================================================================
+
+// Simple sentiment keywords for local analysis
+const POSITIVE_WORDS = new Set(['good', 'great', 'amazing', 'awesome', 'excellent', 'love', 'best', 'happy', 'bullish', 'moon', 'pump', 'gain', 'profit', 'win', 'success', 'breaking', 'huge', 'massive', 'incredible', 'fantastic', 'wonderful', 'perfect', 'beautiful', 'excited', 'thrilled']);
+const NEGATIVE_WORDS = new Set(['bad', 'terrible', 'awful', 'hate', 'worst', 'sad', 'bearish', 'dump', 'loss', 'fail', 'scam', 'rug', 'crash', 'down', 'drop', 'sell', 'warning', 'danger', 'risk', 'fear', 'worried', 'concerned', 'disappointed', 'frustrated', 'angry']);
+
+/**
+ * Simple local sentiment analysis
+ */
+function analyzeSentiment(text: string): number {
+  const words = text.toLowerCase().split(/\s+/);
+  let score = 0;
+  let count = 0;
+  
+  for (const word of words) {
+    if (POSITIVE_WORDS.has(word)) {
+      score += 1;
+      count++;
+    } else if (NEGATIVE_WORDS.has(word)) {
+      score -= 1;
+      count++;
+    }
+  }
+  
+  if (count === 0) return 50; // Neutral
+  return Math.min(100, Math.max(0, 50 + (score / count) * 25));
+}
+
+/**
+ * Analyze sentiment for multiple tweets
+ */
+function analyzeTweetSentiments(tweets: Array<{ text: string }>): Array<{ score: number }> {
+  return tweets.map(t => ({ score: Math.round(analyzeSentiment(t.text)) }));
+}
+
 
 // =============================================================================
 // TYPES
@@ -96,7 +125,7 @@ function createServiceClient() {
 
 /**
  * Fetch real data from Twitter API and save to database
- * This runs in the background after the project is created
+ * Uses web-local Twitter client (inside src/web, compilable by Next.js)
  */
 async function fetchAndSaveRealData(
   supabase: SupabaseClient,
@@ -111,94 +140,58 @@ async function fetchAndSaveRealData(
   let ctHeatScore = 30;
   
   try {
-    // 1. Fetch profile info
-    const profile = await unifiedGetUserInfo(username);
+    // 1. Fetch profile info using web-local Twitter client
+    const profile = await getUserProfile(username);
     if (profile) {
-      followerCount = profile.followers || 0;
+      followerCount = profile.followersCount || 0;
       console.log(`[Track] Profile: ${profile.name} - ${followerCount} followers`);
       
       // Update project with real profile data
       await supabase
         .from('projects')
         .update({
-          avatar_url: profile.profileImageUrl || null,
-          twitter_profile_image_url: profile.profileImageUrl || null,
+          avatar_url: profile.profileImageUrl || profile.avatarUrl || null,
+          twitter_profile_image_url: profile.profileImageUrl || profile.avatarUrl || null,
           bio: profile.bio || null,
         })
         .eq('id', projectId);
     }
     
-    // 2. Fetch recent tweets
-    const tweetsResult = await unifiedGetUserLastTweets(username);
-    const tweets = tweetsResult.tweets || [];
+    // 2. Fetch recent tweets using web-local Twitter client
+    const tweets = await getUserTweets(username, 20);
     console.log(`[Track] Found ${tweets.length} tweets`);
     
-    // 3. Fetch mentions
-    const mentions = await unifiedGetUserMentions(username, 50);
-    console.log(`[Track] Found ${mentions.length} mentions`);
+    tweetCount = tweets.length;
     
-    tweetCount = tweets.length + mentions.length;
-    
-    // 4. Analyze sentiment
-    const allTexts = [
-      ...tweets.map(t => ({ text: t.text, likes: t.likeCount, retweets: t.retweetCount, replies: t.replyCount })),
-      ...mentions.map(m => ({ text: m.text, likes: m.likeCount, retweets: m.retweetCount, replies: m.replyCount })),
-    ];
-    
-    if (allTexts.length > 0) {
-      const sentimentResults = analyzeTweetSentiments(allTexts);
+    // 3. Analyze sentiment from tweets
+    if (tweets.length > 0) {
+      const sentimentResults = analyzeTweetSentiments(tweets.map(t => ({ text: t.text || '' })));
       const avgSentiment = sentimentResults.reduce((sum, r) => sum + r.score, 0) / sentimentResults.length;
       sentimentScore = Math.round(avgSentiment);
       
       // Calculate CT Heat based on engagement
-      const totalEngagement = allTexts.reduce((sum, t) => sum + (t.likes || 0) + (t.retweets || 0) * 2 + (t.replies || 0) * 3, 0);
-      const avgEngagement = totalEngagement / allTexts.length;
+      const totalEngagement = tweets.reduce((sum, t) => 
+        sum + (t.likeCount || 0) + (t.retweetCount || 0) * 2 + (t.replyCount || 0) * 3, 0);
+      const avgEngagement = totalEngagement / tweets.length;
       ctHeatScore = Math.min(100, Math.max(0, Math.round(30 + avgEngagement / 100)));
     }
     
-    // 5. Save tweets to project_tweets
-    const KOL_ENGAGEMENT_THRESHOLD = 50;
-    const tweetRows = [
-      // Project's own tweets
-      ...tweets.slice(0, 10).map(t => {
-        const authorUsername = t.authorUsername || username;
-        return {
-          project_id: projectId,
-          tweet_id: t.id,
-          tweet_url: `https://x.com/${authorUsername}/status/${t.id}`,
-          author_handle: authorUsername,
-          author_name: t.authorName || username,
-          author_profile_image_url: t.authorProfileImageUrl || profile?.profileImageUrl || null,
-          created_at: t.createdAt || new Date().toISOString(),
-          text: t.text || '',
-          likes: t.likeCount ?? 0,
-          replies: t.replyCount ?? 0,
-          retweets: t.retweetCount ?? 0,
-          is_official: true,
-          is_kol: false,
-        };
-      }),
-      // Mentions from others
-      ...mentions.slice(0, 20).map(m => {
-        const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
-        const authorHandle = m.author || 'unknown';
-        return {
-          project_id: projectId,
-          tweet_id: m.id,
-          tweet_url: m.url || `https://x.com/${authorHandle}/status/${m.id}`,
-          author_handle: authorHandle,
-          author_name: authorHandle,
-          author_profile_image_url: null,
-          created_at: m.createdAt || new Date().toISOString(),
-          text: m.text || '',
-          likes: m.likeCount ?? 0,
-          replies: m.replyCount ?? 0,
-          retweets: m.retweetCount ?? 0,
-          is_official: false,
-          is_kol: totalEngagement >= KOL_ENGAGEMENT_THRESHOLD,
-        };
-      }),
-    ];
+    // 4. Save tweets to project_tweets
+    const tweetRows = tweets.slice(0, 20).map((t: TwitterTweet) => ({
+      project_id: projectId,
+      tweet_id: t.id,
+      tweet_url: `https://x.com/${username}/status/${t.id}`,
+      author_handle: username,
+      author_name: profile?.name || username,
+      author_profile_image_url: profile?.profileImageUrl || profile?.avatarUrl || null,
+      created_at: t.createdAt || new Date().toISOString(),
+      text: t.text || '',
+      likes: t.likeCount ?? 0,
+      replies: t.replyCount ?? 0,
+      retweets: t.retweetCount ?? 0,
+      is_official: true,
+      is_kol: false,
+    }));
     
     if (tweetRows.length > 0) {
       const { error: tweetsError } = await supabase
@@ -212,23 +205,11 @@ async function fetchAndSaveRealData(
       }
     }
     
-    // 6. Fetch follower sample for quality score (quick sample)
-    let followerQuality = 50;
-    try {
-      const followers = await unifiedGetUserFollowers(username, 100);
-      if (followers.length > 0) {
-        followerQuality = calculateFollowerQuality(followers);
-        console.log(`[Track] Follower quality: ${followerQuality}`);
-      }
-    } catch (e) {
-      console.warn(`[Track] Could not fetch followers for quality score`);
-    }
-    
-    // 7. Update project with inner circle placeholder (will be populated by inner-circle:update)
+    // 5. Set default follower quality (will be updated by inner-circle:update)
     await supabase
       .from('projects')
       .update({
-        quality_follower_ratio: followerQuality,
+        quality_follower_ratio: 50, // Default, updated by inner-circle script
       })
       .eq('id', projectId);
     
