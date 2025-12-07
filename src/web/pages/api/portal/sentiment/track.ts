@@ -419,14 +419,21 @@ export default async function handler(
           .eq('id', existingProject.id);
       }
 
-      // Check if this project is missing tweet data - if so, fetch it now
+      // Check if this project is missing tweet data OR inner circle - if so, fetch it now
       const { count: tweetCount } = await supabase
         .from('project_tweets')
         .select('*', { count: 'exact', head: true })
         .eq('project_id', existingProject.id);
 
-      if (!tweetCount || tweetCount === 0) {
-        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has no tweets - fetching real data...`);
+      const { count: innerCircleCount } = await supabase
+        .from('project_inner_circle')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', existingProject.id);
+
+      const needsDataFetch = !tweetCount || tweetCount === 0 || !innerCircleCount || innerCircleCount === 0;
+
+      if (needsDataFetch) {
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} missing data (tweets: ${tweetCount || 0}, inner_circle: ${innerCircleCount || 0}) - fetching...`);
         
         // Fetch real data from Twitter API for this existing project
         const realData = await fetchAndSaveRealData(supabase, existingProject.id, handleToUse);
@@ -456,7 +463,7 @@ export default async function handler(
           console.log(`[API /portal/sentiment/track] Updated today's metrics for ${existingProject.slug}`);
         }
       } else {
-        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} already has ${tweetCount} tweets`);
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has data (tweets: ${tweetCount}, inner_circle: ${innerCircleCount})`);
       }
 
       return res.status(200).json({
