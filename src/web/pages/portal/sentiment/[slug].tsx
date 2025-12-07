@@ -382,6 +382,14 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
           className="w-full h-40 sm:h-48 md:h-56"
           preserveAspectRatio="xMidYMid meet"
         >
+          {/* Global defs for marker avatars */}
+          <defs>
+            <radialGradient id="avatarGradient" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#1a1a2e" />
+              <stop offset="100%" stopColor="#0f0f1a" />
+            </radialGradient>
+          </defs>
+
           {/* Grid lines - dynamic based on metric */}
           {gridValues.map(v => {
             const y = getY(v);
@@ -414,7 +422,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
           {/* Chart content */}
           {chartType === 'line' ? (
             <>
-              {/* Gradient fill */}
+              {/* Gradient fill for line chart */}
               <defs>
                 <linearGradient id={`gradient-${metric}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={metricColors[metric]} stopOpacity={0.3} />
@@ -552,11 +560,11 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                   const { tweet: displayTweet, isKol: isKolTweet, offset } = marker;
                   const isOfficialTweet = displayTweet.isOfficial;
                   
-                  // Use yellow for KOL, green for official
+                  // Use yellow for KOL, green for official - BOLD colors
                   const strokeColor = isKolTweet ? '#FBBF24' : '#00E5A0';
-                  const strokeWidth = isKolTweet ? 2 : 1;
-                  const radius = 10;
-                  const innerRadius = 8;
+                  const strokeWidth = 3; // Thicker stroke for visibility
+                  const radius = 12;
+                  const innerRadius = 9;
                   const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
                   
                   const isHovered = hoveredTweet?.tweetId === displayTweet.tweetId;
