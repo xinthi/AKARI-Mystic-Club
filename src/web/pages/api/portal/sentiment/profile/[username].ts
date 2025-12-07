@@ -5,7 +5,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getUserProfile, getUserTweets, TwitterUserProfile, TwitterTweet } from '@/lib/rapidapi/twitter';
+import { getUserProfile, getUserTweets, TwitterUserProfile, TwitterTweet } from '@/lib/twitter/twitter';
 
 interface ProfileResponse {
   ok: boolean;

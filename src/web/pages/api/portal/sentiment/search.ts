@@ -12,7 +12,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { searchUsers, TwitterUserProfile } from '@/lib/rapidapi/twitter';
+import { searchUsers, TwitterUserProfile } from '@/lib/twitter/twitter';
 
 /**
  * Normalized search result user

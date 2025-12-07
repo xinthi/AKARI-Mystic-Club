@@ -12,7 +12,7 @@
  * Environment variables required:
  * - SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY
- * - TWITTER_PRIMARY_PROVIDER: "twitterapiio" or "rapidapi" (default: "twitterapiio")
+ * - TWITTER_PRIMARY_PROVIDER: "twitterapiio" (only twitterapiio is supported)
  * - TWITTERAPIIO_API_KEY (if using TwitterAPI.io)
  * - RAPIDAPI_KEY (if using RapidAPI or as fallback)
  */
@@ -36,10 +36,10 @@ import {
   UnifiedMention,
 } from '../../src/server/twitterClient';
 
-// Note: We no longer use RapidAPI for mentions - using TwitterAPI.io instead
+// Use local sentiment analyzer (no external API)
 import {
   analyzeTweetSentiments,
-} from '../../src/server/rapidapi/sentiment';
+} from '../../src/server/sentiment/localAnalyzer';
 import {
   computeAkariScore,
   computeCtHeatScore,
@@ -367,7 +367,19 @@ async function processProject(
 
   if (!profile) {
     console.log(`   ⚠️  Profile not found for @${handle}, using defaults`);
-    profile = { handle } as UnifiedUserProfile;
+    profile = {
+      id: '',
+      username: handle,
+      name: handle,
+      profileImageUrl: '',
+      bio: '',
+      followers: 0,
+      following: 0,
+      tweetCount: 0,
+      isVerified: false,
+      verifiedType: null,
+      createdAt: '',
+    } as UnifiedUserProfile;
   }
 
   const followersCount = profile.followers ?? 0;
@@ -533,8 +545,8 @@ async function processProject(
     projectUpdate.bio = profile.bio;
   }
 
-  // Build tweet rows for saving to DB
-  const tweetRows: ProjectTweetRow[] = tweets.slice(0, 10).map((t) => ({
+  // Build tweet rows for saving to DB - project's own tweets
+  const projectTweetRows: ProjectTweetRow[] = tweets.slice(0, 10).map((t) => ({
     project_id: project.id,
     tweet_id: t.id,
     tweet_url: `https://x.com/${t.authorUsername}/status/${t.id}`,
@@ -546,17 +558,42 @@ async function processProject(
     likes: t.likeCount || 0,
     replies: t.replyCount || 0,
     retweets: t.retweetCount || 0,
-    is_official: t.authorUsername?.toLowerCase() === handle.toLowerCase(),
-    is_kol: false, // Will be marked later if author is a KOL
+    is_official: true, // These are the project's own tweets
+    is_kol: false,
   }));
+
+  // Build tweet rows for mentions - tweets from others mentioning the project
+  // A mention is considered "KOL" if it has high engagement (likes + retweets > threshold)
+  const KOL_ENGAGEMENT_THRESHOLD = 50; // Consider KOL if engagement > 50
+  const mentionTweetRows: ProjectTweetRow[] = mentions.slice(0, 20).map((m) => {
+    const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
+    return {
+      project_id: project.id,
+      tweet_id: m.id,
+      tweet_url: `https://x.com/${m.author}/status/${m.id}`,
+      author_handle: m.author || 'unknown',
+      author_name: m.author || 'Unknown',
+      author_profile_image_url: null, // We don't have this from mentions API
+      created_at: m.createdAt || new Date().toISOString(),
+      text: m.text || '',
+      likes: m.likeCount ?? 0,
+      replies: m.replyCount ?? 0,
+      retweets: m.retweetCount ?? 0,
+      is_official: false, // These are mentions from others, not the project
+      is_kol: totalEngagement >= KOL_ENGAGEMENT_THRESHOLD, // Mark as KOL if high engagement
+    };
+  });
+
+  // Combine all tweets
+  const tweetRows: ProjectTweetRow[] = [...projectTweetRows, ...mentionTweetRows];
 
   // Validation logging
   console.log(`   📊 VALIDATION LOG:`);
   console.log(`      - project.slug: ${project.slug}`);
   console.log(`      - twitter_username: ${handle} (${project.twitter_username ? 'existing' : 'auto-discovered'})`);
-  console.log(`      - tweets fetched: ${tweets.length}`);
-  console.log(`      - tweets to upsert: ${tweetRows.length}`);
-  console.log(`      - mentions found: ${mentions.length}`);
+  console.log(`      - project tweets: ${projectTweetRows.length}`);
+  console.log(`      - mention tweets: ${mentionTweetRows.length} (${mentionTweetRows.filter(t => t.is_kol).length} KOL)`);
+  console.log(`      - total to upsert: ${tweetRows.length}`);
   console.log(`      - followers: ${followersCount}`);
 
   // Return compiled metrics, project update data, and tweets

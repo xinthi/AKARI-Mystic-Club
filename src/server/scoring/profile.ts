@@ -20,7 +20,7 @@ import {
   UnifiedUserProfile,
   UnifiedTweet,
 } from '../twitterClient';
-import { analyzeSentiments } from '../rapidapi/sentiment';
+import { analyzeSentiments } from '../sentiment/localAnalyzer';
 
 // =============================================================================
 // TYPES

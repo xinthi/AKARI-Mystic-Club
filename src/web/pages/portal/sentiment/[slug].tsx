@@ -253,6 +253,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
   const [metric, setMetric] = useState<ChartMetric>('sentiment');
   const [hoveredTweet, setHoveredTweet] = useState<ProjectTweet | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [hoveredDataPoint, setHoveredDataPoint] = useState<{ index: number; value: number; date: string } | null>(null);
 
   // Prepare chart data (reverse for oldest-first)
   const chartData = useMemo(() => {
@@ -435,27 +436,46 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                 strokeWidth={2}
               />
               
-              {/* Data points */}
+              {/* Data points with hover */}
               {chartData.map((d, i) => d.value !== null && (
-                <circle
-                  key={i}
-                  cx={getX(i)}
-                  cy={getY(d.value)}
-                  r={3}
-                  fill={metricColors[metric]}
-                />
+                <g key={i}>
+                  {/* Visible point */}
+                  <circle
+                    cx={getX(i)}
+                    cy={getY(d.value)}
+                    r={hoveredDataPoint?.index === i ? 5 : 3}
+                    fill={metricColors[metric]}
+                    className="transition-all duration-150"
+                  />
+                  {/* Larger invisible hit area for easier hover */}
+                  <circle
+                    cx={getX(i)}
+                    cy={getY(d.value)}
+                    r={12}
+                    fill="transparent"
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredDataPoint({ index: i, value: d.value!, date: d.date })}
+                    onMouseLeave={() => setHoveredDataPoint(null)}
+                  />
+                </g>
               ))}
             </>
           ) : (
-            /* Bar chart - properly spaced bars */
+            /* Bar chart - properly spaced bars with hover */
             chartData.map((d, i) => {
               const val = d.value ?? 0;
               const barHeight = Math.max(2, Math.abs(val - minVal) / range * innerHeight);
               const barX = getX(i) - barWidth / 2;
               const barY = getY(val);
+              const isHovered = hoveredDataPoint?.index === i;
               
               return (
-                <g key={i}>
+                <g 
+                  key={i}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredDataPoint({ index: i, value: val, date: d.date })}
+                  onMouseLeave={() => setHoveredDataPoint(null)}
+                >
                   {/* Bar with rounded top */}
                   <rect
                     x={barX}
@@ -463,9 +483,10 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                     width={barWidth}
                     height={barHeight}
                     fill={metricColors[metric]}
-                    fillOpacity={0.8}
+                    fillOpacity={isHovered ? 1 : 0.8}
                     rx={3}
                     ry={3}
+                    className="transition-all duration-150"
                   />
                   {/* Subtle glow effect */}
                   <rect
@@ -474,26 +495,38 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                     width={barWidth}
                     height={barHeight}
                     fill={metricColors[metric]}
-                    fillOpacity={0.3}
+                    fillOpacity={isHovered ? 0.5 : 0.3}
                     rx={3}
                     ry={3}
                     filter="blur(2px)"
+                    className="transition-all duration-150"
                   />
                 </g>
               );
             })
           )}
 
-          {/* Tweet markers */}
+          {/* Tweet markers - show multiple if both official and KOL tweets exist */}
           {chartData.map((d, i) => {
             const dateTweets = tweetsByDate.get(d.date) || [];
             if (dateTweets.length === 0) return null;
             
-            const kolTweet = dateTweets.find(t => t.isKOL);
-            const officialTweet = dateTweets.find(t => t.isOfficial);
-            const displayTweet = kolTweet || officialTweet || dateTweets[0];
-            const isKol = displayTweet.isKOL;
-            const imageUrl = displayTweet.authorProfileImageUrl || projectImageUrl;
+            // Separate official (project) tweets and KOL mentions
+            const officialTweets = dateTweets.filter(t => t.isOfficial);
+            const kolTweets = dateTweets.filter(t => t.isKOL && !t.isOfficial);
+            
+            // If we have both, show the KOL tweet (yellow) as primary
+            // Otherwise show official (green) or any other tweet
+            const displayTweet = kolTweets[0] || officialTweets[0] || dateTweets[0];
+            const isKolTweet = displayTweet.isKOL && !displayTweet.isOfficial;
+            const isOfficialTweet = displayTweet.isOfficial;
+            
+            // Use yellow for KOL, green for official
+            const strokeColor = isKolTweet ? '#FBBF24' : '#00E5A0';
+            const strokeWidth = isKolTweet ? 2 : 1;
+            const radius = isKolTweet ? 12 : 10;
+            const innerRadius = isKolTweet ? 10 : 8;
+            const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
             
             return (
               <g 
@@ -514,24 +547,24 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                 <circle
                   cx={getX(i)}
                   cy={padding.top - 15}
-                  r={isKol ? 12 : 10}
+                  r={radius}
                   fill="url(#avatarGradient)"
-                  stroke={isKol ? '#FBBF24' : '#00E5A0'}
-                  strokeWidth={isKol ? 2 : 1}
+                  stroke={strokeColor}
+                  strokeWidth={strokeWidth}
                 />
                 {imageUrl && (
                   <>
                     <defs>
                       <clipPath id={`clip-${i}`}>
-                        <circle cx={getX(i)} cy={padding.top - 15} r={isKol ? 10 : 8} />
+                        <circle cx={getX(i)} cy={padding.top - 15} r={innerRadius} />
                       </clipPath>
                     </defs>
                     <image
                       href={imageUrl}
-                      x={getX(i) - (isKol ? 10 : 8)}
-                      y={padding.top - 15 - (isKol ? 10 : 8)}
-                      width={isKol ? 20 : 16}
-                      height={isKol ? 20 : 16}
+                      x={getX(i) - innerRadius}
+                      y={padding.top - 15 - innerRadius}
+                      width={innerRadius * 2}
+                      height={innerRadius * 2}
                       clipPath={`url(#clip-${i})`}
                     />
                   </>
@@ -542,6 +575,21 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         </svg>
 
       </div>
+
+      {/* Data point tooltip */}
+      {hoveredDataPoint && (
+        <div className="flex items-center justify-center gap-4 py-2 px-4 mt-2 bg-akari-cardSoft/80 rounded-lg border border-akari-border/50 text-sm">
+          <span className="text-akari-muted">
+            {new Date(hoveredDataPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+          <span className="font-medium" style={{ color: metricColors[metric] }}>
+            {metricLabels[metric]}: {metric === 'followersDelta' && hoveredDataPoint.value > 0 ? '+' : ''}
+            {metric === 'followersDelta' && Math.abs(hoveredDataPoint.value) >= 1000
+              ? `${(hoveredDataPoint.value / 1000).toFixed(1)}K`
+              : hoveredDataPoint.value}
+          </span>
+        </div>
+      )}
 
       {/* Tooltip - positioned ABOVE the chart, not below */}
       {hoveredTweet && (
@@ -594,14 +642,72 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 text-xs text-akari-muted">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full border-2 border-yellow-400 bg-akari-cardSoft" />
-          KOL Tweet
+          <span className="w-3 h-3 rounded-full border border-akari-primary bg-akari-cardSoft" />
+          Project Tweet
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-full border border-akari-primary bg-akari-cardSoft" />
-          Tweet Marker
+          <span className="w-3 h-3 rounded-full border-2 border-yellow-400 bg-akari-cardSoft" />
+          KOL Mention
         </span>
       </div>
+
+      {/* Most Recent Tweet - always visible if tweets exist */}
+      {tweets.length > 0 && !hoveredTweet && (
+        (() => {
+          // Get the most recent tweet
+          const mostRecent = tweets.reduce((latest, t) => 
+            !latest || new Date(t.createdAt) > new Date(latest.createdAt) ? t : latest
+          , tweets[0]);
+          
+          return (
+            <div className="mt-4 rounded-xl bg-akari-cardSoft border border-akari-border p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] text-akari-muted uppercase tracking-wider">Recent Mention</span>
+                {mostRecent.isKOL && (
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">KOL</span>
+                )}
+                {mostRecent.isOfficial && (
+                  <span className="text-[10px] bg-akari-primary/20 text-akari-primary px-1.5 py-0.5 rounded">Official</span>
+                )}
+              </div>
+              <div className="flex items-start gap-3">
+                <AvatarWithFallback 
+                  url={mostRecent.authorProfileImageUrl} 
+                  name={mostRecent.authorName || mostRecent.authorHandle}
+                  size="md"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium text-akari-text truncate">
+                      {mostRecent.authorName || mostRecent.authorHandle}
+                    </p>
+                    <p className="text-xs text-akari-muted">@{mostRecent.authorHandle}</p>
+                  </div>
+                  <p className="text-xs text-akari-text line-clamp-2">
+                    {mostRecent.text || 'No text available'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-akari-muted">
+                    <span>❤️ {mostRecent.likes}</span>
+                    <span>🔁 {mostRecent.retweets}</span>
+                    <span>💬 {mostRecent.replies}</span>
+                    <span className="text-akari-muted">
+                      {new Date(mostRecent.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    <a 
+                      href={mostRecent.tweetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-akari-primary hover:underline ml-auto"
+                    >
+                      View on X →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()
+      )}
     </div>
   );
 }
