@@ -1612,6 +1612,7 @@ export default function SentimentDetail() {
               </>
             )}
           </section>
+        </LockedFeatureOverlay>
         </>
       )}
     </PortalLayout>

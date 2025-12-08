@@ -72,14 +72,25 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [viewAsRole, setViewAsRoleState] = useState<Role | null>(null);
   
-  // Dev mode state
-  const [devRole, setDevRoleState] = useState<Role>('super_admin');
+  // Dev mode state - persisted to localStorage
+  const [devRole, setDevRoleState] = useState<Role>(() => {
+    // Initialize from localStorage on client side
+    if (typeof window !== 'undefined' && DEV_BYPASS_AUTH) {
+      const stored = localStorage.getItem('akari_dev_role');
+      if (stored && ['user', 'analyst', 'admin', 'super_admin'].includes(stored)) {
+        return stored as Role;
+      }
+    }
+    return 'super_admin';
+  });
   
   // In dev mode, always use mock user
   useEffect(() => {
     if (DEV_BYPASS_AUTH) {
       setUser(createDevMockUser(devRole));
       setIsLoading(false);
+      // Persist to localStorage
+      localStorage.setItem('akari_dev_role', devRole);
     }
   }, [devRole]);
 
