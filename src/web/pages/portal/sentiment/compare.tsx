@@ -67,6 +67,16 @@ interface CompareData {
   similarityScore: number;
 }
 
+// NEW: Advanced Analytics types for comparison
+interface ProjectAnalytics {
+  totalEngagements: number;
+  avgEngagementRate: number;
+  tweetsCount: number;
+  followerChange: number;
+  tweetVelocity: number;
+  avgSentiment: number;
+}
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
@@ -146,6 +156,11 @@ export default function ComparePage() {
   const [compare, setCompare] = useState<CompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
+  
+  // NEW: Advanced Analytics state
+  const [analyticsA, setAnalyticsA] = useState<ProjectAnalytics | null>(null);
+  const [analyticsB, setAnalyticsB] = useState<ProjectAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Load projects list
   useEffect(() => {
@@ -226,6 +241,32 @@ export default function ComparePage() {
       }
     }
     fetchComparison();
+
+    // NEW: Fetch analytics for both projects
+    async function fetchAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const [resA, resB] = await Promise.all([
+          fetch(`/api/portal/sentiment/${selectedA}/analytics?window=7d`),
+          fetch(`/api/portal/sentiment/${selectedB}/analytics?window=7d`),
+        ]);
+        
+        const dataA = await resA.json();
+        const dataB = await resB.json();
+        
+        if (dataA.ok) {
+          setAnalyticsA(dataA.summary);
+        }
+        if (dataB.ok) {
+          setAnalyticsB(dataB.summary);
+        }
+      } catch (error) {
+        console.error('Error fetching analytics:', error);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    }
+    fetchAnalytics();
 
     // Update URL
     router.replace(
@@ -528,6 +569,78 @@ export default function ComparePage() {
                   <p className="text-xs text-akari-muted mt-2">
                     Run the circles update script to populate inner circle data.
                   </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ================================================================= */}
+          {/* NEW: ADVANCED ANALYTICS SECTION (APPENDED BELOW EXISTING)        */}
+          {/* ================================================================= */}
+          {analyticsA && analyticsB && (
+            <section className="mt-8 pt-8 border-t border-akari-border/30">
+              <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                Advanced Analytics (7 Days)
+              </h2>
+
+              {analyticsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-akari-border/50 bg-akari-card overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-akari-border/30 bg-akari-cardSoft/30">
+                        <th className="py-3 px-4 text-center font-mono font-medium">
+                          {compare.projectA.name}
+                        </th>
+                        <th className="py-3 px-4 text-center text-akari-muted font-normal text-xs">
+                          Metric
+                        </th>
+                        <th className="py-3 px-4 text-center font-mono font-medium">
+                          {compare.projectB.name}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { label: 'Total Engagements', a: analyticsA.totalEngagements, b: analyticsB.totalEngagements, format: true },
+                        { label: 'Avg Engagement Rate', a: analyticsA.avgEngagementRate, b: analyticsB.avgEngagementRate, format: false, suffix: '/tweet' },
+                        { label: 'Tweets (7D)', a: analyticsA.tweetsCount, b: analyticsB.tweetsCount, format: false },
+                        { label: 'Follower Change', a: analyticsA.followerChange, b: analyticsB.followerChange, format: true, showSign: true },
+                        { label: 'Tweet Velocity', a: analyticsA.tweetVelocity, b: analyticsB.tweetVelocity, format: false, suffix: '/day' },
+                        { label: 'Avg Sentiment', a: analyticsA.avgSentiment, b: analyticsB.avgSentiment, format: false },
+                      ].map((row, idx) => (
+                        <tr key={idx} className="border-b border-akari-border/20">
+                          <td className="py-3 px-4 text-center font-mono">
+                            <span className={
+                              row.a > row.b ? 'text-akari-primary font-medium' : 'text-akari-text'
+                            }>
+                              {row.showSign && row.a >= 0 ? '+' : ''}
+                              {row.format ? formatNumber(row.a) : row.a}
+                              {row.suffix || ''}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center text-akari-muted text-xs">
+                            {row.label}
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono">
+                            <span className={
+                              row.b > row.a ? 'text-akari-primary font-medium' : 'text-akari-text'
+                            }>
+                              {row.showSign && row.b >= 0 ? '+' : ''}
+                              {row.format ? formatNumber(row.b) : row.b}
+                              {row.suffix || ''}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>

@@ -89,6 +89,60 @@ interface SentimentDetailResponse {
 }
 
 // =============================================================================
+// TWITTER ANALYTICS TYPES (NEW - APPENDED)
+// =============================================================================
+
+interface DailyEngagement {
+  date: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  totalEngagement: number;
+  tweetCount: number;
+  engagementRate: number;
+}
+
+interface FollowerDataPoint {
+  date: string;
+  followers: number;
+  change: number;
+}
+
+interface TweetBreakdown {
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  text: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  engagement: number;
+  sentimentScore: number | null;
+  isOfficial: boolean;
+  tweetUrl: string;
+}
+
+interface AnalyticsSummary {
+  totalEngagements: number;
+  avgEngagementRate: number;
+  tweetsCount: number;
+  followerChange: number;
+  tweetVelocity: number;
+  avgSentiment: number;
+  topTweetEngagement: number;
+  officialTweetsCount: number;
+  mentionsCount: number;
+}
+
+interface AnalyticsData {
+  window: '7d' | '30d';
+  dailyEngagement: DailyEngagement[];
+  followersOverTime: FollowerDataPoint[];
+  tweetBreakdown: TweetBreakdown[];
+  summary: AnalyticsSummary;
+}
+
+// =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
@@ -826,6 +880,11 @@ export default function SentimentDetail() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // NEW: Twitter Analytics state
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsWindow, setAnalyticsWindow] = useState<'7d' | '30d'>('7d');
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -875,6 +934,28 @@ export default function SentimentDetail() {
 
     fetchCompetitors();
   }, [slug]);
+
+  // NEW: Fetch Twitter Analytics
+  useEffect(() => {
+    if (!slug) return;
+
+    async function fetchAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const res = await fetch(`/api/portal/sentiment/${slug}/analytics?window=${analyticsWindow}`);
+        const data = await res.json();
+        if (data.ok) {
+          setAnalytics(data);
+        }
+      } catch (err) {
+        console.error('[SentimentDetail] Analytics fetch error:', err);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    }
+
+    fetchAnalytics();
+  }, [slug, analyticsWindow]);
 
   const latestMetrics = metrics.length > 0 ? metrics[0] : null;
   const tier = getAkariTier(latestMetrics?.akari_score ?? null);
@@ -1194,6 +1275,282 @@ export default function SentimentDetail() {
               </div>
             </section>
           )}
+
+          {/* ================================================================= */}
+          {/* NEW: TWITTER-STYLE ANALYTICS SECTION (APPENDED BELOW EXISTING)   */}
+          {/* ================================================================= */}
+          <section className="mt-8 pt-8 border-t border-akari-border/30">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+              <h2 className="text-lg font-semibold text-akari-text flex items-center gap-2">
+                <svg className="w-5 h-5 text-akari-primary" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                Twitter Analytics
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAnalyticsWindow('7d')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                    analyticsWindow === '7d'
+                      ? 'bg-akari-primary text-akari-bg'
+                      : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                  }`}
+                >
+                  7 Days
+                </button>
+                <button
+                  onClick={() => setAnalyticsWindow('30d')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                    analyticsWindow === '30d'
+                      ? 'bg-akari-primary text-akari-bg'
+                      : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                  }`}
+                >
+                  30 Days
+                </button>
+              </div>
+            </div>
+
+            {analyticsLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+              </div>
+            )}
+
+            {!analyticsLoading && analytics && (
+              <>
+                {/* Summary Stats Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Total Engagements</p>
+                    <p className="text-xl font-bold text-akari-text">
+                      {analytics.summary.totalEngagements.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Avg Engagement</p>
+                    <p className="text-xl font-bold text-akari-primary">
+                      {analytics.summary.avgEngagementRate}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Tweets</p>
+                    <p className="text-xl font-bold text-akari-text">
+                      {analytics.summary.tweetsCount}
+                    </p>
+                    <p className="text-[10px] text-akari-muted">
+                      {analytics.summary.officialTweetsCount} official · {analytics.summary.mentionsCount} mentions
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Follower Δ</p>
+                    <p className={`text-xl font-bold ${
+                      analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'
+                    }`}>
+                      {analytics.summary.followerChange >= 0 ? '+' : ''}{analytics.summary.followerChange.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Tweet Velocity</p>
+                    <p className="text-xl font-bold text-akari-accent">
+                      {analytics.summary.tweetVelocity}/day
+                    </p>
+                  </div>
+                </div>
+
+                {/* Engagement Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                  {/* Engagement Volume Chart */}
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <h3 className="text-sm font-medium text-akari-text mb-3">Engagement Volume</h3>
+                    <div className="h-48">
+                      {analytics.dailyEngagement.length > 0 ? (
+                        <svg viewBox="0 0 400 150" className="w-full h-full">
+                          <defs>
+                            <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#00E5A0" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#00E5A0" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          {(() => {
+                            const data = analytics.dailyEngagement;
+                            const maxVal = Math.max(...data.map(d => d.totalEngagement), 1);
+                            const width = 400;
+                            const height = 130;
+                            const padding = { left: 40, right: 10, top: 10, bottom: 20 };
+                            const innerWidth = width - padding.left - padding.right;
+                            const innerHeight = height - padding.top - padding.bottom;
+                            
+                            const points = data.map((d, i) => {
+                              const x = padding.left + (i / Math.max(data.length - 1, 1)) * innerWidth;
+                              const y = padding.top + innerHeight - (d.totalEngagement / maxVal) * innerHeight;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            
+                            const areaPoints = `${padding.left},${padding.top + innerHeight} ${points} ${padding.left + innerWidth},${padding.top + innerHeight}`;
+                            
+                            return (
+                              <>
+                                {/* Y-axis labels */}
+                                <text x={padding.left - 5} y={padding.top + 5} textAnchor="end" className="fill-akari-muted text-[9px]">{maxVal}</text>
+                                <text x={padding.left - 5} y={padding.top + innerHeight} textAnchor="end" className="fill-akari-muted text-[9px]">0</text>
+                                
+                                {/* Area fill */}
+                                <polygon points={areaPoints} fill="url(#engagementGradient)" />
+                                
+                                {/* Line */}
+                                <polyline
+                                  points={points}
+                                  fill="none"
+                                  stroke="#00E5A0"
+                                  strokeWidth={2}
+                                />
+                                
+                                {/* Data points */}
+                                {data.map((d, i) => {
+                                  const x = padding.left + (i / Math.max(data.length - 1, 1)) * innerWidth;
+                                  const y = padding.top + innerHeight - (d.totalEngagement / maxVal) * innerHeight;
+                                  return <circle key={i} cx={x} cy={y} r={3} fill="#00E5A0" />;
+                                })}
+                              </>
+                            );
+                          })()}
+                        </svg>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-sm text-akari-muted">
+                          No engagement data available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Engagement Rate Chart */}
+                  <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+                    <h3 className="text-sm font-medium text-akari-text mb-3">Engagement Rate</h3>
+                    <div className="h-48">
+                      {analytics.dailyEngagement.length > 0 ? (
+                        <svg viewBox="0 0 400 150" className="w-full h-full">
+                          <defs>
+                            <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#FBBF24" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#FBBF24" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          {(() => {
+                            const data = analytics.dailyEngagement;
+                            const maxVal = Math.max(...data.map(d => d.engagementRate), 1);
+                            const width = 400;
+                            const height = 130;
+                            const padding = { left: 40, right: 10, top: 10, bottom: 20 };
+                            const innerWidth = width - padding.left - padding.right;
+                            const innerHeight = height - padding.top - padding.bottom;
+                            
+                            const points = data.map((d, i) => {
+                              const x = padding.left + (i / Math.max(data.length - 1, 1)) * innerWidth;
+                              const y = padding.top + innerHeight - (d.engagementRate / maxVal) * innerHeight;
+                              return `${x},${y}`;
+                            }).join(' ');
+                            
+                            const areaPoints = `${padding.left},${padding.top + innerHeight} ${points} ${padding.left + innerWidth},${padding.top + innerHeight}`;
+                            
+                            return (
+                              <>
+                                <text x={padding.left - 5} y={padding.top + 5} textAnchor="end" className="fill-akari-muted text-[9px]">{maxVal.toFixed(1)}</text>
+                                <text x={padding.left - 5} y={padding.top + innerHeight} textAnchor="end" className="fill-akari-muted text-[9px]">0</text>
+                                <polygon points={areaPoints} fill="url(#rateGradient)" />
+                                <polyline points={points} fill="none" stroke="#FBBF24" strokeWidth={2} />
+                                {data.map((d, i) => {
+                                  const x = padding.left + (i / Math.max(data.length - 1, 1)) * innerWidth;
+                                  const y = padding.top + innerHeight - (d.engagementRate / maxVal) * innerHeight;
+                                  return <circle key={i} cx={x} cy={y} r={3} fill="#FBBF24" />;
+                                })}
+                              </>
+                            );
+                          })()}
+                        </svg>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-sm text-akari-muted">
+                          No rate data available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Tweets Table */}
+                <div className="rounded-xl border border-akari-border/50 bg-akari-card overflow-hidden">
+                  <div className="p-4 border-b border-akari-border/30">
+                    <h3 className="text-sm font-medium text-akari-text">Top Performing Tweets</h3>
+                    <p className="text-[10px] text-akari-muted mt-0.5">Sorted by engagement score</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-akari-border/30 bg-akari-cardSoft/50">
+                          <th className="py-2 px-3 text-left text-akari-muted font-medium">Author</th>
+                          <th className="py-2 px-3 text-left text-akari-muted font-medium">Tweet</th>
+                          <th className="py-2 px-3 text-center text-akari-muted font-medium">❤️</th>
+                          <th className="py-2 px-3 text-center text-akari-muted font-medium">🔁</th>
+                          <th className="py-2 px-3 text-center text-akari-muted font-medium">💬</th>
+                          <th className="py-2 px-3 text-center text-akari-muted font-medium">Score</th>
+                          <th className="py-2 px-3 text-center text-akari-muted font-medium">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.tweetBreakdown.slice(0, 10).map((tweet, idx) => (
+                          <tr 
+                            key={tweet.tweetId} 
+                            className="border-b border-akari-border/20 hover:bg-akari-cardSoft/30 transition"
+                          >
+                            <td className="py-2 px-3">
+                              <a 
+                                href={`https://x.com/${tweet.authorHandle}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-akari-primary hover:underline"
+                              >
+                                @{tweet.authorHandle}
+                              </a>
+                            </td>
+                            <td className="py-2 px-3 max-w-[200px]">
+                              <a 
+                                href={tweet.tweetUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-akari-text hover:text-akari-primary transition truncate block"
+                              >
+                                {tweet.text.slice(0, 60)}{tweet.text.length > 60 ? '...' : ''}
+                              </a>
+                            </td>
+                            <td className="py-2 px-3 text-center font-mono text-akari-muted">{tweet.likes}</td>
+                            <td className="py-2 px-3 text-center font-mono text-akari-muted">{tweet.retweets}</td>
+                            <td className="py-2 px-3 text-center font-mono text-akari-muted">{tweet.replies}</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-mono font-medium text-akari-primary">{tweet.engagement}</span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                tweet.isOfficial 
+                                  ? 'bg-akari-primary/20 text-akari-primary' 
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                              }`}>
+                                {tweet.isOfficial ? 'Official' : 'Mention'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {analytics.tweetBreakdown.length === 0 && (
+                      <div className="py-8 text-center text-sm text-akari-muted">
+                        No tweets found in this period
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
         </>
       )}
     </PortalLayout>
