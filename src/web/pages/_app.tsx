@@ -1,9 +1,54 @@
 import type { AppProps } from 'next/app';
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AkariAuthProvider, useAkariAuth } from '../lib/akari-auth';
+import { AuthGate } from '../components/LockedOverlay';
+import { SuperAdminViewAs } from '../components/SuperAdminViewAs';
 import '../styles/globals.css';
 
-export default function App({ Component, pageProps }: AppProps) {
+// Routes that DON'T require authentication (MiniApp routes, API routes, etc.)
+const PUBLIC_ROUTES = [
+  '/miniapp',
+  '/api/',
+  '/login',
+  '/_next/',
+  '/favicon',
+];
+
+// Check if a path is a public route (no auth required)
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+}
+
+// Inner component that uses auth context
+function AppContent({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const { isLoggedIn, isLoading, login } = useAkariAuth();
+
+  // Check if current route requires auth
+  const requiresAuth = !isPublicRoute(router.pathname);
+
+  // If it's a public route (MiniApp, API, etc.), render without auth gate
+  if (!requiresAuth) {
+    return <Component {...pageProps} />;
+  }
+
+  // For protected routes, apply auth gate
+  return (
+    <AuthGate
+      isLoggedIn={isLoggedIn}
+      isLoading={isLoading}
+      onLogin={login}
+    >
+      <Component {...pageProps} />
+      {/* Super Admin View As panel - only shows for SAs */}
+      <SuperAdminViewAs />
+    </AuthGate>
+  );
+}
+
+export default function App(props: AppProps) {
   useEffect(() => {
     // Initialize Telegram Web App SDK
     if (typeof window !== 'undefined') {
@@ -59,7 +104,9 @@ export default function App({ Component, pageProps }: AppProps) {
         // TODO: Send to error tracking service in production
       }}
     >
-      <Component {...pageProps} />
+      <AkariAuthProvider>
+        <AppContent {...props} />
+      </AkariAuthProvider>
     </ErrorBoundary>
   );
 }

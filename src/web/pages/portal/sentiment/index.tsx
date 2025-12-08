@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
+import { useAkariUser } from '../../../lib/akari-auth';
+import { can } from '../../../lib/permissions';
 
 /**
  * Type definitions for sentiment data
@@ -515,6 +517,11 @@ export default function SentimentOverview() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [trackingUser, setTrackingUser] = useState<string | null>(null);
+
+  // Permission checks
+  const { user } = useAkariUser();
+  const canSearch = can(user, 'sentiment.search');
+  const canCompare = can(user, 'sentiment.compare');
   
   const router = useRouter();
 
@@ -630,15 +637,27 @@ export default function SentimentOverview() {
           <h1 className="text-2xl font-semibold md:text-3xl">
             Track <span className="text-akari-primary">Sentiment</span> Across Crypto Twitter
           </h1>
-          <Link
-            href="/portal/sentiment/compare"
-            className="inline-flex items-center gap-2 rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-2 text-sm text-akari-text hover:border-akari-primary/50 hover:text-akari-primary transition"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Compare Projects
-          </Link>
+          {canCompare ? (
+            <Link
+              href="/portal/sentiment/compare"
+              className="inline-flex items-center gap-2 rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-2 text-sm text-akari-text hover:border-akari-primary/50 hover:text-akari-primary transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Compare Projects
+            </Link>
+          ) : (
+            <span
+              className="inline-flex items-center gap-2 rounded-xl bg-akari-cardSoft/50 border border-akari-border/30 px-4 py-2 text-sm text-akari-muted cursor-not-allowed opacity-60"
+              title="Upgrade to Analyst to access this feature"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Compare Projects
+            </span>
+          )}
         </div>
         <p className="max-w-2xl text-sm text-akari-muted">
           Monitor real-time sentiment, engagement heat, and AKARI credibility scores for tracked projects. 
@@ -649,21 +668,34 @@ export default function SentimentOverview() {
       {/* Search Section */}
       <section className="mb-6">
         <button
-          onClick={() => setShowSearch(!showSearch)}
-          className="flex items-center gap-2 text-sm text-akari-muted hover:text-akari-primary transition mb-3"
+          onClick={() => canSearch && setShowSearch(!showSearch)}
+          className={`flex items-center gap-2 text-sm transition mb-3 ${
+            canSearch 
+              ? 'text-akari-muted hover:text-akari-primary cursor-pointer' 
+              : 'text-akari-muted/50 cursor-not-allowed'
+          }`}
+          disabled={!canSearch}
+          title={!canSearch ? 'Upgrade to Analyst to search profiles' : undefined}
         >
-          <svg
-            className={`w-4 h-4 transition-transform ${showSearch ? 'rotate-90' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          {canSearch ? (
+            <svg
+              className={`w-4 h-4 transition-transform ${showSearch ? 'rotate-90' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          )}
           Search Twitter Profiles
+          {!canSearch && <span className="text-xs text-akari-muted/50">(Analyst+)</span>}
         </button>
 
-        {showSearch && (
+        {showSearch && canSearch && (
           <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
             <div className="flex gap-2 mb-4">
               <input

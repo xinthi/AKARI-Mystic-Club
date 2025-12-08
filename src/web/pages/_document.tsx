@@ -4,11 +4,11 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Favicon */}
-        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {/* Favicon - Mystic Heros Logo */}
+        <link rel="icon" type="image/png" href="/mystic-heros-favicon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/mystic-heros-favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/mystic-heros-favicon-16.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/mystic-heros-logo.png" />
         <link rel="manifest" href="/site.webmanifest" />
         
         {/* Meta tags */}

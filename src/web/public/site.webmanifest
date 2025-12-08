@@ -4,18 +4,14 @@
   "description": "Prediction-native market intelligence for crypto markets, memecoins, and launchpads",
   "icons": [
     {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/favicon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-512x512.png",
+      "src": "/mystic-heros-logo.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/mystic-heros-favicon.png",
+      "sizes": "192x192",
       "type": "image/png"
     }
   ],
