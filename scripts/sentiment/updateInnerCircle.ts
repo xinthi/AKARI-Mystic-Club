@@ -37,10 +37,25 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Rate limiting
 const DELAY_BETWEEN_PROJECTS_MS = 3000; // 3 seconds between projects
-const MAX_FOLLOWERS_TO_FETCH = 500; // Followers to fetch per project
-const INNER_CIRCLE_SIZE = 100; // Max inner circle members per project
+const DEFAULT_MAX_FOLLOWERS_TO_FETCH = 500; // Followers to fetch per project
+const DEFAULT_INNER_CIRCLE_SIZE = 100; // Max inner circle members per project
 const MIN_FOLLOWERS_FOR_IC = 200; // Minimum followers for inner circle qualification
 const MAX_FARM_RISK_FOR_IC = 50; // Maximum farm risk score for inner circle
+
+// =============================================================================
+// OPTIONAL PARAMETERS FOR DEEP REFRESH
+// =============================================================================
+
+/**
+ * Options for controlling inner circle limits during processing.
+ * All existing calls can omit these for backwards compatibility.
+ */
+export interface InnerCircleRunOptions {
+  /** Max followers to fetch from Twitter API (default: 500) */
+  maxFollowersToFetch?: number;
+  /** Max inner circle members to select (default: 100) */
+  maxInnerCircleSize?: number;
+}
 
 // =============================================================================
 // HELPERS
@@ -63,7 +78,7 @@ function sleep(ms: number): Promise<void> {
 // TYPES
 // =============================================================================
 
-interface DbProject {
+export interface DbProject {
   id: string;
   slug: string;
   name: string;
@@ -404,15 +419,27 @@ async function updateProjectStats(
 // MAIN FUNCTION
 // =============================================================================
 
-async function processProject(
+/**
+ * Process a single project's inner circle.
+ * 
+ * @param supabase - Supabase client
+ * @param project - The project to process
+ * @param options - Optional limits for followers/inner circle size (for deep refresh)
+ */
+export async function processProject(
   supabase: SupabaseClient,
-  project: DbProject
+  project: DbProject,
+  options: InnerCircleRunOptions = {}
 ): Promise<{ 
   followersPulled: number;
   profilesUpserted: number;
   innerCircleSize: number;
   innerCirclePower: number;
 }> {
+  // Apply defaults for backwards compatibility
+  const maxFollowersToFetch = options.maxFollowersToFetch ?? DEFAULT_MAX_FOLLOWERS_TO_FETCH;
+  const innerCircleSize = options.maxInnerCircleSize ?? DEFAULT_INNER_CIRCLE_SIZE;
+
   const stats = {
     followersPulled: 0,
     profilesUpserted: 0,
@@ -424,8 +451,8 @@ async function processProject(
 
   try {
     // Step 1: Fetch followers
-    log(`  Fetching up to ${MAX_FOLLOWERS_TO_FETCH} followers...`);
-    const followers = await unifiedGetUserFollowers(project.twitter_username, MAX_FOLLOWERS_TO_FETCH);
+    log(`  Fetching up to ${maxFollowersToFetch} followers...`);
+    const followers = await unifiedGetUserFollowers(project.twitter_username, maxFollowersToFetch);
     stats.followersPulled = followers.length;
     log(`  Fetched ${followers.length} followers`);
 
@@ -483,7 +510,7 @@ async function processProject(
     );
 
     // Take top N
-    const innerCircleMembers = qualifiedProfiles.slice(0, INNER_CIRCLE_SIZE);
+    const innerCircleMembers = qualifiedProfiles.slice(0, innerCircleSize);
 
     log(`  Qualified profiles: ${qualifiedProfiles.length}, selecting top ${innerCircleMembers.length}`);
 

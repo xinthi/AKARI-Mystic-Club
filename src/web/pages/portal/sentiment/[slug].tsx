@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
+import { useAkariUser } from '../../../lib/akari-auth';
+import { can } from '../../../lib/permissions';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -851,6 +853,54 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
 }
 
 // =============================================================================
+// LOCKED FEATURE OVERLAY (for non-analyst users)
+// =============================================================================
+
+interface LockedFeatureOverlayProps {
+  featureName: string;
+  children: React.ReactNode;
+  isLocked: boolean;
+}
+
+function LockedFeatureOverlay({ featureName, children, isLocked }: LockedFeatureOverlayProps) {
+  if (!isLocked) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="relative">
+      {/* Blurred content */}
+      <div className="blur-sm opacity-50 pointer-events-none select-none">
+        {children}
+      </div>
+      
+      {/* Overlay */}
+      <div className="absolute inset-0 flex items-center justify-center bg-akari-bg/60 backdrop-blur-[2px] rounded-2xl">
+        <div className="text-center p-6">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-akari-primary/10 flex items-center justify-center">
+            <svg className="w-6 h-6 text-akari-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h3 className="text-sm font-semibold text-akari-text mb-1">
+            {featureName}
+          </h3>
+          <p className="text-xs text-akari-muted mb-3">
+            Upgrade to Analyst+ to unlock this feature
+          </p>
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary text-xs font-medium">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            Analyst Feature
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // MAIN PAGE COMPONENT
 // =============================================================================
 
@@ -870,6 +920,13 @@ interface Competitor {
 export default function SentimentDetail() {
   const router = useRouter();
   const { slug } = router.query;
+  
+  // Get current user for permission checks
+  const { user } = useAkariUser();
+  
+  // Permission checks - Similar Projects and Twitter Analytics require analyst+
+  const canViewCompare = can(user, 'sentiment.compare');
+  const canViewAnalytics = can(user, 'markets.analytics');
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsDaily[]>([]);
@@ -1179,114 +1236,118 @@ export default function SentimentDetail() {
             </section>
           )}
 
-          {/* Similar Projects / Competitors */}
-          {competitors.length > 0 && (
-            <section className="mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm uppercase tracking-wider text-akari-muted">Similar Projects</h2>
-                <Link
-                  href={`/portal/sentiment/compare?projectA=${slug}`}
-                  className="text-xs text-akari-muted hover:text-akari-primary transition"
-                >
-                  Compare All →
-                </Link>
-              </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-akari-border bg-akari-cardSoft text-xs uppercase tracking-wider text-akari-muted">
-                        <th className="py-3 px-4 text-left">Project</th>
-                        <th className="py-3 px-4 text-center">AKARI</th>
-                        <th className="py-3 px-4 text-center">Similarity</th>
-                        <th className="py-3 px-4 text-center">Common</th>
-                        <th className="py-3 px-4 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {competitors.slice(0, 5).map((comp) => {
-                        const compTier = getAkariTier(comp.akari_score);
-                        return (
-                          <tr key={comp.id} className="border-b border-akari-border/30 hover:bg-akari-cardSoft/50 transition">
-                            <td className="py-3 px-4">
-                              <Link
-                                href={`/portal/sentiment/${comp.slug}`}
-                                className="flex items-center gap-3 group"
-                              >
-                                <AvatarWithFallback url={comp.avatar_url} name={comp.name} size="sm" />
-                                <div>
-                                  <p className="font-medium text-akari-text group-hover:text-akari-primary transition truncate">
-                                    {comp.name}
-                                  </p>
-                                  <p className="text-xs text-akari-muted">@{comp.x_handle}</p>
-                                </div>
-                              </Link>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className={`font-mono font-medium ${compTier.color}`}>
-                                {comp.akari_score ?? '-'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-mono text-akari-primary">
-                                {Math.round(comp.similarity_score * 100)}%
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-mono text-akari-muted">
-                                {comp.common_inner_circle_count}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <Link
-                                href={`/portal/sentiment/compare?projectA=${slug}&projectB=${comp.slug}`}
-                                className="inline-flex items-center gap-1 text-xs text-akari-muted hover:text-akari-primary transition"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                                Compare
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+          {/* Similar Projects / Competitors - Requires Analyst+ */}
+          <LockedFeatureOverlay featureName="Similar Projects" isLocked={!canViewCompare}>
+            {competitors.length > 0 && (
+              <section className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm uppercase tracking-wider text-akari-muted">Similar Projects</h2>
+                  <Link
+                    href={`/portal/sentiment/compare?projectA=${slug}`}
+                    className="text-xs text-akari-muted hover:text-akari-primary transition"
+                  >
+                    Compare All →
+                  </Link>
                 </div>
-              </div>
-            </section>
-          )}
+                <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-akari-border bg-akari-cardSoft text-xs uppercase tracking-wider text-akari-muted">
+                          <th className="py-3 px-4 text-left">Project</th>
+                          <th className="py-3 px-4 text-center">AKARI</th>
+                          <th className="py-3 px-4 text-center">Similarity</th>
+                          <th className="py-3 px-4 text-center">Common</th>
+                          <th className="py-3 px-4 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {competitors.slice(0, 5).map((comp) => {
+                          const compTier = getAkariTier(comp.akari_score);
+                          return (
+                            <tr key={comp.id} className="border-b border-akari-border/30 hover:bg-akari-cardSoft/50 transition">
+                              <td className="py-3 px-4">
+                                <Link
+                                  href={`/portal/sentiment/${comp.slug}`}
+                                  className="flex items-center gap-3 group"
+                                >
+                                  <AvatarWithFallback url={comp.avatar_url} name={comp.name} size="sm" />
+                                  <div>
+                                    <p className="font-medium text-akari-text group-hover:text-akari-primary transition truncate">
+                                      {comp.name}
+                                    </p>
+                                    <p className="text-xs text-akari-muted">@{comp.x_handle}</p>
+                                  </div>
+                                </Link>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`font-mono font-medium ${compTier.color}`}>
+                                  {comp.akari_score ?? '-'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="font-mono text-akari-primary">
+                                  {Math.round(comp.similarity_score * 100)}%
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="font-mono text-akari-muted">
+                                  {comp.common_inner_circle_count}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <Link
+                                  href={`/portal/sentiment/compare?projectA=${slug}&projectB=${comp.slug}`}
+                                  className="inline-flex items-center gap-1 text-xs text-akari-muted hover:text-akari-primary transition"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  Compare
+                                </Link>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
 
-          {/* No competitors message */}
-          {competitors.length === 0 && !loading && (
-            <section className="mb-6">
-              <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">Similar Projects</h2>
-              <div className="rounded-2xl border border-akari-border/50 bg-akari-card p-6 text-center">
-                <p className="text-sm text-akari-muted">
-                  No similar projects found yet. Run the circles update to compute project similarities.
-                </p>
-                <Link
-                  href="/portal/sentiment/compare"
-                  className="inline-flex items-center gap-1 mt-3 text-xs text-akari-primary hover:underline"
-                >
-                  Manual Compare →
-                </Link>
-              </div>
-            </section>
-          )}
+            {/* No competitors message */}
+            {competitors.length === 0 && !loading && (
+              <section className="mb-6">
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">Similar Projects</h2>
+                <div className="rounded-2xl border border-akari-border/50 bg-akari-card p-6 text-center">
+                  <p className="text-sm text-akari-muted">
+                    No similar projects found yet. Run the circles update to compute project similarities.
+                  </p>
+                  <Link
+                    href="/portal/sentiment/compare"
+                    className="inline-flex items-center gap-1 mt-3 text-xs text-akari-primary hover:underline"
+                  >
+                    Manual Compare →
+                  </Link>
+                </div>
+              </section>
+            )}
+          </LockedFeatureOverlay>
 
           {/* ================================================================= */}
           {/* NEW: TWITTER-STYLE ANALYTICS SECTION (APPENDED BELOW EXISTING)   */}
+          {/* Requires Analyst+ to view                                        */}
           {/* ================================================================= */}
-          <section className="mt-8 pt-8 border-t border-akari-border/30">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
-              <h2 className="text-lg font-semibold text-akari-text flex items-center gap-2">
-                <svg className="w-5 h-5 text-akari-primary" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                </svg>
-                Twitter Analytics
-              </h2>
+          <LockedFeatureOverlay featureName="Twitter Analytics" isLocked={!canViewAnalytics}>
+            <section className="mt-8 pt-8 border-t border-akari-border/30">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+                <h2 className="text-lg font-semibold text-akari-text flex items-center gap-2">
+                  <svg className="w-5 h-5 text-akari-primary" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                  Twitter Analytics
+                </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setAnalyticsWindow('7d')}

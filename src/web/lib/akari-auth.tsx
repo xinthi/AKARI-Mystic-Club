@@ -9,6 +9,28 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Role, AkariUser, FeatureGrant } from './permissions';
 
 // =============================================================================
+// DEV MODE CONFIGURATION
+// =============================================================================
+
+// In development, bypass auth and use mock user
+const DEV_BYPASS_AUTH = process.env.NODE_ENV === 'development';
+
+// Create a mock user for development testing
+function createDevMockUser(role: Role): AkariUser {
+  return {
+    id: 'dev-mock-user',
+    displayName: `Dev User (${role})`,
+    avatarUrl: null,
+    realRoles: [role],
+    effectiveRoles: [role],
+    featureGrants: [],
+    isLoggedIn: true,
+    viewAsRole: null,
+    xUsername: 'dev_user',
+  };
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -24,6 +46,11 @@ interface AkariAuthContextValue {
   
   // Super Admin "View As" mode
   setViewAsRole: (role: Role | null) => void;
+  
+  // Dev mode
+  isDevMode: boolean;
+  devRole: Role;
+  setDevRole: (role: Role) => void;
 }
 
 interface AkariAuthProviderProps {
@@ -44,9 +71,27 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
   const [user, setUser] = useState<AkariUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [viewAsRole, setViewAsRoleState] = useState<Role | null>(null);
+  
+  // Dev mode state
+  const [devRole, setDevRoleState] = useState<Role>('super_admin');
+  
+  // In dev mode, always use mock user
+  useEffect(() => {
+    if (DEV_BYPASS_AUTH) {
+      setUser(createDevMockUser(devRole));
+      setIsLoading(false);
+    }
+  }, [devRole]);
 
-  // Fetch current user from API
+  // Fetch current user from API (skip in dev mode)
   const fetchUser = useCallback(async () => {
+    // Skip API call in dev mode
+    if (DEV_BYPASS_AUTH) {
+      setUser(createDevMockUser(devRole));
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       const res = await fetch('/api/auth/website/me');
       if (res.ok) {
@@ -81,7 +126,7 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [devRole]);
 
   // Initial load
   useEffect(() => {
@@ -137,6 +182,13 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
     await fetchUser();
   }, [fetchUser]);
 
+  // Dev mode role setter
+  const setDevRole = useCallback((role: Role) => {
+    if (DEV_BYPASS_AUTH) {
+      setDevRoleState(role);
+    }
+  }, []);
+
   const value: AkariAuthContextValue = {
     user,
     isLoading,
@@ -145,6 +197,10 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
     logout,
     refreshUser,
     setViewAsRole,
+    // Dev mode
+    isDevMode: DEV_BYPASS_AUTH,
+    devRole,
+    setDevRole,
   };
 
   return (

@@ -63,7 +63,7 @@ const DELAY_BETWEEN_API_CALLS_MS = 500; // 500ms between API calls
 // TYPE DEFINITIONS
 // =============================================================================
 
-interface Project {
+export interface Project {
   id: string;
   slug: string;
   twitter_username: string | null;
@@ -107,6 +107,21 @@ interface ProcessingResult {
   metrics: DailyMetrics;
   projectUpdate: ProjectUpdateData;
   tweets: ProjectTweetRow[];
+}
+
+// =============================================================================
+// OPTIONAL PARAMETERS FOR DEEP REFRESH
+// =============================================================================
+
+/**
+ * Options for controlling tweet/mention limits during processing.
+ * All existing calls can omit these for backwards compatibility.
+ */
+export interface SentimentRunOptions {
+  /** Max tweets to fetch from the project's timeline (default: 20) */
+  maxTweets?: number;
+  /** Max mentions to fetch (tweets mentioning the project) (default: 100) */
+  maxMentions?: number;
 }
 
 // =============================================================================
@@ -405,12 +420,21 @@ async function autoDiscoverTwitterUsername(
  * 
  * IMPORTANT: This function NEVER modifies twitter_username.
  * It only reads the existing handle or auto-discovers if empty.
+ * 
+ * @param project - The project to process
+ * @param date - The date string (YYYY-MM-DD) for metrics
+ * @param supabase - Supabase client
+ * @param options - Optional limits for tweets/mentions (for deep refresh)
  */
-async function processProject(
+export async function processProject(
   project: Project, 
   date: string,
-  supabase: any
+  supabase: any,
+  options: SentimentRunOptions = {}
 ): Promise<ProcessingResult | null> {
+  // Apply defaults for backwards compatibility
+  const maxTweets = options.maxTweets ?? 20;
+  const maxMentions = options.maxMentions ?? 100;
   // IMPORTANT: twitter_username is an admin-controlled field.
   // Use existing handle if set, only auto-discover if NULL/empty.
   let handle = project.twitter_username?.trim() || null;
@@ -455,10 +479,10 @@ async function processProject(
   console.log(`   Followers: ${followersCount.toLocaleString()}`);
 
   // Step 2: Fetch recent tweets using unified client
-  console.log(`   Fetching recent tweets...`);
+  console.log(`   Fetching recent tweets (max: ${maxTweets})...`);
   let tweets: UnifiedTweet[] = [];
   try {
-    tweets = await unifiedGetUserLastTweets(handle, 20);
+    tweets = await unifiedGetUserLastTweets(handle, maxTweets);
     console.log(`   Found ${tweets.length} tweets`);
   } catch (e: unknown) {
     const err = e as Error;
@@ -482,10 +506,10 @@ async function processProject(
   await delay(DELAY_BETWEEN_API_CALLS_MS);
 
   // Step 4: Fetch mentions using TwitterAPI.io (not RapidAPI)
-  console.log(`   Fetching mentions via TwitterAPI.io...`);
+  console.log(`   Fetching mentions via TwitterAPI.io (max: ${maxMentions})...`);
   let mentions: UnifiedMention[] = [];
   try {
-    mentions = await unifiedGetUserMentions(handle, 100);
+    mentions = await unifiedGetUserMentions(handle, maxMentions);
     console.log(`   Found ${mentions.length} mentions for @${handle}`);
   } catch (e: unknown) {
     const err = e as Error;

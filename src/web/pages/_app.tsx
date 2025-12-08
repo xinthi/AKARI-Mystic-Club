@@ -5,6 +5,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { AkariAuthProvider, useAkariAuth } from '../lib/akari-auth';
 import { AuthGate } from '../components/LockedOverlay';
 import { SuperAdminViewAs } from '../components/SuperAdminViewAs';
+import { Role } from '../lib/permissions';
 import '../styles/globals.css';
 
 // Routes that DON'T require X authentication (MiniApp, Admin, API routes, etc.)
@@ -25,10 +26,39 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
 }
 
+// Dev Mode Role Selector - uses auth context
+function DevModeRoleSelector() {
+  const { isDevMode, devRole, setDevRole } = useAkariAuth();
+  
+  if (!isDevMode) return null;
+  
+  return (
+    <div className="fixed top-4 right-4 z-[100] bg-yellow-500 text-black p-3 rounded-xl shadow-lg text-sm">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg">🛠️</span>
+        <span className="font-bold">DEV MODE</span>
+      </div>
+      <select
+        value={devRole}
+        onChange={(e) => setDevRole(e.target.value as Role)}
+        className="w-full px-2 py-1 rounded bg-yellow-100 text-black border border-yellow-600"
+      >
+        <option value="user">👤 User</option>
+        <option value="analyst">📊 Analyst</option>
+        <option value="admin">🔑 Admin</option>
+        <option value="super_admin">⭐ Super Admin</option>
+      </select>
+      <p className="mt-2 text-[10px] opacity-70">
+        Auth bypassed for testing
+      </p>
+    </div>
+  );
+}
+
 // Inner component that uses auth context
 function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const { isLoggedIn, isLoading, login } = useAkariAuth();
+  const { isLoggedIn, isLoading, login, isDevMode } = useAkariAuth();
 
   // Check if current route requires auth
   const requiresAuth = !isPublicRoute(router.pathname);
@@ -38,7 +68,17 @@ function AppContent({ Component, pageProps }: AppProps) {
     return <Component {...pageProps} />;
   }
 
-  // For protected routes, apply auth gate
+  // DEV MODE: Bypass auth entirely and show role selector
+  if (isDevMode) {
+    return (
+      <>
+        <Component {...pageProps} />
+        <DevModeRoleSelector />
+      </>
+    );
+  }
+
+  // PRODUCTION: Apply auth gate
   return (
     <AuthGate
       isLoggedIn={isLoggedIn}
