@@ -7,13 +7,17 @@ import { AuthGate } from '../components/LockedOverlay';
 import { SuperAdminViewAs } from '../components/SuperAdminViewAs';
 import '../styles/globals.css';
 
-// Routes that DON'T require authentication (MiniApp routes, API routes, etc.)
+// Routes that DON'T require X authentication (MiniApp, Admin, API routes, etc.)
+// These routes either have their own auth (admin token) or are public
 const PUBLIC_ROUTES = [
   '/miniapp',
+  '/admin',      // Admin panel uses its own token auth
   '/api/',
   '/login',
   '/_next/',
   '/favicon',
+  '/terms',      // Legal pages
+  '/privacy',
 ];
 
 // Check if a path is a public route (no auth required)
