@@ -514,14 +514,14 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             })
           )}
 
-          {/* Tweet markers - show BOTH official and KOL markers when both exist on same day */}
+          {/* Tweet markers - Green for project tweets, Yellow for mentions */}
           {chartData.map((d, i) => {
             const dateTweets = tweetsByDate.get(d.date) || [];
             if (dateTweets.length === 0) return null;
             
-            // Separate official (project) tweets and KOL mentions
-            const officialTweets = dateTweets.filter(t => t.isOfficial);
-            const kolTweets = dateTweets.filter(t => t.isKOL && !t.isOfficial);
+            // Separate: Official (project's own) vs Mentions (from others)
+            const officialTweets = dateTweets.filter(t => t.isOfficial === true);
+            const mentionTweets = dateTweets.filter(t => t.isOfficial !== true); // All non-official = mentions
             
             // Helper to get top engagement tweet from a list
             const getTopEngagement = (list: ProjectTweet[]): ProjectTweet | null => {
@@ -533,40 +533,40 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
               }, list[0]);
             };
             
-            // Get top engagement official tweet and top KOL tweet
+            // Get top engagement from each category
             const topOfficial = getTopEngagement(officialTweets);
-            const topKol = getTopEngagement(kolTweets);
+            const topMention = getTopEngagement(mentionTweets);
             
-            // Build array of markers to render (can be both official AND KOL)
-            const markersToRender: Array<{ tweet: ProjectTweet; isKol: boolean; offset: number }> = [];
+            // Build array of markers to render
+            const markersToRender: Array<{ tweet: ProjectTweet; isMention: boolean; offset: number }> = [];
             
-            // If we have both, show both stacked vertically
-            if (topOfficial && topKol) {
-              markersToRender.push({ tweet: topOfficial, isKol: false, offset: -10 }); // Green on top
-              markersToRender.push({ tweet: topKol, isKol: true, offset: 10 }); // Yellow below
-            } else if (topKol) {
-              markersToRender.push({ tweet: topKol, isKol: true, offset: 0 });
+            // Show both official and mention if both exist on same day
+            if (topOfficial && topMention) {
+              markersToRender.push({ tweet: topOfficial, isMention: false, offset: -10 }); // Green on top
+              markersToRender.push({ tweet: topMention, isMention: true, offset: 10 }); // Yellow below
+            } else if (topMention) {
+              // Only mention exists - show yellow
+              markersToRender.push({ tweet: topMention, isMention: true, offset: 0 });
             } else if (topOfficial) {
-              markersToRender.push({ tweet: topOfficial, isKol: false, offset: 0 });
-            } else if (dateTweets[0]) {
-              // Fallback to first tweet
-              const t = dateTweets[0];
-              markersToRender.push({ tweet: t, isKol: t.isKOL && !t.isOfficial, offset: 0 });
+              // Only official exists - show green
+              markersToRender.push({ tweet: topOfficial, isMention: false, offset: 0 });
             }
+            
+            if (markersToRender.length === 0) return null;
             
             return (
               <g key={`markers-${i}`}>
                 {markersToRender.map((marker, mIdx) => {
-                  const { tweet: displayTweet, isKol: isKolTweet, offset } = marker;
-                  const isOfficialTweet = displayTweet.isOfficial;
+                  const { tweet: displayTweet, isMention, offset } = marker;
                   
-                  // Green for official project tweets, Yellow for all mentions (regardless of KOL status)
-                  // This way users can easily see: Green = Project posted, Yellow = Others mentioned
-                  const strokeColor = isOfficialTweet ? '#00E5A0' : '#FBBF24';
+                  // SIMPLE LOGIC:
+                  // Green (#00E5A0) = Project's own tweets (is_official = true)
+                  // Yellow (#FBBF24) = Mentions from others (is_official = false)
+                  const strokeColor = isMention ? '#FBBF24' : '#00E5A0';
                   const strokeWidth = 3; // Thicker stroke for visibility
                   const radius = 12;
                   const innerRadius = 9;
-                  const imageUrl = displayTweet.authorProfileImageUrl || (isOfficialTweet ? projectImageUrl : null);
+                  const imageUrl = displayTweet.authorProfileImageUrl || (!isMention ? projectImageUrl : null);
                   
                   const isHovered = hoveredTweet?.tweetId === displayTweet.tweetId;
                   const markerY = padding.top - 15 + offset;
