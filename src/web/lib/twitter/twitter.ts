@@ -436,3 +436,86 @@ export async function getUserFollowers(
     []
   );
 }
+
+/**
+ * Mention tweet for KOL tracking
+ */
+export interface TwitterMention {
+  id: string;
+  text: string;
+  author: string;
+  authorName: string;
+  authorProfileImageUrl: string | null;
+  createdAt: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  url: string;
+}
+
+/**
+ * Get mentions of a user (tweets from others mentioning them)
+ * Uses TwitterAPI.io exclusively
+ */
+export async function getUserMentions(
+  userName: string,
+  limit: number = 50
+): Promise<TwitterMention[]> {
+  const cleanHandle = userName.replace('@', '');
+
+  return safeExecute(
+    async () => {
+      const url = `${TAIO_BASE_URL}/twitter/user/mentions`;
+      const params = new URLSearchParams({
+        userName: cleanHandle,
+        count: String(Math.min(limit, 100)),
+      });
+
+      const res = await axios.get(`${url}?${params.toString()}`, {
+        headers: {
+          'X-API-Key': TAIO_API_KEY || '',
+          'Accept': 'application/json',
+        },
+      });
+
+      const data = res.data as any;
+      console.log(`[TwitterClient/Web] Mentions response keys:`, Object.keys(data || {}));
+      
+      // Parse mentions from response - could be in different fields
+      let rawMentions: any[] = [];
+      if (data?.tweets && Array.isArray(data.tweets)) {
+        rawMentions = data.tweets;
+      } else if (data?.mentions && Array.isArray(data.mentions)) {
+        rawMentions = data.mentions;
+      } else if (data?.data && Array.isArray(data.data)) {
+        rawMentions = data.data;
+      } else if (Array.isArray(data)) {
+        rawMentions = data;
+      }
+
+      console.log(`[TwitterClient/Web] Found ${rawMentions.length} raw mentions`);
+
+      // Normalize mentions
+      return rawMentions.slice(0, limit).map((m: any) => {
+        const author = m.author ?? m.user ?? {};
+        const authorHandle = author.userName ?? author.username ?? author.screen_name ?? m.author_username ?? 'unknown';
+        
+        return {
+          id: String(m.id ?? m.tweet_id ?? ''),
+          text: m.text ?? m.full_text ?? '',
+          author: authorHandle,
+          authorName: author.name ?? m.author_name ?? authorHandle,
+          authorProfileImageUrl: (author.profileImageUrl ?? author.profile_image_url ?? author.profile_image_url_https ?? '')
+            .replace('_normal', '_400x400') || null,
+          createdAt: m.created_at ?? m.createdAt ?? new Date().toISOString(),
+          likes: Number(m.favorite_count ?? m.like_count ?? m.likes ?? 0),
+          retweets: Number(m.retweet_count ?? m.retweets ?? 0),
+          replies: Number(m.reply_count ?? m.replies ?? 0),
+          url: m.url ?? `https://x.com/${authorHandle}/status/${m.id ?? m.tweet_id}`,
+        };
+      });
+    },
+    `getUserMentions("${cleanHandle}")`,
+    []
+  );
+}

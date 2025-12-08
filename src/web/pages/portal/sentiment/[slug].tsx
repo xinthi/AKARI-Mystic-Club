@@ -560,8 +560,9 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                   const { tweet: displayTweet, isKol: isKolTweet, offset } = marker;
                   const isOfficialTweet = displayTweet.isOfficial;
                   
-                  // Use yellow for KOL, green for official - BOLD colors
-                  const strokeColor = isKolTweet ? '#FBBF24' : '#00E5A0';
+                  // Green for official project tweets, Yellow for all mentions (regardless of KOL status)
+                  // This way users can easily see: Green = Project posted, Yellow = Others mentioned
+                  const strokeColor = isOfficialTweet ? '#00E5A0' : '#FBBF24';
                   const strokeWidth = 3; // Thicker stroke for visibility
                   const radius = 12;
                   const innerRadius = 9;
@@ -668,9 +669,9 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         >
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] uppercase tracking-wider text-akari-muted">
-              {hoveredTweet.isKOL ? '🟡 KOL Mention' : '🟢 Project Tweet'}
+              {hoveredTweet.isOfficial ? '🟢 Project Tweet' : '🟡 Mention'}
             </span>
-            {hoveredTweet.isKOL && (
+            {hoveredTweet.isKOL && !hoveredTweet.isOfficial && (
               <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">KOL</span>
             )}
             {hoveredTweet.isOfficial && (
@@ -722,7 +723,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: '#FBBF24' }} />
-          KOL Mention
+          Mention
         </span>
       </div>
 

@@ -24,7 +24,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Use web-local Twitter client (inside src/web, can be compiled by Next.js)
-import { getUserProfile, getUserTweets, getUserFollowers, TwitterTweet, TwitterFollower } from '@/lib/twitter/twitter';
+import { getUserProfile, getUserTweets, getUserFollowers, getUserMentions, TwitterTweet, TwitterFollower, TwitterMention } from '@/lib/twitter/twitter';
 
 // =============================================================================
 // LOCAL HELPERS (inlined to avoid cross-package imports)
@@ -176,8 +176,16 @@ async function fetchAndSaveRealData(
       ctHeatScore = Math.min(100, Math.max(0, Math.round(30 + avgEngagement / 100)));
     }
     
-    // 4. Save tweets to project_tweets
-    const tweetRows = tweets.slice(0, 20).map((t: TwitterTweet) => ({
+    // 4. Fetch mentions (tweets from others mentioning the project)
+    console.log(`[Track] Fetching mentions...`);
+    const mentions = await getUserMentions(username, 50);
+    console.log(`[Track] Found ${mentions.length} mentions`);
+
+    // 5. Save tweets to project_tweets (both project tweets and mentions)
+    // KOL threshold: likes + retweets*2 >= 20 (lower than CLI script for better coverage)
+    const KOL_THRESHOLD = 20;
+
+    const projectTweetRows = tweets.slice(0, 20).map((t: TwitterTweet) => ({
       project_id: projectId,
       tweet_id: t.id,
       tweet_url: `https://x.com/${username}/status/${t.id}`,
@@ -192,16 +200,43 @@ async function fetchAndSaveRealData(
       is_official: true,
       is_kol: false,
     }));
+
+    // Build mention rows - mark as KOL if high engagement
+    const mentionRows = mentions.slice(0, 30).map((m: TwitterMention) => {
+      const totalEngagement = (m.likes ?? 0) + (m.retweets ?? 0) * 2;
+      const isKOL = totalEngagement >= KOL_THRESHOLD;
+      
+      return {
+        project_id: projectId,
+        tweet_id: m.id,
+        tweet_url: m.url || `https://x.com/${m.author}/status/${m.id}`,
+        author_handle: m.author,
+        author_name: m.authorName || m.author,
+        author_profile_image_url: m.authorProfileImageUrl,
+        created_at: m.createdAt || new Date().toISOString(),
+        text: m.text || '',
+        likes: m.likes ?? 0,
+        replies: m.replies ?? 0,
+        retweets: m.retweets ?? 0,
+        is_official: false,
+        is_kol: isKOL,
+      };
+    });
+
+    const kolCount = mentionRows.filter(m => m.is_kol).length;
+    console.log(`[Track] Mentions: ${mentionRows.length} total, ${kolCount} marked as KOL`);
+
+    const allTweetRows = [...projectTweetRows, ...mentionRows];
     
-    if (tweetRows.length > 0) {
+    if (allTweetRows.length > 0) {
       const { error: tweetsError } = await supabase
         .from('project_tweets')
-        .upsert(tweetRows, { onConflict: 'project_id,tweet_id' });
+        .upsert(allTweetRows, { onConflict: 'project_id,tweet_id' });
       
       if (tweetsError) {
         console.warn(`[Track] Failed to save tweets:`, tweetsError.message);
       } else {
-        console.log(`[Track] Saved ${tweetRows.length} tweets`);
+        console.log(`[Track] Saved ${allTweetRows.length} tweets (${projectTweetRows.length} official, ${mentionRows.length} mentions)`);
       }
     }
     
@@ -419,7 +454,7 @@ export default async function handler(
           .eq('id', existingProject.id);
       }
 
-      // Check if this project is missing tweet data OR inner circle - if so, fetch it now
+      // Check if this project is missing tweet data, inner circle, OR KOL mentions
       const { count: tweetCount } = await supabase
         .from('project_tweets')
         .select('*', { count: 'exact', head: true })
@@ -430,10 +465,17 @@ export default async function handler(
         .select('*', { count: 'exact', head: true })
         .eq('project_id', existingProject.id);
 
-      const needsDataFetch = !tweetCount || tweetCount === 0 || !innerCircleCount || innerCircleCount === 0;
+      // Also check if we have ANY KOL mentions - if not, we should fetch them
+      const { count: kolCount } = await supabase
+        .from('project_tweets')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', existingProject.id)
+        .eq('is_kol', true);
+
+      const needsDataFetch = !tweetCount || tweetCount === 0 || !innerCircleCount || innerCircleCount === 0 || !kolCount || kolCount === 0;
 
       if (needsDataFetch) {
-        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} missing data (tweets: ${tweetCount || 0}, inner_circle: ${innerCircleCount || 0}) - fetching...`);
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} missing data (tweets: ${tweetCount || 0}, inner_circle: ${innerCircleCount || 0}, kol_mentions: ${kolCount || 0}) - fetching...`);
         
         // Fetch real data from Twitter API for this existing project
         const realData = await fetchAndSaveRealData(supabase, existingProject.id, handleToUse);
@@ -462,7 +504,7 @@ export default async function handler(
           }, { onConflict: 'project_id,date' });
         console.log(`[API /portal/sentiment/track] Updated today's metrics: followers=${realData.followerCount}`);
       } else {
-        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has data (tweets: ${tweetCount}, inner_circle: ${innerCircleCount})`);
+        console.log(`[API /portal/sentiment/track] Project ${existingProject.slug} has data (tweets: ${tweetCount}, inner_circle: ${innerCircleCount}, kol_mentions: ${kolCount})`);
         
         // Even if we have tweets/inner_circle, check if followers is 0 and update it
         const today = new Date().toISOString().split('T')[0];

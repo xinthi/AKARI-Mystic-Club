@@ -636,8 +636,9 @@ async function processProject(
   });
 
   // Build tweet rows for mentions - tweets from others mentioning the project
-  // A mention is considered "KOL" if it has high engagement (likes + retweets > threshold)
-  const KOL_ENGAGEMENT_THRESHOLD = 50; // Consider KOL if engagement > 50
+  // A mention is considered "KOL" if it has decent engagement (likes + retweets*2 >= threshold)
+  // Lower threshold to capture more KOL mentions (20 = ~10 likes or 5 retweets)
+  const KOL_ENGAGEMENT_THRESHOLD = 20;
   const mentionTweetRows: ProjectTweetRow[] = mentions.slice(0, 20).map((m) => {
     const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
     const authorHandle = m.author || 'unknown';
