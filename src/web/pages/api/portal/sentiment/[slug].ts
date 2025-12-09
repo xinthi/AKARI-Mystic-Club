@@ -22,6 +22,7 @@ import {
   MetricsChange24h,
   InfluencerWithRelation,
 } from '@/lib/portal/supabase';
+import { getProjectTopicStats, TopicScore } from '@/lib/portal/topic-stats';
 
 // =============================================================================
 // TYPES
@@ -65,6 +66,7 @@ type SentimentDetailResponse =
       tweets: ProjectTweet[];
       influencers: InfluencerWithRelation[];
       innerCircle: InnerCircleSummary;
+      topics30d: TopicScore[];
     }
   | {
       ok: false;
@@ -99,8 +101,8 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
-    // Fetch metrics history, influencers, and tweets in parallel
-    const [metrics, influencers, tweetsResult] = await Promise.all([
+    // Fetch metrics history, influencers, tweets, and topic stats in parallel
+    const [metrics, influencers, tweetsResult, topics30d] = await Promise.all([
       getProjectMetricsHistory(supabase, project.id, 30),
       getProjectInfluencers(supabase, project.id, 10),
       supabase
@@ -124,6 +126,7 @@ export default async function handler(
         .eq('project_id', project.id)
         .order('created_at', { ascending: false })
         .limit(50),
+      getProjectTopicStats(supabase, project.id, '30d'),
     ]);
 
     // DEBUG: Log tweet query results
@@ -198,6 +201,7 @@ export default async function handler(
       tweets,
       influencers,
       innerCircle,
+      topics30d,
     });
   } catch (error: any) {
     console.error(`[API /portal/sentiment/${slug}] Error:`, error);

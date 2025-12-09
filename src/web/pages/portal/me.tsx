@@ -25,9 +25,16 @@ import {
   ProfileSocialConnections,
   ProfileReviews,
   ProfilePersonaSelector,
+  ProfileZoneOfExpertise,
+  ProfileClubOrbit,
+  ProfileInnerCircleList,
+  ProfileZoneAdvice,
   MetricsChange24h,
   InnerCircleSummary,
   MetricsDaily,
+  TopicScore,
+  OrbitMember,
+  InnerCircleEntry,
 } from '@/components/portal/profile';
 
 // =============================================================================
@@ -101,6 +108,20 @@ interface TweetBreakdown {
   tweetUrl: string;
 }
 
+/**
+ * Influencer data from the inner circle
+ */
+interface InfluencerData {
+  id: string;
+  x_handle: string;
+  name: string | null;
+  avatar_url: string | null;
+  followers: number | null;
+  akari_score: number | null;
+  credibility_score: number | null;
+  avg_sentiment_30d: number | null;
+}
+
 interface MyProfileData {
   project: ProjectDetail;
   akariScore: number | null;
@@ -117,6 +138,10 @@ interface MyProfileData {
     dailyEngagement: DailyEngagement[];
     tweetBreakdown: TweetBreakdown[];
   } | null;
+  // Zone of Expertise topic scores
+  topics30d: TopicScore[];
+  // Inner circle members for orbit and list views
+  influencers: InfluencerData[];
 }
 
 type ProfileStatus = 
@@ -139,6 +164,78 @@ function getAkariTier(score: number | null): { name: string; color: string; bgCo
   if (score >= 550) return { name: 'Ranger', color: 'text-blue-400', bgColor: 'bg-blue-400/10' };
   if (score >= 400) return { name: 'Nomad', color: 'text-amber-400', bgColor: 'bg-amber-400/10' };
   return { name: 'Shadow', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
+}
+
+/**
+ * Shape influencer data into OrbitMember for the bubble cluster.
+ * Picks top ~20 members by "power" metric (akari_score * followers engagement).
+ */
+function shapeOrbitMembers(
+  influencers: InfluencerData[],
+  userAkariScore: number | null,
+  userFollowers: number | null
+): OrbitMember[] {
+  if (!influencers || influencers.length === 0) return [];
+  
+  // Calculate power for each influencer (composite metric)
+  const withPower = influencers.map(inf => {
+    const akari = inf.akari_score ?? 0;
+    const followers = inf.followers ?? 0;
+    const sentiment = inf.avg_sentiment_30d ?? 50;
+    // Power = weighted combination of metrics
+    const power = akari * 0.5 + Math.log10(followers + 1) * 20 + sentiment * 0.3;
+    return { ...inf, power };
+  });
+  
+  // Sort by power and take top 20
+  withPower.sort((a, b) => b.power - a.power);
+  const top20 = withPower.slice(0, 20);
+  
+  // Find max power for normalization
+  const maxPower = Math.max(...top20.map(m => m.power), 1);
+  
+  // Determine role: hero if their followers or akari > user's
+  const myAkari = userAkariScore ?? 0;
+  const myFollowers = userFollowers ?? 0;
+  
+  return top20.map(inf => ({
+    handle: inf.x_handle,
+    avatarUrl: inf.avatar_url,
+    akariScore: inf.akari_score,
+    followers: inf.followers,
+    interactionWeight: inf.power / maxPower, // 0-1 normalized
+    role: (
+      (inf.akari_score ?? 0) > myAkari || 
+      (inf.followers ?? 0) > myFollowers
+    ) ? 'hero' : 'player',
+  }));
+}
+
+/**
+ * Shape influencer data into InnerCircleEntry for the list view.
+ * Uses same underlying data as orbit, expanded with CT Heat.
+ */
+function shapeInnerCircleEntries(
+  influencers: InfluencerData[],
+  userAkariScore: number | null,
+  userFollowers: number | null
+): InnerCircleEntry[] {
+  if (!influencers || influencers.length === 0) return [];
+  
+  const myAkari = userAkariScore ?? 0;
+  const myFollowers = userFollowers ?? 0;
+  
+  return influencers.map(inf => ({
+    handle: inf.x_handle,
+    avatarUrl: inf.avatar_url,
+    akariScore: inf.akari_score,
+    ctHeat: inf.avg_sentiment_30d, // Using sentiment as CT Heat proxy
+    followers: inf.followers,
+    role: (
+      (inf.akari_score ?? 0) > myAkari || 
+      (inf.followers ?? 0) > myFollowers
+    ) ? 'hero' : 'player',
+  }));
 }
 
 // =============================================================================
@@ -183,6 +280,8 @@ async function fetchSentimentData(slug: string): Promise<{
   changes24h: MetricsChange24h | null;
   tweets: ProjectTweet[];
   innerCircle: InnerCircleSummary;
+  topics30d: TopicScore[];
+  influencers: InfluencerData[];
 } | null> {
   try {
     const res = await fetch(`/api/portal/sentiment/${slug}`);
@@ -195,6 +294,8 @@ async function fetchSentimentData(slug: string): Promise<{
       changes24h: data.changes24h || null,
       tweets: data.tweets || [],
       innerCircle: data.innerCircle || { count: 0, power: 0 },
+      topics30d: data.topics30d || [],
+      influencers: data.influencers || [],
     };
   } catch {
     return null;
@@ -299,6 +400,8 @@ function useMyProfile() {
       metricsHistory: sentimentData.metrics,
       tweets: sentimentData.tweets,
       analytics: analyticsData,
+      topics30d: sentimentData.topics30d,
+      influencers: sentimentData.influencers,
     };
     
     setProfileState({ status: 'loaded', data: profileData, canCompare });
@@ -517,7 +620,42 @@ export default function MyProfilePage() {
               onRefresh={refresh}
             />
             
-            {/* Section 4: Social Connections + Reviews */}
+            {/* Section 4: Zone of Expertise + Club Orbit */}
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <ProfileZoneOfExpertise topics={profileState.data.topics30d} />
+              <ProfileClubOrbit 
+                orbit={shapeOrbitMembers(
+                  profileState.data.influencers,
+                  profileState.data.akariScore,
+                  profileState.data.followers
+                )} 
+              />
+            </section>
+            
+            {/* Section 5: Zone Advice */}
+            <section className="mt-4">
+              <ProfileZoneAdvice
+                topics={profileState.data.topics30d}
+                innerCircle={shapeInnerCircleEntries(
+                  profileState.data.influencers,
+                  profileState.data.akariScore,
+                  profileState.data.followers
+                )}
+              />
+            </section>
+            
+            {/* Section 6: Inner Circle List */}
+            <section className="mt-4">
+              <ProfileInnerCircleList 
+                entries={shapeInnerCircleEntries(
+                  profileState.data.influencers,
+                  profileState.data.akariScore,
+                  profileState.data.followers
+                )} 
+              />
+            </section>
+            
+            {/* Section 7: Social Connections + Reviews */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <ProfileSocialConnections
                 xConnected={!!xUsername}
@@ -528,7 +666,7 @@ export default function MyProfilePage() {
               />
             </section>
             
-            {/* Section 5: Mystic Identity Selector */}
+            {/* Section 8: Mystic Identity Selector */}
             <ProfilePersonaSelector
               savedPersonaType={savedPersonaType}
               savedPersonaTag={savedPersonaTag}

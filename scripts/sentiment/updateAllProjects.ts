@@ -47,6 +47,9 @@ import {
   computeSimplifiedAkariScore,
 } from '../../src/server/scoring/akari';
 
+// Topic analysis for Zone of Expertise
+import { recomputeProjectTopicStats } from '../../src/server/sentiment/topics';
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -254,6 +257,13 @@ export async function runSentimentUpdate(): Promise<{ successCount: number; fail
               } else {
                 console.log(`   📝 Saved ${result.tweets.length} tweets`);
               }
+            }
+            
+            // Compute topic stats for Zone of Expertise (30d window)
+            try {
+              await recomputeProjectTopicStats(supabase, project.id, '30d');
+            } catch (topicError: any) {
+              console.error(`   ⚠️  Failed to compute topic stats:`, topicError.message);
             }
           }
         } else {
