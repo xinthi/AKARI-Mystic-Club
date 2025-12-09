@@ -37,6 +37,8 @@ export interface FeatureGrant {
   featureKey: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  discountPercent: number;      // 0–100, default 0
+  discountNote: string | null;  // Optional internal note
 }
 
 // =============================================================================

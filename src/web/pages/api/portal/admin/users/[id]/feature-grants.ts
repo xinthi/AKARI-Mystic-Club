@@ -105,7 +105,7 @@ export default async function handler(
 
     // Handle POST (upsert grant)
     if (req.method === 'POST') {
-      const { featureKey, startsAt, endsAt } = req.body;
+      const { featureKey, startsAt, endsAt, discountPercent, discountNote } = req.body;
 
       if (!featureKey || (featureKey !== 'deep.explorer' && featureKey !== 'institutional.plus')) {
         return res.status(400).json({ ok: false, error: 'Invalid feature key' });
@@ -114,6 +114,12 @@ export default async function handler(
       // Parse dates (null means "now" for startsAt, "no expiry" for endsAt)
       const startsAtValue = startsAt ? new Date(startsAt).toISOString() : new Date().toISOString();
       const endsAtValue = endsAt ? new Date(endsAt).toISOString() : null;
+
+      // Normalize discountPercent: null/undefined → 0, clamp between 0 and 100
+      let normalizedDiscount = 0;
+      if (discountPercent != null) {
+        normalizedDiscount = Math.max(0, Math.min(100, Number(discountPercent)));
+      }
 
       // Upsert the grant
       const { error: upsertError } = await supabase
@@ -124,6 +130,8 @@ export default async function handler(
             feature_key: featureKey,
             starts_at: startsAtValue,
             ends_at: endsAtValue,
+            discount_percent: normalizedDiscount,
+            discount_note: discountNote ?? null,
           },
           {
             onConflict: 'user_id,feature_key',

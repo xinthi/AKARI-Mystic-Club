@@ -27,6 +27,8 @@ interface FeatureGrant {
   startsAt: string | null;
   endsAt: string | null;
   createdAt: string;
+  discountPercent: number;
+  discountNote: string | null;
 }
 
 interface AccessRequest {
@@ -174,7 +176,7 @@ export default async function handler(
       // Feature grants
       supabase
         .from('akari_user_feature_grants')
-        .select('id, feature_key, starts_at, ends_at, created_at')
+        .select('id, feature_key, starts_at, ends_at, created_at, discount_percent, discount_note')
         .eq('user_id', targetUserId)
         .order('created_at', { ascending: false }),
 
@@ -201,6 +203,8 @@ export default async function handler(
       startsAt: g.starts_at,
       endsAt: g.ends_at,
       createdAt: g.created_at,
+      discountPercent: g.discount_percent != null ? Number(g.discount_percent) : 0,
+      discountNote: g.discount_note || null,
     }));
     const requests = (requestsResult.data || []).map((r: any) => ({
       id: r.id,

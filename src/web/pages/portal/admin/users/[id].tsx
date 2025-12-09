@@ -32,6 +32,8 @@ interface FeatureGrant {
   startsAt: string | null;
   endsAt: string | null;
   createdAt: string;
+  discountPercent: number;
+  discountNote: string | null;
 }
 
 interface AccessRequest {
@@ -157,16 +159,22 @@ export default function AdminUserDetailPage() {
         accessRequests: result.accessRequests || [],
       });
 
-      // Initialize grant dates from existing grants (always initialize both features)
+      // Initialize grant dates and discounts from existing grants (always initialize both features)
       const dates: Record<string, { startsAt: string; endsAt: string }> = {};
+      const discounts: Record<string, { discountPercent: number; discountNote: string }> = {};
       for (const featureKey of [FEATURE_KEYS.DeepExplorer, FEATURE_KEYS.InstitutionalPlus]) {
         const grant = grants.find((g) => g.featureKey === featureKey);
         dates[featureKey] = {
           startsAt: formatDateInput(grant?.startsAt || null),
           endsAt: formatDateInput(grant?.endsAt || null),
         };
+        discounts[featureKey] = {
+          discountPercent: grant?.discountPercent || 0,
+          discountNote: grant?.discountNote || '',
+        };
       }
       setGrantDates(dates);
+      setGrantDiscounts(discounts);
     } catch (err: any) {
       setError(err.message || 'Failed to load user detail.');
     } finally {
@@ -174,7 +182,7 @@ export default function AdminUserDetailPage() {
     }
   };
 
-  const handleGrant = async (featureKey: string, startsAt: string | null, endsAt: string | null) => {
+  const handleGrant = async (featureKey: string, startsAt: string | null, endsAt: string | null, discountPercent: number, discountNote: string | null) => {
     if (!id || typeof id !== 'string') return;
     if (processing[featureKey]) return;
 
@@ -194,7 +202,7 @@ export default function AdminUserDetailPage() {
       const res = await fetch(`/api/portal/admin/users/${id}/feature-grants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ featureKey, startsAt, endsAt }),
+        body: JSON.stringify({ featureKey, startsAt, endsAt, discountPercent, discountNote }),
       });
 
       const result = await res.json();
@@ -374,6 +382,8 @@ export default function AdminUserDetailPage() {
                 const active = isGrantActive(grant);
                 const startsAt = grantDates[featureKey]?.startsAt || formatDateInput(grant?.startsAt || null);
                 const endsAt = grantDates[featureKey]?.endsAt || formatDateInput(grant?.endsAt || null);
+                const discountPercent = grantDiscounts[featureKey]?.discountPercent ?? (grant?.discountPercent || 0);
+                const discountNote = grantDiscounts[featureKey]?.discountNote ?? (grant?.discountNote || '');
 
                 return (
                   <div key={featureKey} className="mb-6 last:mb-0 pb-6 last:pb-0 border-b border-slate-800 last:border-0">
@@ -390,6 +400,12 @@ export default function AdminUserDetailPage() {
                             </p>
                             <p>Starts: {formatDate(grant.startsAt)}</p>
                             <p>Ends: {grant.endsAt ? formatDate(grant.endsAt) : 'No expiry'}</p>
+                            <p>
+                              Discount: <span className="text-akari-primary">{grant.discountPercent || 0}%</span>
+                            </p>
+                            {grant.discountNote && (
+                              <p className="text-slate-500 italic">Note: {grant.discountNote}</p>
+                            )}
                           </>
                         ) : (
                           <p className="text-slate-500">Not granted</p>
@@ -399,7 +415,7 @@ export default function AdminUserDetailPage() {
 
                     {/* Grant Form */}
                     <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs text-slate-400 mb-1">Start Date</label>
                           <input
@@ -428,6 +444,39 @@ export default function AdminUserDetailPage() {
                             className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                           />
                         </div>
+                        <div>
+                          <label className="block text-xs text-slate-400 mb-1">Discount %</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={discountPercent}
+                            onChange={(e) => {
+                              const value = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                              setGrantDiscounts((prev) => ({
+                                ...prev,
+                                [featureKey]: { ...prev[featureKey], discountPercent: value, discountNote: discountNote },
+                              }));
+                            }}
+                            className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-400 mb-1">Internal Note</label>
+                          <input
+                            type="text"
+                            value={discountNote}
+                            onChange={(e) =>
+                              setGrantDiscounts((prev) => ({
+                                ...prev,
+                                [featureKey]: { ...prev[featureKey], discountPercent: discountPercent, discountNote: e.target.value },
+                              }))
+                            }
+                            placeholder="Reason for discount (optional)"
+                            className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                          />
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -435,7 +484,15 @@ export default function AdminUserDetailPage() {
                           onClick={() => {
                             const currentStartsAt = grantDates[featureKey]?.startsAt || '';
                             const currentEndsAt = grantDates[featureKey]?.endsAt || '';
-                            handleGrant(featureKey, currentStartsAt || null, currentEndsAt || null);
+                            const currentDiscountPercent = grantDiscounts[featureKey]?.discountPercent ?? discountPercent;
+                            const currentDiscountNote = grantDiscounts[featureKey]?.discountNote ?? discountNote;
+                            handleGrant(
+                              featureKey,
+                              currentStartsAt || null,
+                              currentEndsAt || null,
+                              currentDiscountPercent,
+                              currentDiscountNote || null
+                            );
                           }}
                           disabled={processing[featureKey]}
                           className="px-4 py-2 min-h-[36px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
