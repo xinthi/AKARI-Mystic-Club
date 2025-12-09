@@ -699,7 +699,7 @@ export default function MyProfilePage() {
                 <pre className="text-slate-500 overflow-auto">
 {JSON.stringify({
   canCompare: profileState.canCompare,
-  userRoles: user?.effectiveRoles,
+  userRoles: akariUser.user?.effectiveRoles,
   projectSlug: profileState.data.project.slug,
   metricsCount: profileState.data.metricsHistory.length,
   savedPersonaType,
