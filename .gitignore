@@ -81,4 +81,5 @@ service-account*.json
 **/algorithm-docs*
 FORMULAS.md
 ALGORITHM.md
+SENTIMENT_AUDIT.md
 
