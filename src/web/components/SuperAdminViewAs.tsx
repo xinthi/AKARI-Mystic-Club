@@ -19,10 +19,10 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function SuperAdminViewAs() {
   const { setViewAsRole } = useAkariAuth();
-  const { user, realRoles, viewAsRole } = useAkariUser();
+  const { isLoggedIn, realRoles, viewAsRole } = useAkariUser();
 
-  // Only show for Super Admins
-  if (!user || !isSuperAdmin({ realRoles })) {
+  // Only show for Super Admins - check realRoles (not effective roles)
+  if (!isLoggedIn || !isSuperAdmin({ realRoles })) {
     return null;
   }
 
