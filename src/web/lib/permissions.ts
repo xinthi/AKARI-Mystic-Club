@@ -19,7 +19,18 @@ export type FeatureKey =
   | 'sentiment.search'
   | 'sentiment.compare'
   | 'launchpad.add_project'
+  | 'deep.explorer'
+  | 'institutional.plus'
   | string; // Allow custom feature keys
+
+// =============================================================================
+// FEATURE KEY CONSTANTS
+// =============================================================================
+
+export const FEATURE_KEYS = {
+  DeepExplorer: 'deep.explorer',
+  InstitutionalPlus: 'institutional.plus',
+} as const;
 
 export interface FeatureGrant {
   id: string;
@@ -296,5 +307,23 @@ export function getHighestRole(roles: Role[]): Role {
     }
   }
   return 'user';
+}
+
+// =============================================================================
+// FEATURE-SPECIFIC HELPERS
+// =============================================================================
+
+/**
+ * Check if user can use Deep Explorer feature.
+ */
+export function canUseDeepExplorer(user: AkariUser | null): boolean {
+  return !!user && can(user, FEATURE_KEYS.DeepExplorer);
+}
+
+/**
+ * Check if user has Institutional Plus access.
+ */
+export function hasInstitutionalPlus(user: AkariUser | null): boolean {
+  return !!user && can(user, FEATURE_KEYS.InstitutionalPlus);
 }
 

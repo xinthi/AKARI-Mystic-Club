@@ -27,7 +27,7 @@ export function SuperAdminViewAs() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40">
+    <div className="fixed bottom-4 right-4 z-30">
       <div className="rounded-xl border border-purple-500/30 bg-akari-card/95 backdrop-blur-sm p-3 shadow-lg">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] uppercase tracking-wider text-purple-400 font-medium">

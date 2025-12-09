@@ -8,7 +8,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
 import { Role, PersonaType, getHighestRole } from '@/lib/permissions';
+import { useAkariAuth } from '@/lib/akari-auth';
 
 // =============================================================================
 // TYPES
@@ -75,7 +77,23 @@ export function ProfileHeader({
   onRefresh,
 }: ProfileHeaderProps) {
   const router = useRouter();
+  const { logout } = useAkariAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const roleBadge = getRoleBadge(roles);
+  
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      // Redirect to home after logout
+      router.push('/portal/sentiment');
+    } catch (error) {
+      console.error('[ProfileHeader] Logout error:', error);
+      setIsLoggingOut(false);
+    }
+  };
   
   const handleCompareClick = () => {
     if (canCompare && slug) {
@@ -189,6 +207,26 @@ export function ProfileHeader({
               </div>
             </div>
           )}
+          
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-slate-300 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoggingOut ? (
+              <>
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                Logging out...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </>
+            )}
+          </button>
         </div>
       </div>
     </section>

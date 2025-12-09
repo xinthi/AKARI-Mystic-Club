@@ -100,3 +100,10 @@ export type { ProfileZoneAdviceProps } from './ProfileZoneAdvice';
 export { computeZoneAdvice } from './zone-advice';
 export type { ZoneAdviceItem, ZoneAdviceInput } from './zone-advice';
 
+// =============================================================================
+// DEEP EXPLORER ACCESS
+// =============================================================================
+
+export { ProfileDeepExplorerAccess } from './ProfileDeepExplorerAccess';
+export type { ProfileDeepExplorerAccessProps } from './ProfileDeepExplorerAccess';
+

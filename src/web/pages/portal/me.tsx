@@ -15,7 +15,8 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
-import { can, PersonaType, PersonaTag, Role } from '@/lib/permissions';
+import { can, PersonaType, PersonaTag, Role, canUseDeepExplorer, hasInstitutionalPlus } from '@/lib/permissions';
+import type { AccessRequestStatus } from '@/lib/types/access-requests';
 
 // Profile components
 import {
@@ -29,6 +30,7 @@ import {
   ProfileClubOrbit,
   ProfileInnerCircleList,
   ProfileZoneAdvice,
+  ProfileDeepExplorerAccess,
   MetricsChange24h,
   InnerCircleSummary,
   MetricsDaily,
@@ -472,7 +474,14 @@ export default function MyProfilePage() {
     telegramConnected,
     onPersonaSaveSuccess,
   } = useMyProfile();
-  const { user } = useAkariUser();
+  const akariUser = useAkariUser();
+  
+  // Deep Explorer access state
+  const [deepRequestStatus, setDeepRequestStatus] = useState<AccessRequestStatus | null>(null);
+  
+  // Compute access status
+  const hasDeepAccess = canUseDeepExplorer(akariUser);
+  const hasInstitutionalPlusAccess = hasInstitutionalPlus(akariUser);
   
   // Redirect if not logged in
   useEffect(() => {
@@ -641,6 +650,16 @@ export default function MyProfilePage() {
                   profileState.data.akariScore,
                   profileState.data.followers
                 )}
+              />
+            </section>
+            
+            {/* Section 5.5: Deep Explorer Access */}
+            <section className="mt-4">
+              <ProfileDeepExplorerAccess
+                hasDeepAccess={hasDeepAccess}
+                hasInstitutionalPlus={hasInstitutionalPlusAccess}
+                pendingRequestStatus={deepRequestStatus}
+                onRequestSubmitted={() => setDeepRequestStatus('pending')}
               />
             </section>
             
