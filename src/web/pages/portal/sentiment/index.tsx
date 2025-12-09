@@ -449,6 +449,13 @@ export default function SentimentOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Watchlist state
+  const [activeTab, setActiveTab] = useState<'all' | 'watchlist'>('all');
+  const [watchlistProjectIds, setWatchlistProjectIds] = useState<Set<string>>(new Set());
+  const [watchlistProjects, setWatchlistProjects] = useState<ProjectWithMetrics[]>([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [togglingStar, setTogglingStar] = useState<string | null>(null);
+
   // Sort state
   type SortColumn = 'name' | 'akari_score' | 'sentiment_score' | 'ct_heat_score' | 'followers' | 'date';
   type SortDirection = 'asc' | 'desc';
@@ -465,9 +472,12 @@ export default function SentimentOverview() {
     }
   };
 
+  // Determine which projects to display
+  const displayProjects = activeTab === 'watchlist' ? watchlistProjects : projects;
+
   // Sorted projects
   const sortedProjects = useMemo(() => {
-    return [...projects].sort((a, b) => {
+    return [...displayProjects].sort((a, b) => {
       let aVal: number | string | null = null;
       let bVal: number | string | null = null;
 
@@ -508,7 +518,7 @@ export default function SentimentOverview() {
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [projects, sortColumn, sortDirection]);
+  }, [displayProjects, sortColumn, sortDirection]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -522,6 +532,7 @@ export default function SentimentOverview() {
   const { user } = useAkariUser();
   const canSearch = can(user, 'sentiment.search');
   const canCompare = can(user, 'sentiment.compare');
+  const isLoggedIn = user?.isLoggedIn ?? false;
   
   const router = useRouter();
 
@@ -577,6 +588,9 @@ export default function SentimentOverview() {
         setTopMovers(data.topMovers || []);
         setTopEngagement(data.topEngagement || []);
         setTrendingUp(data.trendingUp || []);
+
+        // Extract watchlist project IDs from projects (if we have that info)
+        // For now, we'll fetch watchlist separately
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[SentimentOverview] Fetch error:', err);
@@ -587,6 +601,112 @@ export default function SentimentOverview() {
 
     fetchData();
   }, []);
+
+  // Fetch watchlist when tab is active and user is logged in
+  useEffect(() => {
+    if (activeTab === 'watchlist' && isLoggedIn) {
+      async function fetchWatchlist() {
+        setWatchlistLoading(true);
+        try {
+          const res = await fetch('/api/portal/sentiment/watchlist');
+          const data = await res.json();
+
+          if (data.ok && data.projects) {
+            // Convert watchlist projects to ProjectWithMetrics format
+            const watchlistAsMetrics: ProjectWithMetrics[] = data.projects.map((p: any) => ({
+              id: p.projectId,
+              slug: p.slug,
+              name: p.name,
+              x_handle: p.xHandle || '',
+              avatar_url: p.avatarUrl || null,
+              twitter_profile_image_url: p.twitterProfileImageUrl || null,
+              sentiment_score: p.sentiment,
+              ct_heat_score: p.ctHeat,
+              akari_score: p.akariScore,
+              followers: null,
+              date: p.lastUpdatedAt,
+              sentimentChange24h: p.sentimentChange24h,
+              ctHeatChange24h: p.ctHeatChange24h,
+              akariChange24h: p.akariChange24h,
+              sentimentDirection24h: p.sentimentChange24h > 0 ? 'up' : p.sentimentChange24h < 0 ? 'down' : 'flat',
+              ctHeatDirection24h: p.ctHeatChange24h > 0 ? 'up' : p.ctHeatChange24h < 0 ? 'down' : 'flat',
+            }));
+            setWatchlistProjects(watchlistAsMetrics);
+            setWatchlistProjectIds(new Set(data.projects.map((p: any) => p.projectId)));
+          }
+        } catch (err) {
+          console.error('[SentimentOverview] Watchlist fetch error:', err);
+        } finally {
+          setWatchlistLoading(false);
+        }
+      }
+
+      fetchWatchlist();
+    }
+  }, [activeTab, isLoggedIn]);
+
+  // Toggle watchlist star
+  const handleToggleStar = useCallback(async (projectId: string, isInWatchlist: boolean) => {
+    if (!isLoggedIn) return;
+    
+    setTogglingStar(projectId);
+    try {
+      const res = await fetch('/api/portal/sentiment/watchlist/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          action: isInWatchlist ? 'remove' : 'add',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        // Optimistically update state
+        const newSet = new Set(watchlistProjectIds);
+        if (isInWatchlist) {
+          newSet.delete(projectId);
+        } else {
+          newSet.add(projectId);
+        }
+        setWatchlistProjectIds(newSet);
+
+        // If on watchlist tab, refresh the list
+        if (activeTab === 'watchlist') {
+          const res2 = await fetch('/api/portal/sentiment/watchlist');
+          const data2 = await res.json();
+          if (data2.ok && data2.projects) {
+            const watchlistAsMetrics: ProjectWithMetrics[] = data2.projects.map((p: any) => ({
+              id: p.projectId,
+              slug: p.slug,
+              name: p.name,
+              x_handle: p.xHandle || '',
+              avatar_url: p.avatarUrl || null,
+              twitter_profile_image_url: p.twitterProfileImageUrl || null,
+              sentiment_score: p.sentiment,
+              ct_heat_score: p.ctHeat,
+              akari_score: p.akariScore,
+              followers: null,
+              date: p.lastUpdatedAt,
+              sentimentChange24h: p.sentimentChange24h,
+              ctHeatChange24h: p.ctHeatChange24h,
+              akariChange24h: p.akariChange24h,
+              sentimentDirection24h: p.sentimentChange24h > 0 ? 'up' : p.sentimentChange24h < 0 ? 'down' : 'flat',
+              ctHeatDirection24h: p.ctHeatChange24h > 0 ? 'up' : p.ctHeatChange24h < 0 ? 'down' : 'flat',
+            }));
+            setWatchlistProjects(watchlistAsMetrics);
+          }
+        }
+      } else {
+        alert(data.error || 'Failed to update watchlist');
+      }
+    } catch (err) {
+      console.error('[SentimentOverview] Toggle star error:', err);
+      alert('Failed to update watchlist');
+    } finally {
+      setTogglingStar(null);
+    }
+  }, [isLoggedIn, watchlistProjectIds, activeTab]);
 
   // Search for Twitter profiles
   const handleSearch = useCallback(async () => {
@@ -821,15 +941,65 @@ export default function SentimentOverview() {
 
           {/* Tracked Projects Section */}
           <section>
-            <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
-              Tracked Projects
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                {activeTab === 'watchlist' ? 'My Watchlist' : 'Tracked Projects'}
+              </h2>
+              {isLoggedIn && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('all')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                      activeTab === 'all'
+                        ? 'bg-akari-primary text-akari-bg'
+                        : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                    }`}
+                  >
+                    All Projects
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('watchlist')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                      activeTab === 'watchlist'
+                        ? 'bg-akari-primary text-akari-bg'
+                        : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                    }`}
+                  >
+                    My Watchlist
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {activeTab === 'watchlist' && !isLoggedIn && (
+              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-6 text-center">
+                <p className="text-sm text-akari-muted">Log in to use the watchlist feature.</p>
+              </div>
+            )}
+
+            {activeTab === 'watchlist' && isLoggedIn && watchlistLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+              </div>
+            )}
+
+            {activeTab === 'watchlist' && isLoggedIn && !watchlistLoading && watchlistProjects.length === 0 && (
+              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-6 text-center">
+                <p className="text-sm text-akari-muted">Your watchlist is empty. Star projects to add them.</p>
+              </div>
+            )}
 
             {/* Desktop table view */}
+            {((activeTab === 'all') || (activeTab === 'watchlist' && isLoggedIn && !watchlistLoading && watchlistProjects.length > 0)) && (
             <div className="hidden md:block overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
+                    {isLoggedIn && (
+                      <th className="py-3 px-4 w-12">
+                        <span className="sr-only">Star</span>
+                      </th>
+                    )}
                     <th 
                       className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
                       onClick={() => handleSort('name')}
@@ -889,11 +1059,32 @@ export default function SentimentOverview() {
                 <tbody>
                   {sortedProjects.map((project) => {
                     const tier = getAkariTier(project.akari_score);
+                    const isInWatchlist = watchlistProjectIds.has(project.id);
                     return (
                       <tr
                         key={project.id}
                         className="border-b border-akari-border/30 transition hover:bg-akari-cardSoft/50"
                       >
+                        {isLoggedIn && (
+                          <td className="py-4 px-4">
+                            <button
+                              onClick={() => handleToggleStar(project.id, isInWatchlist)}
+                              disabled={togglingStar === project.id}
+                              className="text-akari-muted hover:text-akari-primary transition disabled:opacity-50"
+                              title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                            >
+                              {isInWatchlist ? (
+                                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth={2}>
+                                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                                </svg>
+                              )}
+                            </button>
+                          </td>
+                        )}
                         <td className="py-4 px-4">
                           <Link
                             href={`/portal/sentiment/${project.slug}`}
@@ -952,15 +1143,38 @@ export default function SentimentOverview() {
             </div>
 
             {/* Mobile card view */}
+            {((activeTab === 'all') || (activeTab === 'watchlist' && isLoggedIn && !watchlistLoading && watchlistProjects.length > 0)) && (
             <div className="md:hidden space-y-3">
               {sortedProjects.map((project) => {
                 const tier = getAkariTier(project.akari_score);
+                const isInWatchlist = watchlistProjectIds.has(project.id);
                 return (
-                  <Link
+                  <div
                     key={project.id}
-                    href={`/portal/sentiment/${project.slug}`}
-                    className="block rounded-2xl border border-akari-border/70 bg-akari-card p-4 transition hover:border-akari-primary/50"
+                    className="rounded-2xl border border-akari-border/70 bg-akari-card p-4"
                   >
+                    <div className="flex items-center gap-3 mb-3">
+                      {isLoggedIn && (
+                        <button
+                          onClick={() => handleToggleStar(project.id, isInWatchlist)}
+                          disabled={togglingStar === project.id}
+                          className="text-akari-muted hover:text-akari-primary transition disabled:opacity-50 flex-shrink-0"
+                        >
+                          {isInWatchlist ? (
+                            <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth={2}>
+                              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                      <Link
+                        href={`/portal/sentiment/${project.slug}`}
+                        className="flex items-center gap-3 flex-1"
+                      >
                     <div className="flex items-center gap-3 mb-3">
                       <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="lg" />
                       <div className="flex-1 min-w-0">
@@ -989,10 +1203,13 @@ export default function SentimentOverview() {
                         <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
                     </div>
-                  </Link>
+                      </Link>
+                    </div>
+                  </div>
                 );
               })}
             </div>
+            )}
           </section>
         </>
       )}

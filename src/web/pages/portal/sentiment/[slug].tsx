@@ -923,6 +923,7 @@ export default function SentimentDetail() {
   
   // Get current user for permission checks
   const { user } = useAkariUser();
+  const isLoggedIn = user?.isLoggedIn ?? false;
   
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
@@ -943,6 +944,10 @@ export default function SentimentDetail() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsWindow, setAnalyticsWindow] = useState<'7d' | '30d'>('7d');
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Watchlist state
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [togglingStar, setTogglingStar] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -1015,6 +1020,55 @@ export default function SentimentDetail() {
     fetchAnalytics();
   }, [slug, analyticsWindow]);
 
+  // Check if project is in watchlist
+  useEffect(() => {
+    if (!slug || !isLoggedIn || !project) return;
+
+    async function checkWatchlist() {
+      try {
+        const res = await fetch('/api/portal/sentiment/watchlist');
+        const data = await res.json();
+        if (data.ok && data.projects) {
+          const isWatched = data.projects.some((p: any) => p.projectId === project.id);
+          setIsInWatchlist(isWatched);
+        }
+      } catch (err) {
+        console.error('[SentimentDetail] Watchlist check error:', err);
+      }
+    }
+
+    checkWatchlist();
+  }, [slug, isLoggedIn, project]);
+
+  // Toggle watchlist
+  const handleToggleStar = useCallback(async () => {
+    if (!isLoggedIn || !project || togglingStar) return;
+
+    setTogglingStar(true);
+    try {
+      const res = await fetch('/api/portal/sentiment/watchlist/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          action: isInWatchlist ? 'remove' : 'add',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setIsInWatchlist(!isInWatchlist);
+      } else {
+        alert(data.error || 'Failed to update watchlist');
+      }
+    } catch (err) {
+      console.error('[SentimentDetail] Toggle star error:', err);
+      alert('Failed to update watchlist');
+    } finally {
+      setTogglingStar(false);
+    }
+  }, [isLoggedIn, project, isInWatchlist, togglingStar]);
+
   const latestMetrics = metrics.length > 0 ? metrics[0] : null;
   const tier = getAkariTier(latestMetrics?.akari_score ?? null);
   const projectImageUrl = project?.twitter_profile_image_url || project?.avatar_url || null;
@@ -1071,9 +1125,29 @@ export default function SentimentDetail() {
                 {project.bio && (
                   <p className="mt-2 text-sm text-akari-muted max-w-xl">{project.bio}</p>
                 )}
-                {/* Deep Explorer button - only show if user has access */}
-                {canViewDeepExplorer && (
-                  <div className="mt-3">
+                <div className="mt-3 flex items-center gap-3">
+                  {/* Watchlist star button */}
+                  {isLoggedIn && (
+                    <button
+                      onClick={handleToggleStar}
+                      disabled={togglingStar}
+                      className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-lg bg-akari-cardSoft border border-akari-border/50 hover:border-akari-primary/50 transition text-sm font-medium disabled:opacity-50"
+                      title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                    >
+                      {isInWatchlist ? (
+                        <svg className="w-4 h-4 fill-current text-akari-primary" viewBox="0 0 24 24">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                      )}
+                      {togglingStar ? 'Updating...' : isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+                    </button>
+                  )}
+                  {/* Deep Explorer button - only show if user has access */}
+                  {canViewDeepExplorer && (
                     <Link
                       href={`/portal/deep/${slug}`}
                       className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 transition text-sm font-medium border border-akari-primary/30"
@@ -1083,8 +1157,8 @@ export default function SentimentDetail() {
                       </svg>
                       Open Deep Explorer
                     </Link>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               {latestMetrics?.akari_score != null && (
                 <div className="text-right">
