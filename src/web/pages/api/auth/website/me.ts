@@ -65,10 +65,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: false, user: null });
     }
 
-    // Get user info
+    // Get user info (including Mystic Identity fields)
     const { data: user, error: userError } = await supabase
       .from('akari_users')
-      .select('id, display_name, avatar_url, is_active')
+      .select('id, display_name, avatar_url, is_active, persona_type, persona_tag, telegram_connected')
       .eq('id', session.user_id)
       .single();
 
@@ -105,6 +105,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         roles: roles?.map(r => r.role) || ['user'],
         featureGrants: grants || [],
         xUsername: xIdentity?.username || null,
+        // Mystic Identity fields
+        personaType: user.persona_type || 'individual',
+        personaTag: user.persona_tag || null,
+        telegramConnected: user.telegram_connected ?? false,
       },
     });
 

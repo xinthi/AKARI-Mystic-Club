@@ -28,6 +28,67 @@ export interface FeatureGrant {
   endsAt: Date | null;
 }
 
+// =============================================================================
+// MYSTIC IDENTITY TYPES
+// =============================================================================
+
+/**
+ * Persona type for Mystic identity
+ */
+export type PersonaType = 'individual' | 'company';
+
+/**
+ * Tags for individuals
+ */
+export type IndividualPersonaTag = 'creator' | 'investigator' | 'investor' | 'trader' | 'contributor';
+
+/**
+ * Tags for companies
+ */
+export type CompanyPersonaTag = 'project' | 'venture_capital' | 'marketing' | 'defi' | 'dex' | 'cex' | 'ai' | 'infra' | 'l1' | 'l2';
+
+/**
+ * Combined persona tag type
+ */
+export type PersonaTag = IndividualPersonaTag | CompanyPersonaTag;
+
+/**
+ * All valid persona tags by type
+ */
+export const INDIVIDUAL_TAGS: IndividualPersonaTag[] = ['creator', 'investigator', 'investor', 'trader', 'contributor'];
+export const COMPANY_TAGS: CompanyPersonaTag[] = ['project', 'venture_capital', 'marketing', 'defi', 'dex', 'cex', 'ai', 'infra', 'l1', 'l2'];
+
+/**
+ * Get display label for a persona tag
+ */
+export function getPersonaTagLabel(tag: PersonaTag | null): string {
+  if (!tag) return 'Not set';
+  const labels: Record<PersonaTag, string> = {
+    // Individual
+    creator: 'Creator',
+    investigator: 'Investigator',
+    investor: 'Investor',
+    trader: 'Trader',
+    contributor: 'Contributor',
+    // Company
+    project: 'Project',
+    venture_capital: 'Venture Capital',
+    marketing: 'Marketing',
+    defi: 'DeFi',
+    dex: 'DEX',
+    cex: 'CEX',
+    ai: 'AI',
+    infra: 'Infrastructure',
+    l1: 'Layer 1',
+    l2: 'Layer 2',
+  };
+  return labels[tag] || tag;
+}
+
+// =============================================================================
+// USER INTERFACE
+// =============================================================================
+
 export interface AkariUser {
   id: string;
   displayName: string;
@@ -38,6 +99,11 @@ export interface AkariUser {
   isLoggedIn: boolean;
   viewAsRole: Role | null;
   xUsername?: string;
+  
+  // Mystic Identity fields
+  personaType: PersonaType;
+  personaTag: PersonaTag | null;
+  telegramConnected: boolean;
 }
 
 // =============================================================================

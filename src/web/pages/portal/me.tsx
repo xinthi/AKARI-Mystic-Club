@@ -1,0 +1,562 @@
+/**
+ * Personal Profile Page - /portal/me
+ * 
+ * Shows the logged-in user's own X profile sentiment insights.
+ * This is a thin wrapper that handles:
+ * - Loading/error/not-tracked states
+ * - Passing data to profile components
+ * 
+ * DO NOT modify MiniApp code or sentiment formulas.
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import Link from 'next/link';
+import { PortalLayout } from '@/components/portal/PortalLayout';
+import { useAkariUser } from '@/lib/akari-auth';
+import { can, PersonaType, PersonaTag, Role } from '@/lib/permissions';
+
+// Profile components
+import {
+  ProfileHeader,
+  ProfileStatsRow,
+  ProfileSignalChart,
+  ProfileSocialConnections,
+  ProfileReviews,
+  ProfilePersonaSelector,
+  MetricsChange24h,
+  InnerCircleSummary,
+  MetricsDaily,
+} from '@/components/portal/profile';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface ProjectTweet {
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  authorName: string | null;
+  authorProfileImageUrl: string | null;
+  text: string;
+  likes: number;
+  replies: number;
+  retweets: number;
+  sentimentScore: number | null;
+  engagementScore: number | null;
+  tweetUrl: string;
+  isKOL: boolean;
+  isOfficial: boolean;
+}
+
+interface ProjectDetail {
+  id: string;
+  slug: string;
+  name: string;
+  x_handle: string;
+  bio: string | null;
+  avatar_url: string | null;
+  twitter_profile_image_url: string | null;
+  first_tracked_at: string | null;
+  last_refreshed_at: string | null;
+  inner_circle_count?: number;
+  inner_circle_power?: number;
+}
+
+interface AnalyticsSummary {
+  totalEngagements: number;
+  avgEngagementRate: number;
+  tweetsCount: number;
+  followerChange: number;
+  tweetVelocity: number;
+  avgSentiment: number;
+  topTweetEngagement: number;
+  officialTweetsCount: number;
+  mentionsCount: number;
+}
+
+interface DailyEngagement {
+  date: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  totalEngagement: number;
+  tweetCount: number;
+  engagementRate: number;
+}
+
+interface TweetBreakdown {
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  text: string;
+  likes: number;
+  retweets: number;
+  replies: number;
+  engagement: number;
+  sentimentScore: number | null;
+  isOfficial: boolean;
+  tweetUrl: string;
+}
+
+interface MyProfileData {
+  project: ProjectDetail;
+  akariScore: number | null;
+  tier: { name: string; color: string; bgColor: string };
+  sentimentScore: number | null;
+  ctHeatScore: number | null;
+  followers: number | null;
+  changes24h: MetricsChange24h | null;
+  innerCircle: InnerCircleSummary;
+  metricsHistory: MetricsDaily[];
+  tweets: ProjectTweet[];
+  analytics: {
+    summary: AnalyticsSummary;
+    dailyEngagement: DailyEngagement[];
+    tweetBreakdown: TweetBreakdown[];
+  } | null;
+}
+
+type ProfileStatus = 
+  | { status: 'loading' }
+  | { status: 'not_logged_in' }
+  | { status: 'no_x_linked' }
+  | { status: 'not_tracked'; xHandle: string }
+  | { status: 'tracking'; xHandle: string }
+  | { status: 'loaded'; data: MyProfileData; canCompare: boolean }
+  | { status: 'error'; message: string };
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+function getAkariTier(score: number | null): { name: string; color: string; bgColor: string } {
+  if (score === null) return { name: 'Unranked', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
+  if (score >= 900) return { name: 'Celestial', color: 'text-purple-400', bgColor: 'bg-purple-400/10' };
+  if (score >= 750) return { name: 'Vanguard', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10' };
+  if (score >= 550) return { name: 'Ranger', color: 'text-blue-400', bgColor: 'bg-blue-400/10' };
+  if (score >= 400) return { name: 'Nomad', color: 'text-amber-400', bgColor: 'bg-amber-400/10' };
+  return { name: 'Shadow', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
+}
+
+// =============================================================================
+// DATA FETCHING
+// =============================================================================
+
+async function checkProjectExists(xHandle: string): Promise<{ exists: boolean; slug?: string }> {
+  try {
+    const slug = xHandle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const res = await fetch(`/api/portal/sentiment/${slug}`);
+    const data = await res.json();
+    if (data.ok && data.project) {
+      return { exists: true, slug: data.project.slug };
+    }
+    return { exists: false };
+  } catch {
+    return { exists: false };
+  }
+}
+
+async function trackProfile(xHandle: string): Promise<{ success: boolean; slug?: string; error?: string }> {
+  try {
+    const res = await fetch('/api/portal/sentiment/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: xHandle }),
+    });
+    const data = await res.json();
+    if (data.ok && data.project) {
+      return { success: true, slug: data.project.slug };
+    }
+    return { success: false, error: data.error || 'Failed to track profile' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+async function fetchSentimentData(slug: string): Promise<{
+  project: ProjectDetail;
+  metrics: MetricsDaily[];
+  latestMetrics: MetricsDaily | null;
+  changes24h: MetricsChange24h | null;
+  tweets: ProjectTweet[];
+  innerCircle: InnerCircleSummary;
+} | null> {
+  try {
+    const res = await fetch(`/api/portal/sentiment/${slug}`);
+    const data = await res.json();
+    if (!data.ok) return null;
+    return {
+      project: data.project,
+      metrics: data.metrics || [],
+      latestMetrics: data.latestMetrics || null,
+      changes24h: data.changes24h || null,
+      tweets: data.tweets || [],
+      innerCircle: data.innerCircle || { count: 0, power: 0 },
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnalyticsData(slug: string, window: '7d' | '30d' = '30d'): Promise<{
+  summary: AnalyticsSummary;
+  dailyEngagement: DailyEngagement[];
+  tweetBreakdown: TweetBreakdown[];
+} | null> {
+  try {
+    const res = await fetch(`/api/portal/sentiment/${slug}/analytics?window=${window}`);
+    const data = await res.json();
+    if (!data.ok) return null;
+    return {
+      summary: data.summary,
+      dailyEngagement: data.dailyEngagement || [],
+      tweetBreakdown: data.tweetBreakdown || [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// CUSTOM HOOK: useMyProfile
+// =============================================================================
+
+function useMyProfile() {
+  const { 
+    user, 
+    isLoading: authLoading, 
+    isLoggedIn, 
+    xUsername,
+    personaType,
+    personaTag,
+    telegramConnected,
+    roles,
+  } = useAkariUser();
+  const [profileState, setProfileState] = useState<ProfileStatus>({ status: 'loading' });
+  const [isTracking, setIsTracking] = useState(false);
+  
+  // Local persona state (synced with saved values, but can be overridden after save)
+  const [localPersonaType, setLocalPersonaType] = useState<PersonaType>(personaType);
+  const [localPersonaTag, setLocalPersonaTag] = useState<PersonaTag | null>(personaTag);
+  
+  // Sync local state when saved values change
+  useEffect(() => {
+    setLocalPersonaType(personaType);
+    setLocalPersonaTag(personaTag);
+  }, [personaType, personaTag]);
+  
+  const canCompare = can(user, 'sentiment.compare');
+  
+  const loadProfile = useCallback(async () => {
+    if (authLoading) {
+      setProfileState({ status: 'loading' });
+      return;
+    }
+    
+    if (!isLoggedIn || !user) {
+      setProfileState({ status: 'not_logged_in' });
+      return;
+    }
+    
+    if (!xUsername) {
+      setProfileState({ status: 'no_x_linked' });
+      return;
+    }
+    
+    setProfileState({ status: 'loading' });
+    const { exists, slug } = await checkProjectExists(xUsername);
+    
+    if (!exists) {
+      setProfileState({ status: 'not_tracked', xHandle: xUsername });
+      return;
+    }
+    
+    const [sentimentData, analyticsData] = await Promise.all([
+      fetchSentimentData(slug!),
+      fetchAnalyticsData(slug!, '30d'),
+    ]);
+    
+    if (!sentimentData) {
+      setProfileState({ status: 'error', message: 'Failed to load profile data' });
+      return;
+    }
+    
+    const latestMetrics = sentimentData.latestMetrics;
+    const akariScore = latestMetrics?.akari_score ?? null;
+    
+    const profileData: MyProfileData = {
+      project: sentimentData.project,
+      akariScore,
+      tier: getAkariTier(akariScore),
+      sentimentScore: latestMetrics?.sentiment_score ?? null,
+      ctHeatScore: latestMetrics?.ct_heat_score ?? null,
+      followers: latestMetrics?.followers ?? null,
+      changes24h: sentimentData.changes24h,
+      innerCircle: sentimentData.innerCircle,
+      metricsHistory: sentimentData.metrics,
+      tweets: sentimentData.tweets,
+      analytics: analyticsData,
+    };
+    
+    setProfileState({ status: 'loaded', data: profileData, canCompare });
+  }, [authLoading, isLoggedIn, user, xUsername, canCompare]);
+  
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+  
+  const trackMyProfile = useCallback(async () => {
+    if (!xUsername || isTracking) return;
+    
+    setIsTracking(true);
+    setProfileState({ status: 'tracking', xHandle: xUsername });
+    
+    const result = await trackProfile(xUsername);
+    
+    if (result.success) {
+      await loadProfile();
+    } else {
+      setProfileState({ status: 'error', message: result.error || 'Failed to track profile' });
+    }
+    
+    setIsTracking(false);
+  }, [xUsername, isTracking, loadProfile]);
+  
+  // Handle persona save success
+  const handlePersonaSaveSuccess = useCallback((newType: PersonaType, newTag: PersonaTag | null) => {
+    setLocalPersonaType(newType);
+    setLocalPersonaTag(newTag);
+  }, []);
+  
+  return {
+    profileState,
+    trackMyProfile,
+    isTracking,
+    refresh: loadProfile,
+    // User info
+    roles: roles as Role[],
+    xUsername,
+    // Persona (local state that updates after save)
+    personaType: localPersonaType,
+    personaTag: localPersonaTag,
+    savedPersonaType: personaType,
+    savedPersonaTag: personaTag,
+    telegramConnected,
+    onPersonaSaveSuccess: handlePersonaSaveSuccess,
+  };
+}
+
+// =============================================================================
+// PAGE COMPONENT
+// =============================================================================
+
+export default function MyProfilePage() {
+  const router = useRouter();
+  const { 
+    profileState, 
+    trackMyProfile, 
+    isTracking, 
+    refresh,
+    roles,
+    xUsername,
+    personaType,
+    personaTag,
+    savedPersonaType,
+    savedPersonaTag,
+    telegramConnected,
+    onPersonaSaveSuccess,
+  } = useMyProfile();
+  const { user } = useAkariUser();
+  
+  // Redirect if not logged in
+  useEffect(() => {
+    if (profileState.status === 'not_logged_in') {
+      router.push('/portal/sentiment');
+    }
+  }, [profileState.status, router]);
+  
+  const pageTitle = profileState.status === 'loaded' 
+    ? `@${profileState.data.project.x_handle} - My Profile`
+    : 'My Profile';
+  
+  return (
+    <PortalLayout title="My Profile">
+      <Head>
+        <title>{pageTitle} – Akari Mystic Club</title>
+      </Head>
+      
+      <div className="px-4 py-4 md:px-6 lg:px-10 space-y-6">
+        {/* Loading State */}
+        {(profileState.status === 'loading' || profileState.status === 'tracking') && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent mb-4" />
+            <p className="text-sm text-slate-400">
+              {profileState.status === 'tracking' ? 'Tracking your profile...' : 'Loading your mystic profile...'}
+            </p>
+          </div>
+        )}
+        
+        {/* No X Account Linked */}
+        {profileState.status === 'no_x_linked' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Connect X to see your Mystic profile</h2>
+            <p className="text-sm text-slate-400 text-center max-w-md mb-6">
+              Link your X (Twitter) account to view your personal sentiment insights, AKARI score, and inner circle analytics.
+            </p>
+            <Link
+              href="/portal/sentiment"
+              className="px-6 py-2.5 min-h-[40px] rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+            >
+              ← Back to Sentiment
+            </Link>
+          </div>
+        )}
+        
+        {/* Profile Not Tracked Yet */}
+        {profileState.status === 'not_tracked' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-purple-500/20 flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Start Tracking Your Profile</h2>
+            <p className="text-sm text-slate-400 text-center max-w-md mb-6">
+              Your X account <span className="text-emerald-400">@{profileState.xHandle}</span> isn't tracked yet in AKARI Mystic. 
+              Track it to see your sentiment insights, AKARI score, and inner circle.
+            </p>
+            <button
+              onClick={trackMyProfile}
+              disabled={isTracking}
+              className="flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 text-black font-medium hover:bg-emerald-400 transition disabled:opacity-50"
+            >
+              {isTracking ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+                  Tracking...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Track my X profile in AKARI Mystic
+                </>
+              )}
+            </button>
+            <Link
+              href="/portal/sentiment"
+              className="mt-4 text-xs text-slate-500 hover:text-white transition min-h-[36px] flex items-center"
+            >
+              ← Back to Sentiment
+            </Link>
+          </div>
+        )}
+        
+        {/* Error State */}
+        {profileState.status === 'error' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
+              <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-white mb-2">Something went wrong</h2>
+            <p className="text-sm text-slate-400 text-center max-w-md mb-6">{profileState.message}</p>
+            <button
+              onClick={refresh}
+              className="px-6 py-2.5 min-h-[40px] rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+        
+        {/* ============================================================= */}
+        {/* PROFILE LOADED - RENDER COMPONENTS                            */}
+        {/* ============================================================= */}
+        {profileState.status === 'loaded' && (
+          <>
+            {/* Section 1: Header */}
+            <ProfileHeader
+              displayName={profileState.data.project.name}
+              xUsername={profileState.data.project.x_handle}
+              avatarUrl={profileState.data.project.twitter_profile_image_url || profileState.data.project.avatar_url}
+              bio={profileState.data.project.bio}
+              roles={roles}
+              personaType={personaType}
+              akariScore={profileState.data.akariScore}
+              tier={profileState.data.tier}
+              canCompare={profileState.canCompare}
+              slug={profileState.data.project.slug}
+              onRefresh={refresh}
+            />
+            
+            {/* Section 2: Stats Row */}
+            <ProfileStatsRow
+              akariScore={profileState.data.akariScore}
+              tier={profileState.data.tier}
+              sentimentScore={profileState.data.sentimentScore}
+              ctHeatScore={profileState.data.ctHeatScore}
+              followers={profileState.data.followers}
+              innerCircle={profileState.data.innerCircle}
+              changes24h={profileState.data.changes24h}
+            />
+            
+            {/* Section 3: Signal Chart (30D) */}
+            <ProfileSignalChart
+              metricsHistory={profileState.data.metricsHistory}
+              onRefresh={refresh}
+            />
+            
+            {/* Section 4: Social Connections + Reviews */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ProfileSocialConnections
+                xConnected={!!xUsername}
+                telegramConnected={telegramConnected}
+              />
+              <ProfileReviews
+                telegramConnected={telegramConnected}
+              />
+            </section>
+            
+            {/* Section 5: Mystic Identity Selector */}
+            <ProfilePersonaSelector
+              savedPersonaType={savedPersonaType}
+              savedPersonaTag={savedPersonaTag}
+              onSaveSuccess={onPersonaSaveSuccess}
+            />
+            
+            {/* Debug info (dev only) */}
+            {process.env.NODE_ENV === 'development' && (
+              <section className="bg-yellow-500/5 border border-yellow-500/30 rounded-2xl p-4 text-xs">
+                <p className="font-mono text-yellow-400 mb-2">🛠️ Debug Info (dev only)</p>
+                <pre className="text-slate-500 overflow-auto">
+{JSON.stringify({
+  canCompare: profileState.canCompare,
+  userRoles: user?.effectiveRoles,
+  projectSlug: profileState.data.project.slug,
+  metricsCount: profileState.data.metricsHistory.length,
+  savedPersonaType,
+  savedPersonaTag,
+  localPersonaType: personaType,
+  localPersonaTag: personaTag,
+  telegramConnected,
+}, null, 2)}
+                </pre>
+              </section>
+            )}
+          </>
+        )}
+      </div>
+    </PortalLayout>
+  );
+}

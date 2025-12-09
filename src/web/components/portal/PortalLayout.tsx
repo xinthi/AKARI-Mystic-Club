@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Logo } from '../Logo';
+import { useAkariUser } from '@/lib/akari-auth';
 
 type Props = {
   title?: string;
@@ -19,6 +20,7 @@ const navItems = [
 
 export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const router = useRouter();
+  const { isLoggedIn, xUsername } = useAkariUser();
 
   return (
     <>
@@ -62,6 +64,23 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 </Link>
               );
             })}
+
+            {/* My Profile link - only show when logged in */}
+            {isLoggedIn && (
+              <Link
+                href="/portal/me"
+                className={`transition hover:text-akari-primary flex items-center gap-1 ${
+                  router.pathname === '/portal/me'
+                    ? 'text-akari-primary'
+                    : 'text-akari-muted'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                </svg>
+                {xUsername ? `@${xUsername}` : 'Profile'}
+              </Link>
+            )}
 
             <a
               href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"

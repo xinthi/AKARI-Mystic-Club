@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Role, AkariUser, FeatureGrant } from './permissions';
+import { Role, AkariUser, FeatureGrant, PersonaType, PersonaTag } from './permissions';
 
 // =============================================================================
 // DEV MODE CONFIGURATION
@@ -27,6 +27,10 @@ function createDevMockUser(role: Role): AkariUser {
     isLoggedIn: true,
     viewAsRole: null,
     xUsername: 'dev_user',
+    // Mystic Identity defaults
+    personaType: 'individual',
+    personaTag: null,
+    telegramConnected: false,
   };
 }
 
@@ -123,6 +127,10 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
             isLoggedIn: true,
             viewAsRole: null,
             xUsername: data.user.xUsername,
+            // Mystic Identity fields
+            personaType: data.user.personaType || 'individual',
+            personaTag: data.user.personaTag || null,
+            telegramConnected: data.user.telegramConnected ?? false,
           };
           setUser(fetchedUser);
         } else {
@@ -248,6 +256,9 @@ export function useAkariAuth(): AkariAuthContextValue {
  * - isLoggedIn
  * - viewAsRole
  * - xUsername
+ * - personaType
+ * - personaTag
+ * - telegramConnected
  */
 export function useAkariUser() {
   const { user, isLoading, isLoggedIn } = useAkariAuth();
@@ -263,6 +274,10 @@ export function useAkariUser() {
     isLoading,
     viewAsRole: user?.viewAsRole ?? null,
     xUsername: user?.xUsername ?? null,
+    // Mystic Identity
+    personaType: user?.personaType ?? 'individual',
+    personaTag: user?.personaTag ?? null,
+    telegramConnected: user?.telegramConnected ?? false,
     // Full user object for permission checks
     user,
   };
