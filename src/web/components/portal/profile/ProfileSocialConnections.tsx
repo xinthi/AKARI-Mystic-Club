@@ -112,7 +112,7 @@ export function ProfileSocialConnections({
         <ConnectedAccountRow
           icon={<XIcon />}
           name="X (Twitter)"
-          status={xConnected ? 'Connected' : 'Not connected'}
+          status={xConnected ? 'Connected' : 'Connect'}
           statusColor={xConnected ? 'text-emerald-400' : 'text-slate-500'}
         />
         <ConnectedAccountRow
@@ -120,30 +120,30 @@ export function ProfileSocialConnections({
           name="Telegram"
           status={telegramConnected ? 'Connected' : 'Coming soon'}
           statusColor={telegramConnected ? 'text-emerald-400' : 'text-slate-500'}
-          helperText="Once you connect Telegram via our bot, people can review your profile in the MiniApp and reviews will appear here."
+          helperText="Connect Telegram to unlock reviews"
         />
         <ConnectedAccountRow
           icon={<DiscordIcon />}
           name="Discord"
-          status="Coming soon"
+          status="Available soon"
           statusColor="text-slate-500"
         />
         <ConnectedAccountRow
           icon={<FacebookIcon />}
           name="Facebook"
-          status="Coming soon"
+          status="Available soon"
           statusColor="text-slate-500"
         />
         <ConnectedAccountRow
           icon={<InstagramIcon />}
           name="Instagram"
-          status="Coming soon"
+          status="Available soon"
           statusColor="text-slate-500"
         />
         <ConnectedAccountRow
           icon={<TikTokIcon />}
           name="TikTok"
-          status="Coming soon"
+          status="Available soon"
           statusColor="text-slate-500"
         />
       </div>

@@ -533,7 +533,7 @@ export default function MyProfilePage() {
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Start Tracking Your Profile</h2>
             <p className="text-sm text-slate-400 text-center max-w-md mb-6">
-              Your X account <span className="text-emerald-400">@{profileState.xHandle}</span> is not tracked yet in AKARI Mystic. 
+              Your X account <span className="text-emerald-400">{profileState.xHandle}</span> is not tracked yet in AKARI Mystic. 
               Track it to see your sentiment insights, AKARI score, and inner circle.
             </p>
             <button

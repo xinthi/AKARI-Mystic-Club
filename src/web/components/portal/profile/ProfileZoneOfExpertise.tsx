@@ -104,8 +104,9 @@ export function ProfileZoneOfExpertise({ topics }: ProfileZoneOfExpertiseProps) 
       <p className="text-xs text-slate-500 mb-4">Based on last 30 days of content</p>
       
       {!hasData ? (
-        <div className="h-[300px] flex items-center justify-center text-slate-500 text-sm">
-          No topic data available yet
+        <div className="h-[300px] flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
+          <p>Not enough data yet</p>
+          <p className="text-xs text-slate-600">Start posting more so Akari can read your zone</p>
         </div>
       ) : (
         <div className="relative">

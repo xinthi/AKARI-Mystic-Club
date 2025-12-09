@@ -100,7 +100,7 @@ function MemberRow({ entry, index }: MemberRowProps) {
           rel="noopener noreferrer"
           className="text-sm text-white hover:text-emerald-400 transition truncate"
         >
-          @{entry.handle}
+          {entry.handle}
         </a>
       </div>
       
@@ -175,15 +175,15 @@ export function ProfileInnerCircleList({ entries }: ProfileInnerCircleListProps)
       
       {!hasData ? (
         <div className="py-12 text-center text-slate-500 text-sm">
-          No inner circle members yet
+          No inner circle data yet
         </div>
       ) : (
         <>
           {/* Column Headers */}
           <div className="flex items-center gap-3 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
-            <div className="flex-1 min-w-0">Member</div>
-            <div className="hidden sm:block w-24">Tier</div>
-            <div className="w-14 text-right">Heat</div>
+            <div className="flex-1 min-w-0">Profile</div>
+            <div className="hidden sm:block w-24">Akari Score</div>
+            <div className="w-14 text-right">CT Heat</div>
             <div className="w-16 text-right hidden md:block">Followers</div>
             <div className="w-16 text-right">Role</div>
           </div>

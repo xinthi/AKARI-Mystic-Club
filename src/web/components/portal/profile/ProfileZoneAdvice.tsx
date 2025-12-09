@@ -126,7 +126,7 @@ export function ProfileZoneAdvice({ topics, innerCircle }: ProfileZoneAdviceProp
     return (
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
         <p className="text-sm text-slate-500 text-center">
-          Not enough data yet to give tailored advice.
+          Not enough activity to generate insights
         </p>
       </div>
     );
@@ -138,7 +138,7 @@ export function ProfileZoneAdvice({ topics, innerCircle }: ProfileZoneAdviceProp
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">🧭</span>
         <h2 className="text-sm uppercase tracking-wider text-slate-400">
-          How to improve your Zone
+          How to Improve Your Zone
         </h2>
       </div>
       
@@ -151,7 +151,7 @@ export function ProfileZoneAdvice({ topics, innerCircle }: ProfileZoneAdviceProp
       
       {/* Footer hint */}
       <p className="text-[10px] text-slate-600 text-center pt-2">
-        Based on your last 30 days of activity
+        Based on your last 30 days
       </p>
     </div>
   );

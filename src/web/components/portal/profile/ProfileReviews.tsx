@@ -57,7 +57,7 @@ export function ProfileReviews({ telegramConnected }: ProfileReviewsProps) {
               <path d="M12 1.5c-2.76 0-5 2.24-5 5v3H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V11c0-1.1-.9-2-2-2h-1V6.5c0-2.76-2.24-5-5-5zm0 2c1.93 0 3.5 1.57 3.5 3.5v3h-7v-3c0-1.93 1.57-3.5 3.5-3.5z"/>
             </svg>
             <p className="text-sm text-slate-400 text-center px-4 max-w-xs">
-              Reviews are locked for now. Connect Telegram to allow members to review your profile in the AKARI Mystic MiniApp.
+              Reviews are locked. Connect Telegram to enable reviews from the community
             </p>
           </div>
         </div>
@@ -68,7 +68,6 @@ export function ProfileReviews({ telegramConnected }: ProfileReviewsProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
           <p>No reviews yet</p>
-          <p className="text-xs text-slate-600 mt-1">Share your profile to get reviews</p>
         </div>
       )}
     </div>

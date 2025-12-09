@@ -157,7 +157,7 @@ export function ProfilePersonaSelector({
       const data = await res.json();
       
       if (data.ok) {
-        setToast({ message: 'Mystic Identity saved!', type: 'success' });
+        setToast({ message: 'Identity updated', type: 'success' });
         onSaveSuccess?.(localPersonaType, localPersonaTag);
       } else {
         setToast({ message: data.error || 'Failed to save', type: 'error' });
@@ -178,7 +178,7 @@ export function ProfilePersonaSelector({
   return (
     <>
       <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-        <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-4">Mystic Identity</h2>
+        <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-4">Your Mystic Identity</h2>
         
         {/* Persona Type Toggle */}
         <div className="mb-4">
@@ -256,14 +256,14 @@ export function ProfilePersonaSelector({
               {isSaving ? (
                 <>
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-                  Saving...
+                  Saving
                 </>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Save Identity
+                  Save
                 </>
               )}
             </button>
@@ -278,7 +278,7 @@ export function ProfilePersonaSelector({
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              Unsaved changes
+              You have unsaved changes
             </p>
           </div>
         )}

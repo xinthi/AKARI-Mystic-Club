@@ -111,7 +111,7 @@ export function ProfileHeader({
                   ? 'bg-emerald-500' 
                   : 'bg-amber-500'
               }`}
-              title={personaType === 'company' ? 'Verified Company' : 'Individual'}
+              title={personaType === 'company' ? 'Official' : 'Claimed'}
             >
               <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -137,7 +137,7 @@ export function ProfileHeader({
                 rel="noopener noreferrer"
                 className="text-sm text-slate-400 hover:text-emerald-400 transition"
               >
-                @{xUsername}
+                {xUsername}
               </a>
             )}
             {bio && (
@@ -169,7 +169,7 @@ export function ProfileHeader({
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
-              Compare My Profile
+              Compare
             </button>
           ) : (
             <div className="relative group">
@@ -180,11 +180,11 @@ export function ProfileHeader({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                Compare My Profile
+                Compare
               </button>
               {/* Tooltip */}
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap z-10">
-                Compare unlocks when you become an Oracle
+                Upgrade to unlock compare
                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
               </div>
             </div>

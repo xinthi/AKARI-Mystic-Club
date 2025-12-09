@@ -69,13 +69,20 @@ function StatCard({
       <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
       <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
       {delta !== undefined && deltaDirection && (
-        <p className={`text-xs mt-0.5 ${
-          deltaDirection === 'up' ? 'text-emerald-400' :
-          deltaDirection === 'down' ? 'text-red-400' : 'text-slate-500'
-        }`}>
-          {deltaDirection === 'up' ? '▲' : deltaDirection === 'down' ? '▼' : '–'}
-          {delta !== 0 && ` ${delta > 0 ? '+' : ''}${delta}`}
-        </p>
+        <div className="mt-0.5">
+          {deltaDirection === 'flat' && delta === 0 ? (
+            <p className="text-[10px] text-slate-500">No movement in the last 24h</p>
+          ) : (
+            <p className={`text-xs ${
+              deltaDirection === 'up' ? 'text-emerald-400' :
+              deltaDirection === 'down' ? 'text-red-400' : 'text-slate-500'
+            }`}>
+              {deltaDirection === 'up' ? '▲' : deltaDirection === 'down' ? '▼' : '–'}
+              {delta !== 0 && ` ${delta > 0 ? '+' : ''}${delta}`}
+              <span className="text-[10px] text-slate-500 ml-1">Last 24h</span>
+            </p>
+          )}
+        </div>
       )}
       {subValue && <p className="text-[10px] text-slate-500 mt-0.5">{subValue}</p>}
     </div>

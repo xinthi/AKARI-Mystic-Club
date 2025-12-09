@@ -123,12 +123,13 @@ export function ProfileClubOrbit({ orbit }: ProfileClubOrbitProps) {
   return (
     <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
       <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-4">
-        Hang out with
+        Who You Hang Out With
       </h2>
       
       {!hasData ? (
-        <div className="h-[320px] flex items-center justify-center text-slate-500 text-sm">
-          No inner circle data available yet
+        <div className="h-[320px] flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
+          <p>No orbit data yet</p>
+          <p className="text-xs text-slate-600">Interact more with your circle to unlock this</p>
         </div>
       ) : (
         <>
