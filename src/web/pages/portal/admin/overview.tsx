@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
@@ -218,7 +219,12 @@ export default function AdminOverviewPage() {
                             className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
                           >
                             <td className="py-2 px-3 text-white">
-                              {user.displayName || 'Unknown'}
+                              <Link
+                                href={`/portal/admin/users/${user.id}`}
+                                className="hover:text-akari-primary transition hover:underline"
+                              >
+                                {user.displayName || 'Unknown'}
+                              </Link>
                             </td>
                             <td className="py-2 px-3 text-slate-400">
                               {user.xUsername ? `@${user.xUsername}` : 'Not linked'}
