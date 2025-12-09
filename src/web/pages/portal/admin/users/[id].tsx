@@ -157,12 +157,13 @@ export default function AdminUserDetailPage() {
         accessRequests: result.accessRequests || [],
       });
 
-      // Initialize grant dates from existing grants
+      // Initialize grant dates from existing grants (always initialize both features)
       const dates: Record<string, { startsAt: string; endsAt: string }> = {};
-      for (const grant of grants) {
-        dates[grant.featureKey] = {
-          startsAt: formatDateInput(grant.startsAt),
-          endsAt: formatDateInput(grant.endsAt),
+      for (const featureKey of [FEATURE_KEYS.DeepExplorer, FEATURE_KEYS.InstitutionalPlus]) {
+        const grant = grants.find((g) => g.featureKey === featureKey);
+        dates[featureKey] = {
+          startsAt: formatDateInput(grant?.startsAt || null),
+          endsAt: formatDateInput(grant?.endsAt || null),
         };
       }
       setGrantDates(dates);
@@ -432,8 +433,8 @@ export default function AdminUserDetailPage() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => {
-                            const currentStartsAt = grantDates[featureKey]?.startsAt || startsAt;
-                            const currentEndsAt = grantDates[featureKey]?.endsAt || endsAt;
+                            const currentStartsAt = grantDates[featureKey]?.startsAt || '';
+                            const currentEndsAt = grantDates[featureKey]?.endsAt || '';
                             handleGrant(featureKey, currentStartsAt || null, currentEndsAt || null);
                           }}
                           disabled={processing[featureKey]}
