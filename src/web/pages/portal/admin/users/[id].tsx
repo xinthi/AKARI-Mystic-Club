@@ -123,6 +123,7 @@ export default function AdminUserDetailPage() {
   const [grantSuccess, setGrantSuccess] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
   const [grantDates, setGrantDates] = useState<Record<string, { startsAt: string; endsAt: string }>>({});
+  const [grantDiscounts, setGrantDiscounts] = useState<Record<string, { discountPercent: number; discountNote: string }>>({});
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
