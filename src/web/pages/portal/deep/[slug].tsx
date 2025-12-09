@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { canUseDeepExplorer, hasInstitutionalPlus } from '../../../lib/permissions';
+import { buildTweetClusters, type ProjectTweet, type TweetCluster } from '../../../lib/portal/tweet-clusters';
 
 // =============================================================================
 // TYPE DEFINITIONS (reused from sentiment page)
@@ -49,6 +50,22 @@ interface ProjectInfluencer {
   last_mention_at: string | null;
 }
 
+interface ProjectTweetData {
+  tweetId: string;
+  createdAt: string;
+  authorHandle: string;
+  authorName: string | null;
+  text: string;
+  likes: number;
+  replies: number;
+  retweets: number;
+  sentimentScore: number | null;
+  engagementScore: number | null;
+  tweetUrl: string;
+  isKOL: boolean;
+  isOfficial: boolean;
+}
+
 interface SentimentDetailResponse {
   ok: boolean;
   project?: ProjectDetail;
@@ -62,6 +79,7 @@ interface SentimentDetailResponse {
   innerCircle?: InnerCircleSummary;
   influencers?: ProjectInfluencer[];
   metricsHistoryLong?: MetricsDaily[]; // 90-day history
+  tweets?: ProjectTweetData[];
   error?: string;
 }
 
@@ -94,6 +112,35 @@ function computeInfluencerPower(inf: ProjectInfluencer): number {
   const sentiment = inf.avg_sentiment_30d ?? 50;
   
   return akari * 0.5 + Math.log10(followers + 1) * 20 + sentiment * 0.3;
+}
+
+/**
+ * Calculate engagement breakdown from tweets (last 30 days)
+ */
+function calculateEngagementBreakdown(tweets: ProjectTweetData[]) {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const recentTweets = tweets.filter(tweet => {
+    const tweetDate = new Date(tweet.createdAt);
+    return tweetDate >= thirtyDaysAgo;
+  });
+  
+  const breakdown = {
+    totalLikes: 0,
+    totalReplies: 0,
+    totalQuotes: 0, // Not available in current schema, keeping as 0
+    totalRetweets: 0,
+    tweetCount: recentTweets.length,
+  };
+  
+  for (const tweet of recentTweets) {
+    breakdown.totalLikes += tweet.likes || 0;
+    breakdown.totalReplies += tweet.replies || 0;
+    breakdown.totalRetweets += tweet.retweets || 0;
+  }
+  
+  return breakdown;
 }
 
 /**
@@ -286,6 +333,7 @@ export default function DeepExplorerPage() {
   const [innerCircle, setInnerCircle] = useState<InnerCircleSummary>({ count: 0, power: 0 });
   const [influencers, setInfluencers] = useState<ProjectInfluencer[]>([]);
   const [metrics90d, setMetrics90d] = useState<MetricsDaily[]>([]);
+  const [tweets, setTweets] = useState<ProjectTweetData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -320,6 +368,7 @@ export default function DeepExplorerPage() {
         if (data.innerCircle) setInnerCircle(data.innerCircle);
         if (data.influencers) setInfluencers(data.influencers);
         if (data.metricsHistoryLong) setMetrics90d(data.metricsHistoryLong);
+        if (data.tweets) setTweets(data.tweets);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[DeepExplorer] Fetch error:', err);
@@ -680,6 +729,48 @@ export default function DeepExplorerPage() {
               )}
             </div>
             
+            {/* Engagement Breakdown */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-akari-text mb-3">Engagement Breakdown (30 days)</h3>
+              {(() => {
+                const breakdown = calculateEngagementBreakdown(tweets);
+                if (breakdown.tweetCount === 0) {
+                  return (
+                    <p className="text-xs text-akari-muted">
+                      No engagement analytics available yet.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Likes</p>
+                        <p className="text-lg font-bold text-akari-text">{formatNumber(breakdown.totalLikes)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Replies</p>
+                        <p className="text-lg font-bold text-akari-text">{formatNumber(breakdown.totalReplies)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Quotes</p>
+                        <p className="text-lg font-bold text-akari-text">{formatNumber(breakdown.totalQuotes)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Retweets</p>
+                        <p className="text-lg font-bold text-akari-text">{formatNumber(breakdown.totalRetweets)}</p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-800">
+                      <p className="text-xs text-akari-muted">
+                        Based on {breakdown.tweetCount} tweet{breakdown.tweetCount !== 1 ? 's' : ''} from the last 30 days
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            
             {/* Long Term Sentiment */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div>
@@ -692,11 +783,77 @@ export default function DeepExplorerPage() {
             </div>
             
             {/* Tweet Clusters */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-akari-text mb-2">Tweet Clusters</h3>
-              <p className="text-xs text-akari-muted">
-                This section will group tweets into themes so you can see what moves the crowd.
-              </p>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-akari-text mb-3">Tweet Clusters</h3>
+              {(() => {
+                // Convert ProjectTweetData to ProjectTweet format for clustering
+                const tweetsForClustering: ProjectTweet[] = tweets.map(t => ({
+                  tweetId: t.tweetId,
+                  createdAt: t.createdAt,
+                  authorHandle: t.authorHandle,
+                  authorName: t.authorName,
+                  text: t.text,
+                  likes: t.likes || 0,
+                  replies: t.replies || 0,
+                  retweets: t.retweets || 0,
+                }));
+                
+                const clusters = buildTweetClusters(tweetsForClustering);
+                
+                if (clusters.length === 0) {
+                  return (
+                    <p className="text-xs text-akari-muted">
+                      Not enough data to cluster tweets yet.
+                    </p>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-4">
+                    {clusters.map((cluster, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-semibold text-akari-text">
+                            {cluster.label}
+                          </h4>
+                          <span className="text-xs text-akari-muted">
+                            {formatNumber(cluster.totalEngagement)} total engagement
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {cluster.tweets.slice(0, 5).map((tweet) => {
+                            const engagement = tweet.likes + tweet.replies + tweet.retweets;
+                            const truncatedText = tweet.text.length > 100 
+                              ? tweet.text.substring(0, 100) + '...' 
+                              : tweet.text;
+                            return (
+                              <div
+                                key={tweet.tweetId}
+                                className="p-2 rounded-lg bg-slate-800/30 border border-slate-800/50 hover:bg-slate-800/50 transition"
+                              >
+                                <p className="text-xs text-akari-text mb-1 line-clamp-2">
+                                  {truncatedText}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-akari-muted">
+                                  <span>{formatNumber(tweet.likes)} likes</span>
+                                  <span>·</span>
+                                  <span>{formatNumber(tweet.replies)} replies</span>
+                                  {tweet.retweets > 0 && (
+                                    <>
+                                      <span>·</span>
+                                      <span>{formatNumber(tweet.retweets)} retweets</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             
             {/* Exports */}
