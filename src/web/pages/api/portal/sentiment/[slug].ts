@@ -67,6 +67,7 @@ type SentimentDetailResponse =
       influencers: InfluencerWithRelation[];
       innerCircle: InnerCircleSummary;
       topics30d: TopicScore[];
+      metricsHistoryLong?: MetricsDaily[]; // 90-day history for Deep Explorer
     }
   | {
       ok: false;
@@ -102,8 +103,9 @@ export default async function handler(
     }
 
     // Fetch metrics history, influencers, tweets, and topic stats in parallel
-    const [metrics, influencers, tweetsResult, topics30d] = await Promise.all([
+    const [metrics, metrics90d, influencers, tweetsResult, topics30d] = await Promise.all([
       getProjectMetricsHistory(supabase, project.id, 30),
+      getProjectMetricsHistory(supabase, project.id, 90), // 90-day history for Deep Explorer
       getProjectInfluencers(supabase, project.id, 10),
       supabase
         .from('project_tweets')
@@ -202,6 +204,7 @@ export default async function handler(
       influencers,
       innerCircle,
       topics30d,
+      metricsHistoryLong: metrics90d, // 90-day history for Deep Explorer
     });
   } catch (error: any) {
     console.error(`[API /portal/sentiment/${slug}] Error:`, error);

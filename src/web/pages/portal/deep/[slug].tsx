@@ -61,6 +61,7 @@ interface SentimentDetailResponse {
   };
   innerCircle?: InnerCircleSummary;
   influencers?: ProjectInfluencer[];
+  metricsHistoryLong?: MetricsDaily[]; // 90-day history
   error?: string;
 }
 
@@ -93,6 +94,139 @@ function computeInfluencerPower(inf: ProjectInfluencer): number {
   const sentiment = inf.avg_sentiment_30d ?? 50;
   
   return akari * 0.5 + Math.log10(followers + 1) * 20 + sentiment * 0.3;
+}
+
+/**
+ * Simple line chart for long-term sentiment
+ */
+function LongTermSentimentChart({ metrics }: { metrics: MetricsDaily[] }) {
+  if (metrics.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 text-sm text-akari-muted">
+        Not enough history to draw long term sentiment yet.
+      </div>
+    );
+  }
+
+  // Reverse to get oldest-first for chart
+  const chartData = [...metrics].reverse();
+  const chartWidth = 600;
+  const chartHeight = 200;
+  const padding = { top: 20, right: 20, bottom: 30, left: 40 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+
+  // Calculate scales
+  const sentimentValues = chartData.map(d => d.sentiment_score ?? 50).filter(v => v !== null);
+  const ctHeatValues = chartData.map(d => d.ct_heat_score ?? 50).filter(v => v !== null);
+  const minVal = 0;
+  const maxVal = 100;
+  const range = maxVal - minVal;
+
+  const getX = (i: number) => padding.left + (i / (chartData.length - 1 || 1)) * innerWidth;
+  const getY = (val: number) => padding.top + innerHeight - ((val - minVal) / range) * innerHeight;
+
+  // Build paths
+  const sentimentPath = chartData
+    .map((d, i) => {
+      const val = d.sentiment_score ?? 50;
+      return `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(val)}`;
+    })
+    .join(' ');
+
+  const ctHeatPath = chartData
+    .map((d, i) => {
+      const val = d.ct_heat_score ?? 50;
+      return `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(val)}`;
+    })
+    .join(' ');
+
+  return (
+    <div className="w-full">
+      <svg
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="w-full h-48"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Grid lines */}
+        {[0, 25, 50, 75, 100].map(v => {
+          const y = getY(v);
+          return (
+            <g key={v}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={chartWidth - padding.right}
+                y2={y}
+                stroke="currentColor"
+                strokeOpacity={0.1}
+                strokeDasharray="4,4"
+              />
+              <text
+                x={padding.left - 8}
+                y={y + 4}
+                textAnchor="end"
+                className="fill-akari-muted text-[10px]"
+              >
+                {v}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Sentiment line */}
+        <path
+          d={sentimentPath}
+          fill="none"
+          stroke="#00E5A0"
+          strokeWidth={2}
+        />
+
+        {/* CT Heat line */}
+        <path
+          d={ctHeatPath}
+          fill="none"
+          stroke="#FBBF24"
+          strokeWidth={2}
+          strokeDasharray="4,4"
+        />
+
+        {/* Data points */}
+        {chartData.map((d, i) => (
+          <g key={i}>
+            {d.sentiment_score != null && (
+              <circle
+                cx={getX(i)}
+                cy={getY(d.sentiment_score)}
+                r={2}
+                fill="#00E5A0"
+              />
+            )}
+            {d.ct_heat_score != null && (
+              <circle
+                cx={getX(i)}
+                cy={getY(d.ct_heat_score)}
+                r={2}
+                fill="#FBBF24"
+              />
+            )}
+          </g>
+        ))}
+      </svg>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-xs text-akari-muted">
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-0.5 bg-[#00E5A0]" />
+          Sentiment
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-0.5 bg-[#FBBF24] border-dashed border-t-2" />
+          CT Heat
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function AvatarWithFallback({ url, name, size = 'md' }: { 
@@ -151,6 +285,7 @@ export default function DeepExplorerPage() {
   const [latestMetrics, setLatestMetrics] = useState<MetricsDaily | null>(null);
   const [innerCircle, setInnerCircle] = useState<InnerCircleSummary>({ count: 0, power: 0 });
   const [influencers, setInfluencers] = useState<ProjectInfluencer[]>([]);
+  const [metrics90d, setMetrics90d] = useState<MetricsDaily[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -184,6 +319,7 @@ export default function DeepExplorerPage() {
         if (data.latestMetrics) setLatestMetrics(data.latestMetrics);
         if (data.innerCircle) setInnerCircle(data.innerCircle);
         if (data.influencers) setInfluencers(data.influencers);
+        if (data.metricsHistoryLong) setMetrics90d(data.metricsHistoryLong);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[DeepExplorer] Fetch error:', err);
@@ -545,11 +681,14 @@ export default function DeepExplorerPage() {
             </div>
             
             {/* Long Term Sentiment */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-akari-text mb-2">Long Term Sentiment</h3>
-              <p className="text-xs text-akari-muted">
-                This section will show 90 day sentiment trends with volatility and regime shifts.
-              </p>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-akari-text mb-1">Long Term Sentiment (90 days)</h3>
+                <p className="text-xs text-akari-muted">
+                  Shows how sentiment has evolved over the last 90 days.
+                </p>
+              </div>
+              <LongTermSentimentChart metrics={metrics90d} />
             </div>
             
             {/* Tweet Clusters */}
@@ -568,17 +707,28 @@ export default function DeepExplorerPage() {
                   disabled
                   className="px-4 py-2 min-h-[40px] rounded-lg bg-akari-cardSoft/50 text-akari-muted cursor-not-allowed text-sm font-medium opacity-50"
                 >
-                  Export CSV
+                  Export project summary
                 </button>
-                <button
-                  disabled
-                  className="px-4 py-2 min-h-[40px] rounded-lg bg-akari-cardSoft/50 text-akari-muted cursor-not-allowed text-sm font-medium opacity-50"
+                <a
+                  href={`/api/portal/deep/${slug}/inner-circle-export`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium transition ${
+                    influencers.length > 0
+                      ? 'bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/30'
+                      : 'bg-akari-cardSoft/50 text-akari-muted cursor-not-allowed opacity-50'
+                  }`}
+                  onClick={(e) => {
+                    if (influencers.length === 0) {
+                      e.preventDefault();
+                    }
+                  }}
                 >
-                  Export inner circle sample
-                </button>
+                  Export inner circle CSV
+                </a>
               </div>
               <p className="text-xs text-akari-muted">
-                Exports will be available for Institutional Plus accounts.
+                Inner circle export is available for Deep Explorer accounts.
               </p>
             </div>
           </section>
