@@ -37,6 +37,18 @@ interface InnerCircleSummary {
   power: number;
 }
 
+interface ProjectInfluencer {
+  id: string;
+  x_handle: string;
+  name: string | null;
+  avatar_url: string | null;
+  followers: number | null;
+  akari_score: number | null;
+  credibility_score: number | null;
+  avg_sentiment_30d: number | null;
+  last_mention_at: string | null;
+}
+
 interface SentimentDetailResponse {
   ok: boolean;
   project?: ProjectDetail;
@@ -48,6 +60,7 @@ interface SentimentDetailResponse {
     akariChange24h: number;
   };
   innerCircle?: InnerCircleSummary;
+  influencers?: ProjectInfluencer[];
   error?: string;
 }
 
@@ -69,6 +82,17 @@ function formatNumber(num: number | null): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toString();
+}
+
+/**
+ * Compute power metric for an influencer
+ */
+function computeInfluencerPower(inf: ProjectInfluencer): number {
+  const followers = inf.followers ?? 0;
+  const akari = inf.akari_score ?? 0;
+  const sentiment = inf.avg_sentiment_30d ?? 50;
+  
+  return akari * 0.5 + Math.log10(followers + 1) * 20 + sentiment * 0.3;
 }
 
 function AvatarWithFallback({ url, name, size = 'md' }: { 
@@ -126,6 +150,7 @@ export default function DeepExplorerPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [latestMetrics, setLatestMetrics] = useState<MetricsDaily | null>(null);
   const [innerCircle, setInnerCircle] = useState<InnerCircleSummary>({ count: 0, power: 0 });
+  const [influencers, setInfluencers] = useState<ProjectInfluencer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -158,6 +183,7 @@ export default function DeepExplorerPage() {
         if (data.project) setProject(data.project);
         if (data.latestMetrics) setLatestMetrics(data.latestMetrics);
         if (data.innerCircle) setInnerCircle(data.innerCircle);
+        if (data.influencers) setInfluencers(data.influencers);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[DeepExplorer] Fetch error:', err);
@@ -332,22 +358,190 @@ export default function DeepExplorerPage() {
             </div>
           </section>
           
-          {/* Placeholder Sections */}
+          {/* Real Data Sections */}
           <section className="space-y-4 mb-6">
             {/* Top Followers */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-akari-text mb-2">Top Followers</h3>
-              <p className="text-xs text-akari-muted">
-                This section will list the most impactful followers with reach and engagement metrics.
-              </p>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-akari-text mb-3">Top Followers</h3>
+              {influencers.length === 0 ? (
+                <p className="text-xs text-akari-muted">No follower data available yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {[...influencers]
+                    .sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0))
+                    .slice(0, 10)
+                    .map((inf) => {
+                      const handle = inf.x_handle.replace(/^@/, '');
+                      const infTier = getAkariTier(inf.akari_score);
+                      return (
+                        <div
+                          key={inf.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800/50 transition"
+                        >
+                          <AvatarWithFallback
+                            url={inf.avatar_url}
+                            name={inf.name || inf.x_handle}
+                            size="sm"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={`https://x.com/${handle}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-akari-text hover:text-akari-primary transition truncate block"
+                            >
+                              @{handle}
+                            </a>
+                            <p className="text-xs text-akari-muted">
+                              {formatNumber(inf.followers)} followers
+                            </p>
+                          </div>
+                          {inf.akari_score != null && (
+                            <span className={`text-xs px-2 py-1 rounded-full ${infTier.bgColor} ${infTier.color}`}>
+                              {inf.akari_score}
+                            </span>
+                          )}
+                          {inf.avg_sentiment_30d != null && (
+                            <span className="text-xs text-akari-muted">
+                              {inf.avg_sentiment_30d}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
             
-            {/* Engagement Breakdown */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-akari-text mb-2">Engagement Breakdown</h3>
-              <p className="text-xs text-akari-muted">
-                This section will show how engagement splits across tweets, mentions, and time windows.
-              </p>
+            {/* Inner Circle Reach */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-akari-text mb-3">Inner Circle Reach</h3>
+              {influencers.length === 0 ? (
+                <p className="text-xs text-akari-muted">Inner circle data is not available yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  {/* Desktop table */}
+                  <table className="hidden md:table w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-700 text-xs uppercase tracking-wider text-akari-muted">
+                        <th className="py-2 px-3 text-left">Profile</th>
+                        <th className="py-2 px-3 text-right">Followers</th>
+                        <th className="py-2 px-3 text-right">AKARI</th>
+                        <th className="py-2 px-3 text-right">Sentiment</th>
+                        <th className="py-2 px-3 text-right">Power</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...influencers]
+                        .map(inf => ({ ...inf, power: computeInfluencerPower(inf) }))
+                        .sort((a, b) => b.power - a.power)
+                        .map((inf) => {
+                          const handle = inf.x_handle.replace(/^@/, '');
+                          const infTier = getAkariTier(inf.akari_score);
+                          return (
+                            <tr
+                              key={inf.id}
+                              className="border-b border-slate-800/50 hover:bg-slate-800/30 transition"
+                            >
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <AvatarWithFallback
+                                    url={inf.avatar_url}
+                                    name={inf.name || inf.x_handle}
+                                    size="sm"
+                                  />
+                                  <a
+                                    href={`https://x.com/${handle}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-akari-text hover:text-akari-primary transition"
+                                  >
+                                    @{handle}
+                                  </a>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-akari-text">
+                                {formatNumber(inf.followers)}
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                {inf.akari_score != null ? (
+                                  <span className={`font-mono ${infTier.color}`}>
+                                    {inf.akari_score}
+                                  </span>
+                                ) : (
+                                  <span className="text-akari-muted">-</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-akari-text">
+                                {inf.avg_sentiment_30d != null ? inf.avg_sentiment_30d : '-'}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-akari-primary">
+                                {Math.round(inf.power)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                  
+                  {/* Mobile stacked rows */}
+                  <div className="md:hidden space-y-3">
+                    {[...influencers]
+                      .map(inf => ({ ...inf, power: computeInfluencerPower(inf) }))
+                      .sort((a, b) => b.power - a.power)
+                      .map((inf) => {
+                        const handle = inf.x_handle.replace(/^@/, '');
+                        const infTier = getAkariTier(inf.akari_score);
+                        return (
+                          <div
+                            key={inf.id}
+                            className="p-3 rounded-lg border border-slate-800 space-y-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <AvatarWithFallback
+                                url={inf.avatar_url}
+                                name={inf.name || inf.x_handle}
+                                size="sm"
+                              />
+                              <a
+                                href={`https://x.com/${handle}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-akari-text hover:text-akari-primary transition"
+                              >
+                                @{handle}
+                              </a>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-akari-muted">Followers: </span>
+                                <span className="font-mono text-akari-text">{formatNumber(inf.followers)}</span>
+                              </div>
+                              <div>
+                                <span className="text-akari-muted">AKARI: </span>
+                                {inf.akari_score != null ? (
+                                  <span className={`font-mono ${infTier.color}`}>{inf.akari_score}</span>
+                                ) : (
+                                  <span className="text-akari-muted">-</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-akari-muted">Sentiment: </span>
+                                <span className="font-mono text-akari-text">
+                                  {inf.avg_sentiment_30d != null ? inf.avg_sentiment_30d : '-'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-akari-muted">Power: </span>
+                                <span className="font-mono text-akari-primary">{Math.round(inf.power)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Long Term Sentiment */}
