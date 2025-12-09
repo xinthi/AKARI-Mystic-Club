@@ -83,7 +83,7 @@ async function getUserFromSession(req: NextApiRequest) {
     // Get feature grants
     const { data: grants } = await supabase
       .from('akari_user_feature_grants')
-      .select('id, feature_key, starts_at, ends_at')
+      .select('id, feature_key, starts_at, ends_at, discount_percent, discount_note')
       .eq('user_id', user.id);
 
     return {
@@ -96,6 +96,8 @@ async function getUserFromSession(req: NextApiRequest) {
         featureKey: g.feature_key,
         startsAt: g.starts_at ? new Date(g.starts_at) : null,
         endsAt: g.ends_at ? new Date(g.ends_at) : null,
+        discountPercent: g.discount_percent != null ? Number(g.discount_percent) : 0,
+        discountNote: g.discount_note || null,
       })),
     };
   } catch (error) {

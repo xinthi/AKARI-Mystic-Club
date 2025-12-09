@@ -93,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get feature grants
     const { data: grants } = await supabase
       .from('akari_user_feature_grants')
-      .select('id, feature_key, starts_at, ends_at')
+      .select('id, feature_key, starts_at, ends_at, discount_percent, discount_note')
       .eq('user_id', user.id);
 
     return res.status(200).json({

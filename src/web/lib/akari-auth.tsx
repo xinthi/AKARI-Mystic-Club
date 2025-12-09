@@ -123,6 +123,8 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
               featureKey: g.feature_key,
               startsAt: g.starts_at ? new Date(g.starts_at) : null,
               endsAt: g.ends_at ? new Date(g.ends_at) : null,
+              discountPercent: g.discount_percent != null ? Number(g.discount_percent) : 0,
+              discountNote: g.discount_note || null,
             })),
             isLoggedIn: true,
             viewAsRole: null,
