@@ -85,18 +85,30 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               </Link>
             )}
 
-            {/* Access Requests link - only show for super admins */}
+            {/* Admin links - only show for super admins */}
             {isLoggedIn && userIsSuperAdmin && (
-              <Link
-                href="/portal/admin/access"
-                className={`transition hover:text-akari-primary ${
-                  router.pathname === '/portal/admin/access'
-                    ? 'text-akari-primary'
-                    : 'text-akari-muted'
-                }`}
-              >
-                Access Requests
-              </Link>
+              <>
+                <Link
+                  href="/portal/admin/overview"
+                  className={`transition hover:text-akari-primary ${
+                    router.pathname === '/portal/admin/overview'
+                      ? 'text-akari-primary'
+                      : 'text-akari-muted'
+                  }`}
+                >
+                  Admin Overview
+                </Link>
+                <Link
+                  href="/portal/admin/access"
+                  className={`transition hover:text-akari-primary ${
+                    router.pathname === '/portal/admin/access'
+                      ? 'text-akari-primary'
+                      : 'text-akari-muted'
+                  }`}
+                >
+                  Access Requests
+                </Link>
+              </>
             )}
 
             <a
