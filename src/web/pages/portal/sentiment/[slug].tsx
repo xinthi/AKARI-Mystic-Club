@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
-import { can } from '../../../lib/permissions';
+import { can, canUseDeepExplorer } from '../../../lib/permissions';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -927,6 +927,7 @@ export default function SentimentDetail() {
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
   const canViewAnalytics = can(user, 'markets.analytics');
+  const canViewDeepExplorer = canUseDeepExplorer(user);
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsDaily[]>([]);
@@ -1069,6 +1070,20 @@ export default function SentimentDetail() {
                 </a>
                 {project.bio && (
                   <p className="mt-2 text-sm text-akari-muted max-w-xl">{project.bio}</p>
+                )}
+                {/* Deep Explorer button - only show if user has access */}
+                {canViewDeepExplorer && (
+                  <div className="mt-3">
+                    <Link
+                      href={`/portal/deep/${slug}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 transition text-sm font-medium border border-akari-primary/30"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      Open Deep Explorer
+                    </Link>
+                  </div>
                 )}
               </div>
               {latestMetrics?.akari_score != null && (
