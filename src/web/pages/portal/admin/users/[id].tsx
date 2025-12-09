@@ -9,8 +9,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
-import { isSuperAdmin } from '@/lib/permissions';
-import { FEATURE_KEYS } from '@/lib/permissions';
+import { isSuperAdmin, FEATURE_KEYS, type FeatureGrant } from '@/lib/permissions';
 
 // =============================================================================
 // TYPES
@@ -26,15 +25,13 @@ interface UserDetail {
   roles: string[];
 }
 
-interface FeatureGrant {
-  id: string;
-  featureKey: string;
+// FeatureGrant type from permissions.ts uses Date | null for dates
+// But API returns ISO strings, so we use a compatible type for API responses
+type FeatureGrantResponse = Omit<FeatureGrant, 'startsAt' | 'endsAt'> & {
   startsAt: string | null;
   endsAt: string | null;
   createdAt: string;
-  discountPercent: number;
-  discountNote: string | null;
-}
+};
 
 interface AccessRequest {
   id: string;
@@ -49,7 +46,7 @@ interface AccessRequest {
 
 interface UserDetailData {
   user: UserDetail;
-  featureGrants: FeatureGrant[];
+  featureGrants: FeatureGrantResponse[];
   accessRequests: AccessRequest[];
 }
 
@@ -100,7 +97,7 @@ function getRoleColor(role: string): string {
   }
 }
 
-function isGrantActive(grant: FeatureGrant | null): boolean {
+function isGrantActive(grant: FeatureGrantResponse | null): boolean {
   if (!grant) return false;
   const now = new Date();
   const startsAt = grant.startsAt ? new Date(grant.startsAt) : null;
@@ -152,7 +149,7 @@ export default function AdminUserDetailPage() {
         throw new Error(result.error || 'Failed to load user detail');
       }
 
-      const grants = result.featureGrants || [];
+      const grants: FeatureGrantResponse[] = result.featureGrants || [];
       setData({
         user: result.user,
         featureGrants: grants,
@@ -163,7 +160,7 @@ export default function AdminUserDetailPage() {
       const dates: Record<string, { startsAt: string; endsAt: string }> = {};
       const discounts: Record<string, { discountPercent: number; discountNote: string }> = {};
       for (const featureKey of [FEATURE_KEYS.DeepExplorer, FEATURE_KEYS.InstitutionalPlus]) {
-        const grant = grants.find((g) => g.featureKey === featureKey);
+        const grant = grants.find((g: FeatureGrantResponse) => g.featureKey === featureKey);
         dates[featureKey] = {
           startsAt: formatDateInput(grant?.startsAt || null),
           endsAt: formatDateInput(grant?.endsAt || null),
@@ -378,7 +375,7 @@ export default function AdminUserDetailPage() {
               <h2 className="text-sm font-semibold text-white mb-4">Feature Access</h2>
 
               {[FEATURE_KEYS.DeepExplorer, FEATURE_KEYS.InstitutionalPlus].map((featureKey) => {
-                const grant = data.featureGrants.find((g) => g.featureKey === featureKey) || null;
+                const grant: FeatureGrantResponse | null = data.featureGrants.find((g: FeatureGrantResponse) => g.featureKey === featureKey) || null;
                 const active = isGrantActive(grant);
                 const startsAt = grantDates[featureKey]?.startsAt || formatDateInput(grant?.startsAt || null);
                 const endsAt = grantDates[featureKey]?.endsAt || formatDateInput(grant?.endsAt || null);
