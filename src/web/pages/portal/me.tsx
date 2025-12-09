@@ -480,8 +480,8 @@ export default function MyProfilePage() {
   const [deepRequestStatus, setDeepRequestStatus] = useState<AccessRequestStatus | null>(null);
   
   // Compute access status
-  const hasDeepAccess = canUseDeepExplorer(akariUser);
-  const hasInstitutionalPlusAccess = hasInstitutionalPlus(akariUser);
+  const hasDeepAccess = canUseDeepExplorer(akariUser.user);
+  const hasInstitutionalPlusAccess = hasInstitutionalPlus(akariUser.user);
   
   // Redirect if not logged in
   useEffect(() => {
