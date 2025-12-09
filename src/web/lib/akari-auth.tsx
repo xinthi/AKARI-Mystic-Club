@@ -126,7 +126,7 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
             })),
             isLoggedIn: true,
             viewAsRole: null,
-            xUsername: data.user.xUsername,
+            xUsername: data.user.xUsername ?? null,
             // Mystic Identity fields
             personaType: data.user.personaType || 'individual',
             personaTag: data.user.personaTag || null,

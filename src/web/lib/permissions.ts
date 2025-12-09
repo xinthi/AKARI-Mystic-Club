@@ -109,7 +109,7 @@ export interface AkariUser {
   featureGrants: FeatureGrant[];
   isLoggedIn: boolean;
   viewAsRole: Role | null;
-  xUsername?: string;
+  xUsername: string | null;
   
   // Mystic Identity fields
   personaType: PersonaType;
