@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
@@ -161,14 +161,21 @@ export default function ComparePage() {
   const [analyticsA, setAnalyticsA] = useState<ProjectAnalytics | null>(null);
   const [analyticsB, setAnalyticsB] = useState<ProjectAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  
+  // Track last URL we set to prevent unnecessary updates
+  const lastUrlRef = useRef<string>('');
 
-  // Load projects list
+  // Load projects list (only once on mount)
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchProjects() {
       try {
         const res = await fetch('/api/portal/sentiment');
+        if (cancelled) return;
+        
         const data = await res.json();
-        if (data.ok && data.projects) {
+        if (!cancelled && data.ok && data.projects) {
           setProjects(data.projects.map((p: any) => ({
             id: p.id,
             slug: p.slug,
@@ -180,12 +187,21 @@ export default function ComparePage() {
           })));
         }
       } catch (error) {
-        console.error('Error fetching projects:', error);
+        if (!cancelled) {
+          console.error('Error fetching projects:', error);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
+    
     fetchProjects();
+    
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Set initial selections from URL
@@ -205,44 +221,61 @@ export default function ComparePage() {
       return;
     }
 
+    let cancelled = false;
+
     async function fetchCompetitors() {
       try {
         const res = await fetch(`/api/portal/sentiment/${selectedA}/competitors`);
+        if (cancelled) return;
+        
         const data = await res.json();
-        if (data.ok) {
+        if (!cancelled && data.ok) {
           setCompetitors(data.competitors || []);
         }
       } catch (error) {
-        console.error('Error fetching competitors:', error);
+        if (!cancelled) {
+          console.error('Error fetching competitors:', error);
+        }
       }
     }
+    
     fetchCompetitors();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [selectedA]);
 
   // Fetch comparison when both are selected
   useEffect(() => {
     if (!selectedA || !selectedB) {
       setCompare(null);
+      setAnalyticsA(null);
+      setAnalyticsB(null);
       return;
     }
+
+    let cancelled = false;
 
     async function fetchComparison() {
       setComparing(true);
       try {
         const res = await fetch(`/api/portal/sentiment/${selectedA}/competitors?compareWith=${selectedB}`);
         const data = await res.json();
-        if (data.ok && data.compare) {
+        if (!cancelled && data.ok && data.compare) {
           setCompare(data.compare);
         }
       } catch (error) {
-        console.error('Error fetching comparison:', error);
+        if (!cancelled) {
+          console.error('Error fetching comparison:', error);
+        }
       } finally {
-        setComparing(false);
+        if (!cancelled) {
+          setComparing(false);
+        }
       }
     }
-    fetchComparison();
 
-    // NEW: Fetch analytics for both projects
     async function fetchAnalytics() {
       setAnalyticsLoading(true);
       try {
@@ -251,30 +284,55 @@ export default function ComparePage() {
           fetch(`/api/portal/sentiment/${selectedB}/analytics?window=7d`),
         ]);
         
+        if (cancelled) return;
+        
         const dataA = await resA.json();
         const dataB = await resB.json();
         
-        if (dataA.ok) {
-          setAnalyticsA(dataA.summary);
-        }
-        if (dataB.ok) {
-          setAnalyticsB(dataB.summary);
+        if (!cancelled) {
+          if (dataA.ok) {
+            setAnalyticsA(dataA.summary);
+          }
+          if (dataB.ok) {
+            setAnalyticsB(dataB.summary);
+          }
         }
       } catch (error) {
-        console.error('Error fetching analytics:', error);
+        if (!cancelled) {
+          console.error('Error fetching analytics:', error);
+        }
       } finally {
-        setAnalyticsLoading(false);
+        if (!cancelled) {
+          setAnalyticsLoading(false);
+        }
       }
     }
-    fetchAnalytics();
 
-    // Update URL
-    router.replace(
-      `/portal/sentiment/compare?projectA=${selectedA}&projectB=${selectedB}`,
-      undefined,
-      { shallow: true }
-    );
-  }, [selectedA, selectedB, router]);
+    // Fetch both in parallel
+    Promise.all([fetchComparison(), fetchAnalytics()]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedA, selectedB]);
+
+  // Update URL separately when selections change (prevents blocking data fetch)
+  useEffect(() => {
+    if (!selectedA || !selectedB) {
+      lastUrlRef.current = '';
+      return;
+    }
+    
+    const newUrl = `/portal/sentiment/compare?projectA=${selectedA}&projectB=${selectedB}`;
+    
+    // Only update if URL actually changed (prevent infinite loops)
+    if (lastUrlRef.current !== newUrl) {
+      lastUrlRef.current = newUrl;
+      router.replace(newUrl, undefined, { shallow: true }).catch(() => {
+        // Ignore navigation errors
+      });
+    }
+  }, [selectedA, selectedB]); // router is stable, no need in deps
 
   const projectAData = useMemo(() => 
     projects.find(p => p.slug === selectedA), [projects, selectedA]
