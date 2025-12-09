@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { Role, PersonaType, getHighestRole } from '@/lib/permissions';
 
@@ -90,10 +91,13 @@ export function ProfileHeader({
           {/* Avatar with claim tick */}
           <div className="relative flex-shrink-0">
             {avatarUrl ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={displayName}
+                width={80}
+                height={80}
                 className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-slate-700"
+                unoptimized
               />
             ) : (
               <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-emerald-500/30 to-purple-500/30 flex items-center justify-center text-2xl font-bold text-emerald-400">

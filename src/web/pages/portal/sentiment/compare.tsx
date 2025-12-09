@@ -274,7 +274,7 @@ export default function ComparePage() {
       undefined,
       { shallow: true }
     );
-  }, [selectedA, selectedB]);
+  }, [selectedA, selectedB, router]);
 
   const projectAData = useMemo(() => 
     projects.find(p => p.slug === selectedA), [projects, selectedA]
