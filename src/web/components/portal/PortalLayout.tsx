@@ -99,6 +99,16 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                   Admin Overview
                 </Link>
                 <Link
+                  href="/portal/admin/projects"
+                  className={`transition hover:text-akari-primary ${
+                    router.pathname === '/portal/admin/projects'
+                      ? 'text-akari-primary'
+                      : 'text-akari-muted'
+                  }`}
+                >
+                  Projects Admin
+                </Link>
+                <Link
                   href="/portal/admin/access"
                   className={`transition hover:text-akari-primary ${
                     router.pathname === '/portal/admin/access'
