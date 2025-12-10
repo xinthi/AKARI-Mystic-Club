@@ -38,15 +38,15 @@ export function ProfileSignalChart({ metricsHistory, onRefresh }: ProfileSignalC
   const maxCtHeat = Math.max(...data.map(d => d.ct_heat_score ?? 0), 100);
   
   return (
-    <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm uppercase tracking-wider text-slate-400">Signal Chart (30D)</h2>
+    <section className="neon-card neon-hover p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-teal">Signal Chart (30D)</h2>
         {onRefresh && (
           <button
             onClick={onRefresh}
-            className="text-xs text-slate-500 hover:text-white transition flex items-center gap-1 min-h-[36px] px-2"
+            className="pill-neon text-xs text-akari-muted hover:text-akari-neon-teal transition-all duration-300 flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 border border-akari-neon-teal/20 hover:border-akari-neon-teal/40 hover:bg-akari-neon-teal/5 font-medium"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Refresh
@@ -55,7 +55,7 @@ export function ProfileSignalChart({ metricsHistory, onRefresh }: ProfileSignalC
       </div>
       
       {!hasData ? (
-        <div className="h-48 flex items-center justify-center text-slate-500 text-sm">
+        <div className="h-48 flex items-center justify-center text-akari-muted text-sm font-medium">
           No chart data available yet
         </div>
       ) : (
@@ -136,21 +136,21 @@ export function ProfileSignalChart({ metricsHistory, onRefresh }: ProfileSignalC
           </svg>
           
           {/* Y-axis labels */}
-          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[9px] text-slate-500 pointer-events-none">
+          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[10px] text-akari-muted font-medium pointer-events-none">
             <span>100</span>
             <span>50</span>
             <span>0</span>
           </div>
           
           {/* Legend */}
-          <div className="absolute bottom-0 right-0 flex gap-4 text-[10px]">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-emerald-500 rounded"></span>
-              <span className="text-slate-400">Sentiment</span>
+          <div className="absolute bottom-0 right-0 flex gap-4 text-xs">
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 h-0.5 bg-akari-neon-teal rounded"></span>
+              <span className="text-akari-muted font-medium">Sentiment</span>
             </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-amber-500 rounded" style={{ borderStyle: 'dashed' }}></span>
-              <span className="text-slate-400">CT Heat</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 h-0.5 bg-akari-neon-pink rounded" style={{ borderStyle: 'dashed' }}></span>
+              <span className="text-akari-muted font-medium">CT Heat</span>
             </span>
           </div>
         </div>

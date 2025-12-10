@@ -97,16 +97,16 @@ export function ProfileZoneOfExpertise({ topics }: ProfileZoneOfExpertiseProps) 
   });
   
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-      <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-1">
+    <div className="neon-card neon-hover p-6">
+      <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-blue mb-2">
         Zone of Expertise
       </h2>
-      <p className="text-xs text-slate-500 mb-4">Based on last 30 days of content</p>
+      <p className="text-xs text-akari-muted mb-6">Based on last 30 days of content</p>
       
       {!hasData ? (
-        <div className="h-[300px] flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
-          <p>Not enough data yet</p>
-          <p className="text-xs text-slate-600">Start posting more so Akari can read your zone</p>
+        <div className="h-[300px] flex flex-col items-center justify-center text-akari-muted text-sm gap-2">
+          <p className="font-medium">Not enough data yet</p>
+          <p className="text-xs text-akari-muted/70">Start posting more so Akari can read your zone</p>
         </div>
       ) : (
         <div className="relative">

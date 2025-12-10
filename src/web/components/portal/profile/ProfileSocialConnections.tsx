@@ -34,25 +34,26 @@ function ConnectedAccountRow({
   icon,
   name,
   status,
-  statusColor = 'text-slate-500',
+  statusColor = 'text-akari-muted',
   helperText,
 }: ConnectedAccountRowProps) {
+  const isConnected = statusColor === 'text-akari-neon-teal';
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-slate-800/50 last:border-0 min-h-[48px]">
+    <div className="flex items-center justify-between py-3 border-b border-akari-neon-teal/10 last:border-0 min-h-[52px] transition-all duration-300 hover:bg-akari-cardSoft/30 rounded-lg px-2">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-akari-cardSoft/50 border border-akari-neon-teal/20 flex items-center justify-center flex-shrink-0">
           {icon}
         </div>
         <div className="min-w-0">
-          <p className="text-sm text-white">{name}</p>
+          <p className="text-sm text-akari-text font-semibold">{name}</p>
           {helperText && (
-            <p className="text-[10px] text-slate-500 mt-0.5 max-w-[220px] leading-tight">
+            <p className="text-xs text-akari-muted mt-0.5 max-w-[220px] leading-tight">
               {helperText}
             </p>
           )}
         </div>
       </div>
-      <span className={`text-xs flex-shrink-0 ml-2 ${statusColor}`}>{status}</span>
+      <span className={`pill-neon text-xs flex-shrink-0 ml-2 px-3 py-1 font-semibold border ${statusColor} ${isConnected ? 'bg-akari-neon-teal/15 border-akari-neon-teal/30' : 'bg-akari-cardSoft/50 border-akari-neon-teal/20'}`}>{status}</span>
     </div>
   );
 }
@@ -106,45 +107,45 @@ export function ProfileSocialConnections({
   telegramConnected,
 }: ProfileSocialConnectionsProps) {
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-      <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-4">Connected Accounts</h2>
-      <div className="space-y-0">
+    <div className="neon-card neon-hover p-6">
+      <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-blue mb-6">Connected Accounts</h2>
+      <div className="space-y-1">
         <ConnectedAccountRow
           icon={<XIcon />}
           name="X (Twitter)"
           status={xConnected ? 'Connected' : 'Connect'}
-          statusColor={xConnected ? 'text-emerald-400' : 'text-slate-500'}
+          statusColor={xConnected ? 'text-akari-neon-teal' : 'text-akari-muted'}
         />
         <ConnectedAccountRow
           icon={<TelegramIcon />}
           name="Telegram"
           status={telegramConnected ? 'Connected' : 'Coming soon'}
-          statusColor={telegramConnected ? 'text-emerald-400' : 'text-slate-500'}
+          statusColor={telegramConnected ? 'text-akari-neon-teal' : 'text-akari-muted'}
           helperText="Connect Telegram to unlock reviews"
         />
         <ConnectedAccountRow
           icon={<DiscordIcon />}
           name="Discord"
           status="Available soon"
-          statusColor="text-slate-500"
+          statusColor="text-akari-muted"
         />
         <ConnectedAccountRow
           icon={<FacebookIcon />}
           name="Facebook"
           status="Available soon"
-          statusColor="text-slate-500"
+          statusColor="text-akari-muted"
         />
         <ConnectedAccountRow
           icon={<InstagramIcon />}
           name="Instagram"
           status="Available soon"
-          statusColor="text-slate-500"
+          statusColor="text-akari-muted"
         />
         <ConnectedAccountRow
           icon={<TikTokIcon />}
           name="TikTok"
           status="Available soon"
-          statusColor="text-slate-500"
+          statusColor="text-akari-muted"
         />
       </div>
     </div>

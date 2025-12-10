@@ -122,15 +122,15 @@ export function ProfileClubOrbit({ orbit }: ProfileClubOrbitProps) {
   const playerCount = sortedOrbit.filter(m => m.role === 'player').length;
   
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-      <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-4">
+    <div className="neon-card neon-hover p-6">
+      <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-pink mb-6">
         Who You Hang Out With
       </h2>
       
       {!hasData ? (
-        <div className="h-[320px] flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
-          <p>No orbit data yet</p>
-          <p className="text-xs text-slate-600">Interact more with your circle to unlock this</p>
+        <div className="h-[320px] flex flex-col items-center justify-center text-akari-muted text-sm gap-2">
+          <p className="font-medium">No orbit data yet</p>
+          <p className="text-xs text-akari-muted/70">Interact more with your circle to unlock this</p>
         </div>
       ) : (
         <>
@@ -214,13 +214,13 @@ export function ProfileClubOrbit({ orbit }: ProfileClubOrbitProps) {
           </div>
           
           {/* Legend */}
-          <div className="flex justify-center gap-4 mt-4">
-            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <span className="w-3 h-3 rounded-full bg-amber-400/20 ring-1 ring-amber-400/50" />
+          <div className="flex justify-center gap-4 mt-6">
+            <span className="flex items-center gap-1.5 text-xs text-akari-muted font-medium">
+              <span className="w-3 h-3 rounded-full bg-akari-neon-pink/20 ring-1 ring-akari-neon-pink/50" />
               Hero ({heroCount})
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <span className="w-3 h-3 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+            <span className="flex items-center gap-1.5 text-xs text-akari-muted font-medium">
+              <span className="w-3 h-3 rounded-full bg-akari-cardSoft ring-1 ring-akari-neon-teal/30" />
               Player ({playerCount})
             </span>
           </div>

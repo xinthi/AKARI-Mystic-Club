@@ -36,12 +36,12 @@ function formatNumber(num: number | null): string {
 }
 
 function getAkariTier(score: number | null): { name: string; color: string; bgColor: string } {
-  if (score === null) return { name: 'Unranked', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
-  if (score >= 900) return { name: 'Celestial', color: 'text-purple-400', bgColor: 'bg-purple-400/10' };
-  if (score >= 750) return { name: 'Vanguard', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10' };
-  if (score >= 550) return { name: 'Ranger', color: 'text-blue-400', bgColor: 'bg-blue-400/10' };
-  if (score >= 400) return { name: 'Nomad', color: 'text-amber-400', bgColor: 'bg-amber-400/10' };
-  return { name: 'Shadow', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
+  if (score === null) return { name: 'Unranked', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
+  if (score >= 900) return { name: 'Celestial', color: 'text-akari-neon-violet', bgColor: 'bg-akari-neon-violet/15' };
+  if (score >= 750) return { name: 'Vanguard', color: 'text-akari-neon-teal', bgColor: 'bg-akari-neon-teal/15' };
+  if (score >= 550) return { name: 'Ranger', color: 'text-akari-neon-blue', bgColor: 'bg-akari-neon-blue/15' };
+  if (score >= 400) return { name: 'Nomad', color: 'text-akari-neon-pink', bgColor: 'bg-akari-neon-pink/15' };
+  return { name: 'Shadow', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
 }
 
 function getInitials(handle: string): string {
@@ -64,21 +64,21 @@ function MemberRow({ entry, index }: MemberRowProps) {
   return (
     <div
       className={`
-        flex items-center gap-3 p-3 rounded-xl transition-colors
-        ${index % 2 === 0 ? 'bg-slate-800/30' : 'bg-transparent'}
-        hover:bg-slate-800/50
+        flex items-center gap-4 p-4 rounded-xl transition-all duration-300
+        ${index % 2 === 0 ? 'bg-akari-cardSoft/30' : 'bg-transparent'}
+        hover:bg-akari-cardSoft/50 hover:border hover:border-akari-neon-teal/20
       `}
     >
       {/* Avatar + Handle */}
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="relative flex-shrink-0">
           {entry.avatarUrl ? (
             <Image
               src={entry.avatarUrl}
               alt={entry.handle}
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-700"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-full object-cover ring-2 ring-akari-neon-teal/30"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -87,22 +87,22 @@ function MemberRow({ entry, index }: MemberRowProps) {
           ) : null}
           <div 
             className={`
-              w-8 h-8 rounded-full bg-slate-800 ring-1 ring-slate-700
-              flex items-center justify-center text-[10px] text-slate-400
+              w-10 h-10 rounded-full bg-gradient-neon-teal ring-2 ring-akari-neon-teal/30
+              flex items-center justify-center text-xs text-black font-bold
               ${entry.avatarUrl ? 'hidden' : ''}
             `}
           >
             {getInitials(entry.handle)}
           </div>
           {isHero && (
-            <span className="absolute -top-0.5 -right-0.5 text-[8px]">⭐</span>
+            <span className="absolute -top-0.5 -right-0.5 text-xs">⭐</span>
           )}
         </div>
         <a
           href={`https://x.com/${entry.handle}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-white hover:text-emerald-400 transition truncate"
+          className="text-sm text-akari-text hover:text-gradient-teal transition-all duration-300 truncate font-semibold"
         >
           {entry.handle}
         </a>
@@ -110,31 +110,31 @@ function MemberRow({ entry, index }: MemberRowProps) {
       
       {/* Akari Tier Badge */}
       <div className="hidden sm:flex items-center gap-1.5 w-24">
-        <span className={`px-2 py-0.5 rounded-full text-[10px] ${tier.color} ${tier.bgColor}`}>
+        <span className={`pill-neon px-3 py-1 text-xs font-semibold border ${tier.color} ${tier.bgColor} border-akari-neon-teal/30`}>
           {tier.name}
         </span>
       </div>
       
       {/* CT Heat */}
       <div className="w-14 text-right">
-        <span className={`text-sm ${(entry.ctHeat ?? 0) >= 60 ? 'text-amber-400' : 'text-slate-400'}`}>
+        <span className={`text-sm font-semibold ${(entry.ctHeat ?? 0) >= 60 ? 'text-akari-neon-pink' : 'text-akari-muted'}`}>
           {entry.ctHeat ?? '-'}
         </span>
       </div>
       
       {/* Followers */}
       <div className="w-16 text-right hidden md:block">
-        <span className="text-sm text-slate-400">{formatNumber(entry.followers)}</span>
+        <span className="text-sm text-akari-muted font-medium">{formatNumber(entry.followers)}</span>
       </div>
       
       {/* Role Pill */}
       <div className="w-16 text-right">
         <span
           className={`
-            inline-block px-2 py-0.5 rounded-full text-[10px] font-medium
+            pill-neon inline-block px-3 py-1 text-xs font-semibold border
             ${isHero 
-              ? 'bg-amber-400/10 text-amber-400 ring-1 ring-amber-400/20' 
-              : 'bg-slate-700/50 text-slate-400 ring-1 ring-slate-600/50'
+              ? 'bg-akari-neon-pink/15 text-akari-neon-pink border-akari-neon-pink/30' 
+              : 'bg-akari-cardSoft/50 text-akari-muted border-akari-neon-teal/20'
             }
           `}
         >
@@ -164,27 +164,27 @@ export function ProfileInnerCircleList({ entries }: ProfileInnerCircleListProps)
   const playerCount = entries.filter(e => e.role === 'player').length;
   
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+    <div className="neon-card neon-hover p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-sm uppercase tracking-wider text-slate-400">
+          <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-blue">
             Inner Circle (Top Allies)
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-akari-muted mt-1 font-medium">
             {entries.length} members • {heroCount} heroes, {playerCount} players
           </p>
         </div>
       </div>
       
       {!hasData ? (
-        <div className="py-12 text-center text-slate-500 text-sm">
+        <div className="py-12 text-center text-akari-muted text-sm font-medium">
           No inner circle data yet
         </div>
       ) : (
         <>
           {/* Column Headers */}
-          <div className="flex items-center gap-3 px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
+          <div className="flex items-center gap-3 px-4 py-3 text-xs uppercase tracking-wider font-semibold text-gradient-teal border-b border-akari-neon-teal/20">
             <div className="flex-1 min-w-0">Profile</div>
             <div className="hidden sm:block w-24">Akari Score</div>
             <div className="w-14 text-right">CT Heat</div>
@@ -193,20 +193,20 @@ export function ProfileInnerCircleList({ entries }: ProfileInnerCircleListProps)
           </div>
           
           {/* Member List */}
-          <div className="divide-y divide-slate-800/50">
+          <div className="divide-y divide-akari-neon-teal/10">
             {sortedEntries.map((entry, i) => (
               <MemberRow key={entry.handle} entry={entry} index={i} />
             ))}
           </div>
           
           {/* Summary Footer */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center gap-4">
-            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-amber-400/50" />
+          <div className="mt-6 pt-4 border-t border-akari-neon-teal/20 flex justify-center gap-6">
+            <span className="flex items-center gap-1.5 text-xs text-akari-muted font-medium">
+              <span className="w-2.5 h-2.5 rounded-full bg-akari-neon-pink/50" />
               Hero: Higher followers or AKARI than you
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-slate-600" />
+            <span className="flex items-center gap-1.5 text-xs text-akari-muted font-medium">
+              <span className="w-2.5 h-2.5 rounded-full bg-akari-cardSoft" />
               Player: Similar or lower stats
             </span>
           </div>

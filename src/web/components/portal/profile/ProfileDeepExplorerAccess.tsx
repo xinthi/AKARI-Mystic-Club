@@ -118,23 +118,23 @@ export function ProfileDeepExplorerAccess({
   const subtitle = getSubtitle();
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+    <div className="neon-card neon-hover p-6">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">🔍</span>
-        <h2 className="text-sm uppercase tracking-wider text-slate-400">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xl">🔍</span>
+        <h2 className="text-sm uppercase tracking-wider font-semibold text-gradient-pink">
           Deep Explorer
         </h2>
       </div>
 
       {/* Subtitle */}
-      <p className="text-sm text-slate-400 mb-4">
+      <p className="text-sm text-akari-muted mb-6 leading-relaxed">
         {subtitle}
       </p>
 
       {/* Error message */}
       {error && (
-        <p className="text-sm text-red-400 mb-4">
+        <p className="text-sm text-red-400 mb-4 font-semibold">
           {error}
         </p>
       )}
@@ -144,10 +144,10 @@ export function ProfileDeepExplorerAccess({
         onClick={handleRequest}
         disabled={buttonProps.disabled}
         className={`
-          w-full min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition-all
+          w-full pill-neon min-h-[44px] px-5 py-2.5 text-sm font-semibold transition-all duration-300
           ${buttonProps.disabled
-            ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
-            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 hover:border-emerald-500/70'
+            ? 'bg-akari-cardSoft/50 text-akari-muted border border-akari-neon-teal/20 cursor-not-allowed'
+            : 'bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]'
           }
         `}
       >
