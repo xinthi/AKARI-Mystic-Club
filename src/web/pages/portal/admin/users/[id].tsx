@@ -80,6 +80,8 @@ function getFeatureLabel(featureKey: string): string {
       return 'Deep Explorer';
     case FEATURE_KEYS.InstitutionalPlus:
       return 'Institutional Plus';
+    case FEATURE_KEYS.DeepAnalyticsAddon:
+      return 'Deep Analytics Addon';
     default:
       return featureKey;
   }
@@ -160,6 +162,10 @@ export default function AdminUserDetailPage() {
   const [tierProcessing, setTierProcessing] = useState(false);
   const [tierError, setTierError] = useState<string | null>(null);
   const [tierSuccess, setTierSuccess] = useState<string | null>(null);
+  const [deepAnalyticsAddon, setDeepAnalyticsAddon] = useState(false);
+  const [addonProcessing, setAddonProcessing] = useState(false);
+  const [addonError, setAddonError] = useState<string | null>(null);
+  const [addonSuccess, setAddonSuccess] = useState<string | null>(null);
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -197,6 +203,12 @@ export default function AdminUserDetailPage() {
       // Compute and set current tier
       const currentTier = computeTierFromGrants(grants);
       setSelectedTier(currentTier);
+
+      // Check if user has Deep Analytics addon
+      const now = new Date();
+      const addonGrant = grants.find((g: FeatureGrantResponse) => g.featureKey === FEATURE_KEYS.DeepAnalyticsAddon);
+      const hasAddon = addonGrant && isGrantActive(addonGrant);
+      setDeepAnalyticsAddon(hasAddon || false);
 
       // Initialize grant dates and discounts from existing grants (always initialize both features)
       const dates: Record<string, { startsAt: string; endsAt: string }> = {};
@@ -329,6 +341,37 @@ export default function AdminUserDetailPage() {
       setTierError(err.message || 'Failed to update tier');
     } finally {
       setTierProcessing(false);
+    }
+  };
+
+  const handleAddonChange = async () => {
+    if (!id || typeof id !== 'string') return;
+    if (addonProcessing) return;
+
+    setAddonProcessing(true);
+    setAddonError(null);
+    setAddonSuccess(null);
+
+    try {
+      const res = await fetch(`/api/portal/admin/users/${id}/addons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deepAnalyticsAddon }),
+      });
+
+      const result = await res.json();
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to update addon');
+      }
+
+      setAddonSuccess(`Deep Analytics addon ${deepAnalyticsAddon ? 'enabled' : 'disabled'} successfully`);
+      // Reload data to reflect changes
+      await loadData();
+    } catch (err: any) {
+      setAddonError(err.message || 'Failed to update addon');
+    } finally {
+      setAddonProcessing(false);
     }
   };
 
@@ -490,6 +533,45 @@ export default function AdminUserDetailPage() {
                 )}
                 {tierSuccess && (
                   <p className="text-xs text-green-400">{tierSuccess}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Addons Control */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mb-6">
+              <h2 className="text-sm font-semibold text-white mb-4">Addons</h2>
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deepAnalyticsAddon}
+                      onChange={(e) => setDeepAnalyticsAddon(e.target.checked)}
+                      className="w-4 h-4 text-akari-primary bg-slate-800 border-slate-700 rounded focus:ring-akari-primary focus:ring-2"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-white">Deep Analytics</span>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Gives this user access to project-level Twitter Analytics and CSV export, even if they are Seer.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <button
+                  onClick={handleAddonChange}
+                  disabled={addonProcessing}
+                  className="px-4 py-2 min-h-[36px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addonProcessing ? 'Processing...' : 'Save'}
+                </button>
+
+                {/* Messages */}
+                {addonError && (
+                  <p className="text-xs text-red-400">{addonError}</p>
+                )}
+                {addonSuccess && (
+                  <p className="text-xs text-green-400">{addonSuccess}</p>
                 )}
               </div>
             </div>

@@ -21,6 +21,7 @@ export type FeatureKey =
   | 'launchpad.add_project'
   | 'deep.explorer'
   | 'institutional.plus'
+  | 'deep.analytics.addon'
   | string; // Allow custom feature keys
 
 // =============================================================================
@@ -30,6 +31,7 @@ export type FeatureKey =
 export const FEATURE_KEYS = {
   DeepExplorer: 'deep.explorer',
   InstitutionalPlus: 'institutional.plus',
+  DeepAnalyticsAddon: 'deep.analytics.addon',
 } as const;
 
 export interface FeatureGrant {

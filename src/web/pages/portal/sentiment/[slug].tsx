@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
-import { can, canUseDeepExplorer } from '../../../lib/permissions';
+import { can, canUseDeepExplorer, FEATURE_KEYS } from '../../../lib/permissions';
 import { classifyFreshness, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
 import { LockedFeatureOverlay } from '../../../components/portal/LockedFeatureOverlay';
 import { UpgradeModal } from '../../../components/portal/UpgradeModal';
@@ -885,7 +885,8 @@ export default function SentimentDetail() {
   
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
-  const canViewAnalytics = can(user, 'markets.analytics');
+  // Analytics access: markets.analytics OR deep.analytics.addon
+  const canViewAnalytics = can(user, 'markets.analytics') || can(user, FEATURE_KEYS.DeepAnalyticsAddon);
   const canViewDeepExplorer = canUseDeepExplorer(user);
 
   // Upgrade modal state

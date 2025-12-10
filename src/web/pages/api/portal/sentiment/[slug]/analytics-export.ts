@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { createPortalClient, getProjectBySlug } from '@/lib/portal/supabase';
-import { can } from '@/lib/permissions';
+import { can, FEATURE_KEYS } from '@/lib/permissions';
 
 // =============================================================================
 // HELPERS
@@ -165,7 +165,9 @@ export default async function handler(
       telegramConnected: false,
     };
 
-    if (!can(akariUser, 'markets.analytics')) {
+    // Check analytics permission (markets.analytics OR deep.analytics.addon)
+    const hasAnalyticsAccess = can(akariUser, 'markets.analytics') || can(akariUser, FEATURE_KEYS.DeepAnalyticsAddon);
+    if (!hasAnalyticsAccess) {
       return res.status(403).json({ ok: false, error: 'Analytics access required' });
     }
 

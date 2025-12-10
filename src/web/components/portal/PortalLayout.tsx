@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -31,6 +31,24 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
     open: false,
   });
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Lock body scroll when mobile nav is open
+  useEffect(() => {
+    if (isMobileNavOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileNavOpen]);
+
+  // Close mobile nav when route changes
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [router.pathname]);
 
   return (
     <>
@@ -44,23 +62,37 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-akari-neon-teal/80 to-transparent blur-sm"></div>
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-akari-neon-teal/60 to-transparent"></div>
         <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-4">
-          {/* Logo + brand */}
-          <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105">
-            <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
-              <Logo size={28} />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
-                Akari Mystic Club
-              </span>
-              <span className="text-xs text-akari-muted/70 hidden sm:block">
-                Prediction-native market intelligence
-              </span>
-            </div>
-          </Link>
+          {/* Mobile: Hamburger + Logo */}
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {/* Hamburger button - mobile only */}
+            <button
+              onClick={() => setIsMobileNavOpen(true)}
+              className="sm:hidden p-2 text-akari-muted hover:text-akari-neon-teal transition-all duration-300 ease-out hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)]"
+              aria-label="Open navigation menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
 
-          {/* Nav links */}
-          <nav className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
+            {/* Logo + brand */}
+            <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105">
+              <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
+                <Logo size={28} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
+                  Akari Mystic Club
+                </span>
+                <span className="text-xs text-akari-muted/70 hidden sm:block">
+                  Prediction-native market intelligence
+                </span>
+              </div>
+            </Link>
+          </div>
+
+          {/* Nav links - hidden on mobile, shown on desktop */}
+          <nav className="hidden sm:flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
             {navItems.map((item) => {
               const active =
                 router.pathname === item.href ||
