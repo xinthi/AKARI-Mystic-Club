@@ -29,7 +29,7 @@ const nextConfig = {
     // Also support unoptimized images for external URLs
     unoptimized: false,
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, defaultLoaders }) => {
     // Client-side fallbacks
     if (!isServer) {
       config.resolve.fallback = {
@@ -41,21 +41,14 @@ const nextConfig = {
     }
 
     // Transpile TypeScript files from src/server directory
-    // These are imported by API routes but are outside the Next.js build context
+    // These files are imported by API routes but are outside the Next.js build context
+    // Use Next.js's default babel loader to handle TypeScript (same as it uses for app files)
     config.module.rules.push({
-      test: /\.ts$/,
+      test: /\.tsx?$/,
       include: [
         /src[\\/]server/,
       ],
-      use: {
-        loader: 'ts-loader',
-        options: {
-          transpileOnly: true,
-          compilerOptions: {
-            module: 'esnext',
-          },
-        },
-      },
+      use: defaultLoaders.babel,
     });
 
     return config;
