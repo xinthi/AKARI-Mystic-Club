@@ -178,8 +178,8 @@ export default function AdminAccessRequestsPage() {
     return (
       <PortalLayout title="Access Requests - Admin">
         <div className="px-4 py-4 md:px-6 lg:px-10">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
-            <p className="text-slate-400">
+          <div className="neon-card neon-hover p-8 text-center">
+            <p className="text-akari-muted">
               You need super admin access to view this page.
             </p>
           </div>
@@ -192,52 +192,52 @@ export default function AdminAccessRequestsPage() {
     <PortalLayout title="Access Requests - Admin">
       <div className="px-4 py-4 md:px-6 lg:px-10">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-white mb-2">Access Requests</h1>
-          <p className="text-sm text-slate-400">Review feature access requests from users.</p>
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold mb-3 text-gradient-neon">Access Requests</h1>
+          <p className="text-base text-akari-muted leading-relaxed">Review feature access requests from users.</p>
         </div>
 
         {/* Main Card */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+        <div className="neon-card neon-hover p-6">
           {loading ? (
-            <div className="py-12 text-center text-slate-400">
+            <div className="py-12 text-center text-akari-muted">
               Loading requests...
             </div>
           ) : error ? (
-            <div className="py-12 text-center text-red-400">
+            <div className="py-12 text-center text-red-400 font-semibold">
               {error}
             </div>
           ) : requests.length === 0 ? (
-            <div className="py-12 text-center text-slate-400">
+            <div className="py-12 text-center text-akari-muted">
               No pending access requests.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">
                       User
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
                       X Handle
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-pink">
                       Current Tier
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-heat">
                       Feature
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Requested Plan
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Justification
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Requested At
                     </th>
-                    <th className="text-right py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="text-right py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Actions
                     </th>
                   </tr>
@@ -250,37 +250,37 @@ export default function AdminAccessRequestsPage() {
                     return (
                       <tr
                         key={request.id}
-                        className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
+                        className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                       >
                         {/* User */}
-                        <td className="py-3 px-4 text-sm text-white">
+                        <td className="py-4 px-5 text-sm text-akari-text font-semibold">
                           {request.user.displayName || 'Unknown user'}
                         </td>
 
                         {/* X Handle */}
-                        <td className="py-3 px-4 text-sm text-slate-400">
+                        <td className="py-4 px-5 text-sm text-akari-muted">
                           {request.user.xUsername ? `@${request.user.xUsername}` : 'Not linked'}
                         </td>
 
                         {/* Current Tier */}
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(request.user.currentTier)}`}>
+                        <td className="py-4 px-5">
+                          <span className={`pill-neon px-3 py-1.5 text-xs font-semibold border ${getTierColor(request.user.currentTier)}`}>
                             {formatTierName(request.user.currentTier)}
                           </span>
                         </td>
 
                         {/* Feature */}
-                        <td className="py-3 px-4 text-sm text-slate-300">
+                        <td className="py-4 px-5 text-sm text-akari-text font-medium">
                           {getFeatureLabel(request.featureKey, request.requestedPlan)}
                         </td>
 
                         {/* Requested Plan */}
-                        <td className="py-3 px-4 text-sm text-slate-400">
+                        <td className="py-4 px-5 text-sm text-akari-muted">
                           {request.requestedPlan || '-'}
                         </td>
 
                         {/* Justification */}
-                        <td className="py-3 px-4 text-sm text-slate-400 max-w-xs">
+                        <td className="py-4 px-5 text-sm text-akari-muted max-w-xs">
                           <span
                             title={request.justification || ''}
                             className="block truncate"
@@ -290,27 +290,27 @@ export default function AdminAccessRequestsPage() {
                         </td>
 
                         {/* Requested At */}
-                        <td className="py-3 px-4 text-sm text-slate-400">
+                        <td className="py-4 px-5 text-sm text-akari-muted">
                           {formatDate(request.createdAt)}
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="py-4 px-5">
+                          <div className="flex items-center justify-end gap-3">
                             {rowError && (
-                              <span className="text-xs text-red-400 mr-2">{rowError}</span>
+                              <span className="text-xs text-red-400 mr-2 font-semibold">{rowError}</span>
                             )}
                             <button
                               onClick={() => handleDecision(request.id, 'approve')}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 min-h-[32px] rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 transition text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="pill-neon px-4 py-2 min-h-[36px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/50 transition-all duration-300 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_12px_rgba(16,185,129,0.3)]"
                             >
                               {isProcessing ? 'Processing...' : 'Approve'}
                             </button>
                             <button
                               onClick={() => handleDecision(request.id, 'reject')}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 min-h-[32px] rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="pill-neon px-4 py-2 min-h-[36px] bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-all duration-300 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_12px_rgba(239,68,68,0.3)]"
                             >
                               {isProcessing ? 'Processing...' : 'Reject'}
                             </button>
