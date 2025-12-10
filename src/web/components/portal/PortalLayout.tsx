@@ -158,7 +158,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
           />
 
           {/* Drawer */}
-          <div className="fixed left-0 top-0 bottom-0 w-[80%] max-w-sm bg-akari-card border-r border-akari-neon-teal/30 shadow-[0_0_30px_rgba(0,246,162,0.3)] z-[70] sm:hidden overflow-y-auto">
+          <div className="fixed left-0 top-0 bottom-0 w-[80%] max-w-sm bg-akari-card border-r border-akari-neon-teal/30 shadow-[0_0_30px_rgba(0,246,162,0.3)] z-[70] sm:hidden overflow-y-auto transform transition-transform duration-300 ease-out">
             {/* Drawer Header */}
             <div className="flex items-center justify-between p-4 border-b border-akari-neon-teal/20">
               <Link
