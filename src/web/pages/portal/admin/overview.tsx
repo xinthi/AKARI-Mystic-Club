@@ -115,8 +115,8 @@ export default function AdminOverviewPage() {
     return (
       <PortalLayout title="Admin Overview">
         <div className="px-4 py-4 md:px-6 lg:px-10">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
-            <p className="text-slate-400">Log in to view the admin dashboard.</p>
+          <div className="neon-card neon-hover p-8 text-center">
+            <p className="text-akari-muted">Log in to view the admin dashboard.</p>
           </div>
         </div>
       </PortalLayout>
@@ -128,8 +128,8 @@ export default function AdminOverviewPage() {
     return (
       <PortalLayout title="Admin Overview">
         <div className="px-4 py-4 md:px-6 lg:px-10">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
-            <p className="text-slate-400">You need super admin access to view this page.</p>
+          <div className="neon-card neon-hover p-8 text-center">
+            <p className="text-akari-muted">You need super admin access to view this page.</p>
           </div>
         </div>
       </PortalLayout>
@@ -140,14 +140,14 @@ export default function AdminOverviewPage() {
     <PortalLayout title="Admin Overview">
       <div className="px-4 py-4 md:px-6 lg:px-10">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-white mb-2">Admin Overview</h1>
-          <p className="text-sm text-slate-400">High level view of AKARI Mystic Club.</p>
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold mb-3 text-gradient-neon">Admin Overview</h1>
+          <p className="text-base text-akari-muted leading-relaxed">High level view of AKARI Mystic Club.</p>
         </div>
 
         {/* Loading state */}
         {loading && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center">
+          <div className="neon-card neon-hover p-12 text-center">
             <p className="text-slate-400">Loading overview...</p>
           </div>
         )}

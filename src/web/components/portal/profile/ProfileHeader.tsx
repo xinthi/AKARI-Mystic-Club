@@ -102,7 +102,7 @@ export function ProfileHeader({
   };
   
   return (
-    <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 md:p-6">
+    <section className="neon-card neon-hover p-4 md:p-6">
       <div className="flex flex-col lg:flex-row lg:items-center gap-4">
         {/* Avatar + Info */}
         <div className="flex items-start gap-4 flex-1">
@@ -140,7 +140,7 @@ export function ProfileHeader({
           {/* Name, handle, bio */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-xl md:text-2xl font-semibold text-white truncate">
+              <h1 className="text-xl md:text-2xl font-semibold neon-gradient-text truncate glow-soft">
                 {displayName}
               </h1>
               {/* Role badge */}
@@ -170,7 +170,7 @@ export function ProfileHeader({
         <div className="flex flex-wrap gap-2 lg:flex-col lg:items-end">
           <Link
             href={`/portal/sentiment/${slug}`}
-            className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition text-sm"
+            className="neon-hover flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl neon-border bg-black/40 text-slate-300 hover:text-white text-sm glow-soft"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -182,7 +182,7 @@ export function ProfileHeader({
           {canCompare ? (
             <button
               onClick={handleCompareClick}
-              className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition text-sm"
+              className="neon-hover flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl neon-border bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm glow-soft"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />

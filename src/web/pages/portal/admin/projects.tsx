@@ -268,25 +268,25 @@ export default function AdminProjectsPage() {
 
         {/* Projects table */}
         {!loading && !error && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
+          <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Name</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Slug</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">X Handle</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Followers</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">AKARI Score</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Last Updated</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Status</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">Actions</th>
+                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Name</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">Slug</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">X Handle</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-followers">Followers</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-akari">AKARI Score</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Last Updated</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projects.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 px-4 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 px-5 text-center text-akari-muted">
                         No projects found
                       </td>
                     </tr>
@@ -296,39 +296,39 @@ export default function AdminProjectsPage() {
                       return (
                         <tr
                           key={project.id}
-                          className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors"
+                          className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                         >
-                          <td className="py-3 px-4 text-white font-medium">{project.name}</td>
-                          <td className="py-3 px-4 text-slate-400 font-mono text-sm">{project.slug}</td>
-                          <td className="py-3 px-4 text-slate-400">@{project.x_handle}</td>
-                          <td className="py-3 px-4 text-slate-400 font-mono">{formatNumber(project.followers)}</td>
-                          <td className="py-3 px-4 text-slate-400 font-mono">
+                          <td className="py-4 px-5 text-akari-text font-semibold">{project.name}</td>
+                          <td className="py-4 px-5 text-akari-muted font-mono text-sm">{project.slug}</td>
+                          <td className="py-4 px-5 text-akari-muted">@{project.x_handle}</td>
+                          <td className="py-4 px-5 text-gradient-followers font-mono font-medium">{formatNumber(project.followers)}</td>
+                          <td className="py-4 px-5 text-gradient-akari font-mono font-bold">
                             {project.akari_score ?? '–'}
                           </td>
-                          <td className="py-3 px-4 text-slate-400 text-sm">{formatDate(project.last_updated_at)}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-4 px-5 text-akari-muted text-sm">{formatDate(project.last_updated_at)}</td>
+                          <td className="py-4 px-5">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                                 project.is_active
-                                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                  : 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
+                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                  : 'bg-akari-cardSoft text-akari-muted border-akari-neon-teal/30'
                               }`}
                             >
                               {project.is_active ? 'Active' : 'Hidden'}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-4 px-5">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleEdit(project)}
-                                className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition text-xs font-medium"
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium hover:shadow-[0_0_12px_rgba(59,130,246,0.3)]"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleRefresh(project.id)}
                                 disabled={refreshingProjectId === project.id}
-                                className="px-3 py-1 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]"
                               >
                                 {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
                               </button>

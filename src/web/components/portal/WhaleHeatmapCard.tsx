@@ -56,13 +56,13 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ recentEntries, lastAnyEntry 
   const topEntries = recentEntries.slice(0, 12);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 flex flex-col gap-4">
+    <div className="card-neon p-5 sm:p-6 flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-base sm:text-lg font-semibold text-slate-50">
+          <h2 className="text-lg sm:text-xl font-bold text-gradient-blue mb-1">
             Smart Money Heatmap
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-akari-muted/80">
             Large onchain entries from tracked wallets. Updated by Uniblock cron.
           </p>
         </div>
@@ -71,7 +71,7 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ recentEntries, lastAnyEntry 
             {totalsByToken.map((t) => (
               <div
                 key={t.symbol}
-                className="px-2 sm:px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-[10px] sm:text-xs text-emerald-200 flex items-center gap-1"
+                className="pill-neon px-3 sm:px-4 py-1.5 bg-akari-neon-teal/10 border border-akari-neon-teal/40 text-[10px] sm:text-xs text-akari-neon-teal font-medium flex items-center gap-1"
               >
                 <span className="font-semibold">{t.symbol}</span>
                 <span className="text-[9px] sm:text-[10px] uppercase tracking-wide">

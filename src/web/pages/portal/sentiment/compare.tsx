@@ -133,16 +133,16 @@ function AvatarWithFallback({ url, name, size = 'md' }: {
   const showFallback = !url || imgError;
 
   return (
-    <div className="relative flex-shrink-0">
+    <div className="relative flex-shrink-0 transition-all duration-300 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.5)]">
       {!showFallback ? (
         <img
           src={url}
           alt={name}
-          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-border/50`}
+          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-neon-teal/30 transition-all duration-300`}
           onError={() => setImgError(true)}
         />
       ) : (
-        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-border/50`}>
+        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-neon-teal/30 transition-all duration-300`}>
           {name.charAt(0).toUpperCase()}
         </div>
       )}
@@ -786,9 +786,9 @@ export default function ComparePage() {
                   Head-to-Head Comparison
                 </h2>
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+              <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
                 {/* Header Row */}
-                <div className="grid grid-cols-5 gap-4 p-4 border-b border-akari-border/70 bg-akari-cardSoft/50">
+                <div className="grid grid-cols-5 gap-4 p-5 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 border-b border-akari-neon-teal/20">
                   <div className="col-span-2 flex items-center gap-3">
                     <AvatarWithFallback 
                       url={competitorsData.projects[0].avatar_url} 
@@ -800,9 +800,9 @@ export default function ComparePage() {
                       <p className="text-xs text-akari-muted truncate">@{competitorsData.projects[0].x_handle}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-center justify-center px-4 py-2 rounded-lg bg-akari-primary/10 border border-akari-primary/30">
-                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Similarity</p>
-                    <p className="text-xl font-bold text-akari-primary">
+                  <div className="flex flex-col items-center justify-center px-4 py-3 rounded-xl bg-gradient-neon-teal border border-akari-neon-teal/50 shadow-neon-teal">
+                    <p className="text-[10px] uppercase tracking-wider text-black/70 mb-1 font-semibold">Similarity</p>
+                    <p className="text-2xl font-bold text-black">
                       {(() => {
                         // Calculate similarity based on shared inner circle
                         if (!competitorsData.projects || competitorsData.projects.length < 2) return '0%';
@@ -818,7 +818,7 @@ export default function ComparePage() {
                         return `${similarity}%`;
                       })()}
                     </p>
-                    <p className="text-[10px] text-akari-muted mt-0.5">
+                    <p className="text-[10px] text-black/60 mt-0.5 font-medium">
                       {competitorsData.sharedKOLsAll?.length || 0} common
                     </p>
                   </div>
@@ -836,70 +836,70 @@ export default function ComparePage() {
                 </div>
 
                 {/* Metric Rows */}
-                <div className="divide-y divide-akari-border/50">
+                <div className="divide-y divide-akari-neon-teal/10">
                   {/* AKARI Score Row */}
-                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                    <div className="col-span-2">
-                      <p className="font-mono font-semibold text-akari-primary text-sm">
+                  <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                    <div className="col-span-2 bg-gradient-to-r from-akari-neon-teal/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono font-bold text-gradient-akari text-base">
                         {competitorsData.projects[0].akariScore ?? '-'}
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">AKARI Score</p>
+                    <div className="text-center flex items-center justify-center">
+                      <p className="text-xs font-semibold text-gradient-teal uppercase tracking-wider">AKARI Score</p>
                     </div>
-                    <div className="col-span-2 text-right">
-                      <p className="font-mono font-semibold text-akari-primary text-sm">
+                    <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-teal/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono font-bold text-gradient-akari text-base">
                         {competitorsData.projects[1].akariScore ?? '-'}
                       </p>
                     </div>
                   </div>
 
                   {/* Inner Circle Row */}
-                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                    <div className="col-span-2">
-                      <p className="font-mono text-akari-text text-sm">
+                  <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                    <div className="col-span-2 bg-gradient-to-r from-akari-neon-blue/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono text-akari-text text-base font-medium">
                         {competitorsData.projects[0].innerCircleCount}
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Inner Circle</p>
+                    <div className="text-center flex items-center justify-center">
+                      <p className="text-xs font-semibold text-gradient-blue uppercase tracking-wider">Inner Circle</p>
                     </div>
-                    <div className="col-span-2 text-right">
-                      <p className="font-mono text-akari-text text-sm">
+                    <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-blue/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono text-akari-text text-base font-medium">
                         {competitorsData.projects[1].innerCircleCount}
                       </p>
                     </div>
                   </div>
 
                   {/* Circle Power Row */}
-                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                    <div className="col-span-2">
-                      <p className="font-mono text-akari-text text-sm">
+                  <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                    <div className="col-span-2 bg-gradient-to-r from-akari-neon-violet/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono text-akari-text text-base font-medium">
                         {competitorsData.projects[0].innerCirclePowerTotal.toFixed(2)}
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Circle Power</p>
+                    <div className="text-center flex items-center justify-center">
+                      <p className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">Circle Power</p>
                     </div>
-                    <div className="col-span-2 text-right">
-                      <p className="font-mono text-akari-text text-sm">
+                    <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-violet/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className="font-mono text-akari-text text-base font-medium">
                         {competitorsData.projects[1].innerCirclePowerTotal.toFixed(2)}
                       </p>
                     </div>
                   </div>
 
                   {/* Followers Row */}
-                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                    <div className="col-span-2">
-                      <p className="font-mono text-akari-text text-sm">
+                  <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                    <div className="col-span-2 bg-gradient-to-r from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className={`font-mono font-bold text-base ${competitorsData.projects[0].followers ? 'text-gradient-followers' : 'text-akari-text'}`}>
                         {formatNumber(competitorsData.projects[0].followers)}
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Followers</p>
+                    <div className="text-center flex items-center justify-center">
+                      <p className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">Followers</p>
                     </div>
-                    <div className="col-span-2 text-right">
-                      <p className="font-mono text-akari-text text-sm">
+                    <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                      <p className={`font-mono font-bold text-base ${competitorsData.projects[1].followers ? 'text-gradient-followers' : 'text-akari-text'}`}>
                         {formatNumber(competitorsData.projects[1].followers)}
                       </p>
                     </div>
@@ -963,22 +963,22 @@ export default function ComparePage() {
                   Advanced Analytics (7 Days)
                 </h2>
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+              <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
                 {/* Header Row */}
-                <div className="grid grid-cols-5 gap-4 p-4 border-b border-akari-border/70 bg-akari-cardSoft/50">
-                  <div className="col-span-2 flex items-center gap-2">
+                <div className="grid grid-cols-5 gap-4 p-5 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 border-b border-akari-neon-teal/20">
+                  <div className="col-span-2 flex items-center gap-3">
                     <AvatarWithFallback 
                       url={competitorsData.projects[0].avatar_url} 
                       name={competitorsData.projects[0].name} 
                       size="sm" 
                     />
-                    <p className="font-medium text-akari-text truncate">{competitorsData.projects[0].name}</p>
+                    <p className="font-semibold text-akari-text truncate">{competitorsData.projects[0].name}</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Metric</p>
+                  <div className="text-center flex items-center justify-center">
+                    <p className="text-xs font-semibold text-gradient-teal uppercase tracking-wider">Metric</p>
                   </div>
-                  <div className="col-span-2 flex items-center gap-2 justify-end">
-                    <p className="font-medium text-akari-text truncate">{competitorsData.projects[1].name}</p>
+                  <div className="col-span-2 flex items-center gap-3 justify-end">
+                    <p className="font-semibold text-akari-text truncate">{competitorsData.projects[1].name}</p>
                     <AvatarWithFallback 
                       url={competitorsData.projects[1].avatar_url} 
                       name={competitorsData.projects[1].name} 
@@ -989,71 +989,71 @@ export default function ComparePage() {
 
                 {/* Metric Rows with Dividers */}
                 {analyticsData[0]?.analytics && analyticsData[1]?.analytics ? (
-                  <div className="divide-y divide-akari-border/50">
+                  <div className="divide-y divide-akari-neon-teal/10">
                     {/* Total Engagements Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className="font-mono font-semibold text-akari-primary text-sm">
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-teal/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono font-bold text-gradient-akari text-base">
                           {formatNumber(analyticsData[0].analytics.summary.totalEngagements)}
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Total Engagements</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-teal uppercase tracking-wider">Total Engagements</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className="font-mono font-semibold text-akari-primary text-sm">
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-teal/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono font-bold text-gradient-akari text-base">
                           {formatNumber(analyticsData[1].analytics.summary.totalEngagements)}
                         </p>
                       </div>
                     </div>
 
                     {/* Avg Engagement Rate Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className="font-mono text-akari-text text-sm">
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-blue/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[0].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Avg Engagement Rate</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-blue uppercase tracking-wider">Avg Engagement Rate</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className="font-mono text-akari-text text-sm">
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-blue/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[1].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
                         </p>
                       </div>
                     </div>
 
                     {/* Tweets (7D) Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className="font-mono text-akari-text text-sm">
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-violet/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[0].analytics.summary.tweetsCount}
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Tweets (7D)</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">Tweets (7D)</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className="font-mono text-akari-text text-sm">
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-violet/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[1].analytics.summary.tweetsCount}
                         </p>
                       </div>
                     </div>
 
                     {/* Follower Change Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className={`font-mono text-sm ${analyticsData[0].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className={`font-mono text-base font-medium ${analyticsData[0].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
                           {analyticsData[0].analytics.summary.followerChange >= 0 ? '+' : ''}
                           {formatNumber(analyticsData[0].analytics.summary.followerChange)}
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Follower Change</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">Follower Change</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className={`font-mono text-sm ${analyticsData[1].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className={`font-mono text-base font-medium ${analyticsData[1].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
                           {analyticsData[1].analytics.summary.followerChange >= 0 ? '+' : ''}
                           {formatNumber(analyticsData[1].analytics.summary.followerChange)}
                         </p>
@@ -1061,34 +1061,34 @@ export default function ComparePage() {
                     </div>
 
                     {/* Tweet Velocity Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className="font-mono text-akari-text text-sm">
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-cyan/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[0].analytics.summary.tweetVelocity.toFixed(2)}/day
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Tweet Velocity</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-blue uppercase tracking-wider">Tweet Velocity</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className="font-mono text-akari-text text-sm">
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-cyan/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono text-akari-text text-base font-medium">
                           {analyticsData[1].analytics.summary.tweetVelocity.toFixed(2)}/day
                         </p>
                       </div>
                     </div>
 
                     {/* Avg Sentiment Row */}
-                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
-                      <div className="col-span-2">
-                        <p className="font-mono text-akari-text text-sm">
+                    <div className="grid grid-cols-5 gap-4 p-5 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <div className="col-span-2 bg-gradient-to-r from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono font-bold text-gradient-sentiment text-base">
                           {analyticsData[0].analytics.summary.avgSentiment}
                         </p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Avg Sentiment</p>
+                      <div className="text-center flex items-center justify-center">
+                        <p className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">Avg Sentiment</p>
                       </div>
-                      <div className="col-span-2 text-right">
-                        <p className="font-mono text-akari-text text-sm">
+                      <div className="col-span-2 text-right bg-gradient-to-l from-akari-neon-pink/10 to-transparent rounded-lg p-3 -mx-2">
+                        <p className="font-mono font-bold text-gradient-sentiment text-base">
                           {analyticsData[1].analytics.summary.avgSentiment}
                         </p>
                       </div>
@@ -1175,17 +1175,17 @@ export default function ComparePage() {
                 Competitor Overview
               </h2>
             </div>
-            <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
+            <div className="overflow-x-auto rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl shadow-[0_0_30px_rgba(0,246,162,0.1)]">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
-                    <th className="py-3 px-4">Project</th>
-                    <th className="py-3 px-4">Followers</th>
-                    <th className="py-3 px-4">AKARI Score</th>
-                    <th className="py-3 px-4">Sentiment (30d)</th>
-                    <th className="py-3 px-4">CT Heat (30d)</th>
-                    <th className="py-3 px-4">Inner Circle Power</th>
-                    <th className="py-3 px-4">Freshness</th>
+                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 text-left text-xs uppercase tracking-wider">
+                    <th className="py-4 px-5 font-semibold text-gradient-teal">Project</th>
+                    <th className="py-4 px-5 font-semibold text-gradient-followers">Followers</th>
+                    <th className="py-4 px-5 font-semibold text-gradient-akari">AKARI Score</th>
+                    <th className="py-4 px-5 font-semibold text-gradient-sentiment">Sentiment (30d)</th>
+                    <th className="py-4 px-5 font-semibold text-gradient-heat">CT Heat (30d)</th>
+                    <th className="py-4 px-5 font-semibold text-gradient-blue">Inner Circle Power</th>
+                    <th className="py-4 px-5 font-semibold text-akari-muted">Freshness</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1193,44 +1193,44 @@ export default function ComparePage() {
                     const tier = getAkariTier(project.akariScore);
                     const freshness = classifyFreshness(project.lastUpdatedAt);
                     return (
-                      <tr key={project.id} className="border-b border-akari-border/60 last:border-0 hover:bg-akari-cardSoft/50 transition-colors">
-                        <td className="py-3 px-4">
+                      <tr key={project.id} className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                        <td className="py-4 px-5">
                           <Link
                             href={`/portal/sentiment/${project.slug}`}
                             className="flex items-center gap-3 group"
                           >
                             <AvatarWithFallback url={project.avatar_url} name={project.name} size="sm" />
                             <div>
-                              <p className="font-medium text-akari-text group-hover:text-akari-primary transition">
+                              <p className="font-semibold text-akari-text group-hover:text-gradient-teal transition-all duration-300">
                                 {project.name}
                               </p>
                               <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                             </div>
                           </Link>
                         </td>
-                        <td className="py-3 px-4 font-mono text-akari-text">
+                        <td className="py-4 px-5 font-mono font-medium text-gradient-followers text-base">
                           {formatNumber(project.followers)}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-medium">{project.akariScore ?? '-'}</span>
+                            <span className="font-mono font-bold text-gradient-akari text-base">{project.akariScore ?? '-'}</span>
                             {project.akariScore !== null && (
-                              <span className={`rounded-full bg-akari-cardSoft px-2 py-0.5 text-[10px] uppercase tracking-wider ${tier.color}`}>
+                              <span className={`rounded-full bg-akari-cardSoft px-2.5 py-1 text-[10px] uppercase tracking-wider font-medium border border-akari-neon-teal/30 ${tier.color}`}>
                                 {tier.name}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-mono text-akari-text">
+                        <td className="py-4 px-5 font-mono font-bold text-gradient-sentiment text-base">
                           {project.sentiment30d ?? '-'}
                         </td>
-                        <td className="py-3 px-4 font-mono text-akari-text">
+                        <td className="py-4 px-5 font-mono font-bold text-gradient-heat text-base">
                           {project.ctHeat30d ?? '-'}
                         </td>
-                        <td className="py-3 px-4 font-mono text-akari-text">
+                        <td className="py-4 px-5 font-mono font-medium text-gradient-blue text-base">
                           {project.innerCirclePowerTotal.toFixed(2)}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-5">
                           <div
                             className={`inline-flex items-center ${getFreshnessPillClasses(freshness)}`}
                             title={`Last sentiment update: ${formatTimestampForTooltip(project.lastUpdatedAt)}`}

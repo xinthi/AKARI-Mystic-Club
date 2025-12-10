@@ -209,16 +209,16 @@ function AvatarWithFallback({ url, name, size = 'md' }: { url: string | null; na
   const showFallback = !url || imgError;
 
   return (
-    <div className="relative flex-shrink-0">
+    <div className="relative flex-shrink-0 transition-all duration-300 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.5)]">
       {!showFallback ? (
         <img
           src={url}
           alt={name}
-          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-border/50`}
+          className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-neon-teal/30 transition-all duration-300`}
           onError={() => setImgError(true)}
         />
       ) : (
-        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-border/50`}>
+        <div className={`flex ${sizeClasses[size]} items-center justify-center rounded-full bg-gradient-to-br ${colorClass} font-semibold border border-akari-neon-teal/30 transition-all duration-300`}>
           {name.charAt(0).toUpperCase()}
         </div>
       )}
@@ -272,7 +272,7 @@ function WidgetCard({
   title, 
   icon, 
   children,
-  gradient = 'from-akari-primary/10 to-transparent'
+  gradient = 'from-akari-neon-teal/10 to-transparent'
 }: { 
   title: string; 
   icon: string;
@@ -280,8 +280,8 @@ function WidgetCard({
   gradient?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-akari-border/70 bg-gradient-to-br ${gradient} p-4`}>
-      <h3 className="text-xs uppercase tracking-wider text-akari-muted mb-3 flex items-center gap-2">
+    <div className={`card-neon bg-gradient-to-br ${gradient} p-4 sm:p-5`}>
+      <h3 className="text-xs uppercase tracking-wider text-akari-muted mb-4 flex items-center gap-2 font-semibold">
         <span>{icon}</span>
         {title}
       </h3>
@@ -323,12 +323,12 @@ function TopMoversWidget({ movers }: { movers: TopMover[] }) {
               <Link
                 key={mover.slug}
                 href={`/portal/sentiment/${mover.slug}`}
-                className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+                className="flex items-center gap-3 p-3 rounded-2xl hover:bg-akari-neon-teal/5 hover:shadow-soft-glow transition-smooth group"
               >
                 <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
                 <AvatarWithFallback url={mover.twitter_profile_image_url || mover.avatar_url} name={mover.name} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-gradient-teal transition-smooth">
                     {mover.name}
                   </p>
                   <p className="text-xs text-akari-muted">@{mover.x_handle}</p>
@@ -401,12 +401,12 @@ function TopEngagementWidget({ projects }: { projects: TopEngagement[] }) {
               <Link
                 key={project.slug}
                 href={`/portal/sentiment/${project.slug}`}
-                className="flex items-center gap-3 p-2 rounded-xl hover:bg-akari-cardSoft/50 transition group"
+                className="flex items-center gap-3 p-3 rounded-2xl hover:bg-akari-neon-teal/5 hover:shadow-soft-glow transition-smooth group"
               >
                 <span className="text-akari-muted text-xs w-4">{idx + 1}</span>
                 <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-akari-primary transition">
+                  <p className="text-sm font-medium text-akari-text truncate group-hover:text-gradient-teal transition-smooth">
                     {project.name}
                   </p>
                   <p className="text-xs text-akari-muted">@{project.x_handle}</p>
@@ -904,13 +904,13 @@ export default function SentimentOverview() {
           Social Sentiment Terminal
         </p>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
-          <h1 className="text-2xl font-semibold md:text-3xl">
-            Track <span className="text-akari-primary">Sentiment</span> Across Crypto Twitter
+          <h1 className="text-3xl font-bold md:text-4xl">
+            Track <span className="text-gradient-neon">Sentiment</span> Across Crypto Twitter
           </h1>
           {canCompare ? (
             <Link
               href="/portal/sentiment/compare"
-              className="inline-flex items-center gap-2 rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-2 text-sm text-akari-text hover:border-akari-primary/50 hover:text-akari-primary transition"
+              className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -936,26 +936,26 @@ export default function SentimentOverview() {
 
         {/* Seer Upgrade CTA Banner */}
         {userTier === 'seer' && (
-          <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 mt-4">
+          <div className="card-neon border-akari-neon-blue/40 bg-akari-neon-blue/5 p-5 mt-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-blue-400 mb-1">
+                <h3 className="text-base font-bold text-gradient-blue mb-2">
                   You are using Seer mode
                 </h3>
-                <p className="text-xs text-blue-300/80">
+                <p className="text-xs text-akari-muted/90">
                   Upgrade to Analyst to unlock full competitor analysis, deep Twitter analytics, and CSV exports.
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Link
                   href="/portal/pricing"
-                  className="px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition text-xs font-medium whitespace-nowrap"
+                  className="pill-neon px-4 py-2 bg-akari-neon-blue/10 text-akari-neon-blue hover:bg-akari-neon-blue/20 border border-akari-neon-blue/50 text-xs font-medium whitespace-nowrap"
                 >
                   View Pricing
                 </Link>
                   <button
                     onClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
-                    className="px-4 py-2 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
+                    className="pill-neon px-4 py-2 bg-gradient-neon-blue text-white hover:shadow-neon-blue text-xs font-medium whitespace-nowrap font-semibold"
                   >
                     Request Upgrade
                   </button>
@@ -1115,7 +1115,7 @@ export default function SentimentOverview() {
           {/* Coverage & Data Health Panel */}
           {isLoggedIn && (
             <section className="mb-4 sm:mb-6">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                  <div className="card-neon p-3 sm:p-4">
                 {coverageLoading ? (
                   <div className="text-center py-4">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-2" />
@@ -1152,7 +1152,7 @@ export default function SentimentOverview() {
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-4">
                       {/* Total Projects */}
-                      <div className="bg-slate-800/50 rounded-lg p-2.5 sm:p-3 border border-slate-700/50">
+                      <div className="rounded-2xl p-2.5 sm:p-3 border border-akari-neon-teal/20 bg-akari-neon-teal/5">
                         <p className="text-[10px] sm:text-xs text-slate-400 mb-0.5 sm:mb-1">Total Projects</p>
                         <p className="text-lg sm:text-xl font-semibold text-white">{coverage.totalProjects}</p>
                       </div>
@@ -1179,7 +1179,7 @@ export default function SentimentOverview() {
                       </div>
 
                       {/* No Data */}
-                      <div className="bg-slate-500/10 rounded-lg p-2.5 sm:p-3 border border-slate-500/20">
+                      <div className="rounded-2xl p-2.5 sm:p-3 border border-akari-border/30 bg-akari-cardSoft/30">
                         <p className="text-[10px] sm:text-xs text-slate-400 mb-0.5 sm:mb-1">No Data</p>
                         <p className="text-lg sm:text-xl font-semibold text-slate-400">{coverage.totalNoData}</p>
                         <p className="text-[9px] sm:text-[10px] text-slate-400/70 mt-0.5 hidden sm:block">No metrics yet</p>
@@ -1188,7 +1188,7 @@ export default function SentimentOverview() {
                       {/* With Inner Circle */}
                       <div className="bg-akari-primary/10 rounded-lg p-2.5 sm:p-3 border border-akari-primary/20">
                         <p className="text-[10px] sm:text-xs text-akari-primary mb-0.5 sm:mb-1">Inner Circle</p>
-                        <p className="text-lg sm:text-xl font-semibold text-akari-primary">{coverage.withInnerCircleCount}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gradient-teal metric-glow">{coverage.withInnerCircleCount}</p>
                         <p className="text-[9px] sm:text-[10px] text-akari-primary/70 mt-0.5 hidden sm:block">Projects with data</p>
                       </div>
                     </div>
@@ -1287,36 +1287,36 @@ export default function SentimentOverview() {
                   )}
 
                   {!topicsLoading && !topicsError && topics.length > 0 && (
-                    <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
+                    <div className="overflow-x-auto rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl shadow-[0_0_30px_rgba(0,246,162,0.1)]">
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
-                            <th className="py-3 px-4">Topic</th>
-                            <th className="py-3 px-4">Projects</th>
-                            <th className="py-3 px-4">Weighted Heat</th>
-                            <th className="py-3 px-4">Tweets (30d)</th>
-                            <th className="py-3 px-4">Avg Score</th>
+                          <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 text-left text-xs uppercase tracking-wider">
+                            <th className="py-4 px-5 font-semibold text-gradient-teal">Topic</th>
+                            <th className="py-4 px-5 font-semibold text-gradient-blue">Projects</th>
+                            <th className="py-4 px-5 font-semibold text-gradient-heat">Weighted Heat</th>
+                            <th className="py-4 px-5 font-semibold text-gradient-followers">Tweets (30d)</th>
+                            <th className="py-4 px-5 font-semibold text-gradient-sentiment">Avg Score</th>
                           </tr>
                         </thead>
                         <tbody>
                           {topics.map((t) => (
                             <tr
                               key={t.topic}
-                              className="border-b border-akari-border/60 last:border-0 hover:bg-akari-cardSoft/50 transition-colors"
+                              className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                             >
-                              <td className="py-3 px-4 font-medium text-akari-text capitalize">
+                              <td className="py-4 px-5 font-semibold text-akari-text capitalize">
                                 {t.topic}
                               </td>
-                              <td className="py-3 px-4 text-akari-muted">
+                              <td className="py-4 px-5 text-gradient-blue font-medium">
                                 {t.projectsCount}
                               </td>
-                              <td className="py-3 px-4 font-mono text-akari-text">
+                              <td className="py-4 px-5 font-mono font-bold text-gradient-heat text-base">
                                 {t.totalWeightedScore.toFixed(2)}
                               </td>
-                              <td className="py-3 px-4 text-akari-muted">
+                              <td className="py-4 px-5 text-gradient-followers font-medium">
                                 {t.totalTweetCount.toLocaleString()}
                               </td>
-                              <td className="py-3 px-4 font-mono text-akari-muted">
+                              <td className="py-4 px-5 font-mono font-bold text-gradient-sentiment text-base">
                                 {t.avgScore.toFixed(2)}
                               </td>
                             </tr>
@@ -1356,20 +1356,20 @@ export default function SentimentOverview() {
                   <>
                     <button
                       onClick={() => setActiveTab('all')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                      className={`pill-neon px-3 py-1.5 text-xs font-medium ${
                         activeTab === 'all'
-                          ? 'bg-akari-primary text-akari-bg'
-                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                          ? 'bg-gradient-neon-teal text-black shadow-neon-teal'
+                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-neon-teal hover:bg-akari-neon-teal/5'
                       }`}
                     >
                       All Projects
                     </button>
                     <button
                       onClick={() => setActiveTab('watchlist')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                      className={`pill-neon px-3 py-1.5 text-xs font-medium ${
                         activeTab === 'watchlist'
-                          ? 'bg-akari-primary text-akari-bg'
-                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                          ? 'bg-gradient-neon-teal text-black shadow-neon-teal'
+                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-neon-teal hover:bg-akari-neon-teal/5'
                       }`}
                     >
                       My Watchlist
@@ -1434,70 +1434,70 @@ export default function SentimentOverview() {
 
             {/* Desktop table view */}
             {((activeTab === 'all') || (activeTab === 'watchlist' && isLoggedIn && !watchlistLoading && watchlistProjects.length > 0)) && (
-            <div className="hidden md:block overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
+            <div className="hidden md:block overflow-x-auto rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl shadow-[0_0_30px_rgba(0,246,162,0.1)]">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
+                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 text-left text-xs uppercase tracking-wider">
                     {isLoggedIn && (
-                      <th className="py-3 px-4 w-12">
+                      <th className="py-4 px-5 w-12">
                         <span className="sr-only">Star</span>
                       </th>
                     )}
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-gradient-teal transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('name')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-gradient-teal">
                         Project
                         <SortIcon active={sortColumn === 'name'} direction={sortDirection} />
                       </span>
                     </th>
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-gradient-akari transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('akari_score')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-gradient-akari">
                         AKARI Score
                         <SortIcon active={sortColumn === 'akari_score'} direction={sortDirection} />
                       </span>
                     </th>
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-gradient-sentiment transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('sentiment_score')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-gradient-sentiment">
                         Sentiment
                         <SortIcon active={sortColumn === 'sentiment_score'} direction={sortDirection} />
                       </span>
                     </th>
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-gradient-heat transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('ct_heat_score')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-gradient-heat">
                         CT Heat
                         <SortIcon active={sortColumn === 'ct_heat_score'} direction={sortDirection} />
                       </span>
                     </th>
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-gradient-followers transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('followers')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-gradient-followers">
                         Followers
                         <SortIcon active={sortColumn === 'followers'} direction={sortDirection} />
                       </span>
                     </th>
                     <th 
-                      className="py-3 px-4 cursor-pointer hover:text-akari-text transition select-none"
+                      className="py-4 px-5 cursor-pointer hover:text-akari-text transition-all duration-300 select-none font-semibold"
                       onClick={() => handleSort('date')}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5 text-akari-muted">
                         Updated
                         <SortIcon active={sortColumn === 'date'} direction={sortDirection} />
                       </span>
                     </th>
-                    <th className="py-3 px-4 text-left text-xs uppercase tracking-wider text-akari-muted">
+                    <th className="py-4 px-5 text-left text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Status
                     </th>
                   </tr>
@@ -1509,14 +1509,14 @@ export default function SentimentOverview() {
                     return (
                       <tr
                         key={project.id}
-                        className="border-b border-akari-border/30 transition hover:bg-akari-cardSoft/50"
+                        className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                       >
                         {isLoggedIn && (
-                          <td className="py-4 px-4">
+                          <td className="py-4 px-5">
                             <button
                               onClick={() => handleToggleStar(project.id, isInWatchlist)}
                               disabled={togglingStar === project.id}
-                              className="text-akari-muted hover:text-akari-primary transition disabled:opacity-50"
+                              className="text-akari-muted hover:text-akari-neon-teal transition-all duration-300 disabled:opacity-50"
                               title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
                             >
                               {isInWatchlist ? (
@@ -1531,62 +1531,66 @@ export default function SentimentOverview() {
                             </button>
                           </td>
                         )}
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           <Link
                             href={`/portal/sentiment/${project.slug}`}
                             className="flex items-center gap-3 group"
                           >
                             <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} />
                             <div>
-                              <p className="font-medium text-akari-text group-hover:text-akari-primary transition">
+                              <p className="font-semibold text-akari-text group-hover:text-gradient-teal transition-all duration-300">
                                 {project.name}
                               </p>
                               <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                             </div>
                           </Link>
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-medium">{project.akari_score ?? '-'}</span>
-                            <span className={`rounded-full bg-akari-cardSoft px-2 py-0.5 text-[10px] uppercase tracking-wider ${tier.color}`}>
+                            <span className={`font-mono font-bold text-lg ${project.akari_score !== null ? 'text-gradient-akari' : 'text-akari-muted'}`}>
+                              {project.akari_score ?? '-'}
+                            </span>
+                            <span className={`rounded-full bg-akari-cardSoft px-2.5 py-1 text-[10px] uppercase tracking-wider font-medium border border-akari-neon-teal/30 ${tier.color}`}>
                               {tier.name}
                             </span>
                           </div>
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           <div className="flex flex-col gap-0.5">
-                            <span className={`font-mono font-medium ${getSentimentColor(project.sentiment_score)}`}>
+                            <span className={`font-mono font-bold text-lg ${project.sentiment_score !== null ? 'text-gradient-sentiment' : 'text-akari-muted'}`}>
                               {project.sentiment_score ?? '-'}
                             </span>
                             <ChangeIndicator change={project.sentimentChange24h} direction={project.sentimentDirection24h} />
                           </div>
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <div className="h-1.5 w-16 rounded-full bg-akari-cardSoft overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-akari-primary to-akari-accent"
+                                  className="h-full bg-gradient-to-r from-akari-neon-blue to-akari-neon-violet"
                                   style={{ width: `${project.ct_heat_score ?? 0}%` }}
                                 />
                               </div>
-                              <span className="font-mono text-xs text-akari-muted">{project.ct_heat_score ?? '-'}</span>
+                              <span className={`font-mono text-sm font-medium ${project.ct_heat_score !== null ? 'text-gradient-heat' : 'text-akari-muted'}`}>
+                                {project.ct_heat_score ?? '-'}
+                              </span>
                             </div>
                             <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} />
                           </div>
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           <div className="flex flex-col gap-0.5">
-                            <span className="font-mono font-medium text-akari-text">
+                            <span className={`font-mono font-medium text-base ${project.followers !== null ? 'text-gradient-followers' : 'text-akari-text'}`}>
                               {formatNumber(project.followers)}
                             </span>
                             <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} formatLargeNumbers />
                           </div>
                         </td>
-                        <td className="py-4 px-4 text-xs text-akari-muted">
+                        <td className="py-4 px-5 text-xs text-akari-muted">
                           {project.date ? new Date(project.date).toLocaleDateString() : '-'}
                         </td>
-                        <td className="py-4 px-4">
+                        <td className="py-4 px-5">
                           {(() => {
                             const freshness = classifyFreshness(project.last_updated_at);
                             return (
@@ -1616,7 +1620,7 @@ export default function SentimentOverview() {
                 return (
                   <div
                     key={project.id}
-                    className="rounded-2xl border border-akari-border/70 bg-akari-card p-4"
+                    className="card-neon p-4 sm:p-5"
                   >
                     <div className="flex items-center gap-3 mb-3">
                       {isLoggedIn && (
@@ -1651,20 +1655,24 @@ export default function SentimentOverview() {
                       </Link>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-xl bg-akari-cardSoft p-2">
+                      <div className="metric-card-neon p-3">
                         <p className="text-[10px] uppercase text-akari-muted mb-1">AKARI</p>
-                        <p className="font-mono font-medium">{project.akari_score ?? '-'}</p>
+                        <p className={`font-mono font-bold text-xl sm:text-2xl ${project.akari_score !== null ? 'text-gradient-akari' : 'text-akari-muted'}`}>
+                          {project.akari_score ?? '-'}
+                        </p>
                       </div>
-                      <div className="rounded-xl bg-akari-cardSoft p-2">
+                      <div className="metric-card-neon p-3">
                         <p className="text-[10px] uppercase text-akari-muted mb-0.5">Sentiment</p>
-                        <p className={`font-mono font-medium ${getSentimentColor(project.sentiment_score)}`}>
+                        <p className={`font-mono font-bold text-xl sm:text-2xl ${project.sentiment_score !== null ? 'text-gradient-sentiment' : 'text-akari-muted'}`}>
                           {project.sentiment_score ?? '-'}
                         </p>
                         <ChangeIndicator change={project.sentimentChange24h} direction={project.sentimentDirection24h} compact />
                       </div>
-                      <div className="rounded-xl bg-akari-cardSoft p-2">
+                      <div className="metric-card-neon p-3">
                         <p className="text-[10px] uppercase text-akari-muted mb-0.5">CT Heat</p>
-                        <p className="font-mono font-medium">{project.ct_heat_score ?? '-'}</p>
+                        <p className={`font-mono font-bold text-xl sm:text-2xl ${project.ct_heat_score !== null ? 'text-gradient-heat' : 'text-akari-muted'}`}>
+                          {project.ct_heat_score ?? '-'}
+                        </p>
                         <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
                     </div>

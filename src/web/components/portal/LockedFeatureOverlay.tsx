@@ -75,11 +75,11 @@ export function LockedFeatureOverlay({
       </div>
 
       {/* Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center bg-akari-bg/80 backdrop-blur-[2px] rounded-2xl">
+      <div className="absolute inset-0 flex items-center justify-center bg-black/90 backdrop-blur-[2px] rounded-2xl border border-akari-neon-teal/20">
         <div className="text-center p-6 max-w-sm">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-akari-primary/10 flex items-center justify-center">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-akari-neon-teal/10 border border-akari-neon-teal/30 flex items-center justify-center shadow-soft-glow">
             <svg
-              className="w-6 h-6 text-akari-primary"
+              className="w-7 h-7 text-akari-neon-teal"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -92,14 +92,14 @@ export function LockedFeatureOverlay({
               />
             </svg>
           </div>
-          <h3 className="text-sm font-semibold text-akari-text mb-2">{displayTitle}</h3>
-          <p className="text-xs text-akari-muted mb-4">{displayDescription}</p>
+          <h3 className="text-base font-bold text-gradient-teal mb-2">{displayTitle}</h3>
+          <p className="text-xs text-akari-muted mb-5">{displayDescription}</p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             {showPricingButton && (
               <Link
                 href="/portal/pricing"
-                className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
+                className="pill-neon px-4 py-2 bg-akari-neon-teal/10 text-akari-neon-teal hover:bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-xs font-medium"
               >
                 View Pricing
               </Link>
@@ -107,7 +107,7 @@ export function LockedFeatureOverlay({
             {showUpgradeButton && (
               <button
                 onClick={handleUpgradeClick}
-                className="px-4 py-2 rounded-lg bg-akari-primary text-black hover:opacity-90 transition text-xs font-medium"
+                className="pill-neon px-4 py-2 bg-gradient-neon-teal text-black hover:shadow-neon-teal text-xs font-medium font-semibold"
               >
                 Request Upgrade
               </button>

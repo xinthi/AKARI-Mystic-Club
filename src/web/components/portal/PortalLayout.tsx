@@ -39,13 +39,18 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       </Head>
       <div className="min-h-screen bg-akari-bg text-akari-text">
       {/* Top nav */}
-      <header className="border-b border-akari-border/70 bg-black/50 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-3">
+      <header className="border-b border-akari-neon-teal/30 bg-black/80 backdrop-blur-xl relative">
+        {/* Soft neon bottom glow under header */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-akari-neon-teal/80 to-transparent blur-sm"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-akari-neon-teal/60 to-transparent"></div>
+        <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-4">
           {/* Logo + brand */}
-          <Link href="/portal" className="flex items-center gap-2">
-            <Logo size={28} />
+          <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105">
+            <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
+              <Logo size={28} />
+            </div>
             <div className="flex flex-col">
-              <span className="text-[11px] tracking-[0.18em] uppercase text-akari-muted">
+              <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
                 Akari Mystic Club
               </span>
               <span className="text-xs text-akari-muted/70 hidden sm:block">
@@ -55,7 +60,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
           </Link>
 
           {/* Nav links */}
-          <nav className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-akari-muted w-full sm:w-auto">
+          <nav className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
             {navItems.map((item) => {
               const active =
                 router.pathname === item.href ||
@@ -64,10 +69,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`transition hover:text-akari-primary whitespace-nowrap ${
+                  className={`pill-neon whitespace-nowrap font-medium border transition-all duration-300 ease-out ${
                     active
-                      ? 'text-akari-primary'
-                      : 'text-akari-muted'
+                      ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                      : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
                   }`}
                 >
                   {item.label}
@@ -87,7 +92,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                     router.push('/portal/pricing');
                   }
                 }}
-                className={`transition hover:opacity-80 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border whitespace-nowrap ${tierInfo.bgColor} ${tierInfo.color}`}
+                className={`pill-neon flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-medium border border-akari-neon-teal/40 whitespace-nowrap transition-all duration-300 ease-out ${tierInfo.bgColor} ${tierInfo.color} hover:border-akari-neon-teal/60 hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]`}
                 title={`Your current tier: ${tierInfo.name}`}
               >
                 <span className="hidden sm:inline">Level:</span>
@@ -102,7 +107,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
             <a
               href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
-              className="ml-auto sm:ml-0 rounded-full bg-akari-primary px-3 py-1.5 text-[11px] font-medium text-black shadow-akari-glow hover:opacity-90 transition whitespace-nowrap"
+              className="ml-auto sm:ml-0 pill-neon bg-gradient-neon-teal px-4 py-2 text-[11px] font-medium text-black shadow-neon-teal hover:shadow-akari-glow whitespace-nowrap transition-all duration-300 ease-out"
             >
               Open MiniApp
             </a>

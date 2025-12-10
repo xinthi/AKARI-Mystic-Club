@@ -74,38 +74,38 @@ export default function PricingPage() {
     <PortalLayout title="Pricing">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-semibold text-white mb-3">Choose Your Tier</h1>
-          <p className="text-slate-400 max-w-2xl mx-auto">
+        <div className="text-center mb-16">
+          <h1 className="text-4xl font-bold mb-4 text-gradient-neon">Choose Your Tier</h1>
+          <p className="text-akari-muted max-w-2xl mx-auto text-base leading-relaxed">
             Select the level of access that fits your needs. All tiers include core sentiment
             tracking and project insights.
           </p>
 
           {/* Current Tier Badge */}
           {akariUser.isLoggedIn && (
-            <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/50 border border-slate-700">
-              <span className="text-xs text-slate-400">Your current level:</span>
+            <div className="mt-8 inline-flex items-center gap-3 pill-neon px-5 py-2.5 bg-akari-cardSoft/50 border border-akari-neon-teal/30">
+              <span className="text-xs text-akari-muted uppercase tracking-wider">Your current level:</span>
               <span className={`text-sm font-semibold ${tierInfo.color}`}>{tierInfo.name}</span>
             </div>
           )}
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           {/* Seer Tier */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-            <div className="mb-6">
-              <div className="text-blue-400 text-sm font-medium mb-2">FREE TIER</div>
-              <h2 className="text-2xl font-semibold text-white mb-2">Seer</h2>
-              <div className="text-3xl font-bold text-white mb-1">Free</div>
-              <p className="text-xs text-slate-400">Perfect for casual tracking</p>
+          <div className="neon-card neon-hover p-8">
+            <div className="mb-8">
+              <div className="text-akari-neon-blue text-xs font-semibold uppercase tracking-wider mb-3">FREE TIER</div>
+              <h2 className="text-3xl font-bold text-gradient-blue mb-3">Seer</h2>
+              <div className="text-4xl font-bold text-gradient-neon mb-2">Free</div>
+              <p className="text-sm text-akari-muted">Perfect for casual tracking</p>
             </div>
 
-            <ul className="space-y-3 mb-6">
+            <ul className="space-y-4 mb-8">
               {TIER_FEATURES.seer.included.map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                <li key={idx} className="flex items-start gap-3 text-sm text-akari-text">
                   <svg
-                    className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5"
+                    className="w-5 h-5 text-akari-neon-blue flex-shrink-0 mt-0.5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -120,32 +120,32 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <div className="pt-6 border-t border-slate-800">
-              <div className="text-xs text-slate-500 text-center">
+            <div className="pt-6 border-t border-akari-neon-teal/20">
+              <div className="text-xs text-akari-muted text-center">
                 Default access level
               </div>
             </div>
           </div>
 
           {/* Analyst Tier */}
-          <div className="bg-slate-900/60 border-2 border-purple-500/50 rounded-2xl p-6 relative">
+          <div className="neon-card neon-hover p-8 border-2 border-akari-neon-violet/50 relative">
             {tierInfo.key === 'analyst' && (
-              <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium border border-purple-500/30">
+              <div className="absolute top-6 right-6 pill-neon px-3 py-1.5 bg-akari-neon-violet/20 text-akari-neon-violet text-xs font-semibold border border-akari-neon-violet/30">
                 Your Tier
               </div>
             )}
-            <div className="mb-6">
-              <div className="text-purple-400 text-sm font-medium mb-2">PAID TIER</div>
-              <h2 className="text-2xl font-semibold text-white mb-2">Analyst</h2>
-              <div className="text-3xl font-bold text-white mb-1">—</div>
-              <p className="text-xs text-slate-400">Contact for pricing</p>
+            <div className="mb-8">
+              <div className="text-akari-neon-violet text-xs font-semibold uppercase tracking-wider mb-3">PAID TIER</div>
+              <h2 className="text-3xl font-bold text-gradient-pink mb-3">Analyst</h2>
+              <div className="text-4xl font-bold text-gradient-neon mb-2">—</div>
+              <p className="text-sm text-akari-muted">Contact for pricing</p>
             </div>
 
-            <ul className="space-y-3 mb-6">
+            <ul className="space-y-4 mb-8">
               {TIER_FEATURES.analyst.included.map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                <li key={idx} className="flex items-start gap-3 text-sm text-akari-text">
                   <svg
-                    className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5"
+                    className="w-5 h-5 text-akari-neon-violet flex-shrink-0 mt-0.5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -160,15 +160,15 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <div className="pt-6 border-t border-slate-800">
+            <div className="pt-6 border-t border-akari-neon-violet/20">
               {tierInfo.key === 'analyst' ? (
-                <div className="text-xs text-purple-400 text-center font-medium">
+                <div className="text-xs text-akari-neon-violet text-center font-semibold">
                   ✓ You have this tier
                 </div>
               ) : (
                 <button
                   onClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
-                  className="w-full px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition text-sm font-medium"
+                  className="w-full pill-neon px-4 py-2.5 bg-akari-neon-violet/20 text-akari-neon-violet hover:bg-akari-neon-violet/30 border border-akari-neon-violet/50 transition-all duration-300 text-sm font-semibold hover:shadow-[0_0_12px_rgba(168,85,247,0.3)]"
                 >
                   Request Upgrade
                 </button>
@@ -177,24 +177,24 @@ export default function PricingPage() {
           </div>
 
           {/* Institutional Plus Tier */}
-          <div className="bg-slate-900/60 border border-amber-500/30 rounded-2xl p-6 relative">
+          <div className="neon-card neon-hover p-8 border-2 border-akari-neon-pink/50 relative">
             {tierInfo.key === 'institutional_plus' && (
-              <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-medium border border-amber-500/30">
+              <div className="absolute top-6 right-6 pill-neon px-3 py-1.5 bg-akari-neon-pink/20 text-akari-neon-pink text-xs font-semibold border border-akari-neon-pink/30">
                 Your Tier
               </div>
             )}
-            <div className="mb-6">
-              <div className="text-amber-400 text-sm font-medium mb-2">ENTERPRISE</div>
-              <h2 className="text-2xl font-semibold text-white mb-2">Institutional Plus</h2>
-              <div className="text-3xl font-bold text-white mb-1">—</div>
-              <p className="text-xs text-slate-400">Custom pricing</p>
+            <div className="mb-8">
+              <div className="text-akari-neon-pink text-xs font-semibold uppercase tracking-wider mb-3">ENTERPRISE</div>
+              <h2 className="text-3xl font-bold text-gradient-pink mb-3">Institutional Plus</h2>
+              <div className="text-4xl font-bold text-gradient-neon mb-2">—</div>
+              <p className="text-sm text-akari-muted">Custom pricing</p>
             </div>
 
-            <ul className="space-y-3 mb-6">
+            <ul className="space-y-4 mb-8">
               {TIER_FEATURES.institutional_plus.included.map((feature, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                <li key={idx} className="flex items-start gap-3 text-sm text-akari-text">
                   <svg
-                    className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5"
+                    className="w-5 h-5 text-akari-neon-pink flex-shrink-0 mt-0.5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -209,15 +209,15 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <div className="pt-6 border-t border-slate-800">
+            <div className="pt-6 border-t border-akari-neon-pink/20">
               {tierInfo.key === 'institutional_plus' ? (
-                <div className="text-xs text-amber-400 text-center font-medium">
+                <div className="text-xs text-akari-neon-pink text-center font-semibold">
                   ✓ You have this tier
                 </div>
               ) : (
                 <button
                   onClick={() => setUpgradeModalState({ open: true, targetTier: 'institutional_plus' })}
-                  className="w-full px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 transition text-sm font-medium"
+                  className="w-full pill-neon px-4 py-2.5 bg-akari-neon-pink/20 text-akari-neon-pink hover:bg-akari-neon-pink/30 border border-akari-neon-pink/50 transition-all duration-300 text-sm font-semibold hover:shadow-[0_0_12px_rgba(255,16,240,0.3)]"
                 >
                   Contact Team
                 </button>
@@ -227,34 +227,34 @@ export default function PricingPage() {
         </div>
 
         {/* How It Works */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 mb-12">
-          <h2 className="text-xl font-semibold text-white mb-4">How Upgrades Work</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="neon-card neon-hover p-8 mb-16">
+          <h2 className="text-2xl font-bold text-gradient-neon mb-8">How Upgrades Work</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <div className="w-10 h-10 rounded-full bg-akari-primary/20 flex items-center justify-center mb-3">
-                <span className="text-akari-primary font-semibold">1</span>
+              <div className="w-12 h-12 rounded-full bg-gradient-neon-teal flex items-center justify-center mb-4 shadow-neon-teal">
+                <span className="text-black font-bold text-lg">1</span>
               </div>
-              <h3 className="text-sm font-semibold text-white mb-2">Contact Us</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-base font-semibold text-akari-text mb-2">Contact Us</h3>
+              <p className="text-sm text-akari-muted leading-relaxed">
                 Reach out with your X handle and desired tier. We&apos;ll respond with payment
                 instructions.
               </p>
             </div>
             <div>
-              <div className="w-10 h-10 rounded-full bg-akari-primary/20 flex items-center justify-center mb-3">
-                <span className="text-akari-primary font-semibold">2</span>
+              <div className="w-12 h-12 rounded-full bg-gradient-neon-blue flex items-center justify-center mb-4 shadow-neon-blue">
+                <span className="text-black font-bold text-lg">2</span>
               </div>
-                <h3 className="text-sm font-semibold text-white mb-2">Make Payment</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-base font-semibold text-akari-text mb-2">Make Payment</h3>
+              <p className="text-sm text-akari-muted leading-relaxed">
                 Send crypto payment to the address provided. We&apos;ll work with you to create a plan that fits your needs.
               </p>
             </div>
             <div>
-              <div className="w-10 h-10 rounded-full bg-akari-primary/20 flex items-center justify-center mb-3">
-                <span className="text-akari-primary font-semibold">3</span>
+              <div className="w-12 h-12 rounded-full bg-gradient-neon-pink flex items-center justify-center mb-4 shadow-neon-pink">
+                <span className="text-black font-bold text-lg">3</span>
               </div>
-              <h3 className="text-sm font-semibold text-white mb-2">Get Upgraded</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-base font-semibold text-akari-text mb-2">Get Upgraded</h3>
+              <p className="text-sm text-akari-muted leading-relaxed">
                 After on-chain confirmation, we&apos;ll manually upgrade your account within 24 hours.
               </p>
             </div>
@@ -263,13 +263,13 @@ export default function PricingPage() {
 
         {/* CTA */}
         <div className="text-center">
-          <p className="text-slate-400 mb-4">Ready to upgrade?</p>
+          <p className="text-akari-muted mb-6 text-base">Ready to upgrade?</p>
           <button
             onClick={() => setUpgradeModalState({ 
               open: true, 
               targetTier: currentTier === 'seer' ? 'analyst' : 'institutional_plus' 
             })}
-            className="px-6 py-3 rounded-lg bg-akari-primary text-black hover:opacity-90 transition font-medium"
+            className="pill-neon px-8 py-3.5 bg-gradient-neon-teal text-black hover:shadow-akari-glow transition-all duration-300 font-semibold text-base"
           >
             Request Upgrade
           </button>

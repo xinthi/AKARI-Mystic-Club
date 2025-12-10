@@ -16,35 +16,35 @@ export default function NewLaunchesPage({ launches, error }: Props) {
     <PortalLayout title="New Launches">
       {/* Error Banner */}
       {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 mb-6">
-          <p className="text-sm text-red-400">
+        <div className="neon-card border-red-500/30 bg-red-500/10 p-5 mb-8">
+          <p className="text-sm text-red-400 font-semibold mb-2">
             <strong>Configuration Error:</strong> {error}
           </p>
-          <p className="text-xs text-red-300/70 mt-2">
-            Create a <code className="bg-black/20 px-1 rounded">.env.local</code> file in the project root with <code className="bg-black/20 px-1 rounded">DATABASE_URL=your_connection_string</code>
+          <p className="text-xs text-red-300/70">
+            Create a <code className="bg-black/20 px-1.5 py-0.5 rounded">.env.local</code> file in the project root with <code className="bg-black/20 px-1.5 py-0.5 rounded">DATABASE_URL=your_connection_string</code>
           </p>
         </div>
       )}
 
       {/* Disclaimer Banner */}
       {!error && (
-        <div className="rounded-2xl border border-akari-profit/30 bg-akari-cardSoft p-3 mb-6">
-          <p className="text-xs text-akari-muted">
-            <strong className="text-akari-profit">Community data.</strong> Not investment advice. ROI is illustrative, not a guarantee.
+        <div className="neon-card neon-hover border-akari-neon-pink/30 bg-akari-neon-pink/5 p-4 mb-8">
+          <p className="text-sm text-akari-muted">
+            <strong className="text-akari-neon-pink">Community data.</strong> Not investment advice. ROI is illustrative, not a guarantee.
           </p>
         </div>
       )}
 
       {/* Header */}
-      <section className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-semibold mb-2 text-akari-text">New launches</h1>
-        <p className="text-xs sm:text-sm text-akari-muted max-w-2xl">
+      <section className="mb-10">
+        <h1 className="text-3xl font-bold mb-3 text-gradient-pink">New Launches</h1>
+        <p className="text-base text-akari-muted max-w-2xl leading-relaxed">
           Community-curated database of new token launches, IDOs, and airdrops with real-time price tracking.
         </p>
       </section>
 
       {/* Launches Grid */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-12">
         {launches.map((launch) => {
           const roiPercent = launch.roiPercent;
           const salePrice = launch.salePriceUsd;
@@ -54,75 +54,75 @@ export default function NewLaunchesPage({ launches, error }: Props) {
             <Link
               key={launch.id}
               href={`/portal/new-launches/${launch.id}`}
-              className="rounded-2xl border border-akari-border bg-akari-card p-4 hover:border-akari-primary/60 transition-all"
+              className="neon-card neon-hover p-6 group"
             >
               {/* Top: Platform + Chain */}
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   {launch.platformName && (
-                    <span className="text-xs text-akari-primary bg-akari-primary/10 px-2 py-0.5 rounded-full">
+                    <span className="pill-neon text-xs text-akari-neon-teal bg-akari-neon-teal/15 border border-akari-neon-teal/30 px-3 py-1 font-semibold">
                       {launch.platformName}
                     </span>
                   )}
                   {launch.chain && (
-                    <span className="text-xs text-akari-muted bg-akari-cardSoft px-2 py-0.5 rounded-full">
+                    <span className="pill-neon text-xs text-akari-muted bg-akari-cardSoft/50 border border-akari-neon-teal/20 px-3 py-1 font-medium">
                       {launch.chain}
                     </span>
                   )}
                 </div>
                 {launch.status && (
-                  <span className="text-[10px] text-akari-muted bg-akari-cardSoft px-2 py-0.5 rounded-full">
+                  <span className="pill-neon text-[10px] text-akari-muted bg-akari-cardSoft/50 border border-akari-neon-teal/20 px-2.5 py-1 font-medium">
                     {launch.status}
                   </span>
                 )}
               </div>
 
               {/* Token Name + Symbol */}
-              <h3 className="text-sm font-semibold mb-2 text-akari-text">
+              <h3 className="text-lg font-bold mb-2 text-akari-text group-hover:text-gradient-pink transition-all duration-300">
                 {launch.name}
               </h3>
-              <p className="text-xs text-akari-primary font-medium mb-3">
+              <p className="text-sm text-gradient-teal font-semibold mb-4">
                 ${launch.tokenSymbol}
               </p>
 
               {/* Taxonomy chips */}
-              <div className="mb-3 flex flex-wrap gap-1.5 text-[10px]">
+              <div className="mb-4 flex flex-wrap gap-2 text-xs">
                 {launch.category && (
-                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                  <span className="pill-neon px-3 py-1 bg-akari-cardSoft/50 border border-akari-neon-teal/20 text-akari-muted font-medium">
                     {launch.category}
                   </span>
                 )}
                 {launch.platformName && (
-                  <span className="px-2 py-0.5 rounded-full bg-akari-primary/10 text-akari-primary">
+                  <span className="pill-neon px-3 py-1 bg-akari-neon-teal/15 border border-akari-neon-teal/30 text-akari-neon-teal font-semibold">
                     {launch.platformName}
                   </span>
                 )}
                 {launch.listingPlatformName && (
-                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                  <span className="pill-neon px-3 py-1 bg-akari-cardSoft/50 border border-akari-neon-teal/20 text-akari-muted font-medium">
                     {launch.listingPlatformName}
                   </span>
                 )}
                 {launch.leadInvestorName && (
-                  <span className="px-2 py-0.5 rounded-full bg-akari-cardSoft text-akari-muted">
+                  <span className="pill-neon px-3 py-1 bg-akari-cardSoft/50 border border-akari-neon-teal/20 text-akari-muted font-medium">
                     {launch.leadInvestorName}
                   </span>
                 )}
               </div>
 
               {/* Price Row */}
-              <div className="mb-3 text-xs text-akari-muted">
+              <div className="mb-4 text-sm text-akari-muted">
                 {salePrice && latestPrice ? (
                   <p>
-                    Sale: <span className="text-akari-text">${salePrice.toFixed(4)}</span> • Now:{' '}
-                    <span className="text-akari-text">${latestPrice.toFixed(4)}</span>
+                    Sale: <span className="text-akari-text font-semibold">${salePrice.toFixed(4)}</span> • Now:{' '}
+                    <span className="text-akari-text font-semibold">${latestPrice.toFixed(4)}</span>
                   </p>
                 ) : salePrice ? (
                   <p>
-                    Sale: <span className="text-akari-text">${salePrice.toFixed(4)}</span>
+                    Sale: <span className="text-akari-text font-semibold">${salePrice.toFixed(4)}</span>
                   </p>
                 ) : latestPrice ? (
                   <p>
-                    Current: <span className="text-akari-text">${latestPrice.toFixed(4)}</span>
+                    Current: <span className="text-akari-text font-semibold">${latestPrice.toFixed(4)}</span>
                   </p>
                 ) : (
                   <p className="text-akari-muted">Price data pending</p>
@@ -133,16 +133,16 @@ export default function NewLaunchesPage({ launches, error }: Props) {
               <div className="flex items-center justify-between">
                 {roiPercent !== null ? (
                   <span
-                    className={`text-xs font-medium px-2 py-1 rounded-full ${
+                    className={`pill-neon text-xs font-semibold px-3 py-1.5 border ${
                       roiPercent > 0
-                        ? 'bg-akari-profit/15 text-akari-profit'
-                        : 'bg-red-500/10 text-red-400'
+                        ? 'bg-akari-profit/15 text-akari-profit border-akari-profit/30'
+                        : 'bg-red-500/15 text-red-400 border-red-500/30'
                     }`}
                   >
                     {roiPercent > 0 ? '+' : ''}
                     {roiPercent.toFixed(1)}% ROI
                     {salePrice && latestPrice && (
-                      <span className="ml-1 text-[10px]">
+                      <span className="ml-1.5 text-[10px]">
                         ({((latestPrice / salePrice).toFixed(2))}x)
                       </span>
                     )}
@@ -150,7 +150,7 @@ export default function NewLaunchesPage({ launches, error }: Props) {
                 ) : (
                   <span className="text-xs text-akari-muted">Pending</span>
                 )}
-                <span className="text-xs text-akari-primary">View details →</span>
+                <span className="text-xs text-akari-neon-teal font-semibold group-hover:text-gradient-teal transition-all duration-300">View details →</span>
               </div>
             </Link>
           );

@@ -397,7 +397,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
   };
 
   return (
-    <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
+    <div className="card-neon p-4 sm:p-5">
       {/* Chart Controls - Mobile Optimized */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -405,29 +405,29 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
             <button
               key={m}
               onClick={() => setMetric(m)}
-              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs rounded-lg transition ${
+              className={`pill-neon px-3 py-1.5 text-xs font-medium ${
                 metric === m 
-                  ? 'bg-akari-primary/20 text-akari-primary border border-akari-primary/30' 
-                  : 'bg-akari-cardSoft text-akari-muted border border-akari-border/30 hover:text-akari-text'
+                  ? 'bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 shadow-soft-glow' 
+                  : 'bg-akari-cardSoft text-akari-muted border border-akari-border/30 hover:text-akari-neon-teal hover:bg-akari-neon-teal/5'
               }`}
             >
               {metricLabels[m]}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 bg-akari-cardSoft rounded-lg p-0.5 sm:p-1">
+        <div className="flex items-center gap-1 bg-akari-cardSoft rounded-2xl p-1 border border-akari-border/30">
           <button
             onClick={() => setChartType('line')}
-            className={`px-2 py-1 text-[10px] sm:text-xs rounded transition ${
-              chartType === 'line' ? 'bg-akari-card text-akari-text' : 'text-akari-muted'
+            className={`pill-neon px-3 py-1.5 text-xs transition-smooth ${
+              chartType === 'line' ? 'bg-gradient-neon-teal text-black shadow-soft-glow' : 'text-akari-muted hover:text-akari-neon-teal'
             }`}
           >
             Line
           </button>
           <button
             onClick={() => setChartType('bar')}
-            className={`px-2 py-1 text-[10px] sm:text-xs rounded transition ${
-              chartType === 'bar' ? 'bg-akari-card text-akari-text' : 'text-akari-muted'
+            className={`pill-neon px-3 py-1.5 text-xs transition-smooth ${
+              chartType === 'bar' ? 'bg-gradient-neon-teal text-black shadow-soft-glow' : 'text-akari-muted hover:text-akari-neon-teal'
             }`}
           >
             Bar
@@ -1118,7 +1118,7 @@ export default function SentimentDetail() {
                     <button
                       onClick={handleToggleStar}
                       disabled={togglingStar}
-                      className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-lg bg-akari-cardSoft border border-akari-border/50 hover:border-akari-primary/50 transition text-sm font-medium disabled:opacity-50"
+                      className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-cardSoft border border-akari-border/50 hover:border-akari-neon-teal/50 hover:bg-akari-neon-teal/5 text-sm font-medium disabled:opacity-50"
                       title={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
                     >
                       {isInWatchlist ? (
@@ -1137,7 +1137,7 @@ export default function SentimentDetail() {
                   {canViewDeepExplorer && (
                     <Link
                       href={`/portal/deep/${slug}`}
-                      className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 transition text-sm font-medium border border-akari-primary/30"
+                      className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal/20 text-akari-neon-teal hover:bg-akari-neon-teal/30 hover:shadow-soft-glow text-sm font-medium border border-akari-neon-teal/50"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1149,8 +1149,8 @@ export default function SentimentDetail() {
               </div>
               {latestMetrics?.akari_score != null && (
                 <div className="text-right">
-                  <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">AKARI Score</p>
-                  <p className={`text-4xl font-bold ${tier.color}`}>{latestMetrics.akari_score}</p>
+                  <p className="text-xs uppercase tracking-wider text-akari-muted mb-2">AKARI Score</p>
+                  <p className="text-5xl sm:text-6xl font-bold text-gradient-akari">{latestMetrics.akari_score}</p>
                   {changes24h && (
                     <p className={`text-xs mt-1 ${getChangeColor(changes24h.akariChange24h)}`}>
                       24h: {formatChange(changes24h.akariChange24h, changes24h.akariChange24h > 0 ? 'up' : changes24h.akariChange24h < 0 ? 'down' : 'flat')}
@@ -1164,36 +1164,38 @@ export default function SentimentDetail() {
           {/* Stats Cards */}
           {latestMetrics && (
             <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-                <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Sentiment</p>
-                <p className={`text-2xl font-bold ${getScoreColor(latestMetrics.sentiment_score)}`}>
+              <div className="metric-card-neon p-4 sm:p-5">
+                <p className="text-xs uppercase tracking-wider text-akari-muted mb-2">Sentiment</p>
+                <p className={`text-3xl sm:text-4xl font-bold ${latestMetrics.sentiment_score !== null ? 'text-gradient-sentiment' : 'text-akari-muted'}`}>
                   {latestMetrics.sentiment_score ?? '-'}
                 </p>
                 {changes24h && (
                   <ChangeIndicatorCard change={changes24h.sentimentChange24h} direction={changes24h.sentimentDirection24h} />
                 )}
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-                <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">CT Heat</p>
-                <p className={`text-2xl font-bold ${getScoreColor(latestMetrics.ct_heat_score)}`}>
+              <div className="metric-card-neon p-4 sm:p-5">
+                <p className="text-xs uppercase tracking-wider text-akari-muted mb-2">CT Heat</p>
+                <p className={`text-3xl sm:text-4xl font-bold ${latestMetrics.ct_heat_score !== null ? 'text-gradient-heat' : 'text-akari-muted'}`}>
                   {latestMetrics.ct_heat_score ?? '-'}
                 </p>
                 {changes24h && (
                   <ChangeIndicatorCard change={changes24h.ctHeatChange24h} direction={changes24h.ctHeatDirection24h} />
                 )}
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
-                <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Followers</p>
-                <p className="text-2xl font-bold text-akari-text">{formatNumber(latestMetrics.followers)}</p>
+              <div className="metric-card-neon p-4 sm:p-5">
+                <p className="text-xs uppercase tracking-wider text-akari-muted mb-2">Followers</p>
+                <p className={`text-2xl sm:text-3xl font-bold ${latestMetrics.followers !== null ? 'text-gradient-followers' : 'text-akari-muted'}`}>
+                  {formatNumber(latestMetrics.followers)}
+                </p>
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
+              <div className="card-neon p-4 sm:p-5">
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Inner Circle</p>
                 <p className="text-2xl font-bold text-akari-text">{innerCircle.count || '-'}</p>
                 {innerCircle.power > 0 && (
                   <p className="text-xs text-akari-muted mt-1">Power: {formatNumber(innerCircle.power)}</p>
                 )}
               </div>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
+              <div className="card-neon p-4 sm:p-5">
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Tweets Today</p>
                 <p className="text-2xl font-bold text-akari-text">{latestMetrics.tweet_count || '-'}</p>
               </div>
@@ -1223,11 +1225,11 @@ export default function SentimentDetail() {
           {metrics.length > 0 && (
             <section className="mb-6">
               <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">Metrics History</h2>
-              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+              <div className="neon-card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-akari-border bg-akari-cardSoft text-xs uppercase tracking-wider text-akari-muted">
+                      <tr className="neon-border border-b bg-black/20 text-xs uppercase tracking-wider text-akari-muted">
                         <th className="py-3 px-4 text-left">Date</th>
                         <th className="py-3 px-4 text-center">AKARI</th>
                         <th className="py-3 px-4 text-center">Sentiment</th>
@@ -1242,7 +1244,7 @@ export default function SentimentDetail() {
                       {metrics.slice(0, 14).map((m, i) => {
                         const prevMetrics = metrics[i + 1] || null;
                         return (
-                          <tr key={m.date} className={`border-b border-akari-border/30 ${i === 0 ? 'bg-akari-primary/5' : ''}`}>
+                          <tr key={m.date} className={`border-b border-akari-border/30 transition-smooth hover:bg-akari-neon-teal/5 ${i === 0 ? 'bg-akari-neon-teal/10' : ''}`}>
                             <td className="py-3 px-4 text-akari-muted">{new Date(m.date).toLocaleDateString()}</td>
                             <td className="py-3 px-4 text-center font-mono">{m.akari_score ?? '-'}</td>
                             <td className={`py-3 px-4 text-center font-mono ${getScoreColor(m.sentiment_score)}`}>
@@ -1334,11 +1336,11 @@ export default function SentimentDetail() {
                     Compare All →
                   </Link>
                 </div>
-                <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+                <div className="neon-card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-akari-border bg-akari-cardSoft text-xs uppercase tracking-wider text-akari-muted">
+                        <tr className="neon-border border-b bg-black/20 text-xs uppercase tracking-wider text-akari-muted">
                           <th className="py-3 px-4 text-left">Project</th>
                           <th className="py-3 px-4 text-center">AKARI</th>
                           <th className="py-3 px-4 text-center">Similarity</th>
@@ -1350,7 +1352,7 @@ export default function SentimentDetail() {
                         {competitors.slice(0, 5).map((comp) => {
                           const compTier = getAkariTier(comp.akari_score);
                           return (
-                            <tr key={comp.id} className="border-b border-akari-border/30 hover:bg-akari-cardSoft/50 transition">
+                            <tr key={comp.id} className="border-b border-akari-border/30 transition-smooth hover:bg-akari-neon-teal/5 hover:shadow-soft-glow">
                               <td className="py-3 px-4">
                                 <Link
                                   href={`/portal/sentiment/${comp.slug}`}

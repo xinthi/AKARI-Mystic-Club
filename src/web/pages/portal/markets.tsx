@@ -157,56 +157,58 @@ export default function MarketsPage({
   return (
     <PortalLayout title="Markets">
       {/* Header */}
-      <section className="mb-4">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h1 className="text-xl sm:text-2xl font-semibold text-akari-text">Markets</h1>
+      <section className="mb-10">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 text-gradient-teal">Markets</h1>
+            <p className="text-sm text-akari-muted">DEX + CEX aggregated signals</p>
+          </div>
           {lastUpdated && (
-            <span className="text-[10px] text-akari-muted bg-akari-cardSoft px-2 py-1 rounded-full">
+            <span className="pill-neon text-xs text-akari-muted bg-akari-cardSoft/50 border border-akari-neon-teal/20 px-3 py-1.5">
               {timeAgo(lastUpdated)}
             </span>
           )}
         </div>
-        <p className="text-xs text-akari-muted">DEX + CEX aggregated signals</p>
       </section>
 
       {/* Summary Stats - only show if we have real data */}
       {hasMarketData && (
-        <div className="mb-4 grid gap-2 grid-cols-2 sm:grid-cols-3">
-          <div className="rounded-xl border border-akari-primary/30 bg-akari-card p-3">
-            <p className="text-[10px] text-akari-primary uppercase tracking-wider">Market Cap</p>
-            <p className="text-sm font-semibold text-akari-text">{trackedMarketCap}</p>
+        <div className="mb-8 grid gap-4 grid-cols-2 sm:grid-cols-3">
+          <div className="neon-card neon-hover p-5">
+            <p className="text-xs text-gradient-teal uppercase tracking-wider font-semibold mb-2">Market Cap</p>
+            <p className="text-lg font-bold text-gradient-akari">{trackedMarketCap}</p>
           </div>
-          <div className="rounded-xl border border-akari-accent/30 bg-akari-card p-3">
-            <p className="text-[10px] text-akari-accent uppercase tracking-wider">24h Volume</p>
-            <p className="text-sm font-semibold text-akari-text">{trackedVolume24h}</p>
+          <div className="neon-card neon-hover p-5">
+            <p className="text-xs text-gradient-blue uppercase tracking-wider font-semibold mb-2">24h Volume</p>
+            <p className="text-lg font-bold text-gradient-followers">{trackedVolume24h}</p>
           </div>
-          <div className="hidden sm:block rounded-xl border border-akari-border/30 bg-akari-card p-3">
-            <p className="text-[10px] text-akari-muted uppercase tracking-wider">Sources</p>
-            <p className="text-xs text-akari-text">DexScreener · GeckoTerminal · Binance · OKX</p>
+          <div className="hidden sm:block neon-card neon-hover p-5">
+            <p className="text-xs text-akari-muted uppercase tracking-wider font-semibold mb-2">Sources</p>
+            <p className="text-sm text-akari-text font-medium">DexScreener · GeckoTerminal · Binance · OKX</p>
           </div>
         </div>
       )}
 
       {/* DEX & CEX side by side */}
       {(dexRadar.length > 0 || cexHeatmap.length > 0) && (
-        <div className="mb-4 grid gap-3 grid-cols-1 lg:grid-cols-2">
+        <div className="mb-8 grid gap-6 grid-cols-1 lg:grid-cols-2">
           {/* DEX Liquidity Radar */}
           {dexRadar.length > 0 && (
-            <div className="rounded-xl border border-cyan-500/30 bg-akari-card p-3">
-              <h3 className="text-xs font-semibold text-akari-text mb-2">DEX Liquidity</h3>
-              <div className="space-y-1.5">
+            <div className="neon-card neon-hover p-5">
+              <h3 className="text-sm font-bold text-gradient-blue mb-4">DEX Liquidity</h3>
+              <div className="space-y-2">
                 {dexRadar.slice(0, 8).map((snap, i) => (
-                  <div key={`dex-${snap.symbol}-${i}`} className="flex items-center justify-between text-xs p-1.5 rounded bg-akari-cardSoft/40">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span>{chainIcon(snap.chain)}</span>
-                      <span className="text-akari-text font-medium uppercase truncate">{snap.symbol || '—'}</span>
-                      <span className={`px-1 py-0.5 rounded text-[8px] hidden sm:inline ${chainBadgeColor(snap.chain)}`}>
+                  <div key={`dex-${snap.symbol}-${i}`} className="flex items-center justify-between text-sm p-3 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10 transition-all duration-300 hover:border-akari-neon-teal/30 hover:bg-akari-cardSoft/70">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-lg">{chainIcon(snap.chain)}</span>
+                      <span className="text-akari-text font-semibold uppercase truncate">{snap.symbol || '—'}</span>
+                      <span className={`pill-neon px-2 py-0.5 text-[10px] hidden sm:inline font-medium border ${chainBadgeColor(snap.chain)}`}>
                         {formatChainLabel(snap.chain)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-akari-muted text-[10px]">{snap.priceUsd ? formatPrice(snap.priceUsd) : ''}</span>
-                      <span className="text-cyan-400 font-medium">{formatLargeNumber(snap.liquidityUsd)}</span>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-akari-muted text-xs">{snap.priceUsd ? formatPrice(snap.priceUsd) : ''}</span>
+                      <span className="text-gradient-followers font-semibold">{formatLargeNumber(snap.liquidityUsd)}</span>
                     </div>
                   </div>
                 ))}
@@ -216,20 +218,20 @@ export default function MarketsPage({
 
           {/* CEX Heatmap */}
           {cexHeatmap.length > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-akari-card p-3">
-              <h3 className="text-xs font-semibold text-akari-text mb-2">CEX Volume</h3>
-              <div className="space-y-1.5">
+            <div className="neon-card neon-hover p-5">
+              <h3 className="text-sm font-bold text-gradient-heat mb-4">CEX Volume</h3>
+              <div className="space-y-2">
                 {cexHeatmap.slice(0, 8).map((snap, i) => (
-                  <div key={`cex-${snap.symbol}-${i}`} className="flex items-center justify-between text-xs p-1.5 rounded bg-akari-cardSoft/40">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-akari-text font-medium uppercase">{snap.symbol}</span>
+                  <div key={`cex-${snap.symbol}-${i}`} className="flex items-center justify-between text-sm p-3 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10 transition-all duration-300 hover:border-akari-neon-teal/30 hover:bg-akari-cardSoft/70">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-akari-text font-semibold uppercase">{snap.symbol}</span>
                       {snap.baseAsset && snap.quoteAsset && (
-                        <span className="text-akari-muted text-[10px]">{snap.baseAsset}/{snap.quoteAsset}</span>
+                        <span className="text-akari-muted text-xs">{snap.baseAsset}/{snap.quoteAsset}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-akari-muted text-[10px]">{snap.priceUsd ? formatPrice(snap.priceUsd) : ''}</span>
-                      <span className="text-amber-400 font-medium">{formatLargeNumber(snap.volume24hUsd)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-akari-muted text-xs">{snap.priceUsd ? formatPrice(snap.priceUsd) : ''}</span>
+                      <span className="text-gradient-heat font-semibold">{formatLargeNumber(snap.volume24hUsd)}</span>
                     </div>
                   </div>
                 ))}
@@ -241,26 +243,26 @@ export default function MarketsPage({
 
       {/* Whale Radar - only show if we have entries */}
       {whaleRadar.length > 0 && (
-        <div className="mb-4 rounded-xl border border-violet-500/30 bg-akari-card p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-semibold text-akari-text">Whale Radar</h3>
-            <span className="text-[9px] text-akari-muted">{whaleRadar.length} entries (24h)</span>
+        <div className="mb-8 neon-card neon-hover p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-gradient-pink">Whale Radar</h3>
+            <span className="pill-neon text-xs text-akari-muted bg-akari-cardSoft/50 border border-akari-neon-teal/20 px-3 py-1 font-medium">{whaleRadar.length} entries (24h)</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {whaleRadar.slice(0, 5).map((whale, i) => {
               const isAccum = whale.side === 'Accumulating';
               return (
-                <div key={`whale-${whale.id}-${i}`} className="flex items-center justify-between text-xs p-1.5 rounded bg-akari-cardSoft/40">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-akari-muted w-8">{timeAgo(whale.occurredAt)}</span>
-                    <span>{chainIcon(whale.chain)}</span>
-                    <span className="text-akari-text font-medium uppercase">{whale.tokenSymbol}</span>
+                <div key={`whale-${whale.id}-${i}`} className="flex items-center justify-between text-sm p-3 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10 transition-all duration-300 hover:border-akari-neon-teal/30 hover:bg-akari-cardSoft/70">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-akari-muted w-10">{timeAgo(whale.occurredAt)}</span>
+                    <span className="text-lg">{chainIcon(whale.chain)}</span>
+                    <span className="text-akari-text font-semibold uppercase">{whale.tokenSymbol}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] ${isAccum ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`pill-neon px-2.5 py-1 text-[10px] font-semibold border ${isAccum ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/15 text-red-400 border-red-500/30'}`}>
                       {isAccum ? 'BUY' : 'SELL'}
                     </span>
-                    <span className="text-akari-text font-medium">{formatLargeNumber(whale.sizeUsd)}</span>
+                    <span className="text-akari-text font-semibold">{formatLargeNumber(whale.sizeUsd)}</span>
                   </div>
                 </div>
               );
@@ -271,18 +273,18 @@ export default function MarketsPage({
 
       {/* Chain Flow - only show if we have flows */}
       {chainFlows.length > 0 && (
-        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-akari-card p-3">
-          <h3 className="text-xs font-semibold text-akari-text mb-2">Chain Activity</h3>
-          <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-3">
+        <div className="mb-8 neon-card neon-hover p-5">
+          <h3 className="text-sm font-bold text-gradient-teal mb-4">Chain Activity</h3>
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
             {chainFlows.slice(0, 6).map((flow, i) => {
               const isPositive = flow.netFlow24hUsd >= 0;
               return (
-                <div key={`flow-${flow.chain}-${i}`} className={`p-2 rounded ${isPositive ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <span>{chainIcon(flow.chain)}</span>
-                    <span className="text-xs text-akari-text capitalize">{flow.chain}</span>
+                <div key={`flow-${flow.chain}-${i}`} className={`p-4 rounded-xl border transition-all duration-300 ${isPositive ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{chainIcon(flow.chain)}</span>
+                    <span className="text-sm text-akari-text font-semibold capitalize">{flow.chain}</span>
                   </div>
-                  <span className={`text-xs font-medium ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-sm font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                     {isPositive ? '+' : ''}{formatLargeNumber(flow.netFlow24hUsd)}
                   </span>
                 </div>
@@ -294,38 +296,38 @@ export default function MarketsPage({
 
       {/* Trending Markets Table */}
       {trending.length > 0 && (
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold text-akari-text mb-2">Top Markets</h3>
+        <div className="mb-8">
+          <h3 className="text-base font-bold text-gradient-teal mb-4">Top Markets</h3>
           {/* Desktop */}
-          <div className="hidden md:block rounded-xl border border-akari-accent/20 bg-akari-card overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-akari-cardSoft">
+          <div className="hidden md:block rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
+            <table className="w-full text-sm">
+              <thead className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                 <tr>
-                  <th className="text-left px-3 py-2 font-medium text-akari-muted">Token</th>
-                  <th className="text-right px-3 py-2 font-medium text-akari-muted">Price</th>
-                  <th className="text-right px-3 py-2 font-medium text-akari-muted">24h Vol</th>
-                  <th className="text-right px-3 py-2 font-medium text-akari-muted">24h %</th>
+                  <th className="text-left px-5 py-4 font-semibold text-gradient-teal">Token</th>
+                  <th className="text-right px-5 py-4 font-semibold text-akari-muted">Price</th>
+                  <th className="text-right px-5 py-4 font-semibold text-gradient-followers">24h Vol</th>
+                  <th className="text-right px-5 py-4 font-semibold text-gradient-pink">24h %</th>
                 </tr>
               </thead>
               <tbody>
                 {trending.slice(0, 10).map((coin) => {
                   const changeColor = (coin.change24hPct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400';
                   return (
-                    <tr key={coin.id} className="border-t border-akari-border/20">
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-akari-primary/20 flex items-center justify-center text-akari-primary text-[9px] font-bold">
+                    <tr key={coin.id} className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-neon-teal flex items-center justify-center text-black text-xs font-bold shadow-neon-teal">
                             {coin.symbol.charAt(0)}
                           </div>
                           <div>
-                            <span className="text-akari-text font-medium">{coin.name}</span>
-                            <span className="text-akari-muted ml-1 text-[10px]">{coin.symbol}</span>
+                            <span className="text-akari-text font-semibold">{coin.name}</span>
+                            <span className="text-akari-muted ml-2 text-xs">{coin.symbol}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right text-akari-text">{formatPrice(coin.priceUsd)}</td>
-                      <td className="px-3 py-2 text-right text-akari-muted">{formatLargeNumber(coin.volume24hUsd)}</td>
-                      <td className={`px-3 py-2 text-right font-medium ${changeColor}`}>
+                      <td className="px-5 py-4 text-right text-akari-text font-medium">{formatPrice(coin.priceUsd)}</td>
+                      <td className="px-5 py-4 text-right text-gradient-followers font-semibold">{formatLargeNumber(coin.volume24hUsd)}</td>
+                      <td className={`px-5 py-4 text-right font-semibold ${changeColor}`}>
                         {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(2)}%` : '—'}
                       </td>
                     </tr>
@@ -335,24 +337,26 @@ export default function MarketsPage({
             </table>
           </div>
           {/* Mobile */}
-          <div className="md:hidden space-y-1.5">
+          <div className="md:hidden space-y-2">
             {trending.slice(0, 8).map((coin) => {
               const changeColor = (coin.change24hPct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400';
               return (
-                <div key={coin.id} className="flex items-center justify-between p-2 rounded-lg bg-akari-card border border-akari-border/20">
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-akari-primary/20 flex items-center justify-center text-akari-primary text-[9px] font-bold">
-                      {coin.symbol.charAt(0)}
+                <div key={coin.id} className="neon-card neon-hover p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-neon-teal flex items-center justify-center text-black text-xs font-bold shadow-neon-teal">
+                        {coin.symbol.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="text-sm text-akari-text font-semibold">{coin.symbol}</span>
+                        <span className="text-xs text-akari-muted block">{formatPrice(coin.priceUsd)}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs text-akari-text font-medium">{coin.symbol}</span>
-                      <span className="text-[10px] text-akari-muted block">{formatPrice(coin.priceUsd)}</span>
+                    <div className="text-right">
+                      <span className={`text-sm font-semibold ${changeColor}`}>
+                        {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(1)}%` : '—'}
+                      </span>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-xs font-medium ${changeColor}`}>
-                      {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(1)}%` : '—'}
-                    </span>
                   </div>
                 </div>
               );
@@ -363,18 +367,18 @@ export default function MarketsPage({
 
       {/* Bottom row: Trending + Meme preview - only show cards with data */}
       {(trendingMarkets.length > 0 || memePreview.length > 0) && (
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
           {/* Top Movers */}
           {trendingMarkets.length > 0 && (
-            <div className="rounded-xl border border-akari-border bg-akari-card p-3">
-              <h3 className="text-xs text-akari-primary uppercase tracking-wider mb-2">Top Movers</h3>
-              <div className="space-y-1">
+            <div className="neon-card neon-hover p-5">
+              <h3 className="text-sm font-bold text-gradient-teal uppercase tracking-wider mb-4">Top Movers</h3>
+              <div className="space-y-2">
                 {trendingMarkets.slice(0, 5).map((m, i) => {
                   const color = m.change24hPct >= 0 ? 'text-green-400' : 'text-red-400';
                   return (
-                    <div key={`trend-${m.symbol}-${i}`} className="flex items-center justify-between text-xs">
-                      <span className="text-akari-text">{m.symbol}</span>
-                      <span className={`font-medium ${color}`}>
+                    <div key={`trend-${m.symbol}-${i}`} className="flex items-center justify-between text-sm p-2 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10">
+                      <span className="text-akari-text font-medium">{m.symbol}</span>
+                      <span className={`font-semibold ${color}`}>
                         {m.change24hPct >= 0 ? '+' : ''}{m.change24hPct.toFixed(2)}%
                       </span>
                     </div>
@@ -386,20 +390,20 @@ export default function MarketsPage({
 
           {/* Meme Preview */}
           {memePreview.length > 0 && (
-            <div className="rounded-xl border border-purple-500/30 bg-akari-card p-3">
-              <h3 className="text-xs text-purple-400 uppercase tracking-wider mb-2">Meme Radar</h3>
-              <div className="space-y-1">
+            <div className="neon-card neon-hover p-5 border-2 border-akari-neon-violet/50">
+              <h3 className="text-sm font-bold text-gradient-pink uppercase tracking-wider mb-4">Meme Radar</h3>
+              <div className="space-y-2">
                 {memePreview.map((m, i) => (
-                  <div key={`meme-${m.symbol}-${i}`} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
-                      <span>{chainIcon(m.chain)}</span>
-                      <span className="text-akari-text uppercase">{m.symbol}</span>
+                  <div key={`meme-${m.symbol}-${i}`} className="flex items-center justify-between text-sm p-2 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{chainIcon(m.chain)}</span>
+                      <span className="text-akari-text font-semibold uppercase">{m.symbol}</span>
                     </div>
-                    <span className="text-purple-400">{formatLargeNumber(m.volume24hUsd)}</span>
+                    <span className="text-gradient-followers font-semibold">{formatLargeNumber(m.volume24hUsd)}</span>
                   </div>
                 ))}
               </div>
-              <Link href="/portal/memes" className="block text-[10px] text-akari-primary hover:text-akari-accent mt-2">
+              <Link href="/portal/memes" className="block text-xs text-gradient-teal hover:text-akari-neon-teal mt-4 font-semibold transition-all duration-300">
                 View full Meme Radar →
               </Link>
             </div>

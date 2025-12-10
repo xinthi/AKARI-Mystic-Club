@@ -114,73 +114,75 @@ export default function MemesPage({ memes, lastUpdated, error }: MemesPageProps)
   return (
     <PortalLayout title="Meme Radar">
       {/* Header */}
-      <section className="mb-4">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h1 className="text-xl sm:text-2xl font-semibold text-akari-text">Meme Radar</h1>
+      <section className="mb-8">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 text-gradient-blue">Meme Radar</h1>
+            <p className="text-sm text-akari-muted">
+              Meme tokens by DEX volume · Majors filtered out
+            </p>
+          </div>
           {lastUpdated && (
-            <span className="text-[10px] text-akari-muted bg-akari-cardSoft px-2 py-1 rounded-full">
+            <span className="pill-neon text-xs text-akari-muted bg-akari-cardSoft/50 border border-akari-neon-teal/20 px-3 py-1.5">
               {timeAgo(lastUpdated)}
             </span>
           )}
         </div>
-        <p className="text-xs text-akari-muted">
-          Meme tokens by DEX volume · Majors filtered out
-        </p>
       </section>
 
       {/* Main Meme Table */}
-      <div className="mb-4">
-        <div className="rounded-2xl border border-akari-accent/20 bg-akari-card p-3 sm:p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-akari-text">Top Meme Tokens</h2>
-            <span className="text-[10px] text-purple-400 bg-purple-500/15 px-2 py-0.5 rounded-full">
+      <div className="mb-8">
+        <div className="neon-card neon-hover p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-base font-semibold text-gradient-blue">Top Meme Tokens</h2>
+            <span className="pill-neon text-xs text-akari-neon-violet bg-akari-neon-violet/15 border border-akari-neon-violet/30 px-3 py-1.5 font-semibold">
               {sortedMemes.length} tokens
             </span>
           </div>
 
           {/* Desktop Table */}
-          <div className="hidden md:block">
-            <table className="w-full text-xs">
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-akari-muted border-b border-akari-border/30">
-                  <th className="text-left py-2 font-medium">Token</th>
-                  <th className="text-left py-2 font-medium">Chain</th>
-                  <th className="text-right py-2 font-medium">Price</th>
-                  <th className="text-right py-2 font-medium">24h Vol</th>
-                  <th className="text-right py-2 font-medium">24h %</th>
-                  <th className="text-right py-2 font-medium">Source</th>
+                <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                  <th className="text-left py-4 px-5 font-semibold text-gradient-teal">Token</th>
+                  <th className="text-left py-4 px-5 font-semibold text-gradient-blue">Chain</th>
+                  <th className="text-right py-4 px-5 font-semibold text-akari-muted">Price</th>
+                  <th className="text-right py-4 px-5 font-semibold text-gradient-followers">24h Vol</th>
+                  <th className="text-right py-4 px-5 font-semibold text-gradient-pink">24h %</th>
+                  <th className="text-right py-4 px-5 font-semibold text-akari-muted">Source</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedMemes.map((meme, idx) => {
                   const change = formatPriceChange(meme.change24hPct);
                   return (
-                    <tr key={`${meme.symbol}-${idx}`} className="border-b border-akari-border/10 hover:bg-akari-cardSoft/30">
-                      <td className="py-2">
-                        <div className="flex items-center gap-2">
-                          <span>{chainIcon(meme.chain)}</span>
+                    <tr key={`${meme.symbol}-${idx}`} className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5">
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{chainIcon(meme.chain)}</span>
                           <div>
-                            <span className="font-medium text-akari-text uppercase">{meme.symbol}</span>
-                            <span className="text-akari-muted ml-1.5 text-[10px] hidden lg:inline">{meme.name}</span>
+                            <span className="font-semibold text-akari-text uppercase">{meme.symbol}</span>
+                            <span className="text-akari-muted ml-2 text-xs hidden lg:inline">{meme.name}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${chainBadgeColor(meme.chain)}`}>
+                      <td className="py-4 px-5">
+                        <span className={`pill-neon px-2.5 py-1 text-xs font-medium border ${chainBadgeColor(meme.chain)}`}>
                           {formatChainLabel(meme.chain)}
                         </span>
                       </td>
-                      <td className="py-2 text-right text-akari-text">
+                      <td className="py-4 px-5 text-right text-akari-text font-medium">
                         {meme.priceUsd ? formatPrice(meme.priceUsd) : '—'}
                       </td>
-                      <td className="py-2 text-right text-purple-400 font-medium">
+                      <td className="py-4 px-5 text-right text-gradient-followers font-semibold">
                         {formatLargeNumber(meme.volume24hUsd)}
                       </td>
-                      <td className={`py-2 text-right font-medium ${change.color}`}>
+                      <td className={`py-4 px-5 text-right font-semibold ${change.color}`}>
                         {change.text}
                       </td>
-                      <td className="py-2 text-right">
-                        <span className="px-1.5 py-0.5 rounded bg-akari-cardSoft text-akari-muted text-[10px]">
+                      <td className="py-4 px-5 text-right">
+                        <span className="pill-neon px-2.5 py-1 bg-akari-cardSoft/50 border border-akari-neon-teal/20 text-akari-muted text-xs font-medium">
                           {meme.source}
                         </span>
                       </td>

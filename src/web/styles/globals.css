@@ -9,8 +9,160 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #1A1A2E 0%, #0F0F1E 100%);
+  background: #000000; /* Near-black background */
   min-height: 100vh;
+}
+
+/* Custom utility classes for Gen-Z neon styling */
+@layer utilities {
+  /* Neon gradient text */
+  .text-gradient-neon {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-akari-neon-teal via-akari-neon-blue to-akari-neon-pink;
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  .text-gradient-teal {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-akari-neon-teal to-akari-neon-blue;
+  }
+
+  .text-gradient-blue {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-akari-neon-blue to-akari-neon-violet;
+  }
+
+  .text-gradient-pink {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-akari-neon-pink to-akari-neon-violet;
+  }
+
+  /* Neon card with glow */
+  .card-neon {
+    @apply rounded-2xl border bg-gradient-card;
+    border-color: rgba(0, 246, 162, 0.2);
+    box-shadow: 0 0 30px rgba(0, 246, 162, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all 300ms ease;
+  }
+
+  .card-neon:hover {
+    @apply scale-[1.02];
+    border-color: rgba(0, 246, 162, 0.4);
+    box-shadow: 0 8px 32px rgba(0, 246, 162, 0.2), 0 0 0 1px rgba(0, 246, 162, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Pill-shaped buttons and badges */
+  .pill-neon {
+    @apply rounded-full px-4 py-2 transition-all duration-300;
+  }
+
+  .pill-neon:hover {
+    @apply scale-105;
+  }
+
+  /* Glow effect for metrics */
+  .metric-glow {
+    text-shadow: 0 0 20px rgba(0, 246, 162, 0.6), 0 0 40px rgba(0, 246, 162, 0.4);
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  /* Glassy neon card for metrics */
+  .metric-card-neon {
+    @apply rounded-2xl border bg-gradient-card relative overflow-hidden;
+    border-color: rgba(0, 212, 255, 0.2);
+    background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(17, 17, 17, 0.95) 100%);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all 300ms ease;
+  }
+
+  .metric-card-neon::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.03) 0%, rgba(168, 85, 247, 0.03) 100%);
+    opacity: 0;
+    transition: opacity 300ms ease;
+    pointer-events: none;
+  }
+
+  .metric-card-neon:hover {
+    @apply scale-105;
+    border-color: rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 50px rgba(0, 212, 255, 0.3), 0 8px 32px rgba(168, 85, 247, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .metric-card-neon:hover::before {
+    opacity: 1;
+  }
+
+  /* Metric-specific gradient text */
+  .text-gradient-akari {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #00D4FF 0%, #A855F7 100%);
+    text-shadow: 0 0 30px rgba(0, 212, 255, 0.6), 0 0 60px rgba(168, 85, 247, 0.4);
+  }
+
+  .text-gradient-sentiment {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #FF10F0 0%, #A855F7 100%);
+    text-shadow: 0 0 30px rgba(255, 16, 240, 0.6), 0 0 60px rgba(168, 85, 247, 0.4);
+  }
+
+  .text-gradient-heat {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #00D4FF 0%, #A855F7 100%);
+    text-shadow: 0 0 30px rgba(0, 212, 255, 0.6), 0 0 60px rgba(168, 85, 247, 0.4);
+  }
+
+  .text-gradient-followers {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #FF10F0 0%, #A855F7 100%);
+    text-shadow: 0 0 30px rgba(255, 16, 240, 0.6), 0 0 60px rgba(168, 85, 247, 0.4);
+  }
+
+  /* Reusable Neon-GenZ Utility Classes */
+  
+  /* Neon Card - Glassy card with neon shadow */
+  .neon-card {
+    background: rgba(20, 20, 25, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem; /* rounded-2xl */
+    box-shadow: 0 0 25px rgba(120, 0, 255, 0.15);
+  }
+
+  /* Neon Hover - Interactive hover effects */
+  .neon-hover {
+    transition: all 300ms ease;
+  }
+
+  .neon-hover:hover {
+    box-shadow: 0 0 30px rgba(150, 80, 255, 0.35);
+    transform: scale(1.02);
+  }
+
+  /* Neon Gradient Text - Vibrant rainbow gradient */
+  .neon-gradient-text {
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-image: linear-gradient(to right, #00eaff, #b700ff, #ff1ad1);
+    -webkit-background-clip: text;
+  }
+
+  /* Neon Border - Subtle glowing border */
+  .neon-border {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  /* Glow Soft - Soft magenta glow drop shadow */
+  .glow-soft {
+    filter: drop-shadow(0 0 6px rgba(255, 0, 255, 0.35));
+  }
 }
 
 /* Badge carousel styles */

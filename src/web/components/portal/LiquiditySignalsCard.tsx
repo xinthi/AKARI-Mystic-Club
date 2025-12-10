@@ -31,11 +31,11 @@ function timeAgo(iso: string) {
 
 export const LiquiditySignalsCard: React.FC<Props> = ({ signals, lastAnySignal }) => {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5 flex flex-col gap-3">
+    <div className="card-neon p-4 sm:p-6 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base sm:text-lg font-semibold text-slate-50">Liquidity Rotation Signals</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-lg sm:text-xl font-bold text-gradient-neon mb-1">Liquidity Rotation Signals</h2>
+          <p className="text-xs text-akari-muted/80">
             Stablecoin flows and whale entries turned into narrative signals for the Mystic Club.
           </p>
         </div>
@@ -61,12 +61,12 @@ export const LiquiditySignalsCard: React.FC<Props> = ({ signals, lastAnySignal }
           {signals.map((s) => {
             const severityColor =
               s.severity >= 3
-                ? 'bg-emerald-500/15 border-emerald-500/60'
-                : 'bg-emerald-500/5 border-emerald-500/30';
+                ? 'bg-akari-neon-teal/15 border-akari-neon-teal/50 shadow-soft-glow'
+                : 'bg-akari-neon-teal/5 border-akari-neon-teal/30';
             return (
               <div
                 key={s.id}
-                className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 rounded-xl px-3 py-2 border ${severityColor}`}
+                className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 rounded-2xl px-4 py-3 border transition-smooth hover:scale-[1.01] hover:shadow-soft-glow ${severityColor}`}
               >
                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
