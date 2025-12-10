@@ -181,14 +181,13 @@ export default async function handler(
     // Fetch all data in parallel
     const [
       metrics30d,
-      metrics90d,
       influencers,
       topicStats,
       tweetsResult,
       latestMetrics,
+      followersFallback,
     ] = await Promise.all([
       getProjectMetricsHistory(supabase, project.id, 30),
-      getProjectMetricsHistory(supabase, project.id, 90),
       getProjectInfluencers(supabase, project.id, 1000), // Get all for export
       getProjectTopicStats(supabase, project.id, '30d'),
       supabase
@@ -204,15 +203,33 @@ export default async function handler(
         .order('date', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      // Get most recent non-zero followers for fallback (same logic as Sentiment overview)
+      supabase
+        .from('metrics_daily')
+        .select('project_id, followers')
+        .eq('project_id', project.id)
+        .gt('followers', 0)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     // Get latest metrics for project info
     const latest = latestMetrics.data || null;
-    const latestFollowers = latest?.followers ?? null;
     const latestAkariScore = latest?.akari_score ?? null;
     const latestSentiment = latest?.sentiment_score ?? null;
     const latestCtHeat = latest?.ct_heat_score ?? null;
-    const lastUpdatedAt = latest?.updated_at ?? latest?.created_at ?? null;
+    const lastUpdatedAt = latest?.updated_at ?? latest?.created_at ?? latest?.date ?? null;
+    
+    // Compute followers with fallback: metrics_daily.followers > 0, else most recent non-zero from metrics_daily, else 0
+    const metricsFollowers = latest?.followers ?? null;
+    const fallbackFollowers = followersFallback.data?.followers ?? null;
+    const followers =
+      metricsFollowers && metricsFollowers > 0
+        ? metricsFollowers
+        : fallbackFollowers && fallbackFollowers > 0
+        ? fallbackFollowers
+        : 0;
 
     // Calculate engagement summary (last 30 days)
     const thirtyDaysAgo = new Date();
@@ -251,17 +268,17 @@ export default async function handler(
     csvRows.push(`name,${escapeCsvField(project.name)}`);
     csvRows.push(`slug,${escapeCsvField(project.slug)}`);
     csvRows.push(`x_handle,${escapeCsvField(project.x_handle || '')}`);
-    csvRows.push(`followers,${escapeCsvField(latestFollowers)}`);
+    csvRows.push(`followers,${escapeCsvField(followers)}`);
     csvRows.push(`akari_score,${escapeCsvField(latestAkariScore)}`);
     csvRows.push(`sentiment_30d,${escapeCsvField(latestSentiment)}`);
     csvRows.push(`ct_heat_30d,${escapeCsvField(latestCtHeat)}`);
     csvRows.push(`last_updated_at,${escapeCsvField(lastUpdatedAt)}`);
     csvRows.push(''); // Blank line
 
-    // Section 2: METRICS_HISTORY (use 90d for comprehensive history)
-    csvRows.push('Section: METRICS_HISTORY');
+    // Section 2: METRICS_HISTORY_30D
+    csvRows.push('Section: METRICS_HISTORY_30D');
     csvRows.push('date,akari_score,sentiment_score,ct_heat_score,followers');
-    for (const metric of metrics90d) {
+    for (const metric of metrics30d) {
       csvRows.push([
         escapeCsvField(metric.date),
         escapeCsvField(metric.akari_score),
