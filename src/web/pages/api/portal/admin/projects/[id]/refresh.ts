@@ -9,6 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { processProjectById } from '../../../../lib/server/sentiment/processProject';
 
 // =============================================================================
 // TYPES
@@ -121,9 +122,6 @@ export default async function handler(
 
     // Get today's date
     const today = new Date().toISOString().split('T')[0];
-
-    // Import processProjectById from web-local helper (inside src/web)
-    const { processProjectById } = await import('../../../../lib/server/sentiment/processProject');
 
     // Process project (this will fetch data and save metrics)
     const result = await processProjectById(project, today, supabase);
