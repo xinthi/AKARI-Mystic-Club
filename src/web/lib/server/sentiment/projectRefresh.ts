@@ -12,19 +12,6 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { processProjectById, type Project, type ProcessingResult } from './processProject';
 import { recomputeProjectTopicStats } from '../../../../server/sentiment/topics';
 
-// Import inner circle processing from scripts
-// Note: This may have issues with dotenv/config at runtime, so we'll wrap calls in try-catch
-// If imports fail, we'll skip inner circle processing gracefully
-import { processProject as processProjectInnerCircle } from '../../../../../scripts/sentiment/updateInnerCircle';
-
-// Define DbProject type inline (same as in updateInnerCircle.ts)
-interface DbProject {
-  id: string;
-  slug: string;
-  name: string;
-  twitter_username: string;
-}
-
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -233,38 +220,17 @@ export async function refreshProjectById(
     await delay(DELAY_BETWEEN_API_CALLS_MS);
 
     // Step 3: Process inner circle (if not skipped)
+    // NOTE: Inner circle processing is currently disabled for web builds because
+    // it requires importing from scripts/ which uses dotenv/config that webpack can't handle.
+    // This feature can be re-enabled by creating a web-local version similar to processProjectById.
     let innerCircleUpdated = false;
     let innerCircle: RefreshResult['details']['innerCircle'] | undefined;
 
     if (!options.skipInnerCircle) {
-      console.log(`[Project Refresh] Processing inner circle for project ${project.name}`);
-      
-      try {
-        const innerCircleProject: DbProject = {
-          id: project.id,
-          slug: project.slug,
-          name: project.name,
-          twitter_username: project.twitter_username,
-        };
-
-        const innerCircleResult = await processProjectInnerCircle(
-          supabase,
-          innerCircleProject,
-          {
-            maxFollowersToFetch: options.maxFollowersToFetch,
-            maxInnerCircleSize: options.maxInnerCircleSize,
-          }
-        );
-
-        innerCircleUpdated = true;
-        innerCircle = {
-          members: innerCircleResult.innerCircleSize,
-          power: innerCircleResult.innerCirclePower,
-        };
-      } catch (innerCircleError: any) {
-        console.error(`[Project Refresh] Failed to process inner circle:`, innerCircleError.message);
-        // Continue anyway - partial success
-      }
+      console.log(`[Project Refresh] Inner circle processing is currently disabled in web builds`);
+      console.log(`[Project Refresh] To enable, create a web-local inner circle processor`);
+      // Inner circle processing skipped - would require web-local implementation
+      // to avoid importing from scripts/ which breaks webpack builds
     }
 
     await delay(DELAY_BETWEEN_API_CALLS_MS);

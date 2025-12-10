@@ -39,6 +39,25 @@ const nextConfig = {
         tls: false,
       };
     }
+
+    // Transpile TypeScript files from src/server directory
+    // These are imported by API routes but are outside the Next.js build context
+    config.module.rules.push({
+      test: /\.ts$/,
+      include: [
+        /src[\\/]server/,
+      ],
+      use: {
+        loader: 'ts-loader',
+        options: {
+          transpileOnly: true,
+          compilerOptions: {
+            module: 'esnext',
+          },
+        },
+      },
+    });
+
     return config;
   },
 };
