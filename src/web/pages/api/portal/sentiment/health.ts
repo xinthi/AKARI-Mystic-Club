@@ -127,16 +127,17 @@ export default async function handler(
 
       totalWithMetrics++;
       
-      // Determine lastUpdatedAt: updated_at || created_at || date
-      const lastUpdatedAt = latestMetrics.updated_at ?? latestMetrics.created_at ?? latestMetrics.date;
+      // Determine lastUpdatedAt: updated_at || created_at (NOT date, as date is the metrics date, not update time)
+      const lastUpdatedAt = latestMetrics.updated_at ?? latestMetrics.created_at;
       
       if (lastUpdatedAt) {
-        // Track max lastUpdatedAt for global timestamp
-        if (!lastGlobalUpdatedAt || lastUpdatedAt > lastGlobalUpdatedAt) {
-          lastGlobalUpdatedAt = lastUpdatedAt;
+        // Track max lastUpdatedAt for global timestamp (use updated_at first, then created_at)
+        const timestampForGlobal = latestMetrics.updated_at ?? latestMetrics.created_at;
+        if (timestampForGlobal && (!lastGlobalUpdatedAt || timestampForGlobal > lastGlobalUpdatedAt)) {
+          lastGlobalUpdatedAt = timestampForGlobal;
         }
 
-        // Classify freshness
+        // Classify freshness based on actual update time
         const freshness = classifyFreshness(lastUpdatedAt);
         
         if (freshness.label === 'Fresh') {
@@ -147,7 +148,7 @@ export default async function handler(
           staleCount++;
         }
       } else {
-        // No valid timestamp, treat as no data
+        // No valid timestamp (neither updated_at nor created_at), treat as no data
         totalNoData++;
         totalWithMetrics--;
       }
