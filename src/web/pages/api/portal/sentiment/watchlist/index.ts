@@ -25,6 +25,7 @@ interface WatchlistProject {
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
+  followersChange24h: number;
   lastUpdatedAt: string | null;
 }
 
@@ -157,6 +158,14 @@ export default async function handler(
       .select('project_id, date, sentiment_score, ct_heat_score, akari_score, followers, updated_at, created_at')
       .in('project_id', projectIdsList)
       .order('date', { ascending: false });
+    
+    // Get most recent non-zero followers for each project (fallback)
+    const { data: followersFallback } = await supabase
+      .from('metrics_daily')
+      .select('project_id, followers')
+      .in('project_id', projectIdsList)
+      .gt('followers', 0)
+      .order('date', { ascending: false });
 
     if (latestError) {
       console.error('[Watchlist API] Error fetching latest metrics:', latestError);
@@ -183,6 +192,16 @@ export default async function handler(
         });
       }
     });
+    
+    // Build fallback followers map (most recent non-zero followers per project)
+    const fallbackFollowersByProject = new Map<string, number>();
+    if (followersFallback) {
+      for (const row of followersFallback) {
+        if (!fallbackFollowersByProject.has(row.project_id)) {
+          fallbackFollowersByProject.set(row.project_id, row.followers);
+        }
+      }
+    }
 
     // Build response
     const watchlistProjects: WatchlistProject[] = (projects || []).map((p: any) => {
@@ -201,15 +220,20 @@ export default async function handler(
         ? latest.akari_score - previous.akari_score
         : 0;
 
-      // Compute followers with fallback: metrics_daily.followers > 0, else projects.followers > 0, else 0
+      // Compute followers with fallback: latest metrics_daily.followers > 0, else most recent non-zero from metrics_daily, else 0
       const metricsFollowers = latest?.followers ?? null;
-      const projectFollowers = (p as any).followers ?? null; // projects.followers might exist
+      const fallbackFollowers = fallbackFollowersByProject.get(p.id) ?? null;
       const followers =
         metricsFollowers && metricsFollowers > 0
           ? metricsFollowers
-          : projectFollowers && projectFollowers > 0
-          ? projectFollowers
+          : fallbackFollowers && fallbackFollowers > 0
+          ? fallbackFollowers
           : 0;
+      
+      // Compute follower change: use followers_delta if available, otherwise compute from previous day
+      const followersChange24h = latest && previous && latest.followers !== null && previous.followers !== null
+        ? latest.followers - previous.followers
+        : 0;
 
       return {
         projectId: p.id,
@@ -225,6 +249,7 @@ export default async function handler(
         sentimentChange24h,
         ctHeatChange24h,
         akariChange24h,
+        followersChange24h,
         lastUpdatedAt: latest?.updated_at ?? latest?.created_at ?? latest?.date ?? null,
       };
     });

@@ -47,6 +47,7 @@ export interface MetricsDaily {
   ct_heat_score: number | null;
   tweet_count: number | null;
   followers: number | null;
+  followers_delta?: number | null; // Daily change in followers
   akari_score: number | null;
   created_at: string;
   updated_at?: string | null; // Timestamp when metrics were last updated
@@ -108,8 +109,10 @@ export interface MetricsChange24h {
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
+  followersChange24h: number; // Daily change in followers
   sentimentDirection24h: ChangeDirection;
   ctHeatDirection24h: ChangeDirection;
+  followersDirection24h: ChangeDirection; // Direction of follower change
 }
 
 /**
@@ -239,13 +242,20 @@ export function compute24hChanges(
   const sentimentChange24h = (latest?.sentiment_score ?? 0) - (previous?.sentiment_score ?? latest?.sentiment_score ?? 0);
   const ctHeatChange24h = (latest?.ct_heat_score ?? 0) - (previous?.ct_heat_score ?? latest?.ct_heat_score ?? 0);
   const akariChange24h = (latest?.akari_score ?? 0) - (previous?.akari_score ?? latest?.akari_score ?? 0);
+  
+  // Calculate follower change: use followers_delta if available, otherwise compute from previous day
+  const followersChange24h = latest?.followers_delta != null
+    ? latest.followers_delta
+    : (latest?.followers ?? 0) - (previous?.followers ?? latest?.followers ?? 0);
 
   return {
     sentimentChange24h,
     ctHeatChange24h,
     akariChange24h,
+    followersChange24h,
     sentimentDirection24h: getDirection(sentimentChange24h),
     ctHeatDirection24h: getDirection(ctHeatChange24h),
+    followersDirection24h: getDirection(followersChange24h),
   };
 }
 
@@ -281,19 +291,45 @@ export async function getProjectsWithLatestMetrics(
   const projectIds = projects.map((p) => p.id);
 
   // Get metrics ordered by date desc - we'll extract latest and previous for each project
+  // Also get the most recent non-zero followers value for fallback
   const { data: metrics, error: metricsError } = await client
     .from('metrics_daily')
     .select('*')
     .in('project_id', projectIds)
     .order('date', { ascending: false });
+  
+  // Get most recent non-zero followers for each project (fallback)
+  const { data: followersFallback } = await client
+    .from('metrics_daily')
+    .select('project_id, followers, date')
+    .in('project_id', projectIds)
+    .gt('followers', 0)
+    .order('date', { ascending: false });
 
   if (metricsError) {
     console.error('[Supabase] Error fetching metrics:', metricsError);
     // Return projects without metrics rather than failing entirely
+    // Get fallback followers even when metrics query fails
+    const { data: followersFallback } = await client
+      .from('metrics_daily')
+      .select('project_id, followers')
+      .in('project_id', projectIds)
+      .gt('followers', 0)
+      .order('date', { ascending: false });
+    
+    const fallbackFollowersByProject = new Map<string, number>();
+    if (followersFallback) {
+      for (const row of followersFallback) {
+        if (!fallbackFollowersByProject.has(row.project_id)) {
+          fallbackFollowersByProject.set(row.project_id, row.followers);
+        }
+      }
+    }
+
     return projects.map((p) => {
-      // Fallback to projects.followers if available when metrics are missing
-      const projectFollowers = (p as any).followers ?? null;
-      const followers = projectFollowers && projectFollowers > 0 ? projectFollowers : 0;
+      // Use fallback followers from metrics_daily if available
+      const fallbackFollowers = fallbackFollowersByProject.get(p.id) ?? null;
+      const followers = fallbackFollowers && fallbackFollowers > 0 ? fallbackFollowers : 0;
 
       return {
         ...p,
@@ -305,8 +341,10 @@ export async function getProjectsWithLatestMetrics(
         sentimentChange24h: 0,
         ctHeatChange24h: 0,
         akariChange24h: 0,
+        followersChange24h: 0,
         sentimentDirection24h: 'flat' as ChangeDirection,
         ctHeatDirection24h: 'flat' as ChangeDirection,
+        followersDirection24h: 'flat' as ChangeDirection,
       };
     });
   }
@@ -314,6 +352,7 @@ export async function getProjectsWithLatestMetrics(
   // Create maps of project_id -> latest metrics and previous metrics
   const latestMetricsByProject = new Map<string, MetricsDaily>();
   const previousMetricsByProject = new Map<string, MetricsDaily>();
+  const fallbackFollowersByProject = new Map<string, number>();
   
   if (metrics) {
     for (const m of metrics) {
@@ -325,6 +364,15 @@ export async function getProjectsWithLatestMetrics(
       }
     }
   }
+  
+  // Build fallback followers map (most recent non-zero followers per project)
+  if (followersFallback) {
+    for (const row of followersFallback) {
+      if (!fallbackFollowersByProject.has(row.project_id)) {
+        fallbackFollowersByProject.set(row.project_id, row.followers);
+      }
+    }
+  }
 
   // Combine projects with their latest metrics and 24h changes
   return projects.map((project) => {
@@ -332,14 +380,14 @@ export async function getProjectsWithLatestMetrics(
     const previousMetrics = previousMetricsByProject.get(project.id) ?? null;
     const changes = compute24hChanges(latestMetrics, previousMetrics);
 
-    // Compute followers with fallback: metrics_daily.followers > 0, else projects.followers > 0, else 0
+    // Compute followers with fallback: latest metrics_daily.followers > 0, else most recent non-zero from metrics_daily, else 0
     const metricsFollowers = latestMetrics?.followers ?? null;
-    const projectFollowers = (project as any).followers ?? null; // projects.followers might exist
+    const fallbackFollowers = fallbackFollowersByProject.get(project.id) ?? null;
     const followers =
       metricsFollowers && metricsFollowers > 0
         ? metricsFollowers
-        : projectFollowers && projectFollowers > 0
-        ? projectFollowers
+        : fallbackFollowers && fallbackFollowers > 0
+        ? fallbackFollowers
         : 0;
 
     return {

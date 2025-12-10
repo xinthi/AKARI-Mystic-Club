@@ -27,6 +27,8 @@ interface ProjectWithMetrics {
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
+  followersChange24h: number;
+  followersDirection24h: 'up' | 'down' | 'flat';
   sentimentDirection24h: ChangeDirection;
   ctHeatDirection24h: ChangeDirection;
 }
@@ -651,8 +653,10 @@ export default function SentimentOverview() {
               sentimentChange24h: p.sentimentChange24h,
               ctHeatChange24h: p.ctHeatChange24h,
               akariChange24h: p.akariChange24h,
+              followersChange24h: p.followersChange24h ?? 0,
               sentimentDirection24h: p.sentimentChange24h > 0 ? 'up' : p.sentimentChange24h < 0 ? 'down' : 'flat',
               ctHeatDirection24h: p.ctHeatChange24h > 0 ? 'up' : p.ctHeatChange24h < 0 ? 'down' : 'flat',
+              followersDirection24h: (p.followersChange24h ?? 0) > 0 ? 'up' : (p.followersChange24h ?? 0) < 0 ? 'down' : 'flat',
             }));
             setWatchlistProjects(watchlistAsMetrics);
             setWatchlistProjectIds(new Set(data.projects.map((p: any) => p.projectId)));
@@ -715,8 +719,10 @@ export default function SentimentOverview() {
               sentimentChange24h: p.sentimentChange24h,
               ctHeatChange24h: p.ctHeatChange24h,
               akariChange24h: p.akariChange24h,
+              followersChange24h: p.followersChange24h ?? 0,
               sentimentDirection24h: p.sentimentChange24h > 0 ? 'up' : p.sentimentChange24h < 0 ? 'down' : 'flat',
               ctHeatDirection24h: p.ctHeatChange24h > 0 ? 'up' : p.ctHeatChange24h < 0 ? 'down' : 'flat',
+              followersDirection24h: (p.followersChange24h ?? 0) > 0 ? 'up' : (p.followersChange24h ?? 0) < 0 ? 'down' : 'flat',
             }));
             setWatchlistProjects(watchlistAsMetrics);
           }
@@ -1193,8 +1199,13 @@ export default function SentimentOverview() {
                             <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} />
                           </div>
                         </td>
-                        <td className="py-4 px-4 font-mono text-akari-muted">
-                          {formatNumber(project.followers)}
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono font-medium text-akari-text">
+                              {formatNumber(project.followers)}
+                            </span>
+                            <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} />
+                          </div>
                         </td>
                         <td className="py-4 px-4 text-xs text-akari-muted">
                           {project.date ? new Date(project.date).toLocaleDateString() : '-'}
