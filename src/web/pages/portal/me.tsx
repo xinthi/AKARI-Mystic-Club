@@ -160,12 +160,12 @@ type ProfileStatus =
 // =============================================================================
 
 function getAkariTier(score: number | null): { name: string; color: string; bgColor: string } {
-  if (score === null) return { name: 'Unranked', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
-  if (score >= 900) return { name: 'Celestial', color: 'text-purple-400', bgColor: 'bg-purple-400/10' };
-  if (score >= 750) return { name: 'Vanguard', color: 'text-emerald-400', bgColor: 'bg-emerald-400/10' };
-  if (score >= 550) return { name: 'Ranger', color: 'text-blue-400', bgColor: 'bg-blue-400/10' };
-  if (score >= 400) return { name: 'Nomad', color: 'text-amber-400', bgColor: 'bg-amber-400/10' };
-  return { name: 'Shadow', color: 'text-slate-400', bgColor: 'bg-slate-400/10' };
+  if (score === null) return { name: 'Unranked', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
+  if (score >= 900) return { name: 'Celestial', color: 'text-akari-neon-violet', bgColor: 'bg-akari-neon-violet/15' };
+  if (score >= 750) return { name: 'Vanguard', color: 'text-akari-neon-teal', bgColor: 'bg-akari-neon-teal/15' };
+  if (score >= 550) return { name: 'Ranger', color: 'text-akari-neon-blue', bgColor: 'bg-akari-neon-blue/15' };
+  if (score >= 400) return { name: 'Nomad', color: 'text-akari-neon-pink', bgColor: 'bg-akari-neon-pink/15' };
+  return { name: 'Shadow', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
 }
 
 /**
@@ -500,12 +500,12 @@ export default function MyProfilePage() {
         <title>{pageTitle} – Akari Mystic Club</title>
       </Head>
       
-      <div className="px-4 py-4 md:px-6 lg:px-10 space-y-6">
+      <div className="px-4 py-4 md:px-6 lg:px-10 space-y-8">
         {/* Loading State */}
         {(profileState.status === 'loading' || profileState.status === 'tracking') && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent mb-4" />
-            <p className="text-sm text-slate-400">
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent mb-6 shadow-neon-teal" />
+            <p className="text-base text-akari-muted font-medium">
               {profileState.status === 'tracking' ? 'Tracking your profile...' : 'Loading your mystic profile...'}
             </p>
           </div>
@@ -514,18 +514,18 @@ export default function MyProfilePage() {
         {/* No X Account Linked */}
         {profileState.status === 'no_x_linked' && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
+            <div className="w-24 h-24 rounded-full bg-gradient-neon-teal flex items-center justify-center mb-8 shadow-neon-teal">
+              <svg className="w-12 h-12 text-black" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Connect X to see your Mystic profile</h2>
-            <p className="text-sm text-slate-400 text-center max-w-md mb-6">
+            <h2 className="text-2xl font-bold mb-3 text-gradient-neon">Connect X to see your Mystic profile</h2>
+            <p className="text-base text-akari-muted text-center max-w-md mb-8 leading-relaxed">
               Link your X (Twitter) account to view your personal sentiment insights, AKARI score, and inner circle analytics.
             </p>
             <Link
               href="/portal/sentiment"
-              className="px-6 py-2.5 min-h-[40px] rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+              className="pill-neon px-6 py-3 min-h-[44px] bg-akari-cardSoft/50 border border-akari-neon-teal/30 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)] transition-all duration-300 font-semibold"
             >
               ← Back to Sentiment
             </Link>
@@ -535,24 +535,24 @@ export default function MyProfilePage() {
         {/* Profile Not Tracked Yet */}
         {profileState.status === 'not_tracked' && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-purple-500/20 flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-24 h-24 rounded-full bg-gradient-neon-teal flex items-center justify-center mb-8 shadow-neon-teal">
+              <svg className="w-12 h-12 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Start Tracking Your Profile</h2>
-            <p className="text-sm text-slate-400 text-center max-w-md mb-6">
-              Your X account <span className="text-emerald-400">{profileState.xHandle}</span> is not tracked yet in AKARI Mystic. 
+            <h2 className="text-2xl font-bold mb-3 text-gradient-neon">Start Tracking Your Profile</h2>
+            <p className="text-base text-akari-muted text-center max-w-md mb-8 leading-relaxed">
+              Your X account <span className="text-gradient-teal font-semibold">{profileState.xHandle}</span> is not tracked yet in AKARI Mystic. 
               Track it to see your sentiment insights, AKARI score, and inner circle.
             </p>
             <button
               onClick={trackMyProfile}
               disabled={isTracking}
-              className="flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 text-black font-medium hover:bg-emerald-400 transition disabled:opacity-50"
+              className="pill-neon flex items-center gap-2 px-8 py-3.5 min-h-[48px] bg-gradient-neon-teal text-black font-semibold hover:shadow-akari-glow transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isTracking ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-black border-t-transparent" />
                   Tracking...
                 </>
               ) : (
@@ -566,7 +566,7 @@ export default function MyProfilePage() {
             </button>
             <Link
               href="/portal/sentiment"
-              className="mt-4 text-xs text-slate-500 hover:text-white transition min-h-[36px] flex items-center"
+              className="mt-6 text-sm text-akari-muted hover:text-gradient-teal transition-all duration-300 min-h-[40px] flex items-center font-medium"
             >
               ← Back to Sentiment
             </Link>
@@ -576,16 +576,16 @@ export default function MyProfilePage() {
         {/* Error State */}
         {profileState.status === 'error' && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-24 h-24 rounded-full bg-red-500/20 border-2 border-red-500/30 flex items-center justify-center mb-8">
+              <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Something went wrong</h2>
-            <p className="text-sm text-slate-400 text-center max-w-md mb-6">{profileState.message}</p>
+            <h2 className="text-2xl font-bold mb-3 text-gradient-neon">Something went wrong</h2>
+            <p className="text-base text-akari-muted text-center max-w-md mb-8 leading-relaxed">{profileState.message}</p>
             <button
               onClick={refresh}
-              className="px-6 py-2.5 min-h-[40px] rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+              className="pill-neon px-6 py-3 min-h-[44px] bg-akari-cardSoft/50 border border-akari-neon-teal/30 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)] transition-all duration-300 font-semibold"
             >
               Try Again
             </button>
@@ -630,7 +630,7 @@ export default function MyProfilePage() {
             />
             
             {/* Section 4: Zone of Expertise + Club Orbit */}
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <ProfileZoneOfExpertise topics={profileState.data.topics30d} />
               <ProfileClubOrbit 
                 orbit={shapeOrbitMembers(
@@ -642,7 +642,7 @@ export default function MyProfilePage() {
             </section>
             
             {/* Section 5: Zone Advice */}
-            <section className="mt-4">
+            <section className="mt-6">
               <ProfileZoneAdvice
                 topics={profileState.data.topics30d}
                 innerCircle={shapeInnerCircleEntries(
@@ -654,7 +654,7 @@ export default function MyProfilePage() {
             </section>
             
             {/* Section 5.5: Deep Explorer Access */}
-            <section className="mt-4">
+            <section className="mt-6">
               <ProfileDeepExplorerAccess
                 hasDeepAccess={hasDeepAccess}
                 hasInstitutionalPlus={hasInstitutionalPlusAccess}
@@ -664,7 +664,7 @@ export default function MyProfilePage() {
             </section>
             
             {/* Section 6: Inner Circle List */}
-            <section className="mt-4">
+            <section className="mt-6">
               <ProfileInnerCircleList 
                 entries={shapeInnerCircleEntries(
                   profileState.data.influencers,
@@ -675,7 +675,7 @@ export default function MyProfilePage() {
             </section>
             
             {/* Section 7: Social Connections + Reviews */}
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <ProfileSocialConnections
                 xConnected={!!xUsername}
                 telegramConnected={telegramConnected}

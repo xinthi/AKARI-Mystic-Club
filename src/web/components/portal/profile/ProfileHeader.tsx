@@ -102,10 +102,10 @@ export function ProfileHeader({
   };
   
   return (
-    <section className="neon-card neon-hover p-4 md:p-6">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+    <section className="neon-card neon-hover p-6 md:p-8">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-6">
         {/* Avatar + Info */}
-        <div className="flex items-start gap-4 flex-1">
+        <div className="flex items-start gap-5 flex-1">
           {/* Avatar with claim tick */}
           <div className="relative flex-shrink-0">
             {avatarUrl ? (
@@ -114,24 +114,24 @@ export function ProfileHeader({
                 alt={displayName}
                 width={80}
                 height={80}
-                className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover border-2 border-slate-700"
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-akari-neon-teal/30 shadow-neon-teal"
                 unoptimized
               />
             ) : (
-              <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-emerald-500/30 to-purple-500/30 flex items-center justify-center text-2xl font-bold text-emerald-400">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-neon-teal flex items-center justify-center text-3xl font-bold text-black shadow-neon-teal">
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             {/* Claim tick */}
             <div 
-              className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center ${
+              className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 border-black shadow-lg ${
                 personaType === 'company' 
-                  ? 'bg-emerald-500' 
-                  : 'bg-amber-500'
+                  ? 'bg-gradient-neon-teal' 
+                  : 'bg-gradient-neon-pink'
               }`}
               title={personaType === 'company' ? 'Official' : 'Claimed'}
             >
-              <svg className="w-3.5 h-3.5 text-black" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </div>
@@ -139,12 +139,12 @@ export function ProfileHeader({
           
           {/* Name, handle, bio */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-xl md:text-2xl font-semibold neon-gradient-text truncate glow-soft">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold text-gradient-neon truncate">
                 {displayName}
               </h1>
               {/* Role badge */}
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${roleBadge.bgColor} ${roleBadge.color}`}>
+              <span className={`pill-neon text-xs px-3 py-1 font-semibold border ${roleBadge.bgColor} ${roleBadge.color} border-akari-neon-teal/30`}>
                 {roleBadge.label}
               </span>
             </div>
@@ -153,13 +153,13 @@ export function ProfileHeader({
                 href={`https://x.com/${xUsername}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-slate-400 hover:text-emerald-400 transition"
+                className="text-sm text-akari-muted hover:text-gradient-teal transition-all duration-300 font-medium"
               >
                 {xUsername}
               </a>
             )}
             {bio && (
-              <p className="mt-2 text-sm text-slate-500 line-clamp-2 max-w-xl">
+              <p className="mt-3 text-sm text-akari-muted line-clamp-2 max-w-xl leading-relaxed">
                 {bio}
               </p>
             )}
@@ -167,10 +167,10 @@ export function ProfileHeader({
         </div>
         
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2 lg:flex-col lg:items-end">
+        <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
           <Link
             href={`/portal/sentiment/${slug}`}
-            className="neon-hover flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl neon-border bg-black/40 text-slate-300 hover:text-white text-sm glow-soft"
+            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-akari-cardSoft/50 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)] transition-all duration-300 text-sm font-semibold"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -182,7 +182,7 @@ export function ProfileHeader({
           {canCompare ? (
             <button
               onClick={handleCompareClick}
-              className="neon-hover flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl neon-border bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-sm glow-soft"
+              className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-akari-neon-teal/20 text-akari-neon-teal hover:bg-akari-neon-teal/30 hover:shadow-[0_0_12px_rgba(0,246,162,0.3)] transition-all duration-300 text-sm font-semibold"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -193,7 +193,7 @@ export function ProfileHeader({
             <div className="relative group">
               <button
                 disabled
-                className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-slate-800/50 text-slate-500 text-sm cursor-not-allowed"
+                className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/20 bg-akari-cardSoft/30 text-akari-muted text-sm cursor-not-allowed"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -201,9 +201,9 @@ export function ProfileHeader({
                 Compare
               </button>
               {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap z-10">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 neon-card border border-akari-neon-teal/30 bg-akari-card text-akari-text text-xs opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-10">
                 Upgrade to unlock compare
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-700"></div>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-akari-neon-teal/30"></div>
               </div>
             </div>
           )}
@@ -211,11 +211,11 @@ export function ProfileHeader({
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-xl bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-slate-300 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/20 bg-akari-cardSoft/50 text-akari-muted hover:border-akari-neon-teal/40 hover:text-akari-text hover:bg-akari-cardSoft transition-all duration-300 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoggingOut ? (
               <>
-                <div className="w-4 h-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-akari-muted border-t-transparent" />
                 Logging out...
               </>
             ) : (

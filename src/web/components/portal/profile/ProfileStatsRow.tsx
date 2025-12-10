@@ -60,31 +60,31 @@ function StatCard({
   label,
   value,
   subValue,
-  valueColor = 'text-white',
+  valueColor = 'text-akari-text',
   delta,
   deltaDirection,
 }: StatCardProps) {
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 min-h-[90px]">
-      <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
+    <div className="neon-card neon-hover p-5 min-h-[110px] border border-akari-neon-teal/20">
+      <p className="text-xs uppercase tracking-wider text-gradient-teal font-semibold mb-2">{label}</p>
+      <p className={`text-2xl font-bold ${valueColor} mb-1`}>{value}</p>
       {delta !== undefined && deltaDirection && (
-        <div className="mt-0.5">
+        <div className="mt-1">
           {deltaDirection === 'flat' && delta === 0 ? (
-            <p className="text-[10px] text-slate-500">No movement in the last 24h</p>
+            <p className="text-xs text-akari-muted">No movement in the last 24h</p>
           ) : (
-            <p className={`text-xs ${
-              deltaDirection === 'up' ? 'text-emerald-400' :
-              deltaDirection === 'down' ? 'text-red-400' : 'text-slate-500'
+            <p className={`text-sm font-semibold ${
+              deltaDirection === 'up' ? 'text-green-400' :
+              deltaDirection === 'down' ? 'text-red-400' : 'text-akari-muted'
             }`}>
               {deltaDirection === 'up' ? '▲' : deltaDirection === 'down' ? '▼' : '–'}
               {delta !== 0 && ` ${delta > 0 ? '+' : ''}${delta}`}
-              <span className="text-[10px] text-slate-500 ml-1">Last 24h</span>
+              <span className="text-xs text-akari-muted ml-1.5">Last 24h</span>
             </p>
           )}
         </div>
       )}
-      {subValue && <p className="text-[10px] text-slate-500 mt-0.5">{subValue}</p>}
+      {subValue && <p className="text-xs text-akari-muted mt-2 font-medium">{subValue}</p>}
     </div>
   );
 }
@@ -103,7 +103,7 @@ export function ProfileStatsRow({
   changes24h,
 }: ProfileStatsRowProps) {
   return (
-    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       <StatCard
         label="AKARI Score"
         value={akariScore ?? '-'}
