@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { Logo } from '../Logo';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
+import { getUserTierInfo } from '@/lib/userTier';
 
 type Props = {
   title?: string;
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/portal/memes', label: 'Meme Radar' },
   { href: '/portal/sentiment', label: 'Sentiment' },
   { href: '/portal/new-launches', label: 'New Launches' },
+  { href: '/portal/pricing', label: 'Pricing' },
 ];
 
 export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
@@ -24,6 +26,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const akariUser = useAkariUser();
   const { isLoggedIn, xUsername } = akariUser;
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  const tierInfo = getUserTierInfo(akariUser.user);
 
   return (
     <>
@@ -67,6 +70,18 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 </Link>
               );
             })}
+
+            {/* Tier Badge - only show when logged in */}
+            {isLoggedIn && (
+              <Link
+                href="/portal/pricing"
+                className={`transition hover:opacity-80 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border ${tierInfo.bgColor} ${tierInfo.color}`}
+                title={`Your current tier: ${tierInfo.name}`}
+              >
+                <span className="hidden sm:inline">Level:</span>
+                {tierInfo.name}
+              </Link>
+            )}
 
             {/* My Profile link - only show when logged in */}
             {isLoggedIn && (

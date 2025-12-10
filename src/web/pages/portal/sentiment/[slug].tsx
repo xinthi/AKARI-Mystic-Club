@@ -5,6 +5,8 @@ import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { can, canUseDeepExplorer } from '../../../lib/permissions';
 import { classifyFreshness, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
+import { LockedFeatureOverlay } from '../../../components/portal/LockedFeatureOverlay';
+import { UpgradeModal } from '../../../components/portal/UpgradeModal';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -854,53 +856,6 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
   );
 }
 
-// =============================================================================
-// LOCKED FEATURE OVERLAY (for non-analyst users)
-// =============================================================================
-
-interface LockedFeatureOverlayProps {
-  featureName: string;
-  children: React.ReactNode;
-  isLocked: boolean;
-}
-
-function LockedFeatureOverlay({ featureName, children, isLocked }: LockedFeatureOverlayProps) {
-  if (!isLocked) {
-    return <>{children}</>;
-  }
-
-  return (
-    <div className="relative">
-      {/* Blurred content */}
-      <div className="blur-sm opacity-50 pointer-events-none select-none">
-        {children}
-      </div>
-      
-      {/* Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center bg-akari-bg/60 backdrop-blur-[2px] rounded-2xl">
-        <div className="text-center p-6">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-akari-primary/10 flex items-center justify-center">
-            <svg className="w-6 h-6 text-akari-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h3 className="text-sm font-semibold text-akari-text mb-1">
-            {featureName}
-          </h3>
-          <p className="text-xs text-akari-muted mb-3">
-            Upgrade to Analyst+ to unlock this feature
-          </p>
-          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary text-xs font-medium">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            Analyst Feature
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // =============================================================================
 // MAIN PAGE COMPONENT
@@ -922,15 +877,19 @@ interface Competitor {
 export default function SentimentDetail() {
   const router = useRouter();
   const { slug } = router.query;
-  
+
   // Get current user for permission checks
-  const { user } = useAkariUser();
+  const akariUser = useAkariUser();
+  const { user } = akariUser;
   const isLoggedIn = user?.isLoggedIn ?? false;
   
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
   const canViewAnalytics = can(user, 'markets.analytics');
   const canViewDeepExplorer = canUseDeepExplorer(user);
+
+  // Upgrade modal state
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsDaily[]>([]);
@@ -1351,7 +1310,12 @@ export default function SentimentDetail() {
           )}
 
           {/* Similar Projects / Competitors - Requires Analyst+ */}
-          <LockedFeatureOverlay featureName="Similar Projects" isLocked={!canViewCompare}>
+          <LockedFeatureOverlay
+            featureName="Similar Projects"
+            isLocked={!canViewCompare}
+            requiredTier="analyst"
+            onUpgradeClick={() => setUpgradeModalOpen(true)}
+          >
             {competitors.length > 0 && (
               <section className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -1453,7 +1417,12 @@ export default function SentimentDetail() {
           {/* NEW: TWITTER-STYLE ANALYTICS SECTION (APPENDED BELOW EXISTING)   */}
           {/* Requires Analyst+ to view                                        */}
           {/* ================================================================= */}
-          <LockedFeatureOverlay featureName="Twitter Analytics" isLocked={!canViewAnalytics}>
+          <LockedFeatureOverlay
+            featureName="Twitter Analytics"
+            isLocked={!canViewAnalytics}
+            requiredTier="analyst"
+            onUpgradeClick={() => setUpgradeModalOpen(true)}
+          >
             <section className="mt-8 pt-8 border-t border-akari-border/30">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
                 <h2 className="text-lg font-semibold text-akari-text flex items-center gap-2">
@@ -1776,6 +1745,13 @@ export default function SentimentDetail() {
             )}
           </section>
         </LockedFeatureOverlay>
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          isOpen={upgradeModalOpen}
+          onClose={() => setUpgradeModalOpen(false)}
+          user={user}
+        />
         </>
       )}
     </PortalLayout>
