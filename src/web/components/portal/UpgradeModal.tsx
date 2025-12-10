@@ -2,10 +2,10 @@
  * Upgrade Modal Component
  * 
  * Modal that explains how to upgrade using manual crypto payments and admin approval.
- * No automation - purely informational UI.
+ * Includes form for submitting upgrade requests.
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getUserTier, canUpgradeTo, type UserTier, TIER_INFO } from '@/lib/userTier';
 import type { AkariUser } from '@/lib/permissions';
@@ -18,6 +18,7 @@ export interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: AkariUser | null;
+  targetTier?: 'analyst' | 'institutional_plus';
 }
 
 // =============================================================================
@@ -38,14 +39,76 @@ function getContactLink(): string {
  * Upgrade Modal
  * 
  * Shows upgrade information and manual payment instructions.
+ * Includes form for submitting upgrade requests.
  */
-export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
-  if (!isOpen) return null;
-
+export function UpgradeModal({ isOpen, onClose, user, targetTier }: UpgradeModalProps) {
   const currentTier = getUserTier(user);
   const currentTierInfo = TIER_INFO[currentTier];
   const canUpgradeToAnalyst = canUpgradeTo(user, 'analyst');
   const canUpgradeToInstitutional = canUpgradeTo(user, 'institutional_plus');
+
+  // Form state
+  const [selectedTier, setSelectedTier] = useState<'analyst' | 'institutional_plus'>(
+    targetTier || (canUpgradeToAnalyst ? 'analyst' : 'institutional_plus')
+  );
+  const [xHandle, setXHandle] = useState<string>(user?.xUsername || '');
+  const [message, setMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Reset form when modal opens/closes or targetTier changes
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTier(targetTier || (canUpgradeToAnalyst ? 'analyst' : 'institutional_plus'));
+      setXHandle(user?.xUsername || '');
+      setMessage('');
+      setSubmitSuccess(false);
+      setSubmitError(null);
+    }
+  }, [isOpen, targetTier, canUpgradeToAnalyst, user?.xUsername]);
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch('/api/portal/access/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          desiredTier: selectedTier,
+          xHandle: xHandle.trim() || null,
+          message: message.trim() || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to submit upgrade request');
+      }
+
+      setSubmitSuccess(true);
+      
+      // Auto-close after 3 seconds on success
+      setTimeout(() => {
+        setSubmitSuccess(false);
+        onClose();
+      }, 3000);
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to submit upgrade request. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -107,21 +170,6 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 </div>
               </div>
             </div>
-
-            <div className="flex gap-2">
-              <a
-                href={getContactLink()}
-                className="flex-1 px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition text-sm font-medium text-center"
-              >
-                Contact AKARI team
-              </a>
-              <Link
-                href="/portal/pricing"
-                className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition text-sm font-medium text-center"
-              >
-                View Pricing
-              </Link>
-            </div>
           </div>
         )}
 
@@ -153,21 +201,141 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="flex gap-2">
-              <a
-                href={getContactLink()}
-                className="flex-1 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 transition text-sm font-medium text-center"
-              >
-                Contact AKARI team
-              </a>
-              <Link
-                href="/portal/pricing"
-                className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition text-sm font-medium text-center"
-              >
-                View Pricing
-              </Link>
-            </div>
+        {/* Shared Upgrade Request Form */}
+        {(canUpgradeToAnalyst || canUpgradeToInstitutional) && (
+          <div className="mb-6 p-5 rounded-lg border border-slate-700 bg-slate-800/30">
+            <h3 className="text-sm font-semibold text-white mb-4">Request Upgrade</h3>
+            
+            {!submitSuccess ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Tier Selection */}
+                {(canUpgradeToAnalyst && canUpgradeToInstitutional) && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-2">
+                      Request upgrade to:
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTier('analyst')}
+                        className={`flex-1 px-4 py-2 rounded-lg border transition text-sm font-medium ${
+                          selectedTier === 'analyst'
+                            ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        Analyst
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTier('institutional_plus')}
+                        className={`flex-1 px-4 py-2 rounded-lg border transition text-sm font-medium ${
+                          selectedTier === 'institutional_plus'
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/50'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        Institutional Plus
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* X Handle Input */}
+                <div>
+                  <label htmlFor="xHandle" className="block text-xs font-medium text-slate-300 mb-2">
+                    Your X handle <span className="text-slate-500">(optional)</span>
+                  </label>
+                  <input
+                    id="xHandle"
+                    type="text"
+                    value={xHandle}
+                    onChange={(e) => setXHandle(e.target.value)}
+                    placeholder="@username"
+                    className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-akari-primary/50 transition"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {/* Message Input */}
+                <div>
+                  <label htmlFor="message" className="block text-xs font-medium text-slate-300 mb-2">
+                    Message to AKARI team <span className="text-slate-500">(optional)</span>
+                  </label>
+                  <textarea
+                    id="message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Tell us about your use case or any questions..."
+                    rows={3}
+                    className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-akari-primary/50 transition resize-none"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {/* Error Message */}
+                {submitError && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-xs text-red-400">{submitError}</p>
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`w-full px-4 py-2 rounded-lg text-white hover:opacity-90 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    selectedTier === 'analyst' 
+                      ? 'bg-purple-500 hover:bg-purple-600' 
+                      : 'bg-amber-500 hover:bg-amber-600'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Sending request...
+                    </>
+                  ) : (
+                    'Send upgrade request'
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-emerald-400 mb-1">Request sent!</p>
+                    <p className="text-xs text-emerald-300/80">
+                      Your upgrade request has been sent. The AKARI team will review and contact you.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Alternative Contact Options */}
+            {!submitSuccess && (
+              <div className="mt-4 pt-4 border-t border-slate-700 flex gap-2">
+                <a
+                  href={getContactLink()}
+                  className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition text-sm font-medium text-center"
+                >
+                  Contact AKARI team
+                </a>
+                <Link
+                  href="/portal/pricing"
+                  className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition text-sm font-medium text-center"
+                >
+                  View Pricing
+                </Link>
+              </div>
+            )}
           </div>
         )}
 

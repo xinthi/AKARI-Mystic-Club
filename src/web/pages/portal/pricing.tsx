@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
-import { getUserTierInfo, TIER_INFO, type UserTier } from '@/lib/userTier';
+import { getUserTierInfo, getUserTier, TIER_INFO, type UserTier } from '@/lib/userTier';
 import { UpgradeModal } from '@/components/portal/UpgradeModal';
 
 // =============================================================================
@@ -65,7 +65,10 @@ const TIER_FEATURES: Record<UserTier, FeatureList> = {
 export default function PricingPage() {
   const akariUser = useAkariUser();
   const tierInfo = getUserTierInfo(akariUser.user);
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const currentTier = getUserTier(akariUser.user);
+  const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
+    open: false,
+  });
 
   return (
     <PortalLayout title="Pricing">
@@ -164,7 +167,7 @@ export default function PricingPage() {
                 </div>
               ) : (
                 <button
-                  onClick={() => setUpgradeModalOpen(true)}
+                  onClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
                   className="w-full px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition text-sm font-medium"
                 >
                   Request Upgrade
@@ -213,7 +216,7 @@ export default function PricingPage() {
                 </div>
               ) : (
                 <button
-                  onClick={() => setUpgradeModalOpen(true)}
+                  onClick={() => setUpgradeModalState({ open: true, targetTier: 'institutional_plus' })}
                   className="w-full px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 transition text-sm font-medium"
                 >
                   Contact Team
@@ -262,7 +265,10 @@ export default function PricingPage() {
         <div className="text-center">
           <p className="text-slate-400 mb-4">Ready to upgrade?</p>
           <button
-            onClick={() => setUpgradeModalOpen(true)}
+            onClick={() => setUpgradeModalState({ 
+              open: true, 
+              targetTier: currentTier === 'seer' ? 'analyst' : 'institutional_plus' 
+            })}
             className="px-6 py-3 rounded-lg bg-akari-primary text-black hover:opacity-90 transition font-medium"
           >
             Request Upgrade
@@ -272,9 +278,10 @@ export default function PricingPage() {
 
       {/* Upgrade Modal */}
       <UpgradeModal
-        isOpen={upgradeModalOpen}
-        onClose={() => setUpgradeModalOpen(false)}
+        isOpen={upgradeModalState.open}
+        onClose={() => setUpgradeModalState({ open: false })}
         user={akariUser.user}
+        targetTier={upgradeModalState.targetTier}
       />
     </PortalLayout>
   );

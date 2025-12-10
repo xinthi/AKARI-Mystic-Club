@@ -609,7 +609,10 @@ export default function SentimentOverview() {
   const canCompare = can(user, 'sentiment.compare');
   const isLoggedIn = user?.isLoggedIn ?? false;
   const userTier = getUserTier(user);
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
+    open: false,
+    targetTier: 'analyst',
+  });
   
   const router = useRouter();
 
@@ -950,12 +953,12 @@ export default function SentimentOverview() {
                 >
                   View Pricing
                 </Link>
-                <button
-                  onClick={() => setIsUpgradeModalOpen(true)}
-                  className="px-4 py-2 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
-                >
-                  Request Upgrade
-                </button>
+                  <button
+                    onClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
+                    className="px-4 py-2 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
+                  >
+                    Request Upgrade
+                  </button>
               </div>
             </div>
           </div>
@@ -1690,9 +1693,10 @@ export default function SentimentOverview() {
       {/* Upgrade Modal */}
       {isLoggedIn && (
         <UpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
+          isOpen={upgradeModalState.open}
+          onClose={() => setUpgradeModalState({ open: false })}
           user={user}
+          targetTier={upgradeModalState.targetTier}
         />
       )}
     </PortalLayout>

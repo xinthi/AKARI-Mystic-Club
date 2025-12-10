@@ -343,7 +343,10 @@ export default function ComparePage() {
   const akariUser = useAkariUser();
   const canViewAnalytics = can(akariUser.user, 'markets.analytics');
   const userTier = getUserTier(akariUser.user);
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
+    open: false,
+    targetTier: 'analyst',
+  });
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<Array<{ id: string; name: string; slug: string; x_handle: string }>>([]);
@@ -636,7 +639,7 @@ export default function ComparePage() {
                   View Pricing
                 </Link>
                 <button
-                  onClick={() => setIsUpgradeModalOpen(true)}
+                  onClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
                   className="px-3 py-1.5 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
                 >
                   Request Upgrade
@@ -1278,9 +1281,10 @@ export default function ComparePage() {
       {/* Upgrade Modal */}
       {akariUser.isLoggedIn && (
         <UpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
+          isOpen={upgradeModalState.open}
+          onClose={() => setUpgradeModalState({ open: false })}
           user={akariUser.user}
+          targetTier={upgradeModalState.targetTier}
         />
       )}
     </PortalLayout>

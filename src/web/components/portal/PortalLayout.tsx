@@ -29,7 +29,9 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const tierInfo = getUserTierInfo(akariUser.user);
   const currentTier = getUserTier(akariUser.user);
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
+    open: false,
+  });
 
   return (
     <>
@@ -78,8 +80,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             {isLoggedIn && (
               <button
                 onClick={() => {
-                  if (currentTier !== 'institutional_plus') {
-                    setIsUpgradeModalOpen(true);
+                  if (currentTier === 'seer') {
+                    setUpgradeModalState({ open: true, targetTier: 'analyst' });
+                  } else if (currentTier === 'analyst') {
+                    setUpgradeModalState({ open: true, targetTier: 'institutional_plus' });
                   } else {
                     router.push('/portal/pricing');
                   }
@@ -165,9 +169,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       {/* Upgrade Modal */}
       {isLoggedIn && (
         <UpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
+          isOpen={upgradeModalState.open}
+          onClose={() => setUpgradeModalState({ open: false })}
           user={akariUser.user}
+          targetTier={upgradeModalState.targetTier}
         />
       )}
     </div>

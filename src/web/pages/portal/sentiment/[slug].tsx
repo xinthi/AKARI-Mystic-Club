@@ -889,7 +889,10 @@ export default function SentimentDetail() {
   const canViewDeepExplorer = canUseDeepExplorer(user);
 
   // Upgrade modal state
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
+    open: false,
+    targetTier: 'analyst',
+  });
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [metrics, setMetrics] = useState<MetricsDaily[]>([]);
@@ -1314,7 +1317,7 @@ export default function SentimentDetail() {
             featureName="Similar Projects"
             isLocked={!canViewCompare}
             requiredTier="analyst"
-            onUpgradeClick={() => setUpgradeModalOpen(true)}
+            onUpgradeClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
             title="Analyst feature"
             description="Compare this project with similar ones based on inner circles and narratives."
             showPricingButton={true}
@@ -1425,7 +1428,7 @@ export default function SentimentDetail() {
             featureName="Twitter Analytics"
             isLocked={!canViewAnalytics}
             requiredTier="analyst"
-            onUpgradeClick={() => setUpgradeModalOpen(true)}
+            onUpgradeClick={() => setUpgradeModalState({ open: true, targetTier: 'analyst' })}
             title="Analyst feature"
             description="Unlock full Twitter analytics and CSV export for this project."
             showPricingButton={true}
@@ -1756,9 +1759,10 @@ export default function SentimentDetail() {
 
         {/* Upgrade Modal */}
         <UpgradeModal
-          isOpen={upgradeModalOpen}
-          onClose={() => setUpgradeModalOpen(false)}
+          isOpen={upgradeModalState.open}
+          onClose={() => setUpgradeModalState({ open: false })}
           user={user}
+          targetTier={upgradeModalState.targetTier}
         />
         </>
       )}

@@ -35,12 +35,21 @@ interface AccessRequestWithUser {
 // HELPERS
 // =============================================================================
 
-function getFeatureLabel(featureKey: string): string {
+function getFeatureLabel(featureKey: string, requestedPlan?: string | null): string {
+  // If requested_plan is set, prefer that (for tier-based requests)
+  if (requestedPlan) {
+    if (requestedPlan === 'analyst') return 'Analyst (Tier Upgrade)';
+    if (requestedPlan === 'institutional_plus') return 'Institutional Plus (Tier Upgrade)';
+  }
+  
+  // Fallback to feature key mapping
   switch (featureKey) {
     case FEATURE_KEYS.DeepExplorer:
       return 'Deep Explorer';
     case FEATURE_KEYS.InstitutionalPlus:
       return 'Institutional Plus';
+    case 'markets.analytics':
+      return 'Analyst (Tier Upgrade)'; // Analyst tier upgrade request
     default:
       return featureKey;
   }
@@ -236,7 +245,7 @@ export default function AdminAccessRequestsPage() {
 
                         {/* Feature */}
                         <td className="py-3 px-4 text-sm text-slate-300">
-                          {getFeatureLabel(request.featureKey)}
+                          {getFeatureLabel(request.featureKey, request.requestedPlan)}
                         </td>
 
                         {/* Requested Plan */}
