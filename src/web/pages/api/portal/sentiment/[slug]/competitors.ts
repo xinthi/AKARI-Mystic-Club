@@ -106,14 +106,28 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
-    // Get latest metrics for AKARI score and followers
-    const { data: latestMetrics } = await supabase
+    // Get latest metrics for AKARI score and followers - find the most recent entry with valid followers data
+    const { data: latestMetricsData } = await supabase
       .from('metrics_daily')
       .select('akari_score, followers')
       .eq('project_id', project.id)
+      .not('followers', 'is', null)
+      .gt('followers', 0)
       .order('date', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+    
+    // If no entry with valid followers, try to get the latest entry regardless
+    let latestMetrics = latestMetricsData?.[0] || null;
+    if (!latestMetrics) {
+      const { data: fallbackMetrics } = await supabase
+        .from('metrics_daily')
+        .select('akari_score, followers')
+        .eq('project_id', project.id)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      latestMetrics = fallbackMetrics || null;
+    }
 
     // Get competitors from project_competitors table
     const { data: competitorData } = await supabase
@@ -181,14 +195,28 @@ export default async function handler(
         .single();
 
       if (projectB) {
-        // Get projectB metrics
-        const { data: projectBMetrics } = await supabase
+        // Get projectB metrics - find the most recent entry with valid followers data
+        const { data: projectBMetricsData } = await supabase
           .from('metrics_daily')
           .select('akari_score, followers')
           .eq('project_id', projectB.id)
+          .not('followers', 'is', null)
+          .gt('followers', 0)
           .order('date', { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
+        
+        // If no entry with valid followers, try to get the latest entry regardless
+        let projectBMetrics = projectBMetricsData?.[0] || null;
+        if (!projectBMetrics) {
+          const { data: latestMetrics } = await supabase
+            .from('metrics_daily')
+            .select('akari_score, followers')
+            .eq('project_id', projectB.id)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          projectBMetrics = latestMetrics || null;
+        }
 
         // Get inner circle members for both projects
         const { data: circleA } = await supabase
