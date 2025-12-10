@@ -122,16 +122,11 @@ export default async function handler(
     // Get today's date
     const today = new Date().toISOString().split('T')[0];
 
-    // Dynamically import processProject from the scripts directory
-    // This allows us to use server-side code in the API route
-    // Path: from src/web/pages/api/portal/admin/projects/[id]/refresh.ts
-    // to scripts/sentiment/updateAllProjects.ts (at project root)
-    // Count: [id] -> projects -> admin -> portal -> api -> pages -> web -> src -> root = 8 levels up
-    const updateAllProjectsModule = await import('../../../../../../scripts/sentiment/updateAllProjects');
-    const { processProject } = updateAllProjectsModule;
+    // Import processProjectById from web-local helper (inside src/web)
+    const { processProjectById } = await import('../../../../lib/server/sentiment/processProject');
 
     // Process project (this will fetch data and save metrics)
-    const result = await processProject(project, today, supabase);
+    const result = await processProjectById(project, today, supabase);
 
     if (!result) {
       return res.status(500).json({ ok: false, error: 'Failed to process project. Check if project has a valid twitter_username.' });
@@ -164,11 +159,29 @@ export default async function handler(
 
     // Save tweets if available
     if (result.tweets && result.tweets.length > 0) {
-      await supabase
+      const { error: tweetsError } = await supabase
         .from('project_tweets')
         .upsert(result.tweets, {
           onConflict: 'tweet_id',
         });
+
+      if (tweetsError) {
+        console.error('[Admin Projects Refresh] Error saving tweets:', tweetsError);
+        // Don't fail the whole request if tweets fail
+      }
+    }
+
+    // Compute topic stats for Zone of Expertise (30d window)
+    try {
+      // Import from src/server using relative path
+      // Path: from src/web/pages/api/portal/admin/projects/[id]/refresh.ts
+      // to src/server/sentiment/topics.ts
+      // Count: [id] -> projects -> admin -> portal -> api -> pages -> web -> root = 7 levels up
+      const { recomputeProjectTopicStats } = await import('../../../../../../server/sentiment/topics');
+      await recomputeProjectTopicStats(supabase, project.id, '30d');
+    } catch (topicError: any) {
+      console.error('[Admin Projects Refresh] Error computing topic stats:', topicError);
+      // Don't fail the whole request if topic stats fail
     }
 
     return res.status(200).json({ ok: true });
