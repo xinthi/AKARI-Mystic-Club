@@ -11,7 +11,7 @@ export function Logo({ size = 28, showText = false, className = '' }: LogoProps)
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <Image
-        src="/logo.svg"
+        src="/mystic-heros-favicon.png"
         alt="AKARI Mystic Club"
         width={size}
         height={size}

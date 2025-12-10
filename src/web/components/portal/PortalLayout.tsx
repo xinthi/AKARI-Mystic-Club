@@ -76,16 +76,16 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             </button>
 
             {/* Logo + brand */}
-            <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105">
-              <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
+            <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105 flex-shrink-0">
+              <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)] flex-shrink-0">
                 <Logo size={28} />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium whitespace-nowrap">
                   Akari Mystic Club
                 </span>
-                <span className="text-xs text-akari-muted/70 hidden sm:block">
-                  Prediction-native market intelligence
+                <span className="text-[9px] text-akari-muted/60 hidden sm:block tracking-wider whitespace-nowrap">
+                  PREDICT.SHARE.INTELLIGENCE
                 </span>
               </div>
             </Link>
@@ -164,17 +164,17 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               <Link
                 href="/portal"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105"
+                className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105 flex-shrink-0"
               >
-                <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
+                <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)] flex-shrink-0">
                   <Logo size={28} />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium whitespace-nowrap">
                     Akari Mystic Club
                   </span>
-                  <span className="text-xs text-akari-muted/70">
-                    Prediction-native market intelligence
+                  <span className="text-[9px] text-akari-muted/60 tracking-wider whitespace-nowrap">
+                    PREDICT.SHARE.INTELLIGENCE
                   </span>
                 </div>
               </Link>
