@@ -260,11 +260,12 @@ export function compute24hChanges(
 export async function getProjectsWithLatestMetrics(
   client: SupabaseClient
 ): Promise<ProjectWithMetrics[]> {
-  // First get all active projects
+  // First get all active projects, excluding test/dev accounts
   const { data: projects, error: projectsError } = await client
     .from('projects')
     .select('*')
     .eq('is_active', true)
+    .neq('slug', 'dev_user') // Exclude dev_user from UI
     .order('name', { ascending: true });
 
   if (projectsError) {
