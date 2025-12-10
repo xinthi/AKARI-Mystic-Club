@@ -269,5 +269,6 @@ export async function getProjectTopicStats(
 }
 
 // Re-export types and config
-export { PROFILE_TOPICS, ProfileTopic, TOPIC_KEYWORDS, TOPIC_DISPLAY } from './topics.config';
+export { PROFILE_TOPICS, TOPIC_KEYWORDS, TOPIC_DISPLAY } from './topics.config';
+export type { ProfileTopic } from './topics.config';
 

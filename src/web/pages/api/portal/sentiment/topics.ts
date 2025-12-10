@@ -2,11 +2,10 @@
  * API Route: GET /api/portal/sentiment/topics
  * 
  * Returns aggregated topic heatmap data across all active projects for the last 30 days.
- * Requires user to be logged in (same as /portal/sentiment page).
+ * No authentication required (same as /api/portal/sentiment main route).
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
 import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
@@ -29,54 +28,6 @@ type TopicsResponse =
   | { ok: false; error: string };
 
 // =============================================================================
-// HELPERS
-// =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
-
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-async function checkUserLoggedIn(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<boolean> {
-  const { data: session, error } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (error || !session) {
-    return false;
-  }
-
-  // Check if session is expired
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return false;
-  }
-
-  return true;
-}
-
-// =============================================================================
 // HANDLER
 // =============================================================================
 
@@ -88,22 +39,8 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // Check authentication (user must be logged in)
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
-  }
-
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // Verify session is valid
-    const isLoggedIn = await checkUserLoggedIn(supabaseAdmin, sessionToken);
-    if (!isLoggedIn) {
-      return res.status(401).json({ ok: false, error: 'Invalid or expired session' });
-    }
-
-    // Use read-only client for queries
+    // Use read-only client for queries (no auth required, same as main sentiment route)
     const supabase = createPortalClient();
 
     // 1. Get active projects
@@ -191,6 +128,15 @@ export default async function handler(
     return res.status(200).json({ ok: true, topics });
   } catch (error: any) {
     console.error('[Sentiment Topics API] Error:', error);
+    
+    // Check for specific Supabase errors
+    if (error.message?.includes('configuration missing')) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Sentiment service is not configured',
+      });
+    }
+
     return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
   }
 }
