@@ -84,7 +84,7 @@ export function UserMenu() {
     : [];
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative z-[60]" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 text-xs text-akari-muted hover:text-akari-primary transition-all duration-300 ease-out px-2 py-1.5 rounded-lg hover:bg-slate-800/50"
@@ -110,23 +110,23 @@ export function UserMenu() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[55]"
             onClick={() => setIsOpen(false)}
           />
           
           {/* Dropdown Menu */}
-          <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-700 bg-slate-900 shadow-xl z-50 overflow-hidden">
+          <div className="absolute right-0 mt-2 w-56 rounded-xl border border-akari-neon-teal/30 bg-akari-card shadow-[0_0_30px_rgba(0,246,162,0.3)] z-[60] overflow-hidden">
             {/* User Info Header */}
-            <div className="px-4 py-3 border-b border-slate-800">
+            <div className="px-4 py-3 border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${tierInfo.bgColor} ${tierInfo.color} text-xs font-medium`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-akari-neon-teal/30 bg-gradient-neon-teal text-black text-sm font-bold shadow-neon-teal`}>
                   {xUsername?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">
+                  <div className="text-sm font-semibold text-akari-text truncate">
                     {xUsername || 'User'}
                   </div>
-                  <div className={`text-xs ${tierInfo.color} truncate`}>
+                  <div className={`text-xs font-semibold ${tierInfo.color} truncate`}>
                     {tierInfo.name}
                   </div>
                 </div>
@@ -142,13 +142,13 @@ export function UserMenu() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2 text-sm transition ${
+                    className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-300 group ${
                       isActive
-                        ? 'bg-akari-primary/10 text-akari-primary border-l-2 border-akari-primary'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        ? 'bg-akari-neon-teal/10 text-akari-neon-teal border-l-2 border-akari-neon-teal'
+                        : 'text-akari-muted hover:bg-akari-cardSoft/50 hover:text-akari-text'
                     }`}
                   >
-                    {item.icon}
+                    {React.cloneElement(item.icon, { className: `${item.icon.props.className} group-hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]` })}
                     {item.label}
                   </Link>
                 );
@@ -157,9 +157,9 @@ export function UserMenu() {
               {/* Admin Section Divider */}
               {adminItems.length > 0 && (
                 <>
-                  <div className="my-2 border-t border-slate-800" />
+                  <div className="my-2 border-t border-akari-neon-teal/20" />
                   <div className="px-4 py-2">
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    <div className="text-xs font-semibold text-gradient-pink uppercase tracking-wider">
                       Admin
                     </div>
                   </div>
@@ -170,13 +170,13 @@ export function UserMenu() {
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-2 text-sm transition ${
+                        className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-300 group ${
                           isActive
-                            ? 'bg-akari-primary/10 text-akari-primary border-l-2 border-akari-primary'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                            ? 'bg-akari-neon-teal/10 text-akari-neon-teal border-l-2 border-akari-neon-teal'
+                            : 'text-akari-muted hover:bg-akari-cardSoft/50 hover:text-akari-text'
                         }`}
                       >
-                        {item.icon}
+                        {React.cloneElement(item.icon, { className: `${item.icon.props.className} group-hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]` })}
                         {item.label}
                       </Link>
                     );

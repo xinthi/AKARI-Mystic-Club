@@ -39,7 +39,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       </Head>
       <div className="min-h-screen bg-akari-bg text-akari-text">
       {/* Top nav */}
-      <header className="border-b border-akari-neon-teal/30 bg-black/80 backdrop-blur-xl relative">
+      <header className="border-b border-akari-neon-teal/30 bg-black/80 backdrop-blur-xl relative z-50">
         {/* Soft neon bottom glow under header */}
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-akari-neon-teal/80 to-transparent blur-sm"></div>
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-akari-neon-teal/60 to-transparent"></div>
