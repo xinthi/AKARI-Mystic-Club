@@ -11,6 +11,9 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { Role, PersonaType, getHighestRole } from '@/lib/permissions';
 import { useAkariAuth } from '@/lib/akari-auth';
+import { ProfileCardPreview } from '@/components/share/ProfileCardPreview';
+import { getUserTier } from '@/lib/userTier';
+import { useAkariUser } from '@/lib/akari-auth';
 
 // =============================================================================
 // TYPES
@@ -39,6 +42,12 @@ export interface ProfileHeaderProps {
   slug: string;
   /** Callback for refresh action */
   onRefresh?: () => void;
+  /** Sentiment score (30d) */
+  sentimentScore?: number | null;
+  /** CT Heat score */
+  ctHeatScore?: number | null;
+  /** Inner Circle Power */
+  innerCirclePower?: number | null;
 }
 
 // =============================================================================
@@ -75,11 +84,29 @@ export function ProfileHeader({
   canCompare,
   slug,
   onRefresh,
+  sentimentScore,
+  ctHeatScore,
+  innerCirclePower,
 }: ProfileHeaderProps) {
   const router = useRouter();
   const { logout } = useAkariAuth();
+  const akariUser = useAkariUser();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const roleBadge = getRoleBadge(roles);
+  
+  // Get user tier for share card
+  const userTier = getUserTier(akariUser.user);
+  const tierName = userTier === 'institutional_plus' ? 'Institutional Plus' : 
+                   userTier === 'analyst' ? 'Analyst' : 'Seer';
+  
+  // Get tagline based on score
+  const getTagline = (score: number | null): string => {
+    if (score === null) return 'A quiet force in the shadows.';
+    if (score > 900) return 'Your presence bends the narrative.';
+    if (score >= 500) return 'Known in the Club.';
+    return 'A quiet force in the shadows.';
+  };
   
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -168,6 +195,16 @@ export function ProfileHeader({
         
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-gradient-neon-teal text-black font-semibold hover:shadow-akari-glow transition-all duration-300 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            Share Card
+          </button>
+          
           <Link
             href={`/portal/sentiment/${slug}`}
             className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-akari-cardSoft/50 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)] transition-all duration-300 text-sm font-semibold"
@@ -229,6 +266,23 @@ export function ProfileHeader({
           </button>
         </div>
       </div>
+      
+      {/* Share Modal */}
+      {showShareModal && (
+        <ProfileCardPreview
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          avatar={avatarUrl}
+          username={xUsername || slug}
+          tier={tierName}
+          score={akariScore}
+          sentiment={sentimentScore ?? null}
+          heat={ctHeatScore ?? null}
+          power={innerCirclePower ?? null}
+          tagline={getTagline(akariScore)}
+          displayName={displayName}
+        />
+      )}
     </section>
   );
 }

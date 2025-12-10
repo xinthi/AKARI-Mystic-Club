@@ -9,7 +9,7 @@ import {
   PROFILE_TOPICS, 
   ProfileTopic, 
   TopicScore 
-} from '@/components/portal/profile';
+} from './topic-types';
 
 /**
  * Fetch topic stats for a project from the database.

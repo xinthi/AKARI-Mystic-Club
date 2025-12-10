@@ -610,6 +610,9 @@ export default function MyProfilePage() {
               canCompare={profileState.canCompare}
               slug={profileState.data.project.slug}
               onRefresh={refresh}
+              sentimentScore={profileState.data.sentimentScore}
+              ctHeatScore={profileState.data.ctHeatScore}
+              innerCirclePower={profileState.data.innerCircle.power}
             />
             
             {/* Section 2: Stats Row */}

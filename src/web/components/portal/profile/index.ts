@@ -26,33 +26,8 @@ export type { ProfilePersonaSelectorProps } from './ProfilePersonaSelector';
 // TOPIC TYPES (Zone of Expertise)
 // =============================================================================
 
-/**
- * Profile topics for Zone of Expertise radar
- */
-export const PROFILE_TOPICS = [
-  'ai',
-  'defi',
-  'nfts',
-  'news',
-  'macro',
-  'airdrops',
-  'memes',
-  'trading',
-  'gaming',
-  'crypto',
-] as const;
-
-export type ProfileTopic = (typeof PROFILE_TOPICS)[number];
-
-/**
- * Topic score as returned by API
- */
-export interface TopicScore {
-  topic: ProfileTopic;
-  score: number; // 0-100 normalized
-  tweetCount: number;
-  weightedScore: number;
-}
+// Re-export from shared types file to avoid circular dependencies
+export { PROFILE_TOPICS, type ProfileTopic, type TopicScore } from '@/lib/portal/topic-types';
 
 /**
  * Display info for each topic (for UI rendering)

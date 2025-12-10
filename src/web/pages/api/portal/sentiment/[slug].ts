@@ -102,8 +102,8 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
-    // Fetch metrics history, influencers, tweets, topic stats, and fallback followers in parallel
-    const [metrics, metrics90d, influencers, tweetsResult, topics30d, followersFallbackResult] = await Promise.all([
+    // Fetch metrics history, influencers, tweets, topic stats in parallel
+    const [metrics, metrics90d, influencers, tweetsResult, topics30d] = await Promise.all([
       getProjectMetricsHistory(supabase, project.id, 30),
       getProjectMetricsHistory(supabase, project.id, 90), // 90-day history for Deep Explorer
       getProjectInfluencers(supabase, project.id, 10),
@@ -129,16 +129,23 @@ export default async function handler(
         .order('created_at', { ascending: false })
         .limit(50),
       getProjectTopicStats(supabase, project.id, '30d'),
-      // Get most recent non-zero followers value as fallback
-      supabase
+    ]);
+    
+    // Fetch followers fallback separately to avoid breaking the main query if it fails
+    let followersFallbackResult: { data: { followers: number; date: string } | null; error: any } | null = null;
+    try {
+      followersFallbackResult = await supabase
         .from('metrics_daily')
         .select('followers, date')
         .eq('project_id', project.id)
         .gt('followers', 0)
         .order('date', { ascending: false })
         .limit(1)
-        .maybeSingle(), // Use maybeSingle() instead of single() to handle no results gracefully
-    ]);
+        .maybeSingle();
+    } catch (fallbackError: any) {
+      console.warn(`[API /portal/sentiment/${slug}] Followers fallback query failed:`, fallbackError);
+      followersFallbackResult = { data: null, error: fallbackError };
+    }
 
     // DEBUG: Log tweet query results
     console.log(`[API /portal/sentiment/${slug}] Project ID: ${project.id}`);
@@ -181,7 +188,7 @@ export default async function handler(
     const previousMetrics = metrics.length > 1 ? metrics[1] : null;
     
     // Apply followers fallback: use latest if > 0, else use most recent non-zero value
-    const fallbackFollowers = followersFallbackResult.data?.followers ?? null;
+    const fallbackFollowers = followersFallbackResult?.data?.followers ?? null;
     if (latestMetrics) {
       const metricsFollowers = latestMetrics.followers ?? null;
       const finalFollowers = 
