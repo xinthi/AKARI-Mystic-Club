@@ -510,6 +510,7 @@ export default function SentimentOverview() {
   const [topics, setTopics] = useState<TopicSummary[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
   const [topicsError, setTopicsError] = useState<string | null>(null);
+  const [heatmapExpanded, setHeatmapExpanded] = useState(false);
 
   // Sort state
   type SortColumn = 'name' | 'akari_score' | 'sentiment_score' | 'ct_heat_score' | 'followers' | 'date';
@@ -1182,95 +1183,119 @@ export default function SentimentOverview() {
           {isLoggedIn && (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
-                  Narrative Heatmap (30d)
-                </h2>
+                <button
+                  onClick={() => setHeatmapExpanded(!heatmapExpanded)}
+                  className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
+                >
+                  <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                    Narrative Heatmap (30d)
+                  </h2>
+                  <svg
+                    className={`w-4 h-4 text-akari-muted transition-transform duration-200 ${
+                      heatmapExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
                 <span className="text-xs text-akari-muted/70">
                   Based on project topic stats
                 </span>
               </div>
 
-              {topicsLoading && (
-                <div className="text-center py-8">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-2" />
-                  <p className="text-xs text-akari-muted">Loading narratives…</p>
-                </div>
-              )}
+              {heatmapExpanded && (
+                <div className="transition-all duration-200">
+                  {topicsLoading && (
+                    <div className="text-center py-8">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-2" />
+                      <p className="text-xs text-akari-muted">Loading narratives…</p>
+                    </div>
+                  )}
 
-              {topicsError && (
-                <div className="text-center py-8">
-                  <p className="text-xs text-red-400 mb-2">{topicsError}</p>
-                  <button
-                    onClick={() => {
-                      setTopicsLoading(true);
-                      setTopicsError(null);
-                      fetch('/api/portal/sentiment/topics')
-                        .then((res) => res.json())
-                        .then((data: TopicsResponse) => {
-                          if (data.ok && data.topics) {
-                            setTopics(data.topics);
-                          } else {
-                            setTopicsError(data.error || 'Failed to load topics data');
-                          }
-                        })
-                        .catch((err) => {
-                          setTopicsError('Failed to connect to API');
-                          console.error('[SentimentOverview] Topics retry error:', err);
-                        })
-                        .finally(() => setTopicsLoading(false));
-                    }}
-                    className="px-3 py-1 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
+                  {topicsError && (
+                    <div className="text-center py-8">
+                      <p className="text-xs text-red-400 mb-2">{topicsError}</p>
+                      <button
+                        onClick={() => {
+                          setTopicsLoading(true);
+                          setTopicsError(null);
+                          fetch('/api/portal/sentiment/topics')
+                            .then((res) => res.json())
+                            .then((data: TopicsResponse) => {
+                              if (data.ok && data.topics) {
+                                setTopics(data.topics);
+                              } else {
+                                setTopicsError(data.error || 'Failed to load topics data');
+                              }
+                            })
+                            .catch((err) => {
+                              setTopicsError('Failed to connect to API');
+                              console.error('[SentimentOverview] Topics retry error:', err);
+                            })
+                            .finally(() => setTopicsLoading(false));
+                        }}
+                        className="px-3 py-1 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
 
-              {!topicsLoading && !topicsError && topics.length > 0 && (
-                <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
-                        <th className="py-3 px-4">Topic</th>
-                        <th className="py-3 px-4">Projects</th>
-                        <th className="py-3 px-4">Weighted Heat</th>
-                        <th className="py-3 px-4">Tweets (30d)</th>
-                        <th className="py-3 px-4">Avg Score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topics.map((t) => (
-                        <tr
-                          key={t.topic}
-                          className="border-b border-akari-border/60 last:border-0 hover:bg-akari-cardSoft/50 transition-colors"
-                        >
-                          <td className="py-3 px-4 font-medium text-akari-text capitalize">
-                            {t.topic}
-                          </td>
-                          <td className="py-3 px-4 text-akari-muted">
-                            {t.projectsCount}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-akari-text">
-                            {t.totalWeightedScore.toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-akari-muted">
-                            {t.totalTweetCount.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-akari-muted">
-                            {t.avgScore.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                  {!topicsLoading && !topicsError && topics.length > 0 && (
+                    <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
+                            <th className="py-3 px-4">Topic</th>
+                            <th className="py-3 px-4">Projects</th>
+                            <th className="py-3 px-4">Weighted Heat</th>
+                            <th className="py-3 px-4">Tweets (30d)</th>
+                            <th className="py-3 px-4">Avg Score</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topics.map((t) => (
+                            <tr
+                              key={t.topic}
+                              className="border-b border-akari-border/60 last:border-0 hover:bg-akari-cardSoft/50 transition-colors"
+                            >
+                              <td className="py-3 px-4 font-medium text-akari-text capitalize">
+                                {t.topic}
+                              </td>
+                              <td className="py-3 px-4 text-akari-muted">
+                                {t.projectsCount}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-akari-text">
+                                {t.totalWeightedScore.toFixed(2)}
+                              </td>
+                              <td className="py-3 px-4 text-akari-muted">
+                                {t.totalTweetCount.toLocaleString()}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-akari-muted">
+                                {t.avgScore.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-              {!topicsLoading && !topicsError && topics.length === 0 && (
-                <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-8 text-center">
-                  <p className="text-xs text-akari-muted">
-                    No topic data available yet. Try again after the next sentiment update.
-                  </p>
+                  {!topicsLoading && !topicsError && topics.length === 0 && (
+                    <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-8 text-center">
+                      <p className="text-xs text-akari-muted">
+                        No topic data available yet. Try again after the next sentiment update.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
