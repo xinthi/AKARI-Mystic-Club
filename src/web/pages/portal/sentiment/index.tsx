@@ -199,11 +199,13 @@ function AvatarWithFallback({ url, name, size = 'md' }: { url: string | null; na
 function ChangeIndicator({ 
   change, 
   direction,
-  compact = false 
+  compact = false,
+  formatLargeNumbers = false
 }: { 
   change: number; 
   direction: ChangeDirection;
   compact?: boolean;
+  formatLargeNumbers?: boolean;
 }) {
   if (direction === 'flat') {
     return (
@@ -217,10 +219,15 @@ function ChangeIndicator({
   const colorClass = isUp ? 'text-akari-primary' : 'text-akari-danger';
   const arrow = isUp ? '▲' : '▼';
   const sign = isUp ? '+' : '';
+  
+  // Format large numbers (for followers) with K/M suffixes
+  const displayValue = formatLargeNumbers 
+    ? formatNumber(Math.abs(change))
+    : Math.abs(change).toString();
 
   return (
     <span className={`${colorClass} text-xs font-medium`}>
-      {arrow} {sign}{change}
+      {arrow} {sign}{displayValue}
     </span>
   );
 }
@@ -1204,7 +1211,7 @@ export default function SentimentOverview() {
                             <span className="font-mono font-medium text-akari-text">
                               {formatNumber(project.followers)}
                             </span>
-                            <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} />
+                            <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} formatLargeNumbers />
                           </div>
                         </td>
                         <td className="py-4 px-4 text-xs text-akari-muted">
