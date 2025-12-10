@@ -95,6 +95,20 @@ interface SentimentHealthResponse {
   error?: string;
 }
 
+interface TopicSummary {
+  topic: string;
+  projectsCount: number;
+  totalWeightedScore: number;
+  totalTweetCount: number;
+  avgScore: number;
+}
+
+interface TopicsResponse {
+  ok: boolean;
+  topics?: TopicSummary[];
+  error?: string;
+}
+
 interface SearchResultUser {
   id: string;
   username: string;
@@ -492,6 +506,11 @@ export default function SentimentOverview() {
   const [coverageLoading, setCoverageLoading] = useState(true);
   const [coverageError, setCoverageError] = useState<string | null>(null);
 
+  // Topics/narrative heatmap state
+  const [topics, setTopics] = useState<TopicSummary[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
+
   // Sort state
   type SortColumn = 'name' | 'akari_score' | 'sentiment_score' | 'ct_heat_score' | 'followers' | 'date';
   type SortDirection = 'asc' | 'desc';
@@ -655,6 +674,38 @@ export default function SentimentOverview() {
     }
 
     fetchCoverage();
+  }, [isLoggedIn]);
+
+  // Fetch topics/narrative heatmap data
+  useEffect(() => {
+    async function fetchTopics() {
+      if (!isLoggedIn) {
+        setTopicsLoading(false);
+        return;
+      }
+
+      setTopicsLoading(true);
+      setTopicsError(null);
+
+      try {
+        const res = await fetch('/api/portal/sentiment/topics');
+        const data: TopicsResponse = await res.json();
+
+        if (!data.ok || !data.topics) {
+          setTopicsError(data.error || 'Failed to load topics data');
+          return;
+        }
+
+        setTopics(data.topics);
+      } catch (err) {
+        setTopicsError('Failed to connect to API');
+        console.error('[SentimentOverview] Topics fetch error:', err);
+      } finally {
+        setTopicsLoading(false);
+      }
+    }
+
+    fetchTopics();
   }, [isLoggedIn]);
 
   // Fetch tracked projects
@@ -1124,6 +1175,104 @@ export default function SentimentOverview() {
                   </>
                 ) : null}
               </div>
+            </section>
+          )}
+
+          {/* Narrative Heatmap Section */}
+          {isLoggedIn && (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                  Narrative Heatmap (30d)
+                </h2>
+                <span className="text-xs text-akari-muted/70">
+                  Based on project topic stats
+                </span>
+              </div>
+
+              {topicsLoading && (
+                <div className="text-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-2" />
+                  <p className="text-xs text-akari-muted">Loading narratives…</p>
+                </div>
+              )}
+
+              {topicsError && (
+                <div className="text-center py-8">
+                  <p className="text-xs text-red-400 mb-2">{topicsError}</p>
+                  <button
+                    onClick={() => {
+                      setTopicsLoading(true);
+                      setTopicsError(null);
+                      fetch('/api/portal/sentiment/topics')
+                        .then((res) => res.json())
+                        .then((data: TopicsResponse) => {
+                          if (data.ok && data.topics) {
+                            setTopics(data.topics);
+                          } else {
+                            setTopicsError(data.error || 'Failed to load topics data');
+                          }
+                        })
+                        .catch((err) => {
+                          setTopicsError('Failed to connect to API');
+                          console.error('[SentimentOverview] Topics retry error:', err);
+                        })
+                        .finally(() => setTopicsLoading(false));
+                    }}
+                    className="px-3 py-1 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!topicsLoading && !topicsError && topics.length > 0 && (
+                <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-akari-border bg-akari-cardSoft text-left text-xs uppercase tracking-wider text-akari-muted">
+                        <th className="py-3 px-4">Topic</th>
+                        <th className="py-3 px-4">Projects</th>
+                        <th className="py-3 px-4">Weighted Heat</th>
+                        <th className="py-3 px-4">Tweets (30d)</th>
+                        <th className="py-3 px-4">Avg Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topics.map((t) => (
+                        <tr
+                          key={t.topic}
+                          className="border-b border-akari-border/60 last:border-0 hover:bg-akari-cardSoft/50 transition-colors"
+                        >
+                          <td className="py-3 px-4 font-medium text-akari-text capitalize">
+                            {t.topic}
+                          </td>
+                          <td className="py-3 px-4 text-akari-muted">
+                            {t.projectsCount}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-akari-text">
+                            {t.totalWeightedScore.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-akari-muted">
+                            {t.totalTweetCount.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-akari-muted">
+                            {t.avgScore.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!topicsLoading && !topicsError && topics.length === 0 && (
+                <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-8 text-center">
+                  <p className="text-xs text-akari-muted">
+                    No topic data available yet. Try again after the next sentiment update.
+                  </p>
+                </div>
+              )}
             </section>
           )}
 
