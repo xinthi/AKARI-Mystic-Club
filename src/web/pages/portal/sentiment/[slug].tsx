@@ -946,6 +946,8 @@ export default function SentimentDetail() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsWindow, setAnalyticsWindow] = useState<'7d' | '30d'>('7d');
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -1481,8 +1483,57 @@ export default function SentimentDetail() {
                 >
                   30 Days
                 </button>
+                {canViewAnalytics && (
+                  <button
+                    onClick={async () => {
+                      setExportLoading(true);
+                      setExportError(null);
+                      try {
+                        const res = await fetch(`/api/portal/sentiment/${slug}/analytics-export?window=${analyticsWindow}`);
+                        if (!res.ok) {
+                          const data = await res.json();
+                          throw new Error(data.error || 'Failed to export analytics');
+                        }
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `akari-analytics-${slug}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err: any) {
+                        setExportError(err.message || 'Failed to export analytics');
+                        console.error('[Analytics Export] Error:', err);
+                      } finally {
+                        setExportLoading(false);
+                      }
+                    }}
+                    disabled={exportLoading}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-akari-cardSoft text-akari-text hover:bg-akari-card border border-akari-border/50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {exportLoading ? (
+                      <>
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                        Exporting…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export CSV
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
+
+            {exportError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                {exportError}
+              </div>
+            )}
 
             {analyticsLoading && (
               <div className="flex items-center justify-center py-12">
