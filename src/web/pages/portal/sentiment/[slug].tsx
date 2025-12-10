@@ -1024,12 +1024,14 @@ export default function SentimentDetail() {
   useEffect(() => {
     if (!slug || !isLoggedIn || !project) return;
 
+    const projectId = project.id; // Capture project ID before async function
+
     async function checkWatchlist() {
       try {
         const res = await fetch('/api/portal/sentiment/watchlist');
         const data = await res.json();
         if (data.ok && data.projects) {
-          const isWatched = data.projects.some((p: any) => p.projectId === project.id);
+          const isWatched = data.projects.some((p: any) => p.projectId === projectId);
           setIsInWatchlist(isWatched);
         }
       } catch (err) {
