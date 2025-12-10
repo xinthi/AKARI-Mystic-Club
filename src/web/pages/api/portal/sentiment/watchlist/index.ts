@@ -201,6 +201,16 @@ export default async function handler(
         ? latest.akari_score - previous.akari_score
         : 0;
 
+      // Compute followers with fallback: metrics_daily.followers > 0, else projects.followers > 0, else 0
+      const metricsFollowers = latest?.followers ?? null;
+      const projectFollowers = (p as any).followers ?? null; // projects.followers might exist
+      const followers =
+        metricsFollowers && metricsFollowers > 0
+          ? metricsFollowers
+          : projectFollowers && projectFollowers > 0
+          ? projectFollowers
+          : 0;
+
       return {
         projectId: p.id,
         slug: p.slug,
@@ -211,7 +221,7 @@ export default async function handler(
         akariScore: latest?.akari_score ?? null,
         sentiment: latest?.sentiment_score ?? null,
         ctHeat: latest?.ct_heat_score ?? null,
-        followers: latest?.followers ?? null,
+        followers,
         sentimentChange24h,
         ctHeatChange24h,
         akariChange24h,

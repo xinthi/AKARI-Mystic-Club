@@ -290,19 +290,25 @@ export async function getProjectsWithLatestMetrics(
   if (metricsError) {
     console.error('[Supabase] Error fetching metrics:', metricsError);
     // Return projects without metrics rather than failing entirely
-    return projects.map((p) => ({
-      ...p,
-      sentiment_score: null,
-      ct_heat_score: null,
-      akari_score: null,
-      followers: null,
-      date: null,
-      sentimentChange24h: 0,
-      ctHeatChange24h: 0,
-      akariChange24h: 0,
-      sentimentDirection24h: 'flat' as ChangeDirection,
-      ctHeatDirection24h: 'flat' as ChangeDirection,
-    }));
+    return projects.map((p) => {
+      // Fallback to projects.followers if available when metrics are missing
+      const projectFollowers = (p as any).followers ?? null;
+      const followers = projectFollowers && projectFollowers > 0 ? projectFollowers : 0;
+
+      return {
+        ...p,
+        sentiment_score: null,
+        ct_heat_score: null,
+        akari_score: null,
+        followers,
+        date: null,
+        sentimentChange24h: 0,
+        ctHeatChange24h: 0,
+        akariChange24h: 0,
+        sentimentDirection24h: 'flat' as ChangeDirection,
+        ctHeatDirection24h: 'flat' as ChangeDirection,
+      };
+    });
   }
 
   // Create maps of project_id -> latest metrics and previous metrics
@@ -326,12 +332,22 @@ export async function getProjectsWithLatestMetrics(
     const previousMetrics = previousMetricsByProject.get(project.id) ?? null;
     const changes = compute24hChanges(latestMetrics, previousMetrics);
 
+    // Compute followers with fallback: metrics_daily.followers > 0, else projects.followers > 0, else 0
+    const metricsFollowers = latestMetrics?.followers ?? null;
+    const projectFollowers = (project as any).followers ?? null; // projects.followers might exist
+    const followers =
+      metricsFollowers && metricsFollowers > 0
+        ? metricsFollowers
+        : projectFollowers && projectFollowers > 0
+        ? projectFollowers
+        : 0;
+
     return {
       ...project,
       sentiment_score: latestMetrics?.sentiment_score ?? null,
       ct_heat_score: latestMetrics?.ct_heat_score ?? null,
       akari_score: latestMetrics?.akari_score ?? null,
-      followers: latestMetrics?.followers ?? null,
+      followers,
       date: latestMetrics?.date ?? null,
       last_updated_at: latestMetrics?.updated_at ?? latestMetrics?.created_at ?? null,
       ...changes,

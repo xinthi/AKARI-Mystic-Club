@@ -860,12 +860,14 @@ export default function DeepExplorerPage() {
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-2">
               <h3 className="text-sm font-semibold text-akari-text mb-2">Exports</h3>
               <div className="flex flex-wrap gap-2 mb-2">
-                <button
-                  disabled
-                  className="px-4 py-2 min-h-[40px] rounded-lg bg-akari-cardSoft/50 text-akari-muted cursor-not-allowed text-sm font-medium opacity-50"
+                <a
+                  href={`/api/portal/deep/${slug}/summary-export`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 min-h-[40px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/30 text-sm font-medium transition"
                 >
-                  Export project summary
-                </button>
+                  Project Summary CSV
+                </a>
                 <a
                   href={`/api/portal/deep/${slug}/inner-circle-export`}
                   target="_blank"
@@ -885,7 +887,7 @@ export default function DeepExplorerPage() {
                 </a>
               </div>
               <p className="text-xs text-akari-muted">
-                Inner circle export is available for Deep Explorer accounts.
+                Exports are available for Deep Explorer accounts.
               </p>
             </div>
           </section>
