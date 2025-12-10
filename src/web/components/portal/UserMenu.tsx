@@ -31,6 +31,11 @@ export function UserMenu() {
     }
 
     async function fetchProfileImage() {
+      if (!xUsername) {
+        setProfileImageUrl(null);
+        return;
+      }
+
       try {
         // Convert xUsername to slug (same logic as in me.tsx)
         const slug = xUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
