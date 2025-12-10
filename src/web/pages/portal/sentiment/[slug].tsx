@@ -1050,13 +1050,15 @@ export default function SentimentDetail() {
   const handleToggleStar = useCallback(async () => {
     if (!isLoggedIn || !project || togglingStar) return;
 
+    const projectId = project.id; // Capture project ID before async operation
+
     setTogglingStar(true);
     try {
       const res = await fetch('/api/portal/sentiment/watchlist/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectId: project.id,
+          projectId: projectId,
           action: isInWatchlist ? 'remove' : 'add',
         }),
       });
