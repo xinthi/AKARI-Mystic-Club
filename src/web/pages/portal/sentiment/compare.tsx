@@ -786,53 +786,23 @@ export default function ComparePage() {
                   Head-to-Head Comparison
                 </h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-akari-border/70 bg-akari-card p-6">
-                {/* Project A */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+                {/* Header Row */}
+                <div className="grid grid-cols-5 gap-4 p-4 border-b border-akari-border/70 bg-akari-cardSoft/50">
+                  <div className="col-span-2 flex items-center gap-3">
                     <AvatarWithFallback 
                       url={competitorsData.projects[0].avatar_url} 
                       name={competitorsData.projects[0].name} 
-                      size="lg" 
+                      size="md" 
                     />
-                    <div>
-                      <p className="font-semibold text-akari-text">{competitorsData.projects[0].name}</p>
-                      <p className="text-xs text-akari-muted">@{competitorsData.projects[0].x_handle}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-akari-text truncate">{competitorsData.projects[0].name}</p>
+                      <p className="text-xs text-akari-muted truncate">@{competitorsData.projects[0].x_handle}</p>
                     </div>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">AKARI Score</p>
-                      <p className="font-mono font-semibold text-akari-primary">
-                        {competitorsData.projects[0].akariScore ?? '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Inner Circle</p>
-                      <p className="font-mono text-akari-text">
-                        {competitorsData.projects[0].innerCircleCount}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Circle Power</p>
-                      <p className="font-mono text-akari-text">
-                        {competitorsData.projects[0].innerCirclePowerTotal.toFixed(2)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Followers</p>
-                      <p className="font-mono text-akari-text">
-                        {formatNumber(competitorsData.projects[0].followers)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Similarity */}
-                <div className="text-center flex flex-col items-center justify-center">
-                  <div className="mb-4 px-4 py-2 rounded-lg bg-akari-cardSoft border border-akari-border/50">
-                    <p className="text-xs text-akari-muted mb-1">SIMILARITY</p>
-                    <p className="text-2xl font-bold text-akari-primary">
+                  <div className="flex flex-col items-center justify-center px-4 py-2 rounded-lg bg-akari-primary/10 border border-akari-primary/30">
+                    <p className="text-[10px] uppercase tracking-wider text-akari-muted mb-1">Similarity</p>
+                    <p className="text-xl font-bold text-akari-primary">
                       {(() => {
                         // Calculate similarity based on shared inner circle
                         if (!competitorsData.projects || competitorsData.projects.length < 2) return '0%';
@@ -848,53 +818,88 @@ export default function ComparePage() {
                         return `${similarity}%`;
                       })()}
                     </p>
-                    <p className="text-xs text-akari-muted mt-1">
-                      {competitorsData.sharedKOLsAll?.length || 0} common profiles
+                    <p className="text-[10px] text-akari-muted mt-0.5">
+                      {competitorsData.sharedKOLsAll?.length || 0} common
                     </p>
                   </div>
-                  <div className="text-xs text-akari-muted space-y-1">
-                    <p>AKARI Score</p>
-                    <p>Inner Circle</p>
-                    <p>Circle Power</p>
-                    <p>Followers</p>
-                  </div>
-                </div>
-
-                {/* Project B */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="col-span-2 flex items-center gap-3 justify-end">
+                    <div className="flex-1 text-right min-w-0">
+                      <p className="font-semibold text-akari-text truncate">{competitorsData.projects[1].name}</p>
+                      <p className="text-xs text-akari-muted truncate">@{competitorsData.projects[1].x_handle}</p>
+                    </div>
                     <AvatarWithFallback 
                       url={competitorsData.projects[1].avatar_url} 
                       name={competitorsData.projects[1].name} 
-                      size="lg" 
+                      size="md" 
                     />
-                    <div>
-                      <p className="font-semibold text-akari-text">{competitorsData.projects[1].name}</p>
-                      <p className="text-xs text-akari-muted">@{competitorsData.projects[1].x_handle}</p>
-                    </div>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">AKARI Score</p>
-                      <p className="font-mono font-semibold text-akari-primary">
+                </div>
+
+                {/* Metric Rows */}
+                <div className="divide-y divide-akari-border/50">
+                  {/* AKARI Score Row */}
+                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                    <div className="col-span-2">
+                      <p className="font-mono font-semibold text-akari-primary text-sm">
+                        {competitorsData.projects[0].akariScore ?? '-'}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">AKARI Score</p>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <p className="font-mono font-semibold text-akari-primary text-sm">
                         {competitorsData.projects[1].akariScore ?? '-'}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Inner Circle</p>
-                      <p className="font-mono text-akari-text">
+                  </div>
+
+                  {/* Inner Circle Row */}
+                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                    <div className="col-span-2">
+                      <p className="font-mono text-akari-text text-sm">
+                        {competitorsData.projects[0].innerCircleCount}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Inner Circle</p>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <p className="font-mono text-akari-text text-sm">
                         {competitorsData.projects[1].innerCircleCount}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Circle Power</p>
-                      <p className="font-mono text-akari-text">
+                  </div>
+
+                  {/* Circle Power Row */}
+                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                    <div className="col-span-2">
+                      <p className="font-mono text-akari-text text-sm">
+                        {competitorsData.projects[0].innerCirclePowerTotal.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Circle Power</p>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <p className="font-mono text-akari-text text-sm">
                         {competitorsData.projects[1].innerCirclePowerTotal.toFixed(2)}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-akari-muted mb-1">Followers</p>
-                      <p className="font-mono text-akari-text">
+                  </div>
+
+                  {/* Followers Row */}
+                  <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                    <div className="col-span-2">
+                      <p className="font-mono text-akari-text text-sm">
+                        {formatNumber(competitorsData.projects[0].followers)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Followers</p>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <p className="font-mono text-akari-text text-sm">
                         {formatNumber(competitorsData.projects[1].followers)}
                       </p>
                     </div>
@@ -958,127 +963,142 @@ export default function ComparePage() {
                   Advanced Analytics (7 Days)
                 </h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-akari-border/70 bg-akari-card p-6">
-                {/* Project A Analytics */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
+              <div className="rounded-2xl border border-akari-border/70 bg-akari-card overflow-hidden">
+                {/* Header Row */}
+                <div className="grid grid-cols-5 gap-4 p-4 border-b border-akari-border/70 bg-akari-cardSoft/50">
+                  <div className="col-span-2 flex items-center gap-2">
                     <AvatarWithFallback 
                       url={competitorsData.projects[0].avatar_url} 
                       name={competitorsData.projects[0].name} 
                       size="sm" 
                     />
-                    <p className="font-medium text-akari-text">{competitorsData.projects[0].name}</p>
+                    <p className="font-medium text-akari-text truncate">{competitorsData.projects[0].name}</p>
                   </div>
-                  {analyticsData[0]?.analytics ? (
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Total Engagements</p>
-                        <p className="font-mono font-semibold text-akari-primary">
-                          {formatNumber(analyticsData[0].analytics.summary.totalEngagements)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Avg Engagement Rate</p>
-                        <p className="font-mono text-akari-text">
-                          {analyticsData[0].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Tweets (7D)</p>
-                        <p className="font-mono text-akari-text">
-                          {analyticsData[0].analytics.summary.tweetsCount}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Follower Change</p>
-                        <p className={`font-mono ${analyticsData[0].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
-                          {analyticsData[0].analytics.summary.followerChange >= 0 ? '+' : ''}
-                          {formatNumber(analyticsData[0].analytics.summary.followerChange)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Tweet Velocity</p>
-                        <p className="font-mono text-akari-text">
-                          {analyticsData[0].analytics.summary.tweetVelocity.toFixed(2)}/day
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Avg Sentiment</p>
-                        <p className="font-mono text-akari-text">
-                          {analyticsData[0].analytics.summary.avgSentiment}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-akari-muted">No analytics data available</p>
-                  )}
-                </div>
-
-                {/* Metric Labels */}
-                <div className="flex flex-col justify-center text-xs text-akari-muted space-y-3">
-                  <p>Metric</p>
-                  <p>Total Engagements</p>
-                  <p>Avg Engagement Rate</p>
-                  <p>Tweets (7D)</p>
-                  <p>Follower Change</p>
-                  <p>Tweet Velocity</p>
-                  <p>Avg Sentiment</p>
-                </div>
-
-                {/* Project B Analytics */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Metric</p>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2 justify-end">
+                    <p className="font-medium text-akari-text truncate">{competitorsData.projects[1].name}</p>
                     <AvatarWithFallback 
                       url={competitorsData.projects[1].avatar_url} 
                       name={competitorsData.projects[1].name} 
                       size="sm" 
                     />
-                    <p className="font-medium text-akari-text">{competitorsData.projects[1].name}</p>
                   </div>
-                  {analyticsData[1]?.analytics ? (
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Total Engagements</p>
-                        <p className="font-mono font-semibold text-akari-primary">
+                </div>
+
+                {/* Metric Rows with Dividers */}
+                {analyticsData[0]?.analytics && analyticsData[1]?.analytics ? (
+                  <div className="divide-y divide-akari-border/50">
+                    {/* Total Engagements Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className="font-mono font-semibold text-akari-primary text-sm">
+                          {formatNumber(analyticsData[0].analytics.summary.totalEngagements)}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Total Engagements</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="font-mono font-semibold text-akari-primary text-sm">
                           {formatNumber(analyticsData[1].analytics.summary.totalEngagements)}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Avg Engagement Rate</p>
-                        <p className="font-mono text-akari-text">
+                    </div>
+
+                    {/* Avg Engagement Rate Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className="font-mono text-akari-text text-sm">
+                          {analyticsData[0].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Avg Engagement Rate</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="font-mono text-akari-text text-sm">
                           {analyticsData[1].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Tweets (7D)</p>
-                        <p className="font-mono text-akari-text">
+                    </div>
+
+                    {/* Tweets (7D) Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className="font-mono text-akari-text text-sm">
+                          {analyticsData[0].analytics.summary.tweetsCount}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Tweets (7D)</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="font-mono text-akari-text text-sm">
                           {analyticsData[1].analytics.summary.tweetsCount}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Follower Change</p>
-                        <p className={`font-mono ${analyticsData[1].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                    </div>
+
+                    {/* Follower Change Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className={`font-mono text-sm ${analyticsData[0].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                          {analyticsData[0].analytics.summary.followerChange >= 0 ? '+' : ''}
+                          {formatNumber(analyticsData[0].analytics.summary.followerChange)}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Follower Change</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className={`font-mono text-sm ${analyticsData[1].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
                           {analyticsData[1].analytics.summary.followerChange >= 0 ? '+' : ''}
                           {formatNumber(analyticsData[1].analytics.summary.followerChange)}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Tweet Velocity</p>
-                        <p className="font-mono text-akari-text">
+                    </div>
+
+                    {/* Tweet Velocity Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className="font-mono text-akari-text text-sm">
+                          {analyticsData[0].analytics.summary.tweetVelocity.toFixed(2)}/day
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Tweet Velocity</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="font-mono text-akari-text text-sm">
                           {analyticsData[1].analytics.summary.tweetVelocity.toFixed(2)}/day
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-akari-muted mb-1">Avg Sentiment</p>
-                        <p className="font-mono text-akari-text">
+                    </div>
+
+                    {/* Avg Sentiment Row */}
+                    <div className="grid grid-cols-5 gap-4 p-4 hover:bg-akari-cardSoft/30 transition-colors">
+                      <div className="col-span-2">
+                        <p className="font-mono text-akari-text text-sm">
+                          {analyticsData[0].analytics.summary.avgSentiment}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-akari-muted uppercase tracking-wider">Avg Sentiment</p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="font-mono text-akari-text text-sm">
                           {analyticsData[1].analytics.summary.avgSentiment}
                         </p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-akari-muted">No analytics data available</p>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center">
+                    <p className="text-xs text-akari-muted">No analytics data available for comparison</p>
+                  </div>
+                )}
               </div>
             </section>
           )}
