@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { can } from '../../../lib/permissions';
+import { classifyFreshness, formatTimestampForTooltip, getFreshnessPillClasses, type FreshnessInfo } from '../../../lib/portal/data-freshness';
 
 /**
  * Type definitions for sentiment data
@@ -22,6 +23,7 @@ interface ProjectWithMetrics {
   akari_score: number | null;
   followers: number | null;
   date: string | null;
+  last_updated_at: string | null;
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
@@ -456,6 +458,9 @@ export default function SentimentOverview() {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [togglingStar, setTogglingStar] = useState<string | null>(null);
 
+  // Freshness filter state
+  const [freshnessFilter, setFreshnessFilter] = useState<'all' | 'fresh' | 'hide-stale'>('all');
+
   // Sort state
   type SortColumn = 'name' | 'akari_score' | 'sentiment_score' | 'ct_heat_score' | 'followers' | 'date';
   type SortDirection = 'asc' | 'desc';
@@ -475,9 +480,26 @@ export default function SentimentOverview() {
   // Determine which projects to display
   const displayProjects = activeTab === 'watchlist' ? watchlistProjects : projects;
 
+  // Filter by freshness
+  const filteredProjects = useMemo(() => {
+    if (freshnessFilter === 'all') {
+      return displayProjects;
+    }
+    
+    return displayProjects.filter((project) => {
+      const freshness = classifyFreshness(project.last_updated_at);
+      if (freshnessFilter === 'fresh') {
+        return freshness.label === 'Fresh';
+      } else if (freshnessFilter === 'hide-stale') {
+        return freshness.label !== 'Stale';
+      }
+      return true;
+    });
+  }, [displayProjects, freshnessFilter]);
+
   // Sorted projects
   const sortedProjects = useMemo(() => {
-    return [...displayProjects].sort((a, b) => {
+    return [...filteredProjects].sort((a, b) => {
       let aVal: number | string | null = null;
       let bVal: number | string | null = null;
 
@@ -518,7 +540,7 @@ export default function SentimentOverview() {
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [displayProjects, sortColumn, sortDirection]);
+  }, [filteredProjects, sortColumn, sortDirection]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -625,6 +647,7 @@ export default function SentimentOverview() {
               akari_score: p.akariScore,
               followers: null,
               date: p.lastUpdatedAt,
+              last_updated_at: p.lastUpdatedAt,
               sentimentChange24h: p.sentimentChange24h,
               ctHeatChange24h: p.ctHeatChange24h,
               akariChange24h: p.akariChange24h,
@@ -688,6 +711,7 @@ export default function SentimentOverview() {
               akari_score: p.akariScore,
               followers: null,
               date: p.lastUpdatedAt,
+              last_updated_at: p.lastUpdatedAt,
               sentimentChange24h: p.sentimentChange24h,
               ctHeatChange24h: p.ctHeatChange24h,
               akariChange24h: p.akariChange24h,
@@ -941,34 +965,71 @@ export default function SentimentOverview() {
 
           {/* Tracked Projects Section */}
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <h2 className="text-sm uppercase tracking-wider text-akari-muted">
                 {activeTab === 'watchlist' ? 'My Watchlist' : 'Tracked Projects'}
               </h2>
-              {isLoggedIn && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveTab('all')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                      activeTab === 'all'
-                        ? 'bg-akari-primary text-akari-bg'
-                        : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
-                    }`}
-                  >
-                    All Projects
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('watchlist')}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                      activeTab === 'watchlist'
-                        ? 'bg-akari-primary text-akari-bg'
-                        : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
-                    }`}
-                  >
-                    My Watchlist
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {isLoggedIn && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('all')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                        activeTab === 'all'
+                          ? 'bg-akari-primary text-akari-bg'
+                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      All Projects
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('watchlist')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                        activeTab === 'watchlist'
+                          ? 'bg-akari-primary text-akari-bg'
+                          : 'bg-akari-cardSoft text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      My Watchlist
+                    </button>
+                  </>
+                )}
+                {activeTab === 'all' && (
+                  <div className="flex items-center gap-1 border-l border-akari-border/50 pl-2 ml-2">
+                    <span className="text-xs text-akari-muted mr-1">Filter:</span>
+                    <button
+                      onClick={() => setFreshnessFilter('all')}
+                      className={`px-2 py-1 text-xs font-medium rounded transition ${
+                        freshnessFilter === 'all'
+                          ? 'bg-akari-primary/20 text-akari-primary'
+                          : 'text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setFreshnessFilter('fresh')}
+                      className={`px-2 py-1 text-xs font-medium rounded transition ${
+                        freshnessFilter === 'fresh'
+                          ? 'bg-akari-primary/20 text-akari-primary'
+                          : 'text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      Only Fresh
+                    </button>
+                    <button
+                      onClick={() => setFreshnessFilter('hide-stale')}
+                      className={`px-2 py-1 text-xs font-medium rounded transition ${
+                        freshnessFilter === 'hide-stale'
+                          ? 'bg-akari-primary/20 text-akari-primary'
+                          : 'text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      Hide Stale
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {activeTab === 'watchlist' && !isLoggedIn && (
@@ -1054,6 +1115,9 @@ export default function SentimentOverview() {
                         <SortIcon active={sortColumn === 'date'} direction={sortDirection} />
                       </span>
                     </th>
+                    <th className="py-3 px-4 text-left text-xs uppercase tracking-wider text-akari-muted">
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1135,6 +1199,19 @@ export default function SentimentOverview() {
                         <td className="py-4 px-4 text-xs text-akari-muted">
                           {project.date ? new Date(project.date).toLocaleDateString() : '-'}
                         </td>
+                        <td className="py-4 px-4">
+                          {(() => {
+                            const freshness = classifyFreshness(project.last_updated_at);
+                            return (
+                              <div
+                                className={`inline-flex items-center ${getFreshnessPillClasses(freshness)}`}
+                                title={`Last sentiment update: ${formatTimestampForTooltip(project.last_updated_at)}`}
+                              >
+                                {freshness.label}
+                              </div>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     );
                   })}
@@ -1203,6 +1280,19 @@ export default function SentimentOverview() {
                         <p className="font-mono font-medium">{project.ct_heat_score ?? '-'}</p>
                         <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-center">
+                      {(() => {
+                        const freshness = classifyFreshness(project.last_updated_at);
+                        return (
+                          <div
+                            className={`inline-flex items-center ${getFreshnessPillClasses(freshness)}`}
+                            title={`Last sentiment update: ${formatTimestampForTooltip(project.last_updated_at)}`}
+                          >
+                            {freshness.label}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

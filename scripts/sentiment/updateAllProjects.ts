@@ -217,10 +217,14 @@ export async function runSentimentUpdate(): Promise<{ successCount: number; fail
         const result = await processProject(project, today, supabase);
         
         if (result) {
-          // Upsert metrics to Supabase
+          // Upsert metrics to Supabase with updated_at timestamp
+          const metricsWithTimestamp = {
+            ...result.metrics,
+            updated_at: new Date().toISOString(),
+          };
           const { error: upsertError } = await supabase
             .from('metrics_daily')
-            .upsert(result.metrics, {
+            .upsert(metricsWithTimestamp, {
               onConflict: 'project_id,date',
             });
 

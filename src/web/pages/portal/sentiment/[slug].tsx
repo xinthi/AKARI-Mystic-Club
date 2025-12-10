@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { can, canUseDeepExplorer } from '../../../lib/permissions';
+import { classifyFreshness, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -21,6 +22,7 @@ interface ProjectDetail {
   twitter_profile_image_url: string | null;
   first_tracked_at: string | null;
   last_refreshed_at: string | null;
+  last_updated_at: string | null;
   inner_circle_count?: number;
   inner_circle_power?: number;
 }
@@ -1029,8 +1031,10 @@ export default function SentimentDetail() {
     async function checkWatchlist() {
       try {
         const res = await fetch('/api/portal/sentiment/watchlist');
+        if (!res.ok) return;
+
         const data = await res.json();
-        if (data.ok && data.projects) {
+        if (data.ok && Array.isArray(data.projects)) {
           const isWatched = data.projects.some((p: any) => p.projectId === projectId);
           setIsInWatchlist(isWatched);
         }
@@ -1127,6 +1131,21 @@ export default function SentimentDetail() {
                 {project.bio && (
                   <p className="mt-2 text-sm text-akari-muted max-w-xl">{project.bio}</p>
                 )}
+                {/* Data Freshness Indicator */}
+                <div className="mt-2 flex items-center gap-2">
+                  {(() => {
+                    const freshness = classifyFreshness(project.last_updated_at);
+                    return (
+                      <div className="flex items-center gap-2 text-xs text-akari-muted">
+                        <span>Last updated:</span>
+                        <div className={`inline-flex items-center ${getFreshnessPillClasses(freshness)}`}>
+                          {freshness.label}
+                        </div>
+                        <span className="text-akari-muted/70">({freshness.ageHuman})</span>
+                      </div>
+                    );
+                  })()}
+                </div>
                 <div className="mt-3 flex items-center gap-3">
                   {/* Watchlist star button */}
                   {isLoggedIn && (

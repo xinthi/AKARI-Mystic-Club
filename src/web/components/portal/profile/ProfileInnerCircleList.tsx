@@ -5,6 +5,8 @@
  * their stats, Akari tier badge, CT Heat, followers, and role.
  */
 
+import Image from 'next/image';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -71,9 +73,11 @@ function MemberRow({ entry, index }: MemberRowProps) {
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <div className="relative flex-shrink-0">
           {entry.avatarUrl ? (
-            <img
+            <Image
               src={entry.avatarUrl}
               alt={entry.handle}
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-700"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';

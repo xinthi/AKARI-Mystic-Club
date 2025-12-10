@@ -49,6 +49,7 @@ export interface MetricsDaily {
   followers: number | null;
   akari_score: number | null;
   created_at: string;
+  updated_at?: string | null; // Timestamp when metrics were last updated
 }
 
 /**
@@ -120,6 +121,7 @@ export interface ProjectWithMetrics extends Project, MetricsChange24h {
   akari_score: number | null;
   followers: number | null;
   date: string | null;
+  last_updated_at: string | null; // Timestamp of the most recent metrics update
 }
 
 /**
@@ -330,6 +332,7 @@ export async function getProjectsWithLatestMetrics(
       akari_score: latestMetrics?.akari_score ?? null,
       followers: latestMetrics?.followers ?? null,
       date: latestMetrics?.date ?? null,
+      last_updated_at: latestMetrics?.updated_at ?? latestMetrics?.created_at ?? null,
       ...changes,
     };
   });

@@ -6,6 +6,7 @@
  */
 
 import { useMemo } from 'react';
+import Image from 'next/image';
 
 // =============================================================================
 // TYPES
@@ -176,9 +177,11 @@ export function ProfileClubOrbit({ orbit }: ProfileClubOrbitProps) {
                   title={`@${bubble.handle} • ${bubble.akariScore ?? 'Unranked'} AKARI`}
                 >
                   {bubble.avatarUrl ? (
-                    <img
+                    <Image
                       src={bubble.avatarUrl}
                       alt={bubble.handle}
+                      width={bubble.size}
+                      height={bubble.size}
                       className="w-full h-full rounded-full object-cover"
                       onError={(e) => {
                         // Fallback to initials on error

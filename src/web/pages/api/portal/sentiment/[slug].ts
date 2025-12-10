@@ -184,13 +184,14 @@ export default async function handler(
         influencers.reduce((sum, inf) => sum + (inf.akari_score || 0), 0),
     };
 
-    // Ensure we have a profile image URL
+    // Ensure we have a profile image URL and add last_updated_at
     const enhancedProject = {
       ...project,
       twitter_profile_image_url: 
         (project as any).twitter_profile_image_url || 
         project.avatar_url ||
         null,
+      last_updated_at: latestMetrics?.updated_at ?? latestMetrics?.created_at ?? null,
     };
 
     return res.status(200).json({
