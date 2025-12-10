@@ -147,6 +147,122 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
         </div>
       </header>
 
+      {/* Mobile Navigation Drawer */}
+      {isMobileNavOpen && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] sm:hidden"
+            onClick={() => setIsMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer */}
+          <div className="fixed left-0 top-0 bottom-0 w-[80%] max-w-sm bg-akari-card border-r border-akari-neon-teal/30 shadow-[0_0_30px_rgba(0,246,162,0.3)] z-[70] sm:hidden overflow-y-auto">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between p-4 border-b border-akari-neon-teal/20">
+              <Link
+                href="/portal"
+                onClick={() => setIsMobileNavOpen(false)}
+                className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105"
+              >
+                <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)]">
+                  <Logo size={28} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] tracking-[0.18em] uppercase text-gradient-teal font-medium">
+                    Akari Mystic Club
+                  </span>
+                  <span className="text-xs text-akari-muted/70">
+                    Prediction-native market intelligence
+                  </span>
+                </div>
+              </Link>
+              <button
+                onClick={() => setIsMobileNavOpen(false)}
+                className="p-2 text-akari-muted hover:text-akari-neon-teal transition-all duration-300 ease-out hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)]"
+                aria-label="Close navigation menu"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="flex flex-col p-4 space-y-4">
+              {/* Navigation Items */}
+              <nav className="flex flex-col space-y-2">
+                {navItems.map((item) => {
+                  const active =
+                    router.pathname === item.href ||
+                    (item.href !== '/portal' && router.pathname.startsWith(item.href));
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out ${
+                        active
+                          ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                          : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              {/* Divider */}
+              <div className="border-t border-akari-neon-teal/20 my-4" />
+
+              {/* Open MiniApp Button */}
+              <a
+                href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
+                onClick={() => setIsMobileNavOpen(false)}
+                className="pill-neon w-full bg-gradient-neon-teal px-4 py-3 text-sm font-medium text-black shadow-neon-teal hover:shadow-akari-glow text-center transition-all duration-300 ease-out"
+              >
+                Open MiniApp
+              </a>
+
+              {/* Tier Badge - only show when logged in */}
+              {isLoggedIn && (
+                <div className="pt-4 border-t border-akari-neon-teal/20">
+                  <button
+                    onClick={() => {
+                      setIsMobileNavOpen(false);
+                      if (currentTier === 'seer') {
+                        setUpgradeModalState({ open: true, targetTier: 'analyst' });
+                      } else if (currentTier === 'analyst') {
+                        setUpgradeModalState({ open: true, targetTier: 'institutional_plus' });
+                      } else {
+                        router.push('/portal/pricing');
+                      }
+                    }}
+                    className={`pill-neon w-full flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-medium border border-akari-neon-teal/40 transition-all duration-300 ease-out ${tierInfo.bgColor} ${tierInfo.color} hover:border-akari-neon-teal/60 hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]`}
+                    title={`Your current tier: ${tierInfo.name}`}
+                  >
+                    <span>Level:</span>
+                    {currentTier === 'seer' ? `${tierInfo.name} · Upgrade` : 
+                     currentTier === 'analyst' ? `${tierInfo.name} · Manage` : 
+                     tierInfo.name}
+                  </button>
+                </div>
+              )}
+
+              {/* User Menu - only show when logged in */}
+              {isLoggedIn && (
+                <div className="pt-4 border-t border-akari-neon-teal/20">
+                  <div className="text-xs text-akari-muted mb-2">Account</div>
+                  <UserMenu />
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Page content */}
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pb-16 pt-6 sm:pt-8">
         {children}
