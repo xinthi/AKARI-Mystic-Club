@@ -674,7 +674,7 @@ export default function SentimentOverview() {
         // If on watchlist tab, refresh the list
         if (activeTab === 'watchlist') {
           const res2 = await fetch('/api/portal/sentiment/watchlist');
-          const data2 = await res.json();
+          const data2 = await res2.json();
           if (data2.ok && data2.projects) {
             const watchlistAsMetrics: ProjectWithMetrics[] = data2.projects.map((p: any) => ({
               id: p.projectId,
@@ -1175,15 +1175,15 @@ export default function SentimentOverview() {
                         href={`/portal/sentiment/${project.slug}`}
                         className="flex items-center gap-3 flex-1"
                       >
-                    <div className="flex items-center gap-3 mb-3">
-                      <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="lg" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-akari-text truncate">{project.name}</p>
-                        <p className="text-xs text-akari-muted">@{project.x_handle}</p>
-                      </div>
-                      <span className={`rounded-full bg-akari-cardSoft px-2 py-1 text-[10px] uppercase tracking-wider ${tier.color}`}>
-                        {tier.name}
-                      </span>
+                        <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="lg" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-akari-text truncate">{project.name}</p>
+                          <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+                        </div>
+                        <span className={`rounded-full bg-akari-cardSoft px-2 py-1 text-[10px] uppercase tracking-wider ${tier.color}`}>
+                          {tier.name}
+                        </span>
+                      </Link>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-xl bg-akari-cardSoft p-2">
@@ -1202,8 +1202,6 @@ export default function SentimentOverview() {
                         <p className="font-mono font-medium">{project.ct_heat_score ?? '-'}</p>
                         <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
-                    </div>
-                      </Link>
                     </div>
                   </div>
                 );
