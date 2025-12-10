@@ -131,11 +131,13 @@ export default async function handler(
 
     const projectIds = watchlistEntries.map((e: any) => e.project_id);
 
-    // Get projects with full details
+    // Get projects with full details, excluding test/dev accounts
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
       .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url')
-      .in('id', projectIds);
+      .in('id', projectIds)
+      .eq('is_active', true)
+      .neq('slug', 'dev_user'); // Exclude dev_user from watchlist
 
     if (projectsError) {
       console.error('[Watchlist API] Error fetching projects:', projectsError);
