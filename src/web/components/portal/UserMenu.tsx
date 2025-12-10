@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
@@ -19,7 +20,37 @@ export function UserMenu() {
   const tierInfo = getUserTierInfo(akariUser.user);
   
   const [isOpen, setIsOpen] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch profile image when xUsername is available
+  useEffect(() => {
+    if (!xUsername) {
+      setProfileImageUrl(null);
+      return;
+    }
+
+    async function fetchProfileImage() {
+      try {
+        // Convert xUsername to slug (same logic as in me.tsx)
+        const slug = xUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const res = await fetch(`/api/portal/sentiment/${slug}`);
+        const data = await res.json();
+        
+        if (data.ok && data.project) {
+          const imageUrl = data.project.twitter_profile_image_url || data.project.avatar_url;
+          setProfileImageUrl(imageUrl || null);
+        } else {
+          setProfileImageUrl(null);
+        }
+      } catch (error) {
+        console.error('[UserMenu] Error fetching profile image:', error);
+        setProfileImageUrl(null);
+      }
+    }
+
+    fetchProfileImage();
+  }, [xUsername]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -119,8 +150,22 @@ export function UserMenu() {
             {/* User Info Header */}
             <div className="px-4 py-3 border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-akari-neon-teal/30 bg-gradient-neon-teal text-black text-sm font-bold shadow-neon-teal`}>
-                  {xUsername?.[0]?.toUpperCase() || 'U'}
+                <div className="relative flex-shrink-0">
+                  {profileImageUrl ? (
+                    <Image
+                      src={profileImageUrl}
+                      alt={xUsername || 'User'}
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-akari-neon-teal/30 shadow-neon-teal"
+                      unoptimized
+                      onError={() => setProfileImageUrl(null)}
+                    />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-akari-neon-teal/30 bg-gradient-neon-teal text-black text-sm font-bold shadow-neon-teal`}>
+                      {xUsername?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-akari-text truncate">
