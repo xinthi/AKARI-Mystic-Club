@@ -1315,6 +1315,10 @@ export default function SentimentDetail() {
             isLocked={!canViewCompare}
             requiredTier="analyst"
             onUpgradeClick={() => setUpgradeModalOpen(true)}
+            title="Analyst feature"
+            description="Compare this project with similar ones based on inner circles and narratives."
+            showPricingButton={true}
+            showUpgradeButton={true}
           >
             {competitors.length > 0 && (
               <section className="mb-6">
@@ -1422,6 +1426,10 @@ export default function SentimentDetail() {
             isLocked={!canViewAnalytics}
             requiredTier="analyst"
             onUpgradeClick={() => setUpgradeModalOpen(true)}
+            title="Analyst feature"
+            description="Unlock full Twitter analytics and CSV export for this project."
+            showPricingButton={true}
+            showUpgradeButton={true}
           >
             <section className="mt-8 pt-8 border-t border-akari-border/30">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">

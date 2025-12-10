@@ -18,6 +18,10 @@ export interface LockedFeatureOverlayProps {
   isLocked: boolean;
   requiredTier: 'analyst' | 'institutional_plus';
   onUpgradeClick?: () => void;
+  title?: string;
+  description?: string;
+  showPricingButton?: boolean;
+  showUpgradeButton?: boolean;
 }
 
 // =============================================================================
@@ -35,16 +39,24 @@ export function LockedFeatureOverlay({
   isLocked,
   requiredTier,
   onUpgradeClick,
+  title,
+  description,
+  showPricingButton = true,
+  showUpgradeButton = true,
 }: LockedFeatureOverlayProps) {
   if (!isLocked) {
     return <>{children}</>;
   }
 
   const tierLabel = requiredTier === 'analyst' ? 'Analyst' : 'Institutional Plus';
-  const tierDescription =
+  const defaultTitle = `${tierLabel} feature`;
+  const defaultDescription =
     requiredTier === 'analyst'
       ? 'This is an Analyst feature. Upgrade to unlock competitor compare, analytics exports, and advanced insights.'
       : 'This is an Institutional Plus feature. Contact AKARI team to request access.';
+
+  const displayTitle = title ?? defaultTitle;
+  const displayDescription = description ?? defaultDescription;
 
   const handleUpgradeClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -80,22 +92,26 @@ export function LockedFeatureOverlay({
               />
             </svg>
           </div>
-          <h3 className="text-sm font-semibold text-akari-text mb-2">{featureName}</h3>
-          <p className="text-xs text-akari-muted mb-4">{tierDescription}</p>
+          <h3 className="text-sm font-semibold text-akari-text mb-2">{displayTitle}</h3>
+          <p className="text-xs text-akari-muted mb-4">{displayDescription}</p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-            <Link
-              href="/portal/pricing"
-              className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
-            >
-              View Pricing
-            </Link>
-            <button
-              onClick={handleUpgradeClick}
-              className="px-4 py-2 rounded-lg bg-akari-primary text-black hover:opacity-90 transition text-xs font-medium"
-            >
-              Request Upgrade
-            </button>
+            {showPricingButton && (
+              <Link
+                href="/portal/pricing"
+                className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-xs font-medium"
+              >
+                View Pricing
+              </Link>
+            )}
+            {showUpgradeButton && (
+              <button
+                onClick={handleUpgradeClick}
+                className="px-4 py-2 rounded-lg bg-akari-primary text-black hover:opacity-90 transition text-xs font-medium"
+              >
+                Request Upgrade
+              </button>
+            )}
           </div>
         </div>
       </div>

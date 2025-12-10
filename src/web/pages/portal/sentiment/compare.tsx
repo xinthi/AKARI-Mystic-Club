@@ -5,6 +5,8 @@ import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { classifyFreshness, formatTimestampForTooltip, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { can } from '../../../lib/permissions';
+import { getUserTier } from '../../../lib/userTier';
+import { UpgradeModal } from '../../../components/portal/UpgradeModal';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -340,6 +342,8 @@ export default function ComparePage() {
   const router = useRouter();
   const akariUser = useAkariUser();
   const canViewAnalytics = can(akariUser.user, 'markets.analytics');
+  const userTier = getUserTier(akariUser.user);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<Array<{ id: string; name: string; slug: string; x_handle: string }>>([]);
@@ -616,6 +620,31 @@ export default function ComparePage() {
             Select up to 5 projects to compare their metrics, topics, and shared inner circle members.
           </p>
         </div>
+
+        {/* Seer Upgrade Hint Banner */}
+        {userTier === 'seer' && (
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-xs text-blue-300/90">
+                You are in Seer mode. Analyst tier unlocks deeper competitor analysis and more frequent compares.
+              </p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Link
+                  href="/portal/pricing"
+                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition text-xs font-medium whitespace-nowrap"
+                >
+                  View Pricing
+                </Link>
+                <button
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
+                >
+                  Request Upgrade
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Project Selection */}
@@ -1244,6 +1273,15 @@ export default function ComparePage() {
             Choose 2-5 projects to see their metrics, topics, and shared inner circle members.
           </p>
         </div>
+      )}
+
+      {/* Upgrade Modal */}
+      {akariUser.isLoggedIn && (
+        <UpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          user={akariUser.user}
+        />
       )}
     </PortalLayout>
   );

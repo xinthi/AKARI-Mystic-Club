@@ -58,7 +58,7 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">Upgrade Your Access</h2>
+          <h2 className="text-xl font-semibold text-white">Upgrade your AKARI access</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-white transition"
@@ -93,27 +93,19 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-2">Upgrade to Analyst</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Analyst</h3>
                 <p className="text-sm text-slate-300 mb-3">
-                  Unlock full analytics and comparison tools:
+                  Designed for active CT analysts, founders, and creators.
                 </p>
-                <ul className="text-sm text-slate-400 space-y-1 mb-4 list-disc list-inside">
-                  <li>Competitor comparison</li>
-                  <li>Twitter Analytics section</li>
-                  <li>CSV export for all data</li>
-                  <li>Advanced narrative heatmaps</li>
-                  <li>Full search and filtering</li>
-                </ul>
+                <p className="text-sm text-slate-300 mb-3">
+                  Unlock full competitor analysis, advanced Twitter analytics, CSV exports, and richer narrative tools.
+                </p>
+                <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    To upgrade, contact the AKARI team with your X handle and desired tier. You will receive a crypto payment address and simple instructions. Once your transaction is confirmed on-chain, your account will be upgraded manually.
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
-              <div className="text-xs font-medium text-slate-300 mb-2">How to Upgrade:</div>
-              <ol className="text-xs text-slate-400 space-y-2 list-decimal list-inside">
-                <li>Contact the AKARI team with your X handle and desired tier</li>
-                <li>You will receive crypto payment address and instructions</li>
-                <li>After payment is confirmed on-chain, your account will be upgraded manually</li>
-              </ol>
             </div>
 
             <div className="flex gap-2">
@@ -121,7 +113,7 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 href={getContactLink()}
                 className="flex-1 px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition text-sm font-medium text-center"
               >
-                Contact Team
+                Contact AKARI team
               </a>
               <Link
                 href="/portal/pricing"
@@ -147,27 +139,19 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white mb-2">Upgrade to Institutional Plus</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Institutional Plus</h3>
                 <p className="text-sm text-slate-300 mb-3">
-                  Enterprise-grade analytics and insights:
+                  For funds, desks, and large teams that need deeper coverage.
                 </p>
-                <ul className="text-sm text-slate-400 space-y-1 mb-4 list-disc list-inside">
-                  <li>Deep Explorer access</li>
-                  <li>90-day analytics windows</li>
-                  <li>Inner Circle Reach analysis</li>
-                  <li>Advanced topic clustering</li>
-                  <li>Custom export formats</li>
-                  <li>Priority support</li>
-                </ul>
+                <p className="text-sm text-slate-300 mb-3">
+                  Includes everything in Analyst plus Deep Explorer, 90 day sentiment, inner circle reach, and custom support.
+                </p>
+                <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Institutional Plus is invite only. Contact the AKARI team to discuss access.
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
-              <div className="text-xs font-medium text-slate-300 mb-2">How to Upgrade:</div>
-              <p className="text-xs text-slate-400">
-                Institutional Plus access is invite-only. Contact the AKARI team for custom terms
-                and enterprise pricing. We&apos;ll work with you to create a plan that fits your needs.
-              </p>
             </div>
 
             <div className="flex gap-2">
@@ -175,7 +159,7 @@ export function UpgradeModal({ isOpen, onClose, user }: UpgradeModalProps) {
                 href={getContactLink()}
                 className="flex-1 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/50 transition text-sm font-medium text-center"
               >
-                Contact Team
+                Contact AKARI team
               </a>
               <Link
                 href="/portal/pricing"

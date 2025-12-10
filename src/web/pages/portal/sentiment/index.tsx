@@ -4,7 +4,9 @@ import { useRouter } from 'next/router';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
 import { can } from '../../../lib/permissions';
+import { getUserTier } from '../../../lib/userTier';
 import { classifyFreshness, formatTimestampForTooltip, getFreshnessPillClasses, type FreshnessInfo } from '../../../lib/portal/data-freshness';
+import { UpgradeModal } from '../../../components/portal/UpgradeModal';
 
 /**
  * Type definitions for sentiment data
@@ -606,6 +608,8 @@ export default function SentimentOverview() {
   const canSearch = can(user, 'sentiment.search');
   const canCompare = can(user, 'sentiment.compare');
   const isLoggedIn = user?.isLoggedIn ?? false;
+  const userTier = getUserTier(user);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   
   const router = useRouter();
 
@@ -926,6 +930,36 @@ export default function SentimentOverview() {
           Monitor real-time sentiment, engagement heat, and AKARI credibility scores for tracked projects. 
           Click any project to see detailed metrics and influencer activity.
         </p>
+
+        {/* Seer Upgrade CTA Banner */}
+        {userTier === 'seer' && (
+          <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 mt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-400 mb-1">
+                  You are using Seer mode
+                </h3>
+                <p className="text-xs text-blue-300/80">
+                  Upgrade to Analyst to unlock full competitor analysis, deep Twitter analytics, and CSV exports.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Link
+                  href="/portal/pricing"
+                  className="px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition text-xs font-medium whitespace-nowrap"
+                >
+                  View Pricing
+                </Link>
+                <button
+                  onClick={() => setIsUpgradeModalOpen(true)}
+                  className="px-4 py-2 rounded-lg bg-blue-500 text-black hover:opacity-90 transition text-xs font-medium whitespace-nowrap"
+                >
+                  Request Upgrade
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Search Section */}
@@ -1651,6 +1685,15 @@ export default function SentimentOverview() {
             )}
           </section>
         </>
+      )}
+
+      {/* Upgrade Modal */}
+      {isLoggedIn && (
+        <UpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          user={user}
+        />
       )}
     </PortalLayout>
   );

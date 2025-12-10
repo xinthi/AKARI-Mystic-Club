@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Logo } from '../Logo';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { getUserTierInfo } from '@/lib/userTier';
+import { getUserTierInfo, getUserTier } from '@/lib/userTier';
+import { UpgradeModal } from './UpgradeModal';
 
 type Props = {
   title?: string;
@@ -27,6 +28,8 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const { isLoggedIn, xUsername } = akariUser;
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const tierInfo = getUserTierInfo(akariUser.user);
+  const currentTier = getUserTier(akariUser.user);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   return (
     <>
@@ -73,14 +76,22 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
             {/* Tier Badge - only show when logged in */}
             {isLoggedIn && (
-              <Link
-                href="/portal/pricing"
+              <button
+                onClick={() => {
+                  if (currentTier !== 'institutional_plus') {
+                    setIsUpgradeModalOpen(true);
+                  } else {
+                    router.push('/portal/pricing');
+                  }
+                }}
                 className={`transition hover:opacity-80 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border ${tierInfo.bgColor} ${tierInfo.color}`}
                 title={`Your current tier: ${tierInfo.name}`}
               >
                 <span className="hidden sm:inline">Level:</span>
-                {tierInfo.name}
-              </Link>
+                {currentTier === 'seer' ? `${tierInfo.name} · Upgrade` : 
+                 currentTier === 'analyst' ? `${tierInfo.name} · Manage` : 
+                 tierInfo.name}
+              </button>
             )}
 
             {/* My Profile link - only show when logged in */}
@@ -150,6 +161,15 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pb-16 pt-6 sm:pt-8">
         {children}
       </main>
+
+      {/* Upgrade Modal */}
+      {isLoggedIn && (
+        <UpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          user={akariUser.user}
+        />
+      )}
     </div>
     </>
   );
