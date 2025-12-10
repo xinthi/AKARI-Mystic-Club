@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Logo } from '../Logo';
 import { useAkariUser } from '@/lib/akari-auth';
-import { isSuperAdmin } from '@/lib/permissions';
 import { getUserTierInfo, getUserTier } from '@/lib/userTier';
 import { UpgradeModal } from './UpgradeModal';
+import { UserMenu } from './UserMenu';
 
 type Props = {
   title?: string;
@@ -25,8 +25,7 @@ const navItems = [
 export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const router = useRouter();
   const akariUser = useAkariUser();
-  const { isLoggedIn, xUsername } = akariUser;
-  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  const { isLoggedIn } = akariUser;
   const tierInfo = getUserTierInfo(akariUser.user);
   const currentTier = getUserTier(akariUser.user);
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
@@ -56,7 +55,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
           </Link>
 
           {/* Nav links */}
-          <nav className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-akari-muted w-full sm:w-auto">
+          <nav className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-akari-muted w-full sm:w-auto">
             {navItems.map((item) => {
               const active =
                 router.pathname === item.href ||
@@ -65,7 +64,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`transition hover:text-akari-primary ${
+                  className={`transition hover:text-akari-primary whitespace-nowrap ${
                     active
                       ? 'text-akari-primary'
                       : 'text-akari-muted'
@@ -88,7 +87,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                     router.push('/portal/pricing');
                   }
                 }}
-                className={`transition hover:opacity-80 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border ${tierInfo.bgColor} ${tierInfo.color}`}
+                className={`transition hover:opacity-80 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border whitespace-nowrap ${tierInfo.bgColor} ${tierInfo.color}`}
                 title={`Your current tier: ${tierInfo.name}`}
               >
                 <span className="hidden sm:inline">Level:</span>
@@ -98,62 +97,12 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               </button>
             )}
 
-            {/* My Profile link - only show when logged in */}
-            {isLoggedIn && (
-              <Link
-                href="/portal/me"
-                className={`transition hover:text-akari-primary flex items-center gap-1 ${
-                  router.pathname === '/portal/me'
-                    ? 'text-akari-primary'
-                    : 'text-akari-muted'
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                </svg>
-                {xUsername ? xUsername : 'Profile'}
-              </Link>
-            )}
-
-            {/* Admin links - only show for super admins */}
-            {isLoggedIn && userIsSuperAdmin && (
-              <>
-                <Link
-                  href="/portal/admin/overview"
-                  className={`transition hover:text-akari-primary ${
-                    router.pathname === '/portal/admin/overview'
-                      ? 'text-akari-primary'
-                      : 'text-akari-muted'
-                  }`}
-                >
-                  Admin Overview
-                </Link>
-                <Link
-                  href="/portal/admin/projects"
-                  className={`transition hover:text-akari-primary ${
-                    router.pathname === '/portal/admin/projects'
-                      ? 'text-akari-primary'
-                      : 'text-akari-muted'
-                  }`}
-                >
-                  Projects Admin
-                </Link>
-                <Link
-                  href="/portal/admin/access"
-                  className={`transition hover:text-akari-primary ${
-                    router.pathname === '/portal/admin/access'
-                      ? 'text-akari-primary'
-                      : 'text-akari-muted'
-                  }`}
-                >
-                  Access Requests
-                </Link>
-              </>
-            )}
+            {/* User Menu Dropdown - replaces Profile and Admin links */}
+            {isLoggedIn && <UserMenu />}
 
             <a
               href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
-              className="ml-auto sm:ml-1 rounded-full bg-akari-primary px-3 py-1.5 text-[11px] font-medium text-black shadow-akari-glow hover:opacity-90 transition whitespace-nowrap"
+              className="ml-auto sm:ml-0 rounded-full bg-akari-primary px-3 py-1.5 text-[11px] font-medium text-black shadow-akari-glow hover:opacity-90 transition whitespace-nowrap"
             >
               Open MiniApp
             </a>

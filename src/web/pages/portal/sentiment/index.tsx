@@ -1114,8 +1114,8 @@ export default function SentimentOverview() {
         <>
           {/* Coverage & Data Health Panel */}
           {isLoggedIn && (
-            <section className="mb-4">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+            <section className="mb-4 sm:mb-6">
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4">
                 {coverageLoading ? (
                   <div className="text-center py-4">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-2" />
@@ -1150,46 +1150,46 @@ export default function SentimentOverview() {
                   </div>
                 ) : coverage ? (
                   <>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-4">
                       {/* Total Projects */}
-                      <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
-                        <p className="text-xs text-slate-400 mb-1">Total Projects</p>
-                        <p className="text-xl font-semibold text-white">{coverage.totalProjects}</p>
+                      <div className="bg-slate-800/50 rounded-lg p-2.5 sm:p-3 border border-slate-700/50">
+                        <p className="text-[10px] sm:text-xs text-slate-400 mb-0.5 sm:mb-1">Total Projects</p>
+                        <p className="text-lg sm:text-xl font-semibold text-white">{coverage.totalProjects}</p>
                       </div>
 
                       {/* Fresh */}
-                      <div className="bg-green-500/10 rounded-xl p-3 border border-green-500/20">
-                        <p className="text-xs text-green-400 mb-1">Fresh</p>
-                        <p className="text-xl font-semibold text-green-400">{coverage.freshCount}</p>
-                        <p className="text-[10px] text-green-400/70 mt-0.5">Updated in last 24h</p>
+                      <div className="bg-green-500/10 rounded-lg p-2.5 sm:p-3 border border-green-500/20">
+                        <p className="text-[10px] sm:text-xs text-green-400 mb-0.5 sm:mb-1">Fresh</p>
+                        <p className="text-lg sm:text-xl font-semibold text-green-400">{coverage.freshCount}</p>
+                        <p className="text-[9px] sm:text-[10px] text-green-400/70 mt-0.5 hidden sm:block">Updated in last 24h</p>
                       </div>
 
                       {/* Warm */}
-                      <div className="bg-yellow-500/10 rounded-xl p-3 border border-yellow-500/20">
-                        <p className="text-xs text-yellow-400 mb-1">Warm</p>
-                        <p className="text-xl font-semibold text-yellow-400">{coverage.warmCount}</p>
-                        <p className="text-[10px] text-yellow-400/70 mt-0.5">24-72h old</p>
+                      <div className="bg-yellow-500/10 rounded-lg p-2.5 sm:p-3 border border-yellow-500/20">
+                        <p className="text-[10px] sm:text-xs text-yellow-400 mb-0.5 sm:mb-1">Warm</p>
+                        <p className="text-lg sm:text-xl font-semibold text-yellow-400">{coverage.warmCount}</p>
+                        <p className="text-[9px] sm:text-[10px] text-yellow-400/70 mt-0.5 hidden sm:block">24-72h old</p>
                       </div>
 
                       {/* Stale */}
-                      <div className="bg-red-500/10 rounded-xl p-3 border border-red-500/20">
-                        <p className="text-xs text-red-400 mb-1">Stale</p>
-                        <p className="text-xl font-semibold text-red-400">{coverage.staleCount}</p>
-                        <p className="text-[10px] text-red-400/70 mt-0.5">Older than 72h</p>
+                      <div className="bg-red-500/10 rounded-lg p-2.5 sm:p-3 border border-red-500/20">
+                        <p className="text-[10px] sm:text-xs text-red-400 mb-0.5 sm:mb-1">Stale</p>
+                        <p className="text-lg sm:text-xl font-semibold text-red-400">{coverage.staleCount}</p>
+                        <p className="text-[9px] sm:text-[10px] text-red-400/70 mt-0.5 hidden sm:block">Older than 72h</p>
                       </div>
 
                       {/* No Data */}
-                      <div className="bg-slate-500/10 rounded-xl p-3 border border-slate-500/20">
-                        <p className="text-xs text-slate-400 mb-1">No Data</p>
-                        <p className="text-xl font-semibold text-slate-400">{coverage.totalNoData}</p>
-                        <p className="text-[10px] text-slate-400/70 mt-0.5">No metrics yet</p>
+                      <div className="bg-slate-500/10 rounded-lg p-2.5 sm:p-3 border border-slate-500/20">
+                        <p className="text-[10px] sm:text-xs text-slate-400 mb-0.5 sm:mb-1">No Data</p>
+                        <p className="text-lg sm:text-xl font-semibold text-slate-400">{coverage.totalNoData}</p>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400/70 mt-0.5 hidden sm:block">No metrics yet</p>
                       </div>
 
                       {/* With Inner Circle */}
-                      <div className="bg-akari-primary/10 rounded-xl p-3 border border-akari-primary/20">
-                        <p className="text-xs text-akari-primary mb-1">Inner Circle</p>
-                        <p className="text-xl font-semibold text-akari-primary">{coverage.withInnerCircleCount}</p>
-                        <p className="text-[10px] text-akari-primary/70 mt-0.5">Projects with data</p>
+                      <div className="bg-akari-primary/10 rounded-lg p-2.5 sm:p-3 border border-akari-primary/20">
+                        <p className="text-[10px] sm:text-xs text-akari-primary mb-0.5 sm:mb-1">Inner Circle</p>
+                        <p className="text-lg sm:text-xl font-semibold text-akari-primary">{coverage.withInnerCircleCount}</p>
+                        <p className="text-[9px] sm:text-[10px] text-akari-primary/70 mt-0.5 hidden sm:block">Projects with data</p>
                       </div>
                     </div>
 
@@ -1339,7 +1339,7 @@ export default function SentimentOverview() {
           )}
 
           {/* Signal Widgets Grid */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <TopMoversWidget movers={topMovers} />
             <TopEngagementWidget projects={topEngagement} />
             <TrendingUpWidget projects={trendingUp} />
