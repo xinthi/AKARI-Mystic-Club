@@ -14,12 +14,12 @@ type Props = {
 };
 
 const navItems = [
-  { href: '/portal', label: 'Home' },
-  { href: '/portal/markets', label: 'Markets' },
-  { href: '/portal/memes', label: 'Meme Radar' },
-  { href: '/portal/sentiment', label: 'Sentiment' },
-  { href: '/portal/new-launches', label: 'New Launches' },
-  { href: '/portal/pricing', label: 'Pricing' },
+  { href: '/portal', label: 'home', isTesting: false },
+  { href: '/portal/markets', label: 'markets', isTesting: true },
+  { href: '/portal/memes', label: 'meme radar', isTesting: true },
+  { href: '/portal/sentiment', label: 'sentiment', isTesting: false },
+  { href: '/portal/new-launches', label: 'new launches', isTesting: true },
+  { href: '/portal/pricing', label: 'pricing', isTesting: false },
 ];
 
 export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
@@ -101,13 +101,16 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`pill-neon whitespace-nowrap font-medium border transition-all duration-300 ease-out ${
+                  className={`pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 ${
                     active
                       ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
                       : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
                   }`}
                 >
-                  {item.label}
+                  <span className="text-xs whitespace-nowrap">{item.label}</span>
+                  {item.isTesting && (
+                    <span className="text-[8px] text-akari-muted/50 font-normal leading-tight">testing</span>
+                  )}
                 </Link>
               );
             })}
@@ -139,9 +142,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
             <a
               href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
-              className="ml-auto sm:ml-0 pill-neon bg-gradient-neon-teal px-4 py-2 text-[11px] font-medium text-black shadow-neon-teal hover:shadow-akari-glow whitespace-nowrap transition-all duration-300 ease-out"
+              className="ml-auto sm:ml-0 pill-neon bg-gradient-neon-teal px-4 py-2 text-[11px] font-medium text-black shadow-neon-teal hover:shadow-akari-glow transition-all duration-300 ease-out flex flex-col items-center justify-center"
             >
-              Open MiniApp
+              <span className="whitespace-nowrap">open miniapp</span>
+              <span className="text-[8px] text-black/60 font-normal leading-tight">testing</span>
             </a>
           </nav>
         </div>
@@ -202,13 +206,16 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsMobileNavOpen(false)}
-                      className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out ${
+                      className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col ${
                         active
                           ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
                           : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
                       }`}
                     >
-                      {item.label}
+                      <span>{item.label}</span>
+                      {item.isTesting && (
+                        <span className="text-[8px] text-akari-muted/50 font-normal leading-tight mt-0.5">testing</span>
+                      )}
                     </Link>
                   );
                 })}
@@ -221,9 +228,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               <a
                 href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="pill-neon w-full bg-gradient-neon-teal px-4 py-3 text-sm font-medium text-black shadow-neon-teal hover:shadow-akari-glow text-center transition-all duration-300 ease-out"
+                className="pill-neon w-full bg-gradient-neon-teal px-4 py-3 text-sm font-medium text-black shadow-neon-teal hover:shadow-akari-glow text-center transition-all duration-300 ease-out flex flex-col items-center justify-center"
               >
-                Open MiniApp
+                <span>open miniapp</span>
+                <span className="text-[8px] text-black/60 font-normal leading-tight mt-0.5">testing</span>
               </a>
 
               {/* Tier Badge - only show when logged in */}
