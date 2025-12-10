@@ -102,8 +102,8 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
-    // Fetch metrics history, influencers, tweets, and topic stats in parallel
-    const [metrics, metrics90d, influencers, tweetsResult, topics30d] = await Promise.all([
+    // Fetch metrics history, influencers, tweets, topic stats, and fallback followers in parallel
+    const [metrics, metrics90d, influencers, tweetsResult, topics30d, followersFallbackResult] = await Promise.all([
       getProjectMetricsHistory(supabase, project.id, 30),
       getProjectMetricsHistory(supabase, project.id, 90), // 90-day history for Deep Explorer
       getProjectInfluencers(supabase, project.id, 10),
@@ -129,6 +129,15 @@ export default async function handler(
         .order('created_at', { ascending: false })
         .limit(50),
       getProjectTopicStats(supabase, project.id, '30d'),
+      // Get most recent non-zero followers value as fallback
+      supabase
+        .from('metrics_daily')
+        .select('followers, date')
+        .eq('project_id', project.id)
+        .gt('followers', 0)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle(), // Use maybeSingle() instead of single() to handle no results gracefully
     ]);
 
     // DEBUG: Log tweet query results
@@ -168,8 +177,35 @@ export default async function handler(
     });
 
     // Extract latest and previous metrics for 24h changes
-    const latestMetrics = metrics.length > 0 ? metrics[0] : null;
+    let latestMetrics = metrics.length > 0 ? metrics[0] : null;
     const previousMetrics = metrics.length > 1 ? metrics[1] : null;
+    
+    // Apply followers fallback: use latest if > 0, else use most recent non-zero value
+    const fallbackFollowers = followersFallbackResult.data?.followers ?? null;
+    if (latestMetrics) {
+      const metricsFollowers = latestMetrics.followers ?? null;
+      const finalFollowers = 
+        (metricsFollowers !== null && metricsFollowers > 0)
+          ? metricsFollowers
+          : (fallbackFollowers !== null && fallbackFollowers > 0)
+          ? fallbackFollowers
+          : null;
+      
+      // Create a new object with updated followers to avoid mutation
+      latestMetrics = {
+        ...latestMetrics,
+        followers: finalFollowers,
+      };
+      
+      // Also update the first entry in the metrics array so the history table shows correct value
+      if (metrics.length > 0) {
+        metrics[0] = {
+          ...metrics[0],
+          followers: finalFollowers,
+        };
+      }
+    }
+    
     const changes24h = compute24hChanges(latestMetrics, previousMetrics);
 
     // DEBUG: Log metrics and influencers

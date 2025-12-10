@@ -1448,7 +1448,7 @@ export default function SentimentOverview() {
                       onClick={() => handleSort('name')}
                     >
                       <span className="flex items-center gap-1.5 text-gradient-teal">
-                        Project
+                        Profile
                         <SortIcon active={sortColumn === 'name'} direction={sortDirection} />
                       </span>
                     </th>
@@ -1486,15 +1486,6 @@ export default function SentimentOverview() {
                       <span className="flex items-center gap-1.5 text-gradient-followers">
                         Followers
                         <SortIcon active={sortColumn === 'followers'} direction={sortDirection} />
-                      </span>
-                    </th>
-                    <th 
-                      className="py-4 px-5 cursor-pointer hover:text-akari-text transition-all duration-300 select-none font-semibold"
-                      onClick={() => handleSort('date')}
-                    >
-                      <span className="flex items-center gap-1.5 text-akari-muted">
-                        Updated
-                        <SortIcon active={sortColumn === 'date'} direction={sortDirection} />
                       </span>
                     </th>
                     <th className="py-4 px-5 text-left text-xs uppercase tracking-wider font-semibold text-akari-muted">
@@ -1537,10 +1528,31 @@ export default function SentimentOverview() {
                             className="flex items-center gap-3 group"
                           >
                             <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} />
-                            <div>
-                              <p className="font-semibold text-akari-text group-hover:text-gradient-teal transition-all duration-300">
-                                {project.name}
-                              </p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-akari-text group-hover:text-gradient-teal transition-all duration-300">
+                                  {project.name}
+                                </p>
+                                {isLoggedIn && user?.xUsername && project.x_handle.toLowerCase() === user.xUsername.toLowerCase() && (
+                                  <div className={`flex items-center justify-center w-5 h-5 rounded-full ${
+                                    user.personaType === 'company'
+                                      ? 'bg-gradient-to-br from-purple-500/30 to-amber-500/30 border border-purple-500/50'
+                                      : 'bg-gradient-to-br from-akari-neon-teal/30 to-akari-neon-pink/30 border border-akari-neon-teal/50'
+                                  }`}>
+                                    <svg 
+                                      className={`w-3 h-3 ${
+                                        user.personaType === 'company'
+                                          ? 'text-purple-400'
+                                          : 'text-akari-neon-teal'
+                                      }`}
+                                      fill="currentColor" 
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
                               <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                             </div>
                           </Link>
@@ -1586,9 +1598,6 @@ export default function SentimentOverview() {
                             </span>
                             <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} formatLargeNumbers />
                           </div>
-                        </td>
-                        <td className="py-4 px-5 text-xs text-akari-muted">
-                          {project.date ? new Date(project.date).toLocaleDateString() : '-'}
                         </td>
                         <td className="py-4 px-5">
                           {(() => {
@@ -1646,7 +1655,28 @@ export default function SentimentOverview() {
                       >
                         <AvatarWithFallback url={project.twitter_profile_image_url || project.avatar_url} name={project.name} size="lg" />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-akari-text truncate">{project.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-akari-text truncate">{project.name}</p>
+                            {isLoggedIn && user?.xUsername && project.x_handle.toLowerCase() === user.xUsername.toLowerCase() && (
+                              <div className={`flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 ${
+                                user.personaType === 'company'
+                                  ? 'bg-gradient-to-br from-purple-500/30 to-amber-500/30 border border-purple-500/50'
+                                  : 'bg-gradient-to-br from-akari-neon-teal/30 to-akari-neon-pink/30 border border-akari-neon-teal/50'
+                              }`}>
+                                <svg 
+                                  className={`w-2.5 h-2.5 ${
+                                    user.personaType === 'company'
+                                      ? 'text-purple-400'
+                                      : 'text-akari-neon-teal'
+                                  }`}
+                                  fill="currentColor" 
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
                           <p className="text-xs text-akari-muted">@{project.x_handle}</p>
                         </div>
                         <span className={`rounded-full bg-akari-cardSoft px-2 py-1 text-[10px] uppercase tracking-wider ${tier.color}`}>
@@ -1675,19 +1705,6 @@ export default function SentimentOverview() {
                         </p>
                         <ChangeIndicator change={project.ctHeatChange24h} direction={project.ctHeatDirection24h} compact />
                       </div>
-                    </div>
-                    <div className="mt-2 flex items-center justify-center">
-                      {(() => {
-                        const freshness = classifyFreshness(project.last_updated_at);
-                        return (
-                          <div
-                            className={`inline-flex items-center ${getFreshnessPillClasses(freshness)}`}
-                            title={`Last sentiment update: ${formatTimestampForTooltip(project.last_updated_at)}`}
-                          >
-                            {freshness.label}
-                          </div>
-                        );
-                      })()}
                     </div>
                   </div>
                 );
