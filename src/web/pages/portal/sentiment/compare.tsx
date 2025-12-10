@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { classifyFreshness, formatTimestampForTooltip, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
+import { useAkariUser } from '../../../lib/akari-auth';
+import { can } from '../../../lib/permissions';
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -40,6 +42,47 @@ interface CompetitorsResponse {
   sharedKOLsAll?: string[];
   sharedKOLsPartial?: string[];
   error?: string;
+}
+
+interface MetricsDaily {
+  date: string;
+  sentiment_score: number | null;
+  ct_heat_score: number | null;
+  tweet_count: number | null;
+  followers: number | null;
+  followers_delta?: number | null;
+  akari_score: number | null;
+}
+
+interface ProjectMetricsHistory {
+  slug: string;
+  name: string;
+  metrics: MetricsDaily[];
+}
+
+interface AnalyticsData {
+  summary: {
+    totalEngagements: number;
+    avgEngagementRate: number;
+    tweetsCount: number;
+    followerChange: number;
+    tweetVelocity: number;
+    avgSentiment: number;
+    officialTweetsCount: number;
+    mentionsCount: number;
+  };
+  dailyEngagement: Array<{
+    date: string;
+    totalEngagement: number;
+    engagementRate: number;
+  }>;
+}
+
+interface ProjectAnalytics {
+  slug: string;
+  name: string;
+  analytics: AnalyticsData | null;
+  loading: boolean;
 }
 
 // =============================================================================
@@ -106,18 +149,209 @@ function AvatarWithFallback({ url, name, size = 'md' }: {
 }
 
 // =============================================================================
+// CHART COMPONENTS
+// =============================================================================
+
+interface ComparisonChartProps {
+  title: string;
+  data: Array<{ date: string; [key: string]: number | string | null }>;
+  projects: Array<{ slug: string; name: string; color: string }>;
+  metricKey: string;
+  formatValue: (val: number) => string;
+}
+
+function ComparisonChart({ title, data, projects, metricKey, formatValue }: ComparisonChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="rounded-xl border border-akari-border/50 bg-akari-card p-6">
+        <h3 className="text-sm font-medium text-akari-text mb-4">{title}</h3>
+        <p className="text-xs text-akari-muted text-center py-8">No data available</p>
+      </div>
+    );
+  }
+
+  const width = 800;
+  const height = 200;
+  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+  const innerWidth = width - padding.left - padding.right;
+  const innerHeight = height - padding.top - padding.bottom;
+
+  // Get all values for this metric across all projects
+  const allValues = data.flatMap(d => 
+    projects.map(p => {
+      const val = d[`${p.slug}_${metricKey}`];
+      return typeof val === 'number' ? val : null;
+    }).filter(v => v !== null) as number[]
+  );
+
+  const minVal = Math.min(...allValues, 0);
+  const maxVal = Math.max(...allValues, 1);
+  const range = maxVal - minVal || 1;
+
+  const getX = (index: number) => padding.left + (index / Math.max(data.length - 1, 1)) * innerWidth;
+  const getY = (value: number | null) => {
+    if (value === null) return padding.top + innerHeight;
+    return padding.top + innerHeight - ((value - minVal) / range) * innerHeight;
+  };
+
+  // Generate path for each project
+  const paths = projects.map(project => {
+    const points: string[] = [];
+    data.forEach((d, i) => {
+      const val = d[`${project.slug}_${metricKey}`];
+      if (val !== null && typeof val === 'number') {
+        points.push(`${getX(i)},${getY(val)}`);
+      }
+    });
+    if (points.length > 0) {
+      return {
+        project,
+        path: `M ${points.join(' L ')}`,
+        points,
+      };
+    }
+    return null;
+  }).filter(Boolean) as Array<{ project: typeof projects[0]; path: string; points: string[] }>;
+
+  return (
+    <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
+      <h3 className="text-sm font-medium text-akari-text mb-4">{title}</h3>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+          {/* Y-axis */}
+          <line
+            x1={padding.left}
+            y1={padding.top}
+            x2={padding.left}
+            y2={padding.top + innerHeight}
+            stroke="currentColor"
+            strokeWidth={1}
+            className="text-akari-border"
+          />
+          
+          {/* X-axis */}
+          <line
+            x1={padding.left}
+            y1={padding.top + innerHeight}
+            x2={padding.left + innerWidth}
+            y2={padding.top + innerHeight}
+            stroke="currentColor"
+            strokeWidth={1}
+            className="text-akari-border"
+          />
+
+          {/* Y-axis labels */}
+          <text x={padding.left - 5} y={padding.top} textAnchor="end" className="fill-akari-muted text-[10px]">
+            {formatValue(maxVal)}
+          </text>
+          <text x={padding.left - 5} y={padding.top + innerHeight} textAnchor="end" className="fill-akari-muted text-[10px]">
+            {formatValue(minVal)}
+          </text>
+
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map(t => {
+            const y = padding.top + innerHeight - t * innerHeight;
+            return (
+              <line
+                key={t}
+                x1={padding.left}
+                y1={y}
+                x2={padding.left + innerWidth}
+                y2={y}
+                stroke="currentColor"
+                strokeWidth={0.5}
+                strokeDasharray="2,2"
+                className="text-akari-border/30"
+              />
+            );
+          })}
+
+          {/* Draw lines for each project */}
+          {paths.map(({ project, path }) => (
+            <g key={project.slug}>
+              <path
+                d={path}
+                fill="none"
+                stroke={project.color}
+                strokeWidth={2}
+                className="transition-opacity hover:opacity-100"
+              />
+            </g>
+          ))}
+
+          {/* Data points */}
+          {paths.map(({ project, points }) =>
+            points.map((point, i) => {
+              const [x, y] = point.split(',').map(Number);
+              return (
+                <circle
+                  key={`${project.slug}-${i}`}
+                  cx={x}
+                  cy={y}
+                  r={3}
+                  fill={project.color}
+                  className="transition-all hover:r-5"
+                />
+              );
+            })
+          )}
+
+          {/* X-axis date labels (show first, middle, last) */}
+          {data.length > 0 && (
+            <>
+              {[0, Math.floor(data.length / 2), data.length - 1].map(idx => {
+                if (idx >= data.length) return null;
+                const date = new Date(data[idx].date);
+                return (
+                  <text
+                    key={idx}
+                    x={getX(idx)}
+                    y={height - 10}
+                    textAnchor="middle"
+                    className="fill-akari-muted text-[9px]"
+                  >
+                    {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </text>
+                );
+              })}
+            </>
+          )}
+        </svg>
+      </div>
+      
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-akari-border/30">
+        {projects.map(p => (
+          <div key={p.slug} className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+            <span className="text-xs text-akari-muted">{p.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // MAIN PAGE COMPONENT
 // =============================================================================
 
 export default function ComparePage() {
   const router = useRouter();
+  const akariUser = useAkariUser();
+  const canViewAnalytics = can(akariUser.user, 'markets.analytics');
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<Array<{ id: string; name: string; slug: string; x_handle: string }>>([]);
   const [competitorsData, setCompetitorsData] = useState<CompetitorsResponse | null>(null);
+  const [metricsHistory, setMetricsHistory] = useState<ProjectMetricsHistory[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<ProjectAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Color palette for projects
+  const projectColors = ['#00E5A0', '#FBBF24', '#8B5CF6', '#EF4444', '#3B82F6'];
 
   // Load projects list
   useEffect(() => {
@@ -162,6 +396,8 @@ export default function ComparePage() {
   useEffect(() => {
     if (selectedProjects.length < 2) {
       setCompetitorsData(null);
+      setMetricsHistory([]);
+      setAnalyticsData([]);
       setError(null);
       return;
     }
@@ -210,13 +446,133 @@ export default function ComparePage() {
     };
   }, [selectedProjects]);
 
+  // Fetch metrics history for each selected project
+  useEffect(() => {
+    if (selectedProjects.length < 2) return;
+
+    let cancelled = false;
+
+    async function fetchMetricsHistory() {
+      try {
+        const historyPromises = selectedProjects.map(async (project) => {
+          try {
+            const res = await fetch(`/api/portal/sentiment/${project.slug}`);
+            const data = await res.json();
+            if (data.ok && data.metrics) {
+              return {
+                slug: project.slug,
+                name: project.name,
+                metrics: data.metrics as MetricsDaily[],
+              };
+            }
+            return null;
+          } catch (err) {
+            console.error(`Error fetching metrics for ${project.slug}:`, err);
+            return null;
+          }
+        });
+
+        const histories = await Promise.all(historyPromises);
+        if (!cancelled) {
+          setMetricsHistory(histories.filter(Boolean) as ProjectMetricsHistory[]);
+        }
+      } catch (err) {
+        console.error('Error fetching metrics history:', err);
+      }
+    }
+
+    fetchMetricsHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjects]);
+
+  // Fetch analytics for head-to-head comparison (2 projects only)
+  useEffect(() => {
+    if (selectedProjects.length !== 2 || !canViewAnalytics) {
+      setAnalyticsData([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchAnalytics() {
+      const analyticsPromises = selectedProjects.map(async (project) => {
+        try {
+          const res = await fetch(`/api/portal/sentiment/${project.slug}/analytics?window=7d`);
+          const data = await res.json();
+          if (data.ok) {
+            return {
+              slug: project.slug,
+              name: project.name,
+              analytics: data as AnalyticsData,
+              loading: false,
+            };
+          }
+          return {
+            slug: project.slug,
+            name: project.name,
+            analytics: null,
+            loading: false,
+          };
+        } catch (err) {
+          console.error(`Error fetching analytics for ${project.slug}:`, err);
+          return {
+            slug: project.slug,
+            name: project.name,
+            analytics: null,
+            loading: false,
+          };
+        }
+      });
+
+      const analytics = await Promise.all(analyticsPromises);
+      if (!cancelled) {
+        setAnalyticsData(analytics);
+      }
+    }
+
+    fetchAnalytics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjects, canViewAnalytics]);
+
+  // Prepare chart data by aligning dates across projects
+  const chartData = useMemo(() => {
+    if (metricsHistory.length === 0) return [];
+
+    // Get all unique dates
+    const allDates = new Set<string>();
+    metricsHistory.forEach(h => {
+      h.metrics.forEach(m => allDates.add(m.date));
+    });
+    const sortedDates = Array.from(allDates).sort();
+
+    // Create aligned data structure
+    return sortedDates.map(date => {
+      const entry: any = { date };
+      metricsHistory.forEach(h => {
+        const metric = h.metrics.find(m => m.date === date);
+        if (metric) {
+          entry[`${h.slug}_akari_score`] = metric.akari_score;
+          entry[`${h.slug}_sentiment_score`] = metric.sentiment_score;
+          entry[`${h.slug}_ct_heat_score`] = metric.ct_heat_score;
+          entry[`${h.slug}_followers`] = metric.followers;
+        }
+      });
+      return entry;
+    });
+  }, [metricsHistory]);
+
   const handleAddProject = (slug: string) => {
     if (selectedProjects.length >= 5) return;
     
     const project = projects.find(p => p.slug === slug);
     if (!project) return;
 
-    // Don't add if already selected
     if (selectedProjects.some(p => p.slug === slug)) return;
 
     setSelectedProjects([...selectedProjects, {
@@ -233,37 +589,50 @@ export default function ComparePage() {
 
   const canAddMore = selectedProjects.length < 5;
 
+  // Get projects with colors for charts
+  const projectsWithColors = selectedProjects.map((p, i) => ({
+    ...p,
+    color: projectColors[i % projectColors.length],
+  }));
+
   return (
     <PortalLayout title="Compare Projects">
       {/* Header */}
-      <section className="mb-6">
+      <section className="mb-8">
         <Link
           href="/portal/sentiment"
           className="mb-4 inline-flex items-center gap-1 text-xs text-akari-muted hover:text-akari-primary transition"
         >
           ← Back to Overview
         </Link>
-        <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
-          Competitor Analysis Dashboard
-        </p>
-        <h1 className="mb-2 text-2xl font-semibold md:text-3xl">
-          Compare <span className="text-akari-primary">Projects</span>
-        </h1>
-        <p className="max-w-2xl text-sm text-akari-muted">
-          Select up to 5 projects to compare their metrics, topics, and shared inner circle members.
-        </p>
+        <div className="mb-6">
+          <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
+            Competitor Analysis Dashboard
+          </p>
+          <h1 className="mb-3 text-2xl font-semibold md:text-3xl">
+            Compare <span className="text-akari-primary">Projects</span>
+          </h1>
+          <p className="max-w-2xl text-sm text-akari-muted">
+            Select up to 5 projects to compare their metrics, topics, and shared inner circle members.
+          </p>
+        </div>
       </section>
 
       {/* Project Selection */}
       <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-xs uppercase tracking-wider text-akari-muted">
-            Select Projects ({selectedProjects.length}/5)
-          </label>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-akari-text mb-1">
+              Selected Projects
+            </h2>
+            <p className="text-xs text-akari-muted">
+              {selectedProjects.length}/5 projects selected
+            </p>
+          </div>
           {selectedProjects.length > 0 && (
             <button
               onClick={() => setSelectedProjects([])}
-              className="text-xs text-akari-muted hover:text-akari-danger transition"
+              className="px-3 py-1.5 rounded-lg bg-akari-cardSoft hover:bg-akari-danger/10 text-xs text-akari-muted hover:text-akari-danger transition border border-akari-border/50 hover:border-akari-danger/30"
             >
               Clear All
             </button>
@@ -272,23 +641,29 @@ export default function ComparePage() {
 
         {/* Selected Projects */}
         {selectedProjects.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {selectedProjects.map(project => {
+          <div className="flex flex-wrap gap-3 mb-6">
+            {selectedProjects.map((project, idx) => {
               const projectData = projects.find(p => p.slug === project.slug);
               return (
                 <div
                   key={project.slug}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-akari-cardSoft border border-akari-border/50"
+                  className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-br from-akari-cardSoft to-akari-card border border-akari-border/50 hover:border-akari-primary/30 transition-all shadow-sm hover:shadow-md"
                 >
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" 
+                    style={{ backgroundColor: projectColors[idx % projectColors.length] }}
+                  />
                   <AvatarWithFallback url={projectData?.avatar_url || null} name={project.name} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{project.name}</p>
-                    <p className="text-xs text-akari-muted">@{project.x_handle}</p>
+                  <div className="flex-1 min-w-0 max-w-[200px]">
+                    <p className="text-sm font-medium text-akari-text group-hover:text-akari-primary transition truncate" title={project.name}>
+                      {project.name}
+                    </p>
+                    <p className="text-xs text-akari-muted truncate">@{project.x_handle}</p>
                   </div>
                   <button
                     onClick={() => handleRemoveProject(project.slug)}
-                    className="text-akari-muted hover:text-akari-danger transition ml-2"
-                    title="Remove"
+                    className="flex-shrink-0 text-akari-muted hover:text-akari-danger transition p-1 hover:bg-akari-danger/10 rounded"
+                    title="Remove project"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -301,7 +676,10 @@ export default function ComparePage() {
         )}
 
         {/* Project Selector */}
-        <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
+        <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-5">
+          <label className="block text-xs font-medium text-akari-text mb-3">
+            {canAddMore ? 'Add Another Project' : 'Maximum Reached'}
+          </label>
           <select
             value=""
             onChange={(e) => {
@@ -311,10 +689,10 @@ export default function ComparePage() {
               }
             }}
             disabled={!canAddMore || loading}
-            className="w-full rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-3 text-akari-text focus:outline-none focus:border-akari-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-xl bg-akari-cardSoft border border-akari-border/50 px-4 py-3.5 text-akari-text focus:outline-none focus:ring-2 focus:ring-akari-primary/50 focus:border-akari-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <option value="">
-              {canAddMore ? 'Add a project...' : 'Maximum 5 projects selected'}
+              {canAddMore ? 'Choose a project to add...' : 'Maximum 5 projects selected'}
             </option>
             {projects
               .filter(p => !selectedProjects.some(sp => sp.slug === p.slug))
@@ -325,9 +703,18 @@ export default function ComparePage() {
               ))}
           </select>
           {selectedProjects.length < 2 && selectedProjects.length > 0 && (
-            <p className="mt-2 text-xs text-akari-muted">
-              Select at least 2 projects to see competitor analysis.
-            </p>
+            <div className="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <p className="text-xs text-blue-400">
+                💡 Select at least <strong>2 projects</strong> to see competitor analysis and comparison charts.
+              </p>
+            </div>
+          )}
+          {selectedProjects.length === 0 && (
+            <div className="mt-3 p-3 rounded-lg bg-akari-cardSoft/50 border border-akari-border/30">
+              <p className="text-xs text-akari-muted">
+                Start by selecting your first project above to begin comparing.
+              </p>
+            </div>
           )}
         </div>
       </section>
@@ -346,7 +733,6 @@ export default function ComparePage() {
           <button
             onClick={() => {
               setError(null);
-              // Trigger refetch by updating selectedProjects
               setSelectedProjects([...selectedProjects]);
             }}
             className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium"
@@ -359,12 +745,321 @@ export default function ComparePage() {
       {/* Competitor Data */}
       {competitorsData?.ok && competitorsData.projects && !fetching && (
         <>
-          {/* Shared KOL Summary */}
+          {/* Head-to-Head Comparison for 2 projects */}
+          {selectedProjects.length === 2 && competitorsData.projects.length === 2 && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-6 rounded-full bg-akari-primary" />
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                  Head-to-Head Comparison
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-akari-border/70 bg-akari-card p-6">
+                {/* Project A */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <AvatarWithFallback 
+                      url={competitorsData.projects[0].avatar_url} 
+                      name={competitorsData.projects[0].name} 
+                      size="lg" 
+                    />
+                    <div>
+                      <p className="font-semibold text-akari-text">{competitorsData.projects[0].name}</p>
+                      <p className="text-xs text-akari-muted">@{competitorsData.projects[0].x_handle}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">AKARI Score</p>
+                      <p className="font-mono font-semibold text-akari-primary">
+                        {competitorsData.projects[0].akariScore ?? '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Inner Circle</p>
+                      <p className="font-mono text-akari-text">
+                        {competitorsData.projects[0].innerCircleCount}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Circle Power</p>
+                      <p className="font-mono text-akari-text">
+                        {competitorsData.projects[0].innerCirclePowerTotal.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Followers</p>
+                      <p className="font-mono text-akari-text">
+                        {formatNumber(competitorsData.projects[0].followers)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Similarity */}
+                <div className="text-center flex flex-col items-center justify-center">
+                  <div className="mb-4 px-4 py-2 rounded-lg bg-akari-cardSoft border border-akari-border/50">
+                    <p className="text-xs text-akari-muted mb-1">SIMILARITY</p>
+                    <p className="text-2xl font-bold text-akari-primary">
+                      {(() => {
+                        // Calculate similarity based on shared inner circle
+                        if (!competitorsData.projects || competitorsData.projects.length < 2) return '0%';
+                        const projA = competitorsData.projects[0];
+                        const projB = competitorsData.projects[1];
+                        const sharedKOLs = (competitorsData.sharedKOLsAll?.length || 0) + 
+                                         (competitorsData.sharedKOLsPartial?.filter(k => 
+                                           competitorsData.projects?.some(p => p.x_handle === k)
+                                         ).length || 0);
+                        const total = projA.innerCircleCount + projB.innerCircleCount;
+                        if (total === 0) return '0%';
+                        const similarity = Math.round((sharedKOLs * 2 / total) * 100);
+                        return `${similarity}%`;
+                      })()}
+                    </p>
+                    <p className="text-xs text-akari-muted mt-1">
+                      {competitorsData.sharedKOLsAll?.length || 0} common profiles
+                    </p>
+                  </div>
+                  <div className="text-xs text-akari-muted space-y-1">
+                    <p>AKARI Score</p>
+                    <p>Inner Circle</p>
+                    <p>Circle Power</p>
+                    <p>Followers</p>
+                  </div>
+                </div>
+
+                {/* Project B */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <AvatarWithFallback 
+                      url={competitorsData.projects[1].avatar_url} 
+                      name={competitorsData.projects[1].name} 
+                      size="lg" 
+                    />
+                    <div>
+                      <p className="font-semibold text-akari-text">{competitorsData.projects[1].name}</p>
+                      <p className="text-xs text-akari-muted">@{competitorsData.projects[1].x_handle}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">AKARI Score</p>
+                      <p className="font-mono font-semibold text-akari-primary">
+                        {competitorsData.projects[1].akariScore ?? '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Inner Circle</p>
+                      <p className="font-mono text-akari-text">
+                        {competitorsData.projects[1].innerCircleCount}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Circle Power</p>
+                      <p className="font-mono text-akari-text">
+                        {competitorsData.projects[1].innerCirclePowerTotal.toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-akari-muted mb-1">Followers</p>
+                      <p className="font-mono text-akari-text">
+                        {formatNumber(competitorsData.projects[1].followers)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Metrics Comparison Charts */}
+          {chartData.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-6 rounded-full bg-akari-primary" />
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                  Metrics Over Time (30 Days)
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ComparisonChart
+                  title="AKARI Score"
+                  data={chartData}
+                  projects={projectsWithColors}
+                  metricKey="akari_score"
+                  formatValue={(v) => Math.round(v).toString()}
+                />
+                <ComparisonChart
+                  title="Sentiment Score (30D)"
+                  data={chartData}
+                  projects={projectsWithColors}
+                  metricKey="sentiment_score"
+                  formatValue={(v) => Math.round(v).toString()}
+                />
+                <ComparisonChart
+                  title="CT Heat Score (30D)"
+                  data={chartData}
+                  projects={projectsWithColors}
+                  metricKey="ct_heat_score"
+                  formatValue={(v) => Math.round(v).toString()}
+                />
+                <ComparisonChart
+                  title="Followers"
+                  data={chartData}
+                  projects={projectsWithColors}
+                  metricKey="followers"
+                  formatValue={(v) => formatNumber(Math.round(v))}
+                />
+              </div>
+            </section>
+          )}
+
+          {/* Advanced Analytics (7 Days) - Only for 2 projects and if user has permission */}
+          {selectedProjects.length === 2 && canViewAnalytics && analyticsData.length === 2 && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-6 rounded-full bg-akari-primary" />
+                <svg className="w-4 h-4 text-akari-primary" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                  Advanced Analytics (7 Days)
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-akari-border/70 bg-akari-card p-6">
+                {/* Project A Analytics */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <AvatarWithFallback 
+                      url={competitorsData.projects[0].avatar_url} 
+                      name={competitorsData.projects[0].name} 
+                      size="sm" 
+                    />
+                    <p className="font-medium text-akari-text">{competitorsData.projects[0].name}</p>
+                  </div>
+                  {analyticsData[0]?.analytics ? (
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Total Engagements</p>
+                        <p className="font-mono font-semibold text-akari-primary">
+                          {formatNumber(analyticsData[0].analytics.summary.totalEngagements)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Avg Engagement Rate</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[0].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Tweets (7D)</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[0].analytics.summary.tweetsCount}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Follower Change</p>
+                        <p className={`font-mono ${analyticsData[0].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                          {analyticsData[0].analytics.summary.followerChange >= 0 ? '+' : ''}
+                          {formatNumber(analyticsData[0].analytics.summary.followerChange)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Tweet Velocity</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[0].analytics.summary.tweetVelocity.toFixed(2)}/day
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Avg Sentiment</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[0].analytics.summary.avgSentiment}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-akari-muted">No analytics data available</p>
+                  )}
+                </div>
+
+                {/* Metric Labels */}
+                <div className="flex flex-col justify-center text-xs text-akari-muted space-y-3">
+                  <p>Metric</p>
+                  <p>Total Engagements</p>
+                  <p>Avg Engagement Rate</p>
+                  <p>Tweets (7D)</p>
+                  <p>Follower Change</p>
+                  <p>Tweet Velocity</p>
+                  <p>Avg Sentiment</p>
+                </div>
+
+                {/* Project B Analytics */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <AvatarWithFallback 
+                      url={competitorsData.projects[1].avatar_url} 
+                      name={competitorsData.projects[1].name} 
+                      size="sm" 
+                    />
+                    <p className="font-medium text-akari-text">{competitorsData.projects[1].name}</p>
+                  </div>
+                  {analyticsData[1]?.analytics ? (
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Total Engagements</p>
+                        <p className="font-mono font-semibold text-akari-primary">
+                          {formatNumber(analyticsData[1].analytics.summary.totalEngagements)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Avg Engagement Rate</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[1].analytics.summary.avgEngagementRate.toFixed(2)}/tweet
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Tweets (7D)</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[1].analytics.summary.tweetsCount}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Follower Change</p>
+                        <p className={`font-mono ${analyticsData[1].analytics.summary.followerChange >= 0 ? 'text-akari-primary' : 'text-akari-danger'}`}>
+                          {analyticsData[1].analytics.summary.followerChange >= 0 ? '+' : ''}
+                          {formatNumber(analyticsData[1].analytics.summary.followerChange)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Tweet Velocity</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[1].analytics.summary.tweetVelocity.toFixed(2)}/day
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">Avg Sentiment</p>
+                        <p className="font-mono text-akari-text">
+                          {analyticsData[1].analytics.summary.avgSentiment}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-akari-muted">No analytics data available</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Shared Inner Circle */}
           {((competitorsData.sharedKOLsAll?.length ?? 0) > 0 || (competitorsData.sharedKOLsPartial?.length ?? 0) > 0) && (
             <section className="mb-8">
-              <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
-                Shared Inner Circle
-              </h2>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1 h-6 rounded-full bg-akari-primary" />
+                <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                  Shared Inner Circle
+                </h2>
+              </div>
               <div className="rounded-2xl border border-akari-border/70 bg-akari-card p-4">
                 {(competitorsData.sharedKOLsAll?.length ?? 0) > 0 && (
                   <div className="mb-4">
@@ -372,7 +1067,7 @@ export default function ComparePage() {
                       KOLs in all selected projects: <span className="text-akari-primary font-medium">{competitorsData.sharedKOLsAll!.length}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {competitorsData.sharedKOLsAll!.slice(0, 5).map(handle => (
+                      {competitorsData.sharedKOLsAll!.slice(0, 10).map(handle => (
                         <a
                           key={handle}
                           href={`https://x.com/${handle}`}
@@ -383,9 +1078,9 @@ export default function ComparePage() {
                           @{handle}
                         </a>
                       ))}
-                      {competitorsData.sharedKOLsAll!.length > 5 && (
+                      {competitorsData.sharedKOLsAll!.length > 10 && (
                         <span className="px-2 py-1 text-xs text-akari-muted">
-                          +{competitorsData.sharedKOLsAll!.length - 5} more
+                          +{competitorsData.sharedKOLsAll!.length - 10} more
                         </span>
                       )}
                     </div>
@@ -397,7 +1092,7 @@ export default function ComparePage() {
                       KOLs shared by at least 2 projects: <span className="text-akari-primary font-medium">{competitorsData.sharedKOLsPartial!.length}</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {competitorsData.sharedKOLsPartial!.slice(0, 8).map(handle => (
+                      {competitorsData.sharedKOLsPartial!.slice(0, 15).map(handle => (
                         <a
                           key={handle}
                           href={`https://x.com/${handle}`}
@@ -408,9 +1103,9 @@ export default function ComparePage() {
                           @{handle}
                         </a>
                       ))}
-                      {competitorsData.sharedKOLsPartial!.length > 8 && (
+                      {competitorsData.sharedKOLsPartial!.length > 15 && (
                         <span className="px-2 py-1 text-xs text-akari-muted">
-                          +{competitorsData.sharedKOLsPartial!.length - 8} more
+                          +{competitorsData.sharedKOLsPartial!.length - 15} more
                         </span>
                       )}
                     </div>
@@ -422,9 +1117,12 @@ export default function ComparePage() {
 
           {/* Competitor Overview Table */}
           <section className="mb-8">
-            <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
-              Competitor Overview
-            </h2>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-6 rounded-full bg-akari-primary" />
+              <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                Competitor Overview
+              </h2>
+            </div>
             <div className="overflow-x-auto rounded-2xl border border-akari-border/70 bg-akari-card">
               <table className="min-w-full text-sm">
                 <thead>
@@ -498,9 +1196,12 @@ export default function ComparePage() {
 
           {/* Topics Section */}
           <section>
-            <h2 className="text-sm uppercase tracking-wider text-akari-muted mb-3">
-              Topics & Narratives (30d)
-            </h2>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-6 rounded-full bg-akari-primary" />
+              <h2 className="text-sm uppercase tracking-wider text-akari-muted">
+                Topics & Narratives (30d)
+              </h2>
+            </div>
             <div className="space-y-3">
               {competitorsData.projects.map((project) => (
                 <div
