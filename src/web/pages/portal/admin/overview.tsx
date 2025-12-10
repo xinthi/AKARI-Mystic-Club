@@ -148,14 +148,14 @@ export default function AdminOverviewPage() {
         {/* Loading state */}
         {loading && (
           <div className="neon-card neon-hover p-12 text-center">
-            <p className="text-slate-400">Loading overview...</p>
+            <p className="text-akari-muted">Loading overview...</p>
           </div>
         )}
 
         {/* Error state */}
         {error && !loading && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
-            <p className="text-red-400">{error}</p>
+          <div className="neon-card border-red-500/30 bg-red-500/10 p-6 text-center">
+            <p className="text-red-400 font-semibold">{error}</p>
           </div>
         )}
 
@@ -163,51 +163,51 @@ export default function AdminOverviewPage() {
         {!loading && !error && data && (
           <>
             {/* Top Stats Row */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Total Users</p>
-                <p className="text-2xl font-bold text-white">{formatNumber(data.stats.totalUsers)}</p>
-                <p className="text-xs text-slate-400 mt-1">All time</p>
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+              <div className="neon-card neon-hover p-6">
+                <p className="text-xs uppercase tracking-wider text-gradient-teal font-semibold mb-2">Total Users</p>
+                <p className="text-3xl font-bold text-gradient-akari">{formatNumber(data.stats.totalUsers)}</p>
+                <p className="text-xs text-akari-muted mt-2">All time</p>
               </div>
 
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Tracked Projects</p>
-                <p className="text-2xl font-bold text-white">{formatNumber(data.stats.trackedProjects)}</p>
-                <p className="text-xs text-slate-400 mt-1">All time</p>
+              <div className="neon-card neon-hover p-6">
+                <p className="text-xs uppercase tracking-wider text-gradient-blue font-semibold mb-2">Tracked Projects</p>
+                <p className="text-3xl font-bold text-gradient-heat">{formatNumber(data.stats.trackedProjects)}</p>
+                <p className="text-xs text-akari-muted mt-2">All time</p>
               </div>
 
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Deep Explorer Users</p>
-                <p className="text-2xl font-bold text-white">{formatNumber(data.stats.deepExplorerUsers)}</p>
-                <p className="text-xs text-slate-400 mt-1">With access</p>
+              <div className="neon-card neon-hover p-6">
+                <p className="text-xs uppercase tracking-wider text-gradient-pink font-semibold mb-2">Deep Explorer Users</p>
+                <p className="text-3xl font-bold text-gradient-sentiment">{formatNumber(data.stats.deepExplorerUsers)}</p>
+                <p className="text-xs text-akari-muted mt-2">With access</p>
               </div>
 
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Institutional Plus Users</p>
-                <p className="text-2xl font-bold text-white">{formatNumber(data.stats.institutionalPlusUsers)}</p>
-                <p className="text-xs text-slate-400 mt-1">With access</p>
+              <div className="neon-card neon-hover p-6">
+                <p className="text-xs uppercase tracking-wider text-gradient-neon-teal font-semibold mb-2">Institutional Plus Users</p>
+                <p className="text-3xl font-bold text-gradient-neon">{formatNumber(data.stats.institutionalPlusUsers)}</p>
+                <p className="text-xs text-akari-muted mt-2">With access</p>
               </div>
             </section>
 
             {/* Recent Users and Projects */}
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Recent Users */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <h2 className="text-sm font-semibold text-white mb-4">Recent Users</h2>
+              <div className="neon-card neon-hover p-6">
+                <h2 className="text-base font-bold text-gradient-teal mb-6">Recent Users</h2>
                 {data.recentUsers.length === 0 ? (
-                  <p className="text-xs text-slate-400">No users found.</p>
+                  <p className="text-sm text-akari-muted">No users found.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-800">
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                        <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">
                             Display Name
                           </th>
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
                             X Handle
                           </th>
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                             Created
                           </th>
                         </tr>
@@ -216,20 +216,20 @@ export default function AdminOverviewPage() {
                         {data.recentUsers.map((user) => (
                           <tr
                             key={user.id}
-                            className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
+                            className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                           >
-                            <td className="py-2 px-3 text-white">
+                            <td className="py-4 px-5 text-akari-text font-semibold">
                               <Link
                                 href={`/portal/admin/users/${user.id}`}
-                                className="hover:text-akari-primary transition hover:underline"
+                                className="hover:text-gradient-teal transition-all duration-300"
                               >
                                 {user.displayName || 'Unknown'}
                               </Link>
                             </td>
-                            <td className="py-2 px-3 text-slate-400">
+                            <td className="py-4 px-5 text-akari-muted">
                               {user.xUsername ? `@${user.xUsername}` : 'Not linked'}
                             </td>
-                            <td className="py-2 px-3 text-slate-400">
+                            <td className="py-4 px-5 text-akari-muted text-xs">
                               {formatDate(user.createdAt)}
                             </td>
                           </tr>
@@ -241,22 +241,22 @@ export default function AdminOverviewPage() {
               </div>
 
               {/* Recent Projects */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                <h2 className="text-sm font-semibold text-white mb-4">Recent Projects</h2>
+              <div className="neon-card neon-hover p-6">
+                <h2 className="text-base font-bold text-gradient-blue mb-6">Recent Projects</h2>
                 {data.recentProjects.length === 0 ? (
-                  <p className="text-xs text-slate-400">No projects found.</p>
+                  <p className="text-sm text-akari-muted">No projects found.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-800">
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                        <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">
                             Name
                           </th>
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
                             X Handle
                           </th>
-                          <th className="text-left py-2 px-3 text-xs uppercase tracking-wider text-slate-500">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
                             Created
                           </th>
                         </tr>
@@ -265,15 +265,15 @@ export default function AdminOverviewPage() {
                         {data.recentProjects.map((project) => (
                           <tr
                             key={project.id}
-                            className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
+                            className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                           >
-                            <td className="py-2 px-3 text-white">
+                            <td className="py-4 px-5 text-akari-text font-semibold">
                               {project.name}
                             </td>
-                            <td className="py-2 px-3 text-slate-400">
+                            <td className="py-4 px-5 text-akari-muted">
                               {project.xHandle ? `@${project.xHandle}` : '-'}
                             </td>
-                            <td className="py-2 px-3 text-slate-400">
+                            <td className="py-4 px-5 text-akari-muted text-xs">
                               {formatDate(project.createdAt)}
                             </td>
                           </tr>
