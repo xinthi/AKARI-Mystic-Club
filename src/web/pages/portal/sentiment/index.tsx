@@ -1141,6 +1141,7 @@ export default function SentimentOverview() {
                 </tbody>
               </table>
             </div>
+            )}
 
             {/* Mobile card view */}
             {((activeTab === 'all') || (activeTab === 'watchlist' && isLoggedIn && !watchlistLoading && watchlistProjects.length > 0)) && (
