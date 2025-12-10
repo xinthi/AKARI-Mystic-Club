@@ -25,6 +25,7 @@ interface AccessRequestWithUser {
   user: {
     displayName: string;
     xUsername: string | null;
+    currentTier: 'seer' | 'analyst' | 'institutional_plus';
   };
 }
 
@@ -149,14 +150,50 @@ export default async function handler(
       .in('user_id', userIds)
       .eq('provider', 'x');
 
+    // Fetch feature grants for all users to compute tiers
+    const { data: allGrants } = await supabase
+      .from('akari_user_feature_grants')
+      .select('user_id, feature_key, starts_at, ends_at')
+      .in('user_id', userIds);
+
     // Create lookup maps
     const userMap = new Map((users || []).map((u: any) => [u.id, u]));
     const xUsernameMap = new Map((xIdentities || []).map((x: any) => [x.user_id, x.username]));
+    
+    // Group grants by user
+    const grantsByUser = new Map<string, any[]>();
+    (allGrants || []).forEach((g: any) => {
+      const now = new Date();
+      const startsAt = g.starts_at ? new Date(g.starts_at) : null;
+      const endsAt = g.ends_at ? new Date(g.ends_at) : null;
+      
+      // Check if grant is active
+      const isActive = (!startsAt || startsAt <= now) && (!endsAt || endsAt >= now);
+      if (isActive) {
+        if (!grantsByUser.has(g.user_id)) {
+          grantsByUser.set(g.user_id, []);
+        }
+        grantsByUser.get(g.user_id)!.push(g.feature_key);
+      }
+    });
+
+    // Helper to compute tier from feature grants
+    const computeTier = (grants: string[]): 'seer' | 'analyst' | 'institutional_plus' => {
+      if (grants.includes('deep.explorer') || grants.includes('institutional.plus')) {
+        return 'institutional_plus';
+      }
+      if (grants.includes('markets.analytics') || grants.includes('sentiment.compare') || grants.includes('sentiment.search')) {
+        return 'analyst';
+      }
+      return 'seer';
+    };
 
     // Map DB rows to response format
     const mappedRequests: AccessRequestWithUser[] = requests.map((r: any) => {
       const user = userMap.get(r.user_id);
       const xUsername = xUsernameMap.get(r.user_id) || null;
+      const userGrants = grantsByUser.get(r.user_id) || [];
+      const currentTier = computeTier(userGrants);
 
       return {
         id: r.id,
@@ -172,6 +209,7 @@ export default async function handler(
         user: {
           displayName: user?.display_name || 'Unknown',
           xUsername,
+          currentTier,
         },
       };
     });

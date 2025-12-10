@@ -28,6 +28,7 @@ interface AccessRequestWithUser {
   user: {
     displayName: string;
     xUsername: string | null;
+    currentTier: 'seer' | 'analyst' | 'institutional_plus';
   };
 }
 
@@ -70,6 +71,21 @@ function truncateText(text: string | null, maxLength: number = 50): string {
   if (!text) return '-';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
+}
+
+function getTierColor(tier: 'seer' | 'analyst' | 'institutional_plus'): string {
+  switch (tier) {
+    case 'institutional_plus':
+      return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
+    case 'analyst':
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
+    case 'seer':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
+  }
+}
+
+function formatTierName(tier: 'seer' | 'analyst' | 'institutional_plus'): string {
+  return tier.charAt(0).toUpperCase() + tier.slice(1).replace('_', ' ');
 }
 
 // =============================================================================
@@ -207,6 +223,9 @@ export default function AdminAccessRequestsPage() {
                       X Handle
                     </th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
+                      Current Tier
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
                       Feature
                     </th>
                     <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-slate-500">
@@ -241,6 +260,13 @@ export default function AdminAccessRequestsPage() {
                         {/* X Handle */}
                         <td className="py-3 px-4 text-sm text-slate-400">
                           {request.user.xUsername ? `@${request.user.xUsername}` : 'Not linked'}
+                        </td>
+
+                        {/* Current Tier */}
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(request.user.currentTier)}`}>
+                            {formatTierName(request.user.currentTier)}
+                          </span>
                         </td>
 
                         {/* Feature */}

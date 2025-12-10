@@ -120,7 +120,7 @@ export default async function handler(
     // Load the request
     const { data: request, error: requestError } = await supabase
       .from('akari_access_requests')
-      .select('id, user_id, feature_key, status')
+      .select('id, user_id, feature_key, requested_plan, status')
       .eq('id', requestId)
       .single();
 
@@ -153,30 +153,46 @@ export default async function handler(
         return res.status(500).json({ ok: false, error: 'Failed to update request' });
       }
 
-      // Insert feature grant (use ON CONFLICT to avoid duplicates)
-      // Note: If there's no unique constraint, we'll check first
-      const { data: existingGrant } = await supabase
-        .from('akari_user_feature_grants')
-        .select('id')
-        .eq('user_id', request.user_id)
-        .eq('feature_key', request.feature_key)
-        .maybeSingle();
+      // Determine which features to grant based on requested_plan
+      const featuresToGrant: string[] = [];
+      
+      if (request.requested_plan === 'analyst') {
+        // Analyst tier: grant core Analyst features
+        featuresToGrant.push('markets.analytics', 'sentiment.compare', 'sentiment.search');
+      } else if (request.requested_plan === 'institutional_plus') {
+        // Institutional Plus: grant all Analyst features + Institutional Plus features
+        featuresToGrant.push('markets.analytics', 'sentiment.compare', 'sentiment.search');
+        featuresToGrant.push('deep.explorer', 'institutional.plus');
+      } else {
+        // Fallback: grant the feature_key from the request (for non-tier requests)
+        featuresToGrant.push(request.feature_key);
+      }
 
-      if (!existingGrant) {
-        const { error: grantError } = await supabase
+      // Grant all required features
+      for (const featureKey of featuresToGrant) {
+        // Check if grant already exists
+        const { data: existingGrant } = await supabase
           .from('akari_user_feature_grants')
-          .insert({
-            user_id: request.user_id,
-            feature_key: request.feature_key,
-            starts_at: now,
-            ends_at: null, // No expiration
-            created_by: currentUserId,
-          });
+          .select('id')
+          .eq('user_id', request.user_id)
+          .eq('feature_key', featureKey)
+          .maybeSingle();
 
-        if (grantError) {
-          console.error('[Admin Access Decide API] Grant insert error:', grantError);
-          // Don't fail the request update, but log the error
-          console.warn('[Admin Access Decide API] Feature grant insert failed, but request was approved');
+        if (!existingGrant) {
+          const { error: grantError } = await supabase
+            .from('akari_user_feature_grants')
+            .insert({
+              user_id: request.user_id,
+              feature_key: featureKey,
+              starts_at: now,
+              ends_at: null, // No expiration
+              created_by: currentUserId,
+            });
+
+          if (grantError) {
+            console.error(`[Admin Access Decide API] Grant insert error for ${featureKey}:`, grantError);
+            // Continue with other features even if one fails
+          }
         }
       }
     } else {

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin, FEATURE_KEYS, type FeatureGrant } from '@/lib/permissions';
+import { getUserTier, type UserTier } from '@/lib/userTier';
 
 // =============================================================================
 // TYPES
@@ -108,6 +109,37 @@ function isGrantActive(grant: FeatureGrantResponse | null): boolean {
   return true;
 }
 
+/**
+ * Compute user tier from feature grants (for display in admin)
+ */
+function computeTierFromGrants(grants: FeatureGrantResponse[]): UserTier {
+  const now = new Date();
+  const activeGrants = grants.filter(g => isGrantActive(g)).map(g => g.featureKey);
+
+  // Check for Institutional Plus features
+  if (activeGrants.includes('deep.explorer') || activeGrants.includes('institutional.plus')) {
+    return 'institutional_plus';
+  }
+
+  // Check for Analyst features
+  if (activeGrants.includes('markets.analytics') || activeGrants.includes('sentiment.compare') || activeGrants.includes('sentiment.search')) {
+    return 'analyst';
+  }
+
+  return 'seer';
+}
+
+function getTierColor(tier: UserTier): string {
+  switch (tier) {
+    case 'institutional_plus':
+      return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
+    case 'analyst':
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
+    case 'seer':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
+  }
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -124,6 +156,10 @@ export default function AdminUserDetailPage() {
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
   const [grantDates, setGrantDates] = useState<Record<string, { startsAt: string; endsAt: string }>>({});
   const [grantDiscounts, setGrantDiscounts] = useState<Record<string, { discountPercent: number; discountNote: string }>>({});
+  const [selectedTier, setSelectedTier] = useState<UserTier>('seer');
+  const [tierProcessing, setTierProcessing] = useState(false);
+  const [tierError, setTierError] = useState<string | null>(null);
+  const [tierSuccess, setTierSuccess] = useState<string | null>(null);
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -136,6 +172,7 @@ export default function AdminUserDetailPage() {
     }
 
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userIsSuperAdmin, id]);
 
   const loadData = async () => {
@@ -156,6 +193,10 @@ export default function AdminUserDetailPage() {
         featureGrants: grants,
         accessRequests: result.accessRequests || [],
       });
+
+      // Compute and set current tier
+      const currentTier = computeTierFromGrants(grants);
+      setSelectedTier(currentTier);
 
       // Initialize grant dates and discounts from existing grants (always initialize both features)
       const dates: Record<string, { startsAt: string; endsAt: string }> = {};
@@ -260,6 +301,37 @@ export default function AdminUserDetailPage() {
     }
   };
 
+  const handleTierChange = async () => {
+    if (!id || typeof id !== 'string') return;
+    if (tierProcessing) return;
+
+    setTierProcessing(true);
+    setTierError(null);
+    setTierSuccess(null);
+
+    try {
+      const res = await fetch(`/api/portal/admin/users/${id}/tier`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: selectedTier }),
+      });
+
+      const result = await res.json();
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to update tier');
+      }
+
+      setTierSuccess('Access level updated successfully');
+      // Reload data to reflect changes
+      await loadData();
+    } catch (err: any) {
+      setTierError(err.message || 'Failed to update tier');
+    } finally {
+      setTierProcessing(false);
+    }
+  };
+
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
@@ -351,7 +423,7 @@ export default function AdminUserDetailPage() {
                   </p>
 
                   {/* Roles */}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {data.user.roles.length > 0 ? (
                       data.user.roles.map((role) => (
                         <span
@@ -367,7 +439,58 @@ export default function AdminUserDetailPage() {
                       </span>
                     )}
                   </div>
+
+                  {/* Current Tier Display */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Current Tier:</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getTierColor(computeTierFromGrants(data.featureGrants))}`}>
+                      {computeTierFromGrants(data.featureGrants).charAt(0).toUpperCase() + computeTierFromGrants(data.featureGrants).slice(1).replace('_', ' ')}
+                    </span>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Tier Control */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mb-6">
+              <h2 className="text-sm font-semibold text-white mb-4">Access Level</h2>
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs text-slate-400">Tier</label>
+                  <div className="flex flex-col gap-2">
+                    {(['seer', 'analyst', 'institutional_plus'] as UserTier[]).map((tier) => (
+                      <label key={tier} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tier"
+                          value={tier}
+                          checked={selectedTier === tier}
+                          onChange={(e) => setSelectedTier(e.target.value as UserTier)}
+                          className="w-4 h-4 text-akari-primary bg-slate-800 border-slate-700 focus:ring-akari-primary focus:ring-2"
+                        />
+                        <span className="text-sm text-white capitalize">
+                          {tier.replace('_', ' ')}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleTierChange}
+                  disabled={tierProcessing || selectedTier === computeTierFromGrants(data.featureGrants)}
+                  className="px-4 py-2 min-h-[36px] rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {tierProcessing ? 'Processing...' : 'Save'}
+                </button>
+
+                {/* Messages */}
+                {tierError && (
+                  <p className="text-xs text-red-400">{tierError}</p>
+                )}
+                {tierSuccess && (
+                  <p className="text-xs text-green-400">{tierSuccess}</p>
+                )}
               </div>
             </div>
 
