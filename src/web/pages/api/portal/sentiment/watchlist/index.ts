@@ -21,6 +21,7 @@ interface WatchlistProject {
   akariScore: number | null;
   sentiment: number | null;
   ctHeat: number | null;
+  followers: number | null;
   sentimentChange24h: number;
   ctHeatChange24h: number;
   akariChange24h: number;
@@ -151,7 +152,7 @@ export default async function handler(
     // Get all metrics for these projects, ordered by date descending
     const { data: allMetrics, error: latestError } = await supabase
       .from('metrics_daily')
-      .select('project_id, date, sentiment_score, ct_heat_score, akari_score, updated_at, created_at')
+      .select('project_id, date, sentiment_score, ct_heat_score, akari_score, followers, updated_at, created_at')
       .in('project_id', projectIdsList)
       .order('date', { ascending: false });
 
@@ -161,7 +162,7 @@ export default async function handler(
     }
 
     // Group metrics by project_id and get latest + previous
-    const metricsByProject = new Map<string, Array<{ date: string; sentiment_score: number | null; ct_heat_score: number | null; akari_score: number | null; updated_at: string | null; created_at: string | null }>>();
+    const metricsByProject = new Map<string, Array<{ date: string; sentiment_score: number | null; ct_heat_score: number | null; akari_score: number | null; followers: number | null; updated_at: string | null; created_at: string | null }>>();
     
     (allMetrics || []).forEach((m: any) => {
       if (!metricsByProject.has(m.project_id)) {
@@ -174,6 +175,7 @@ export default async function handler(
           sentiment_score: m.sentiment_score,
           ct_heat_score: m.ct_heat_score,
           akari_score: m.akari_score,
+          followers: m.followers ?? null,
           updated_at: m.updated_at ?? null,
           created_at: m.created_at ?? null,
         });
@@ -207,6 +209,7 @@ export default async function handler(
         akariScore: latest?.akari_score ?? null,
         sentiment: latest?.sentiment_score ?? null,
         ctHeat: latest?.ct_heat_score ?? null,
+        followers: latest?.followers ?? null,
         sentimentChange24h,
         ctHeatChange24h,
         akariChange24h,
