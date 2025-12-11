@@ -858,3 +858,56 @@ model AnalystSocialBoostPromo {
   @@index([status])
   @@index([nextShowAt])
 }
+
+// ============================================
+// USER CT ACTIVITY (Phase 1 Value System)
+// ============================================
+
+// Stores per-tweet activity for each AKARI user + project
+// Captures user's engagement with tracked projects through their tweets
+model UserCtActivity {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  xUserId       String    @map("x_user_id") @db.Text
+  tweetId       String    @map("tweet_id") @db.Text
+  tweetUrl      String    @map("tweet_url") @db.Text
+  tweetedAt     DateTime  @map("tweeted_at") @db.Timestamptz(6)
+  projectId     String    @map("project_id") @db.Uuid
+  projectSlug   String    @map("project_slug") @db.Text
+  likes         Int       @default(0)
+  replies       Int       @default(0)
+  retweets      Int       @default(0)
+  quoteCount    Int       @default(0) @map("quote_count")
+  sentimentScore Int?     @map("sentiment_score") // -100 to 100, optional
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, tweetId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([tweetedAt])
+  @@map("user_ct_activity")
+}
+
+// Aggregated value scores for each user→project pair
+// Computed periodically from user_ct_activity (based on last 200 tweets)
+model UserProjectValueScore {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  projectSlug     String    @map("project_slug") @db.Text
+  sourceWindow    String    @default("last_200_tweets") @map("source_window") @db.Text // e.g. 'last_200_tweets'
+  tweetCount      Int       @default(0) @map("tweet_count")
+  totalLikes      Int       @default(0) @map("total_likes")
+  totalReplies    Int       @default(0) @map("total_replies")
+  totalRetweets   Int       @default(0) @map("total_retweets")
+  totalEngagement Int       @default(0) @map("total_engagement")
+  valueScore      Int       @default(0) @map("value_score")
+  lastTweetedAt   DateTime? @map("last_tweeted_at") @db.Timestamptz(6)
+  computedAt      DateTime  @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  @@unique([userId, projectId, sourceWindow])
+  @@index([userId])
+  @@index([valueScore(sort: Desc)])
+  @@map("user_project_value_scores")
+}

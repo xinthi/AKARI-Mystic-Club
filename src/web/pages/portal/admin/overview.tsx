@@ -283,7 +283,7 @@ export default function AdminOverviewPage() {
               {hasSearched && !searchLoading && (
                 <div>
                   {searchResults.length === 0 ? (
-                    <p className="text-sm text-akari-muted py-4 text-center">No users found matching "{searchQuery}"</p>
+                    <p className="text-sm text-akari-muted py-4 text-center">No users found matching &quot;{searchQuery}&quot;</p>
                   ) : (
                     <div className="overflow-x-auto rounded-xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl">
                       <table className="w-full text-sm">

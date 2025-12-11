@@ -31,6 +31,7 @@ import {
   ProfileInnerCircleList,
   ProfileZoneAdvice,
   ProfileDeepExplorerAccess,
+  ProfileTopProjects,
   MetricsChange24h,
   InnerCircleSummary,
   MetricsDaily,
@@ -631,6 +632,15 @@ export default function MyProfilePage() {
               metricsHistory={profileState.data.metricsHistory}
               onRefresh={refresh}
             />
+            
+            {/* Section 3.5: Top Projects You Amplify */}
+            <section className="mt-6">
+              <ProfileTopProjects
+                userId="me"
+                showSyncButton={true}
+                onSyncComplete={refresh}
+              />
+            </section>
             
             {/* Section 4: Zone of Expertise + Club Orbit */}
             <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -85,3 +85,10 @@ export type { ZoneAdviceItem, ZoneAdviceInput } from './zone-advice';
 export { ProfileDeepExplorerAccess } from './ProfileDeepExplorerAccess';
 export type { ProfileDeepExplorerAccessProps } from './ProfileDeepExplorerAccess';
 
+// =============================================================================
+// TOP PROJECTS (Value System Phase 1)
+// =============================================================================
+
+export { ProfileTopProjects } from './ProfileTopProjects';
+export type { ProfileTopProjectsProps, TopProjectEntry } from './ProfileTopProjects';
+
