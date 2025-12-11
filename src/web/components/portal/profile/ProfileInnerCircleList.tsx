@@ -35,13 +35,13 @@ function formatNumber(num: number | null): string {
   return num.toString();
 }
 
-function getAkariTier(score: number | null): { name: string; color: string; bgColor: string } {
-  if (score === null) return { name: 'Unranked', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
-  if (score >= 900) return { name: 'Celestial', color: 'text-akari-neon-violet', bgColor: 'bg-akari-neon-violet/15' };
-  if (score >= 750) return { name: 'Vanguard', color: 'text-akari-neon-teal', bgColor: 'bg-akari-neon-teal/15' };
-  if (score >= 550) return { name: 'Ranger', color: 'text-akari-neon-blue', bgColor: 'bg-akari-neon-blue/15' };
-  if (score >= 400) return { name: 'Nomad', color: 'text-akari-neon-pink', bgColor: 'bg-akari-neon-pink/15' };
-  return { name: 'Shadow', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50' };
+function getAkariTier(score: number | null): { name: string; color: string; bgColor: string; borderColor: string } {
+  if (score === null) return { name: 'Unranked', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50', borderColor: 'border-akari-muted/30' };
+  if (score >= 900) return { name: 'Celestial', color: 'text-akari-neon-violet', bgColor: 'bg-akari-neon-violet/20', borderColor: 'border-akari-neon-violet/50' };
+  if (score >= 750) return { name: 'Vanguard', color: 'text-akari-neon-teal', bgColor: 'bg-akari-neon-teal/20', borderColor: 'border-akari-neon-teal/50' };
+  if (score >= 550) return { name: 'Ranger', color: 'text-akari-neon-blue', bgColor: 'bg-akari-neon-blue/20', borderColor: 'border-akari-neon-blue/50' };
+  if (score >= 400) return { name: 'Nomad', color: 'text-akari-neon-pink', bgColor: 'bg-akari-neon-pink/20', borderColor: 'border-akari-neon-pink/50' };
+  return { name: 'Shadow', color: 'text-akari-muted', bgColor: 'bg-akari-cardSoft/50', borderColor: 'border-akari-muted/30' };
 }
 
 function getInitials(handle: string): string {
@@ -109,8 +109,8 @@ function MemberRow({ entry, index }: MemberRowProps) {
       </div>
       
       {/* Akari Tier Badge */}
-      <div className="hidden sm:flex items-center gap-1.5 w-24">
-        <span className={`pill-neon px-3 py-1 text-xs font-semibold border ${tier.color} ${tier.bgColor} border-akari-neon-teal/30`}>
+      <div className="hidden sm:flex items-center justify-center w-24">
+        <span className={`inline-flex items-center justify-center h-7 px-3 rounded-full text-xs font-bold ${tier.color} ${tier.bgColor} ${tier.borderColor} border shadow-sm`}>
           {tier.name}
         </span>
       </div>
