@@ -7,6 +7,8 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { getUserTierInfo, getUserTier } from '@/lib/userTier';
 import { UpgradeModal } from './UpgradeModal';
 import { UserMenu } from './UserMenu';
+import { AnalystPromoModal } from './AnalystPromoModal';
+import { useAnalystPromo } from '@/hooks/useAnalystPromo';
 
 type Props = {
   title?: string;
@@ -32,6 +34,9 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
     open: false,
   });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Analyst Social Boost Promo
+  const promo = useAnalystPromo();
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
@@ -283,6 +288,23 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
           onClose={() => setUpgradeModalState({ open: false })}
           user={akariUser.user}
           targetTier={upgradeModalState.targetTier}
+        />
+      )}
+
+      {/* Analyst Social Boost Promo Modal */}
+      {isLoggedIn && promo.isEligible && (
+        <AnalystPromoModal
+          open={promo.isOpen}
+          onOpenChange={promo.closeModal}
+          status={promo.status}
+          onAccept={promo.accept}
+          onSkip={promo.skip}
+          onNever={promo.never}
+          onVerify={promo.verify}
+          isDeciding={promo.isDeciding}
+          isVerifying={promo.isVerifying}
+          verifyError={promo.verifyError}
+          grantedUntil={promo.grantedUntil}
         />
       )}
     </div>

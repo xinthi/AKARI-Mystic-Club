@@ -834,3 +834,27 @@ model CexMarketSnapshot {
   @@index([symbol])
   @@index([createdAt])
 }
+
+// ============================================
+// ANALYST SOCIAL BOOST PROMO
+// ============================================
+// Tracks promo state for the "Analyst Social Boost" quest
+// where Seer users can earn 3 days of Analyst access by
+// following @MysticHeros and posting a tweet with akarimystic.club
+
+model AnalystSocialBoostPromo {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @unique @map("user_id") @db.Uuid
+  status        String    @default("never_seen") // never_seen, accepted, declined_recently, declined_long_term, completed
+  timesDeclined Int       @default(0) @map("times_declined")
+  lastShownAt   DateTime? @map("last_shown_at") @db.Timestamptz(6)
+  nextShowAt    DateTime? @map("next_show_at") @db.Timestamptz(6)
+  activatedAt   DateTime? @map("activated_at") @db.Timestamptz(6)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("analyst_social_boost_promo")
+  @@index([status])
+  @@index([nextShowAt])
+}
