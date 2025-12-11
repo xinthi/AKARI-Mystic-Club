@@ -193,35 +193,35 @@ export function ProfileHeader({
           </div>
         </div>
         
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3 lg:flex-col lg:items-end">
+        {/* Action Buttons - Compact size */}
+        <div className="flex flex-wrap gap-2 lg:flex-col lg:items-end">
           <button
             onClick={() => setShowShareModal(true)}
-            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-gradient-neon-teal text-black font-semibold hover:shadow-akari-glow transition-all duration-300 text-sm"
+            className="pill-neon flex items-center gap-1.5 px-3 py-1.5 border border-akari-neon-teal/30 bg-gradient-neon-teal text-black font-medium hover:shadow-akari-glow transition-all duration-300 text-xs"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
-            Share Card
+            Share
           </button>
           
           <Link
             href={`/portal/sentiment/${slug}`}
-            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-akari-cardSoft/50 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)] transition-all duration-300 text-sm font-semibold"
+            className="pill-neon flex items-center gap-1.5 px-3 py-1.5 border border-akari-neon-teal/30 bg-akari-cardSoft/50 text-akari-text hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_8px_rgba(0,246,162,0.15)] transition-all duration-300 text-xs font-medium"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            View Public Profile
+            Public
           </Link>
           
           {canCompare ? (
             <button
               onClick={handleCompareClick}
-              className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/30 bg-akari-neon-teal/20 text-akari-neon-teal hover:bg-akari-neon-teal/30 hover:shadow-[0_0_12px_rgba(0,246,162,0.3)] transition-all duration-300 text-sm font-semibold"
+              className="pill-neon flex items-center gap-1.5 px-3 py-1.5 border border-akari-neon-teal/30 bg-akari-neon-teal/20 text-akari-neon-teal hover:bg-akari-neon-teal/30 hover:shadow-[0_0_8px_rgba(0,246,162,0.2)] transition-all duration-300 text-xs font-medium"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
               Compare
@@ -230,16 +230,16 @@ export function ProfileHeader({
             <div className="relative group">
               <button
                 disabled
-                className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/20 bg-akari-cardSoft/30 text-akari-muted text-sm cursor-not-allowed"
+                className="pill-neon flex items-center gap-1.5 px-3 py-1.5 border border-akari-neon-teal/20 bg-akari-cardSoft/30 text-akari-muted text-xs cursor-not-allowed"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
                 Compare
               </button>
               {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 neon-card border border-akari-neon-teal/30 bg-akari-card text-akari-text text-xs opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-10">
-                Upgrade to unlock compare
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 neon-card border border-akari-neon-teal/30 bg-akari-card text-akari-text text-[10px] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-10">
+                Upgrade to unlock
                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-akari-neon-teal/30"></div>
               </div>
             </div>
@@ -248,16 +248,16 @@ export function ProfileHeader({
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="pill-neon flex items-center gap-2 px-5 py-2.5 min-h-[44px] border border-akari-neon-teal/20 bg-akari-cardSoft/50 text-akari-muted hover:border-akari-neon-teal/40 hover:text-akari-text hover:bg-akari-cardSoft transition-all duration-300 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="pill-neon flex items-center gap-1.5 px-3 py-1.5 border border-akari-neon-teal/20 bg-akari-cardSoft/50 text-akari-muted hover:border-akari-neon-teal/40 hover:text-akari-text hover:bg-akari-cardSoft transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoggingOut ? (
               <>
-                <div className="w-4 h-4 animate-spin rounded-full border-2 border-akari-muted border-t-transparent" />
-                Logging out...
+                <div className="w-3 h-3 animate-spin rounded-full border-2 border-akari-muted border-t-transparent" />
+                <span>...</span>
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 Logout
