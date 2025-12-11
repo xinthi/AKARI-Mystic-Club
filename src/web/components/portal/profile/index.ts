@@ -29,6 +29,9 @@ export type { ProfilePersonaSelectorProps } from './ProfilePersonaSelector';
 // Re-export from shared types file to avoid circular dependencies
 export { PROFILE_TOPICS, type ProfileTopic, type TopicScore } from '@/lib/portal/topic-types';
 
+// Import type for use in this file
+import type { ProfileTopic } from '@/lib/portal/topic-types';
+
 /**
  * Display info for each topic (for UI rendering)
  */
