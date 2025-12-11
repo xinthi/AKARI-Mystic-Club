@@ -236,43 +236,17 @@ export function ProfileCard({
           </div>
         </div>
 
-        {/* Tier Badge - Icon as decoration, text centered */}
-        <div
-          style={{
-            position: 'relative',
-            height: '28px',
-            paddingLeft: '32px',
-            paddingRight: '14px',
-            borderRadius: '14px',
-            background: tierConfig.bgColor,
-            border: `1.5px solid ${tierConfig.borderColor}`,
-            boxShadow: `0 0 12px ${tierConfig.color}40`,
-          }}
-        >
-          {/* Icon - absolutely positioned on left, vertically centered */}
+        {/* Tier Label - Simple icon + text, no pill */}
+        <div>
+          <span style={{ fontSize: '14px' }}>{tierConfig.icon}</span>
           <span 
             style={{ 
-              position: 'absolute',
-              left: '10px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: '14px',
-              lineHeight: '1',
-            }}
-          >
-            {tierConfig.icon}
-          </span>
-          {/* Text - horizontally and vertically centered */}
-          <span 
-            style={{ 
-              display: 'block',
-              textAlign: 'center',
-              fontSize: '11px', 
+              fontSize: '12px', 
               fontWeight: '700', 
               color: tierConfig.color, 
               letterSpacing: '0.5px',
-              lineHeight: '28px',
-              height: '28px',
+              marginLeft: '6px',
+              textShadow: `0 0 10px ${tierConfig.color}60`,
             }}
           >
             {tier.toUpperCase()}
