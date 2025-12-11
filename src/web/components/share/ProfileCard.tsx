@@ -1,8 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 /**
  * ProfileCard Component
  * 
  * A compact credit card-style shareable profile card displaying AKARI metrics.
  * Optimized for html2canvas export compatibility.
+ * Uses <img> tags intentionally for html2canvas compatibility.
  */
 
 import React from 'react';
@@ -234,45 +236,48 @@ export function ProfileCard({
           </div>
         </div>
 
-        {/* Tier Badge */}
-        <table
+        {/* Tier Badge - Icon as decoration, text centered */}
+        <div
           style={{
+            position: 'relative',
             height: '28px',
+            paddingLeft: '32px',
+            paddingRight: '14px',
             borderRadius: '14px',
             background: tierConfig.bgColor,
             border: `1.5px solid ${tierConfig.borderColor}`,
             boxShadow: `0 0 12px ${tierConfig.color}40`,
-            borderCollapse: 'collapse',
-            borderSpacing: '0',
           }}
         >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  paddingLeft: '12px',
-                  paddingRight: '14px',
-                  textAlign: 'center',
-                  verticalAlign: 'middle',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span style={{ fontSize: '12px' }}>{tierConfig.icon}</span>
-                <span 
-                  style={{ 
-                    fontSize: '10px', 
-                    fontWeight: '700', 
-                    color: tierConfig.color, 
-                    letterSpacing: '0.5px',
-                    marginLeft: '6px',
-                  }}
-                >
-                  {tier.toUpperCase()}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          {/* Icon - absolutely positioned on left, vertically centered */}
+          <span 
+            style={{ 
+              position: 'absolute',
+              left: '10px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: '14px',
+              lineHeight: '1',
+            }}
+          >
+            {tierConfig.icon}
+          </span>
+          {/* Text - horizontally and vertically centered */}
+          <span 
+            style={{ 
+              display: 'block',
+              textAlign: 'center',
+              fontSize: '11px', 
+              fontWeight: '700', 
+              color: tierConfig.color, 
+              letterSpacing: '0.5px',
+              lineHeight: '28px',
+              height: '28px',
+            }}
+          >
+            {tier.toUpperCase()}
+          </span>
+        </div>
       </div>
 
       {/* === MIDDLE ROW === */}
