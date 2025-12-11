@@ -68,18 +68,19 @@ export function LockedFeatureOverlay({
   };
 
   return (
-    <div className="relative">
-      {/* Blurred content */}
-      <div className="blur-sm opacity-50 pointer-events-none select-none">
+    <div className="relative group">
+      {/* Blurred content - more subtle blur */}
+      <div className="blur-[3px] opacity-40 pointer-events-none select-none transition-all duration-300 group-hover:blur-[4px] group-hover:opacity-30">
         {children}
       </div>
 
-      {/* Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center bg-black/90 backdrop-blur-[2px] rounded-2xl border border-akari-neon-teal/20">
-        <div className="text-center p-6 max-w-sm">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-akari-neon-teal/10 border border-akari-neon-teal/30 flex items-center justify-center shadow-soft-glow">
+      {/* Overlay with improved animations */}
+      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-black/85 via-black/90 to-akari-neon-teal/5 backdrop-blur-[1px] rounded-2xl border border-akari-neon-teal/20 transition-all duration-300 hover:border-akari-neon-teal/40">
+        <div className="text-center p-6 max-w-sm animate-fade-in">
+          {/* Lock icon with pulse animation */}
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-akari-neon-teal/20 to-akari-neon-violet/10 border border-akari-neon-teal/40 flex items-center justify-center shadow-[0_0_20px_rgba(0,229,160,0.2)] animate-pulse-subtle">
             <svg
-              className="w-7 h-7 text-akari-neon-teal"
+              className="w-6 h-6 text-akari-neon-teal drop-shadow-[0_0_4px_rgba(0,229,160,0.5)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -92,14 +93,21 @@ export function LockedFeatureOverlay({
               />
             </svg>
           </div>
-          <h3 className="text-base font-bold text-gradient-teal mb-2">{displayTitle}</h3>
-          <p className="text-xs text-akari-muted mb-5">{displayDescription}</p>
+          
+          {/* Title with gradient */}
+          <h3 className="text-sm font-bold text-gradient-teal mb-1.5">{displayTitle}</h3>
+          
+          {/* Description - more compact */}
+          <p className="text-xs text-akari-muted/90 mb-4 leading-relaxed max-w-[260px] mx-auto">{displayDescription}</p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          {/* Action buttons - improved styling */}
+          <div className="flex items-center justify-center gap-2.5">
             {showPricingButton && (
               <Link
                 href="/portal/pricing"
-                className="pill-neon px-4 py-2 bg-akari-neon-teal/10 text-akari-neon-teal hover:bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-xs font-medium"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pill-neon px-3.5 py-1.5 bg-akari-neon-teal/10 text-akari-neon-teal hover:bg-akari-neon-teal/20 border border-akari-neon-teal/40 hover:border-akari-neon-teal/60 text-xs font-medium transition-all duration-300 hover:shadow-[0_0_12px_rgba(0,229,160,0.2)]"
               >
                 View Pricing
               </Link>
@@ -107,7 +115,7 @@ export function LockedFeatureOverlay({
             {showUpgradeButton && (
               <button
                 onClick={handleUpgradeClick}
-                className="pill-neon px-4 py-2 bg-gradient-neon-teal text-black hover:shadow-neon-teal text-xs font-medium font-semibold"
+                className="pill-neon px-3.5 py-1.5 bg-gradient-to-r from-akari-neon-teal to-akari-neon-violet/80 text-black hover:shadow-[0_0_20px_rgba(0,229,160,0.4)] text-xs font-semibold transition-all duration-300"
               >
                 Request Upgrade
               </button>

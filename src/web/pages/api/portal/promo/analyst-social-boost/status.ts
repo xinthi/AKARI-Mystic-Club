@@ -11,6 +11,13 @@ import { getUserTier } from '@/lib/userTier';
 import { can, FEATURE_KEYS, type AkariUser, type FeatureGrant } from '@/lib/permissions';
 
 // =============================================================================
+// DEV MODE CHECK
+// =============================================================================
+
+const DEV_BYPASS_AUTH = process.env.NODE_ENV === 'development';
+const DEV_MOCK_USER_ID = 'dev-mock-user';
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -136,8 +143,21 @@ export default async function handler(
   }
 
   try {
+    // In dev mode without session, return mock promo data for testing
+    const hasSessionCookie = req.headers.cookie?.includes('akari_session=');
+    if (DEV_BYPASS_AUTH && !hasSessionCookie) {
+      console.log('[Promo Status API] Dev mode: using mock promo data');
+      return res.status(200).json({
+        ok: true,
+        showPromo: true,
+        status: 'never_seen',
+        timesDeclined: 0,
+        nextShowAt: null,
+      });
+    }
+
     const supabase = getSupabaseAdmin();
-    const user = await getUserFromSession(req, supabase);
+    let user = await getUserFromSession(req, supabase);
 
     if (!user) {
       return res.status(401).json({ ok: false, error: 'Not authenticated' });

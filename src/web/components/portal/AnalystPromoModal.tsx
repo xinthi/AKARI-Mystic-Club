@@ -189,7 +189,7 @@ export function AnalystPromoModal({
                     <p className="text-sm text-akari-text font-medium mb-1">
                       Post a tweet that includes:
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 mb-2">
                       <code className="px-2 py-0.5 rounded bg-akari-cardSoft text-xs text-akari-neon-teal">
                         {REQUIRED_MENTION}
                       </code>
@@ -198,6 +198,17 @@ export function AnalystPromoModal({
                       </code>
                     </div>
                   </div>
+                  <a
+                    href={`https://x.com/intent/tweet?text=${encodeURIComponent(`Just discovered ${REQUIRED_MENTION} - the best crypto market intelligence platform! 🔥\n\n@${TARGET_X_HANDLE}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pill-neon px-3 py-1.5 text-xs font-medium bg-akari-neon-violet/10 border border-akari-neon-violet/30 text-akari-neon-violet hover:bg-akari-neon-violet/20 transition-all duration-300 flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    Tweet
+                  </a>
                 </div>
 
                 {/* Step 3: Verify */}
