@@ -3,7 +3,7 @@
  * 
  * Verifies that the user has completed the quest requirements:
  * 1) Following @MysticHeros on X
- * 2) Posted a tweet mentioning akarimystic.club and tagging @MysticHeros
+ * 2) Posted a tweet tagging @MysticHeros
  * 
  * On success, grants 3 days of Analyst-level feature access.
  */
@@ -17,7 +17,6 @@ import { taioCheckFollowRelationship, taioGetUserLastTweets, taioAdvancedSearchT
 // =============================================================================
 
 const TARGET_X_HANDLE = 'MysticHeros';
-const REQUIRED_MENTION = 'akarimystic.club';
 const PROMO_DURATION_DAYS = 3;
 
 // Feature keys to grant for Analyst-level access
@@ -168,7 +167,7 @@ export default async function handler(
     }
 
     // ==========================================================================
-    // VERIFICATION STEP 2: Check for qualifying tweet
+    // VERIFICATION STEP 2: Check for qualifying tweet (mentions @MysticHeros)
     // ==========================================================================
     
     let hasQualifyingTweet = false;
@@ -176,13 +175,12 @@ export default async function handler(
       // Try fetching user's recent tweets first
       const { tweets } = await taioGetUserLastTweets(userXUsername);
       
-      // Look for a tweet that contains both requirements
+      // Look for a tweet that tags @MysticHeros
       for (const tweet of tweets) {
         const textLower = tweet.text.toLowerCase();
-        const hasUrl = textLower.includes(REQUIRED_MENTION.toLowerCase());
         const hasTag = textLower.includes(`@${TARGET_X_HANDLE.toLowerCase()}`);
         
-        if (hasUrl && hasTag) {
+        if (hasTag) {
           hasQualifyingTweet = true;
           console.log(`[Promo Verify] Found qualifying tweet: ${tweet.id}`);
           break;
@@ -191,8 +189,8 @@ export default async function handler(
 
       // If not found in user's tweets, try searching
       if (!hasQualifyingTweet) {
-        // Search for tweets from this user mentioning the required content
-        const searchQuery = `from:${userXUsername} ${REQUIRED_MENTION} @${TARGET_X_HANDLE}`;
+        // Search for tweets from this user mentioning @MysticHeros
+        const searchQuery = `from:${userXUsername} @${TARGET_X_HANDLE}`;
         const { tweets: searchResults } = await taioAdvancedSearchTweets(searchQuery, 'Latest');
         
         if (searchResults.length > 0) {
@@ -214,7 +212,7 @@ export default async function handler(
     if (!isFollowing || !hasQualifyingTweet) {
       const missing: string[] = [];
       if (!isFollowing) missing.push(`follow @${TARGET_X_HANDLE}`);
-      if (!hasQualifyingTweet) missing.push(`tweet with ${REQUIRED_MENTION} and @${TARGET_X_HANDLE}`);
+      if (!hasQualifyingTweet) missing.push(`post a tweet mentioning @${TARGET_X_HANDLE}`);
       
       return res.status(200).json({
         ok: false,
