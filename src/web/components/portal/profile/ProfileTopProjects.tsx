@@ -185,7 +185,7 @@ export function ProfileTopProjects({
           </button>
         )}
       </div>
-      <p className="text-xs text-akari-muted mb-4">Based on your last 200 tweets</p>
+      <p className="text-xs text-akari-muted mb-4">Based on your recent X activity</p>
 
       {/* Sync message */}
       {syncMessage && (
