@@ -237,7 +237,10 @@ export function ProfileCard({
         {/* Tier Badge */}
         <div
           style={{
-            padding: '6px 14px',
+            height: '28px',
+            lineHeight: '28px',
+            paddingLeft: '12px',
+            paddingRight: '14px',
             borderRadius: '14px',
             background: tierConfig.bgColor,
             border: `1.5px solid ${tierConfig.borderColor}`,
@@ -246,7 +249,7 @@ export function ProfileCard({
             whiteSpace: 'nowrap',
           }}
         >
-          <span style={{ fontSize: '13px', verticalAlign: 'middle' }}>{tierConfig.icon}</span>
+          <span style={{ fontSize: '12px', lineHeight: '28px' }}>{tierConfig.icon}</span>
           <span 
             style={{ 
               fontSize: '10px', 
@@ -254,7 +257,7 @@ export function ProfileCard({
               color: tierConfig.color, 
               letterSpacing: '0.5px',
               marginLeft: '6px',
-              verticalAlign: 'middle',
+              lineHeight: '28px',
             }}
           >
             {tier.toUpperCase()}
@@ -395,7 +398,7 @@ export function ProfileCard({
         {/* Tagline & Date */}
         <div style={{ textAlign: 'right', maxWidth: '140px' }}>
           <div style={{ fontSize: '9px', color: '#555555', fontStyle: 'italic', lineHeight: '1.3', marginBottom: '4px' }}>
-            "{tagline}"
+            &ldquo;{tagline}&rdquo;
           </div>
           <div style={{ fontSize: '8px', color: '#444444', letterSpacing: '0.5px' }}>
             {new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
