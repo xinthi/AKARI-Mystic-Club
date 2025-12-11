@@ -2,11 +2,15 @@
  * ProfileTopProjects Component
  * 
  * Displays the top 5 projects a user has amplified based on their value scores.
- * Part of the "Top Projects You Amplify" feature (Phase 1).
+ * Part of the "Top Projects You Amplify" feature.
  * 
  * IMPORTANT: This is separate from the Sentiment Terminal.
- * It shows data from user_project_value_scores (based on user's last 200 tweets),
+ * It shows data from user_project_value_scores,
  * NOT the sentiment data (metrics_daily, inner_circle, etc.).
+ * 
+ * WINDOW DISPLAY:
+ * - The API auto-selects the best window (rolling_90_days if available, else last_200_tweets)
+ * - The component displays which window was used
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -45,8 +49,17 @@ export interface ProfileTopProjectsProps {
 
 type FetchState = 
   | { status: 'loading' }
-  | { status: 'loaded'; projects: TopProjectEntry[] }
+  | { status: 'loaded'; projects: TopProjectEntry[]; sourceWindow: string }
   | { status: 'error'; message: string };
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+
+const WINDOW_LABELS: Record<string, string> = {
+  'rolling_90_days': 'Based on your last 90 days',
+  'last_200_tweets': 'Based on your recent tweets',
+};
 
 // =============================================================================
 // HELPERS
@@ -72,6 +85,10 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
+function getWindowLabel(sourceWindow: string): string {
+  return WINDOW_LABELS[sourceWindow] || 'Based on your recent X activity';
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -85,7 +102,7 @@ export function ProfileTopProjects({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  // Fetch top projects
+  // Fetch top projects (API auto-selects the best window)
   const fetchTopProjects = useCallback(async () => {
     setState({ status: 'loading' });
     
@@ -98,7 +115,11 @@ export function ProfileTopProjects({
         return;
       }
       
-      setState({ status: 'loaded', projects: data.projects || [] });
+      setState({ 
+        status: 'loaded', 
+        projects: data.projects || [],
+        sourceWindow: data.sourceWindow || 'last_200_tweets',
+      });
     } catch (error: any) {
       setState({ status: 'error', message: error.message || 'Network error' });
     }
@@ -156,6 +177,14 @@ export function ProfileTopProjects({
     return 'bg-akari-cardSoft/30 border-akari-muted/20';
   };
 
+  // Get the subtitle based on source window
+  const getSubtitle = (): string => {
+    if (state.status === 'loaded') {
+      return getWindowLabel(state.sourceWindow);
+    }
+    return 'Based on your recent X activity';
+  };
+
   return (
     <div className="neon-card neon-hover p-6">
       {/* Header */}
@@ -185,7 +214,7 @@ export function ProfileTopProjects({
           </button>
         )}
       </div>
-      <p className="text-xs text-akari-muted mb-4">Based on your recent X activity</p>
+      <p className="text-xs text-akari-muted mb-4">{getSubtitle()}</p>
 
       {/* Sync message */}
       {syncMessage && (

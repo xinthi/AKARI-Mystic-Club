@@ -4,8 +4,15 @@
  * Returns the top 5 projects a user has amplified based on their value scores.
  * 
  * IMPORTANT: This is separate from the Sentiment Terminal.
- * It queries user_project_value_scores (based on user's last 200 tweets),
+ * It queries user_project_value_scores (based on user's CT activity),
  * NOT the sentiment data (metrics_daily, project_tweets, etc.).
+ * 
+ * WINDOW SELECTION:
+ * - ?window=last_200_tweets  → Use scores from last 200 tweets
+ * - ?window=rolling_90_days  → Use scores from last 90 days of data
+ * - No window param → Auto-select:
+ *   - Prefer 'rolling_90_days' if user has scores for that window
+ *   - Fall back to 'last_200_tweets' otherwise
  * 
  * [userId] can be:
  *   - "me" → current logged-in user
@@ -17,7 +24,7 @@
  *   {
  *     "ok": true,
  *     "userId": "...",
- *     "sourceWindow": "last_200_tweets",
+ *     "sourceWindow": "rolling_90_days",
  *     "projects": [
  *       {
  *         "projectId": "...",
@@ -42,7 +49,12 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { getTopProjectsForUser, TopProjectEntry } from '../../../../../../server/userCtActivity';
+import { 
+  getTopProjectsWithAutoWindow, 
+  TopProjectEntry,
+  VALID_SOURCE_WINDOWS,
+  SourceWindow,
+} from '../../../../../../server/userCtActivity';
 
 // =============================================================================
 // TYPES
@@ -163,13 +175,20 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Invalid userId format' });
     }
 
-    // Get optional source window from query (default: 'last_200_tweets')
-    const sourceWindow = typeof req.query.sourceWindow === 'string'
-      ? req.query.sourceWindow
-      : 'last_200_tweets';
+    // Get optional window from query
+    // If not provided or invalid, auto-selection will be used
+    const windowParam = typeof req.query.window === 'string' ? req.query.window : undefined;
+    
+    // Validate window if provided
+    if (windowParam && !VALID_SOURCE_WINDOWS.includes(windowParam as SourceWindow)) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: `Invalid window. Valid options: ${VALID_SOURCE_WINDOWS.join(', ')}` 
+      });
+    }
 
-    // Fetch top projects
-    const result = await getTopProjectsForUser(targetUserId, sourceWindow, 5);
+    // Fetch top projects with auto-window selection
+    const result = await getTopProjectsWithAutoWindow(targetUserId, windowParam, 5);
 
     if (!result.ok) {
       console.error(`[Top Projects] Error fetching for user ${targetUserId}:`, result.error);
@@ -179,7 +198,7 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       userId: targetUserId,
-      sourceWindow,
+      sourceWindow: result.sourceWindow,
       projects: result.projects,
     });
 

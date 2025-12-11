@@ -15,6 +15,12 @@
  * - User identity (X link)
  * - Projects table (for matching)
  * - twitterapi.io client
+ * 
+ * DATA ACCUMULATION STRATEGY:
+ * - API calls are limited to "last 200 tweets" per sync (to control costs).
+ * - Historical rows in user_ct_activity are NEVER deleted.
+ * - Over time, user_ct_activity accumulates more data from multiple syncs.
+ * - Rolling windows (e.g., 90 days) are computed purely from DB data.
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -24,7 +30,16 @@ import { taioGetUserLastTweets, ITweet } from './twitterapiio';
 // CONSTANTS
 // =============================================================================
 
-const DEFAULT_SOURCE_WINDOW = 'last_200_tweets';
+/** Default source window for new users */
+export const SOURCE_WINDOW_LAST_200 = 'last_200_tweets';
+
+/** Rolling 90-day window computed from accumulated DB data */
+export const SOURCE_WINDOW_ROLLING_90 = 'rolling_90_days';
+
+/** Valid source windows */
+export const VALID_SOURCE_WINDOWS = [SOURCE_WINDOW_LAST_200, SOURCE_WINDOW_ROLLING_90] as const;
+export type SourceWindow = typeof VALID_SOURCE_WINDOWS[number];
+
 const DEFAULT_MAX_TWEETS = 200;
 
 // =============================================================================
@@ -154,8 +169,14 @@ function matchTweetToProjects(
 /**
  * Sync a user's CT activity from their last N tweets.
  * 
+ * BEHAVIOR:
+ * - Always calls TwitterAPI.io with a fixed max of 200 tweets (to control API costs).
+ * - Upserts rows into user_ct_activity based on (user_id, tweet_id, project_id).
+ * - NEVER deletes existing rows - historical data is preserved.
+ * - Over time, user_ct_activity accumulates data from multiple syncs.
+ * - Richer windows (30/90 days) can be computed purely from accumulated DB data.
+ * 
  * This is separate from the Sentiment Terminal and does NOT use time-based windows.
- * It simply fetches the user's last `maxTweets` tweets and matches them to projects.
  * 
  * @param userId - AKARI user ID (UUID)
  * @param maxTweets - Maximum number of tweets to fetch (default: 200)
@@ -275,7 +296,7 @@ export async function syncUserCtActivityFromLastTweets(
     
     console.log(`[UserCtActivity] Found ${matches.length} tweets with project matches`);
     
-    // 6. Prepare records for upsert
+    // 6. Prepare records for upsert (NEVER delete existing rows)
     const records: Array<{
       user_id: string;
       x_user_id: string;
@@ -323,7 +344,7 @@ export async function syncUserCtActivityFromLastTweets(
       };
     }
     
-    // 7. Upsert records
+    // 7. Upsert records (preserves historical data - never deletes)
     const { error: upsertError } = await supabase
       .from('user_ct_activity')
       .upsert(records, {
@@ -378,17 +399,147 @@ export function computeValueScore(
 }
 
 /**
+ * Compute value scores for a single user for a specific window.
+ * 
+ * @param userId - User ID
+ * @param sourceWindow - 'last_200_tweets' or 'rolling_90_days'
+ * @param supabase - Supabase client
+ */
+async function computeValueScoresForUser(
+  userId: string,
+  sourceWindow: SourceWindow,
+  supabase: SupabaseClient
+): Promise<number> {
+  // Build query based on window type
+  let query = supabase
+    .from('user_ct_activity')
+    .select('project_id, project_slug, likes, replies, retweets, quote_count, tweeted_at')
+    .eq('user_id', userId);
+  
+  // For rolling_90_days, filter by date
+  if (sourceWindow === SOURCE_WINDOW_ROLLING_90) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 90);
+    query = query.gte('tweeted_at', cutoffDate.toISOString());
+  }
+  
+  const { data: activities, error: actError } = await query;
+  
+  if (actError || !activities || activities.length === 0) {
+    return 0;
+  }
+  
+  // Group by project
+  const projectMap = new Map<string, {
+    project_slug: string;
+    tweets: Array<{ likes: number; replies: number; retweets: number; quote_count: number; tweeted_at: string }>;
+  }>();
+  
+  for (const act of activities) {
+    const existing = projectMap.get(act.project_id);
+    if (existing) {
+      existing.tweets.push({
+        likes: act.likes,
+        replies: act.replies,
+        retweets: act.retweets,
+        quote_count: act.quote_count,
+        tweeted_at: act.tweeted_at,
+      });
+    } else {
+      projectMap.set(act.project_id, {
+        project_slug: act.project_slug,
+        tweets: [{
+          likes: act.likes,
+          replies: act.replies,
+          retweets: act.retweets,
+          quote_count: act.quote_count,
+          tweeted_at: act.tweeted_at,
+        }],
+      });
+    }
+  }
+  
+  // Compute scores for each project
+  const valueScores: Array<{
+    user_id: string;
+    project_id: string;
+    project_slug: string;
+    source_window: string;
+    tweet_count: number;
+    total_likes: number;
+    total_replies: number;
+    total_retweets: number;
+    total_engagement: number;
+    value_score: number;
+    last_tweeted_at: string | null;
+    computed_at: string;
+  }> = [];
+  
+  for (const [projectId, data] of projectMap.entries()) {
+    const tweetCount = data.tweets.length;
+    const totalLikes = data.tweets.reduce((sum, t) => sum + t.likes, 0);
+    const totalReplies = data.tweets.reduce((sum, t) => sum + t.replies, 0);
+    const totalRetweets = data.tweets.reduce((sum, t) => sum + t.retweets, 0);
+    const totalQuotes = data.tweets.reduce((sum, t) => sum + t.quote_count, 0);
+    const totalEngagement = totalLikes + totalReplies + totalRetweets + totalQuotes;
+    
+    // Find most recent tweet
+    const sortedTweets = [...data.tweets].sort(
+      (a, b) => new Date(b.tweeted_at).getTime() - new Date(a.tweeted_at).getTime()
+    );
+    const lastTweetedAt = sortedTweets[0]?.tweeted_at ?? null;
+    
+    const valueScore = computeValueScore(tweetCount, totalLikes, totalReplies, totalRetweets);
+    
+    valueScores.push({
+      user_id: userId,
+      project_id: projectId,
+      project_slug: data.project_slug,
+      source_window: sourceWindow,
+      tweet_count: tweetCount,
+      total_likes: totalLikes,
+      total_replies: totalReplies,
+      total_retweets: totalRetweets,
+      total_engagement: totalEngagement,
+      value_score: valueScore,
+      last_tweeted_at: lastTweetedAt,
+      computed_at: new Date().toISOString(),
+    });
+  }
+  
+  // Upsert value scores (never deletes existing rows)
+  if (valueScores.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('user_project_value_scores')
+      .upsert(valueScores, {
+        onConflict: 'user_id,project_id,source_window',
+        ignoreDuplicates: false,
+      });
+    
+    if (upsertError) {
+      console.error(`[UserCtActivity] Error upserting scores for user ${userId}:`, upsertError);
+      return 0;
+    }
+  }
+  
+  return valueScores.length;
+}
+
+/**
  * Compute and store value scores for all users with CT activity.
  * Called by the cron job.
  * 
  * This is a separate scoring system from the Sentiment Terminal.
  * It only uses data from user_ct_activity table.
  * 
+ * IMPORTANT: This computes scores for a SINGLE window.
+ * Use computeAllWindowsForAllUsers to compute both windows.
+ * 
  * @param sourceWindow - Source window identifier (default: 'last_200_tweets')
  * @param limit - Max users to process per run (for rate limiting)
  */
 export async function computeValueScoresForAllUsers(
-  sourceWindow: string = DEFAULT_SOURCE_WINDOW,
+  sourceWindow: SourceWindow = SOURCE_WINDOW_LAST_200,
   limit: number = 100
 ): Promise<{ ok: boolean; usersProcessed: number; scoresComputed: number; error?: string }> {
   console.log(`[UserCtActivity] Computing value scores (source: ${sourceWindow}, limit: ${limit})`);
@@ -414,115 +565,14 @@ export async function computeValueScoresForAllUsers(
     
     // Get distinct user IDs
     const userIds = [...new Set(userRows.map(r => r.user_id))].slice(0, limit);
-    console.log(`[UserCtActivity] Processing ${userIds.length} users`);
+    console.log(`[UserCtActivity] Processing ${userIds.length} users for window: ${sourceWindow}`);
     
     let totalScoresComputed = 0;
     
-    // 2. For each user, aggregate by project
+    // 2. For each user, compute scores for the specified window
     for (const userId of userIds) {
-      // Get all activity for this user
-      const { data: activities, error: actError } = await supabase
-        .from('user_ct_activity')
-        .select('project_id, project_slug, likes, replies, retweets, quote_count, tweeted_at')
-        .eq('user_id', userId);
-      
-      if (actError || !activities || activities.length === 0) {
-        continue;
-      }
-      
-      // Group by project
-      const projectMap = new Map<string, {
-        project_slug: string;
-        tweets: Array<{ likes: number; replies: number; retweets: number; quote_count: number; tweeted_at: string }>;
-      }>();
-      
-      for (const act of activities) {
-        const existing = projectMap.get(act.project_id);
-        if (existing) {
-          existing.tweets.push({
-            likes: act.likes,
-            replies: act.replies,
-            retweets: act.retweets,
-            quote_count: act.quote_count,
-            tweeted_at: act.tweeted_at,
-          });
-        } else {
-          projectMap.set(act.project_id, {
-            project_slug: act.project_slug,
-            tweets: [{
-              likes: act.likes,
-              replies: act.replies,
-              retweets: act.retweets,
-              quote_count: act.quote_count,
-              tweeted_at: act.tweeted_at,
-            }],
-          });
-        }
-      }
-      
-      // 3. Compute scores for each project
-      const valueScores: Array<{
-        user_id: string;
-        project_id: string;
-        project_slug: string;
-        source_window: string;
-        tweet_count: number;
-        total_likes: number;
-        total_replies: number;
-        total_retweets: number;
-        total_engagement: number;
-        value_score: number;
-        last_tweeted_at: string | null;
-        computed_at: string;
-      }> = [];
-      
-      for (const [projectId, data] of projectMap.entries()) {
-        const tweetCount = data.tweets.length;
-        const totalLikes = data.tweets.reduce((sum, t) => sum + t.likes, 0);
-        const totalReplies = data.tweets.reduce((sum, t) => sum + t.replies, 0);
-        const totalRetweets = data.tweets.reduce((sum, t) => sum + t.retweets, 0);
-        const totalQuotes = data.tweets.reduce((sum, t) => sum + t.quote_count, 0);
-        const totalEngagement = totalLikes + totalReplies + totalRetweets + totalQuotes;
-        
-        // Find most recent tweet
-        const sortedTweets = [...data.tweets].sort(
-          (a, b) => new Date(b.tweeted_at).getTime() - new Date(a.tweeted_at).getTime()
-        );
-        const lastTweetedAt = sortedTweets[0]?.tweeted_at ?? null;
-        
-        const valueScore = computeValueScore(tweetCount, totalLikes, totalReplies, totalRetweets);
-        
-        valueScores.push({
-          user_id: userId,
-          project_id: projectId,
-          project_slug: data.project_slug,
-          source_window: sourceWindow,
-          tweet_count: tweetCount,
-          total_likes: totalLikes,
-          total_replies: totalReplies,
-          total_retweets: totalRetweets,
-          total_engagement: totalEngagement,
-          value_score: valueScore,
-          last_tweeted_at: lastTweetedAt,
-          computed_at: new Date().toISOString(),
-        });
-      }
-      
-      // 4. Upsert value scores
-      if (valueScores.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('user_project_value_scores')
-          .upsert(valueScores, {
-            onConflict: 'user_id,project_id,source_window',
-            ignoreDuplicates: false,
-          });
-        
-        if (upsertError) {
-          console.error(`[UserCtActivity] Error upserting scores for user ${userId}:`, upsertError);
-        } else {
-          totalScoresComputed += valueScores.length;
-        }
-      }
+      const scoresCount = await computeValueScoresForUser(userId, sourceWindow, supabase);
+      totalScoresComputed += scoresCount;
     }
     
     console.log(`[UserCtActivity] Computed ${totalScoresComputed} value scores for ${userIds.length} users`);
@@ -535,6 +585,72 @@ export async function computeValueScoresForAllUsers(
     
   } catch (error: any) {
     console.error('[UserCtActivity] Value score computation error:', error);
+    return {
+      ok: false,
+      usersProcessed: 0,
+      scoresComputed: 0,
+      error: error.message || 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Compute value scores for ALL windows for all users.
+ * This computes both 'last_200_tweets' and 'rolling_90_days' in one pass.
+ * 
+ * @param limit - Max users to process per run
+ */
+export async function computeAllWindowsForAllUsers(
+  limit: number = 100
+): Promise<{ ok: boolean; usersProcessed: number; scoresComputed: number; error?: string }> {
+  console.log(`[UserCtActivity] Computing ALL windows for users (limit: ${limit})`);
+  
+  const supabase = getSupabaseAdmin();
+  
+  try {
+    // 1. Get distinct user IDs from user_ct_activity
+    const { data: userRows, error: usersError } = await supabase
+      .from('user_ct_activity')
+      .select('user_id')
+      .limit(limit * 10);
+    
+    if (usersError) {
+      console.error('[UserCtActivity] Error fetching user IDs:', usersError);
+      return { ok: false, usersProcessed: 0, scoresComputed: 0, error: usersError.message };
+    }
+    
+    if (!userRows || userRows.length === 0) {
+      console.log('[UserCtActivity] No users with CT activity found');
+      return { ok: true, usersProcessed: 0, scoresComputed: 0 };
+    }
+    
+    // Get distinct user IDs
+    const userIds = [...new Set(userRows.map(r => r.user_id))].slice(0, limit);
+    console.log(`[UserCtActivity] Processing ${userIds.length} users for ALL windows`);
+    
+    let totalScoresComputed = 0;
+    
+    // 2. For each user, compute scores for BOTH windows
+    for (const userId of userIds) {
+      // Compute 'last_200_tweets' window (all data)
+      const scores1 = await computeValueScoresForUser(userId, SOURCE_WINDOW_LAST_200, supabase);
+      totalScoresComputed += scores1;
+      
+      // Compute 'rolling_90_days' window (filtered by date)
+      const scores2 = await computeValueScoresForUser(userId, SOURCE_WINDOW_ROLLING_90, supabase);
+      totalScoresComputed += scores2;
+    }
+    
+    console.log(`[UserCtActivity] Computed ${totalScoresComputed} value scores for ${userIds.length} users (both windows)`);
+    
+    return {
+      ok: true,
+      usersProcessed: userIds.length,
+      scoresComputed: totalScoresComputed,
+    };
+    
+  } catch (error: any) {
+    console.error('[UserCtActivity] All windows computation error:', error);
     return {
       ok: false,
       usersProcessed: 0,
@@ -566,9 +682,9 @@ export interface TopProjectEntry {
  */
 export async function getTopProjectsForUser(
   userId: string,
-  sourceWindow: string = DEFAULT_SOURCE_WINDOW,
+  sourceWindow: string = SOURCE_WINDOW_LAST_200,
   limit: number = 5
-): Promise<{ ok: boolean; projects: TopProjectEntry[]; error?: string }> {
+): Promise<{ ok: boolean; projects: TopProjectEntry[]; sourceWindow: string; error?: string }> {
   const supabase = getSupabaseAdmin();
   
   try {
@@ -583,11 +699,11 @@ export async function getTopProjectsForUser(
     
     if (scoresError) {
       console.error('[UserCtActivity] Error fetching scores:', scoresError);
-      return { ok: false, projects: [], error: scoresError.message };
+      return { ok: false, projects: [], sourceWindow, error: scoresError.message };
     }
     
     if (!scores || scores.length === 0) {
-      return { ok: true, projects: [] };
+      return { ok: true, projects: [], sourceWindow };
     }
     
     // Get project details
@@ -599,7 +715,7 @@ export async function getTopProjectsForUser(
     
     if (projectsError) {
       console.error('[UserCtActivity] Error fetching projects:', projectsError);
-      return { ok: false, projects: [], error: projectsError.message };
+      return { ok: false, projects: [], sourceWindow, error: projectsError.message };
     }
     
     // Build project map
@@ -626,10 +742,76 @@ export async function getTopProjectsForUser(
       };
     });
     
-    return { ok: true, projects: result };
+    return { ok: true, projects: result, sourceWindow };
     
   } catch (error: any) {
     console.error('[UserCtActivity] getTopProjectsForUser error:', error);
-    return { ok: false, projects: [], error: error.message || 'Unknown error' };
+    return { ok: false, projects: [], sourceWindow, error: error.message || 'Unknown error' };
   }
+}
+
+/**
+ * Get top N projects for a user with automatic window selection.
+ * 
+ * Window selection logic:
+ * 1. If explicit window is provided, use it
+ * 2. If no window specified:
+ *    - Try 'rolling_90_days' first
+ *    - If no data, fall back to 'last_200_tweets'
+ * 
+ * @param userId - User ID
+ * @param preferredWindow - Optional preferred window
+ * @param limit - Max projects to return
+ */
+export async function getTopProjectsWithAutoWindow(
+  userId: string,
+  preferredWindow?: string,
+  limit: number = 5
+): Promise<{ ok: boolean; projects: TopProjectEntry[]; sourceWindow: string; error?: string }> {
+  const supabase = getSupabaseAdmin();
+  
+  // If explicit window provided, use it directly
+  if (preferredWindow && VALID_SOURCE_WINDOWS.includes(preferredWindow as SourceWindow)) {
+    return getTopProjectsForUser(userId, preferredWindow, limit);
+  }
+  
+  try {
+    // Try rolling_90_days first (preferred for users with accumulated data)
+    const rolling90Result = await getTopProjectsForUser(userId, SOURCE_WINDOW_ROLLING_90, limit);
+    
+    if (rolling90Result.ok && rolling90Result.projects.length > 0) {
+      return rolling90Result;
+    }
+    
+    // Fall back to last_200_tweets
+    const last200Result = await getTopProjectsForUser(userId, SOURCE_WINDOW_LAST_200, limit);
+    return last200Result;
+    
+  } catch (error: any) {
+    console.error('[UserCtActivity] getTopProjectsWithAutoWindow error:', error);
+    return { ok: false, projects: [], sourceWindow: SOURCE_WINDOW_LAST_200, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Check if a user has any scores for a specific window.
+ */
+export async function userHasScoresForWindow(
+  userId: string,
+  sourceWindow: SourceWindow
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  
+  const { count, error } = await supabase
+    .from('user_project_value_scores')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('source_window', sourceWindow);
+  
+  if (error) {
+    console.error('[UserCtActivity] Error checking scores:', error);
+    return false;
+  }
+  
+  return (count ?? 0) > 0;
 }
