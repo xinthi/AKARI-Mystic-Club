@@ -237,23 +237,24 @@ export function ProfileCard({
         {/* Tier Badge */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
             padding: '6px 14px',
             borderRadius: '14px',
             background: tierConfig.bgColor,
             border: `1.5px solid ${tierConfig.borderColor}`,
             boxShadow: `0 0 12px ${tierConfig.color}40`,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
           }}
         >
-          <span style={{ fontSize: '13px' }}>{tierConfig.icon}</span>
+          <span style={{ fontSize: '13px', verticalAlign: 'middle' }}>{tierConfig.icon}</span>
           <span 
             style={{ 
               fontSize: '10px', 
               fontWeight: '700', 
               color: tierConfig.color, 
               letterSpacing: '0.5px',
+              marginLeft: '6px',
+              verticalAlign: 'middle',
             }}
           >
             {tier.toUpperCase()}
