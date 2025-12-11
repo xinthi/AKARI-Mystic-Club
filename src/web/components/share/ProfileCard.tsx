@@ -235,34 +235,44 @@ export function ProfileCard({
         </div>
 
         {/* Tier Badge */}
-        <div
+        <table
           style={{
             height: '28px',
-            lineHeight: '28px',
-            paddingLeft: '12px',
-            paddingRight: '14px',
             borderRadius: '14px',
             background: tierConfig.bgColor,
             border: `1.5px solid ${tierConfig.borderColor}`,
             boxShadow: `0 0 12px ${tierConfig.color}40`,
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
+            borderCollapse: 'collapse',
+            borderSpacing: '0',
           }}
         >
-          <span style={{ fontSize: '12px', lineHeight: '28px' }}>{tierConfig.icon}</span>
-          <span 
-            style={{ 
-              fontSize: '10px', 
-              fontWeight: '700', 
-              color: tierConfig.color, 
-              letterSpacing: '0.5px',
-              marginLeft: '6px',
-              lineHeight: '28px',
-            }}
-          >
-            {tier.toUpperCase()}
-          </span>
-        </div>
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  paddingLeft: '12px',
+                  paddingRight: '14px',
+                  textAlign: 'center',
+                  verticalAlign: 'middle',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ fontSize: '12px' }}>{tierConfig.icon}</span>
+                <span 
+                  style={{ 
+                    fontSize: '10px', 
+                    fontWeight: '700', 
+                    color: tierConfig.color, 
+                    letterSpacing: '0.5px',
+                    marginLeft: '6px',
+                  }}
+                >
+                  {tier.toUpperCase()}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       {/* === MIDDLE ROW === */}
