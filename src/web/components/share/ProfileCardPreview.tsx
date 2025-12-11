@@ -36,19 +36,44 @@ export function ProfileCardPreview({
 
   if (!isOpen) return null;
 
+  // Common html2canvas options for consistent rendering
+  const getCanvasOptions = (element: HTMLElement) => ({
+    backgroundColor: '#08080c',
+    scale: 2,
+    logging: false,
+    useCORS: true,
+    allowTaint: true,
+    imageTimeout: 15000,
+    width: 380,
+    height: 238,
+    windowWidth: 380,
+    windowHeight: 238,
+    x: 0,
+    y: 0,
+    scrollX: 0,
+    scrollY: 0,
+    // Clone callback to ensure computed styles are applied
+    onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
+      // Force the cloned element to have exact dimensions
+      clonedElement.style.width = '380px';
+      clonedElement.style.height = '238px';
+      clonedElement.style.position = 'relative';
+      clonedElement.style.overflow = 'hidden';
+    },
+  });
+
   const handleDownload = async () => {
     if (!cardRef.current) return;
 
     setIsGenerating(true);
     try {
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#08080c',
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        imageTimeout: 15000,
-      });
+      // Get the actual card element (child of ref)
+      const cardElement = cardRef.current.querySelector('div') as HTMLElement;
+      if (!cardElement) {
+        throw new Error('Card element not found');
+      }
+
+      const canvas = await html2canvas(cardElement, getCanvasOptions(cardElement));
 
       const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
@@ -69,14 +94,13 @@ export function ProfileCardPreview({
     setIsCopying(true);
     setCopySuccess(false);
     try {
-      const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: '#08080c',
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        imageTimeout: 15000,
-      });
+      // Get the actual card element (child of ref)
+      const cardElement = cardRef.current.querySelector('div') as HTMLElement;
+      if (!cardElement) {
+        throw new Error('Card element not found');
+      }
+
+      const canvas = await html2canvas(cardElement, getCanvasOptions(cardElement));
 
       canvas.toBlob(async (blob) => {
         if (!blob) {
@@ -148,14 +172,7 @@ export function ProfileCardPreview({
 
         {/* Card Preview */}
         <div className="p-4 flex justify-center overflow-x-auto">
-          <div 
-            ref={cardRef} 
-            style={{ 
-              display: 'inline-block',
-              backgroundColor: '#08080c',
-              borderRadius: '14px',
-            }}
-          >
+          <div ref={cardRef}>
             <ProfileCard {...cardProps} />
           </div>
         </div>

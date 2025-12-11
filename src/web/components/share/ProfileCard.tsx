@@ -114,7 +114,7 @@ export function ProfileCard({
         boxSizing: 'border-box',
       }}
     >
-      {/* Blockchain/Data Grid Background - More visible */}
+      {/* Blockchain/Data Grid Background */}
       <svg
         style={{
           position: 'absolute',
@@ -161,7 +161,7 @@ export function ProfileCard({
         <path d="M -10 50 Q 100 70 180 45 Q 260 20 340 55 Q 370 70 390 60" stroke="url(#lineGrad2)" strokeWidth="1.5" fill="none" opacity="0.35" />
         <path d="M -10 120 Q 70 140 140 115 Q 210 90 280 125 Q 340 150 390 130" stroke="url(#lineGrad3)" strokeWidth="1" fill="none" opacity="0.3" />
 
-        {/* Blockchain nodes - larger and brighter */}
+        {/* Blockchain nodes */}
         <circle cx="50" cy="185" r="4" fill="#3bf4ff" opacity="0.6" />
         <circle cx="150" cy="195" r="3" fill="#3bf4ff" opacity="0.5" />
         <circle cx="300" cy="180" r="3.5" fill="#3bf4ff" opacity="0.5" />
@@ -234,31 +234,26 @@ export function ProfileCard({
           </div>
         </div>
 
-        {/* Tier Badge - Enhanced */}
+        {/* Tier Badge */}
         <div
           style={{
             display: 'flex',
-            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-            height: '28px',
-            paddingLeft: '12px',
-            paddingRight: '14px',
+            gap: '6px',
+            padding: '6px 14px',
             borderRadius: '14px',
             background: tierConfig.bgColor,
             border: `1.5px solid ${tierConfig.borderColor}`,
             boxShadow: `0 0 12px ${tierConfig.color}40`,
           }}
         >
-          <span style={{ fontSize: '13px', marginRight: '6px' }}>{tierConfig.icon}</span>
+          <span style={{ fontSize: '13px' }}>{tierConfig.icon}</span>
           <span 
             style={{ 
               fontSize: '10px', 
               fontWeight: '700', 
               color: tierConfig.color, 
               letterSpacing: '0.5px',
-              textShadow: `0 0 8px ${tierConfig.color}60`,
-              whiteSpace: 'nowrap',
             }}
           >
             {tier.toUpperCase()}
