@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/inner-circle-update",
       "schedule": "0 8 * * 0"
+    },
+    {
+      "path": "/api/portal/cron/sentiment-refresh-all",
+      "schedule": "0 8 * * *"
     }
   ]
 }
