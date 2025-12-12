@@ -163,6 +163,15 @@ interface ComparisonChartProps {
 }
 
 function ComparisonChart({ title, data, projects, metricKey, formatValue }: ComparisonChartProps) {
+  const [hoveredPoint, setHoveredPoint] = useState<{
+    x: number;
+    y: number;
+    value: number;
+    projectName: string;
+    projectColor: string;
+    date: string;
+  } | null>(null);
+
   if (data.length === 0) {
     return (
       <div className="rounded-xl border border-akari-border/50 bg-akari-card p-6">
@@ -173,8 +182,8 @@ function ComparisonChart({ title, data, projects, metricKey, formatValue }: Comp
   }
 
   const width = 800;
-  const height = 200;
-  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+  const height = 220;
+  const padding = { top: 30, right: 20, bottom: 45, left: 70 };
   const innerWidth = width - padding.left - padding.right;
   const innerHeight = height - padding.top - padding.bottom;
 
@@ -196,39 +205,49 @@ function ComparisonChart({ title, data, projects, metricKey, formatValue }: Comp
     return padding.top + innerHeight - ((value - minVal) / range) * innerHeight;
   };
 
-  // Generate path for each project
+  // Generate path and data points for each project
   const paths = projects.map(project => {
-    const points: string[] = [];
+    const dataPoints: Array<{ x: number; y: number; value: number; date: string }> = [];
     data.forEach((d, i) => {
       const val = d[`${project.slug}_${metricKey}`];
       if (val !== null && typeof val === 'number') {
-        points.push(`${getX(i)},${getY(val)}`);
+        dataPoints.push({
+          x: getX(i),
+          y: getY(val),
+          value: val,
+          date: d.date,
+        });
       }
     });
-    if (points.length > 0) {
+    if (dataPoints.length > 0) {
       return {
         project,
-        path: `M ${points.join(' L ')}`,
-        points,
+        path: `M ${dataPoints.map(p => `${p.x},${p.y}`).join(' L ')}`,
+        dataPoints,
       };
     }
     return null;
-  }).filter(Boolean) as Array<{ project: typeof projects[0]; path: string; points: string[] }>;
+  }).filter(Boolean) as Array<{ project: typeof projects[0]; path: string; dataPoints: Array<{ x: number; y: number; value: number; date: string }> }>;
+
+  // Calculate Y-axis tick values (5 ticks)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({
+    value: minVal + t * range,
+    y: padding.top + innerHeight - t * innerHeight,
+  }));
 
   return (
     <div className="rounded-xl border border-akari-border/50 bg-akari-card p-4">
       <h3 className="text-sm font-medium text-akari-text mb-4">{title}</h3>
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+      <div className="overflow-x-auto relative">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ minHeight: '180px' }}>
           {/* Y-axis */}
           <line
             x1={padding.left}
             y1={padding.top}
             x2={padding.left}
             y2={padding.top + innerHeight}
-            stroke="currentColor"
+            stroke="#3a3f4b"
             strokeWidth={1}
-            className="text-akari-border"
           />
           
           {/* X-axis */}
@@ -237,36 +256,35 @@ function ComparisonChart({ title, data, projects, metricKey, formatValue }: Comp
             y1={padding.top + innerHeight}
             x2={padding.left + innerWidth}
             y2={padding.top + innerHeight}
-            stroke="currentColor"
+            stroke="#3a3f4b"
             strokeWidth={1}
-            className="text-akari-border"
           />
 
-          {/* Y-axis labels */}
-          <text x={padding.left - 5} y={padding.top} textAnchor="end" className="fill-akari-muted text-[10px]">
-            {formatValue(maxVal)}
-          </text>
-          <text x={padding.left - 5} y={padding.top + innerHeight} textAnchor="end" className="fill-akari-muted text-[10px]">
-            {formatValue(minVal)}
-          </text>
-
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map(t => {
-            const y = padding.top + innerHeight - t * innerHeight;
-            return (
+          {/* Grid lines and Y-axis labels */}
+          {yTicks.map(({ value, y }, i) => (
+            <g key={i}>
               <line
-                key={t}
                 x1={padding.left}
                 y1={y}
                 x2={padding.left + innerWidth}
                 y2={y}
-                stroke="currentColor"
+                stroke="#3a3f4b"
                 strokeWidth={0.5}
-                strokeDasharray="2,2"
-                className="text-akari-border/30"
+                strokeDasharray="4,4"
+                opacity={0.5}
               />
-            );
-          })}
+              <text
+                x={padding.left - 10}
+                y={y + 4}
+                textAnchor="end"
+                fill="#8b8f9a"
+                fontSize="12"
+                fontFamily="monospace"
+              >
+                {formatValue(value)}
+              </text>
+            </g>
+          ))}
 
           {/* Draw lines for each project */}
           {paths.map(({ project, path }) => (
@@ -275,27 +293,89 @@ function ComparisonChart({ title, data, projects, metricKey, formatValue }: Comp
                 d={path}
                 fill="none"
                 stroke={project.color}
-                strokeWidth={2}
-                className="transition-opacity hover:opacity-100"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </g>
           ))}
 
-          {/* Data points */}
-          {paths.map(({ project, points }) =>
-            points.map((point, i) => {
-              const [x, y] = point.split(',').map(Number);
-              return (
+          {/* Data points with hover interactions */}
+          {paths.map(({ project, dataPoints }) =>
+            dataPoints.map((point, i) => (
+              <g key={`${project.slug}-${i}`}>
+                {/* Invisible larger hit area for easier hovering */}
                 <circle
-                  key={`${project.slug}-${i}`}
-                  cx={x}
-                  cy={y}
-                  r={3}
-                  fill={project.color}
-                  className="transition-all hover:r-5"
+                  cx={point.x}
+                  cy={point.y}
+                  r={12}
+                  fill="transparent"
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={() => setHoveredPoint({
+                    x: point.x,
+                    y: point.y,
+                    value: point.value,
+                    projectName: project.name,
+                    projectColor: project.color,
+                    date: point.date,
+                  })}
+                  onMouseLeave={() => setHoveredPoint(null)}
                 />
-              );
-            })
+                {/* Visible data point */}
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={hoveredPoint?.x === point.x && hoveredPoint?.y === point.y ? 6 : 4}
+                  fill={project.color}
+                  stroke="#0a0a0a"
+                  strokeWidth={2}
+                  style={{ 
+                    transition: 'r 0.15s ease-out',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </g>
+            ))
+          )}
+
+          {/* Tooltip */}
+          {hoveredPoint && (
+            <g style={{ pointerEvents: 'none' }}>
+              {/* Tooltip background */}
+              <rect
+                x={hoveredPoint.x - 60}
+                y={hoveredPoint.y - 55}
+                width={120}
+                height={45}
+                rx={6}
+                fill="#1a1d24"
+                stroke={hoveredPoint.projectColor}
+                strokeWidth={1}
+                filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+              />
+              {/* Tooltip text - value */}
+              <text
+                x={hoveredPoint.x}
+                y={hoveredPoint.y - 35}
+                textAnchor="middle"
+                fill="#ffffff"
+                fontSize="14"
+                fontWeight="bold"
+                fontFamily="monospace"
+              >
+                {formatValue(hoveredPoint.value)}
+              </text>
+              {/* Tooltip text - date */}
+              <text
+                x={hoveredPoint.x}
+                y={hoveredPoint.y - 18}
+                textAnchor="middle"
+                fill="#8b8f9a"
+                fontSize="11"
+              >
+                {new Date(hoveredPoint.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </text>
+            </g>
           )}
 
           {/* X-axis date labels (show first, middle, last) */}
@@ -308,9 +388,10 @@ function ComparisonChart({ title, data, projects, metricKey, formatValue }: Comp
                   <text
                     key={idx}
                     x={getX(idx)}
-                    y={height - 10}
+                    y={height - 12}
                     textAnchor="middle"
-                    className="fill-akari-muted text-[9px]"
+                    fill="#8b8f9a"
+                    fontSize="11"
                   >
                     {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </text>

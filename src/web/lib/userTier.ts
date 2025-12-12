@@ -72,6 +72,14 @@ export function getUserTier(user: AkariUser | null): UserTier {
 
   const now = new Date();
 
+  // Super admin and admin get highest tier automatically
+  const isSuperAdmin = user.effectiveRoles.includes('super_admin');
+  const isAdmin = user.effectiveRoles.includes('admin');
+  
+  if (isSuperAdmin || isAdmin) {
+    return 'institutional_plus';
+  }
+
   // Check for Institutional Plus features
   // If user has deep.explorer or institutional.plus grants, they're Institutional Plus
   const hasDeepExplorer = can(user, FEATURE_KEYS.DeepExplorer, now);
@@ -88,7 +96,7 @@ export function getUserTier(user: AkariUser | null): UserTier {
   const hasSearch = can(user, 'sentiment.search', now);
 
   // Also check if user has 'analyst' role (which implies these features)
-  const hasAnalystRole = user.effectiveRoles.includes('analyst') || user.effectiveRoles.includes('admin');
+  const hasAnalystRole = user.effectiveRoles.includes('analyst');
 
   if (hasCompare || hasAnalytics || hasSearch || hasAnalystRole) {
     return 'analyst';
