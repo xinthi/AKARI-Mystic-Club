@@ -264,6 +264,15 @@ export function compute24hChanges(
 // =============================================================================
 
 /**
+ * Slugs to exclude from the public UI (dev accounts, duplicates, test data)
+ * Add any project slugs here that shouldn't appear in the sentiment overview
+ */
+const EXCLUDED_PROJECT_SLUGS = [
+  'dev_user',       // Dev account (underscore variant)
+  'devuser',        // Dev account (no separator)
+];
+
+/**
  * Get all active projects with their latest metrics and 24h changes.
  * Used for the sentiment overview page.
  */
@@ -275,7 +284,6 @@ export async function getProjectsWithLatestMetrics(
     .from('projects')
     .select('*')
     .eq('is_active', true)
-    .neq('slug', 'dev_user') // Exclude dev_user from UI
     .order('name', { ascending: true });
 
   if (projectsError) {
@@ -287,8 +295,17 @@ export async function getProjectsWithLatestMetrics(
     return [];
   }
 
+  // Filter out excluded projects (dev accounts, duplicates, etc.)
+  const filteredProjects = projects.filter(
+    (p) => !EXCLUDED_PROJECT_SLUGS.includes(p.slug?.toLowerCase())
+  );
+
+  if (filteredProjects.length === 0) {
+    return [];
+  }
+
   // For each project, get the latest metrics
-  const projectIds = projects.map((p) => p.id);
+  const projectIds = filteredProjects.map((p) => p.id);
 
   // Get metrics ordered by date desc - we'll extract latest and previous for each project
   // Also get the most recent non-zero followers value for fallback
@@ -326,7 +343,7 @@ export async function getProjectsWithLatestMetrics(
       }
     }
 
-    return projects.map((p) => {
+    return filteredProjects.map((p) => {
       // Use fallback followers from metrics_daily if available
       const fallbackFollowers = fallbackFollowersByProject.get(p.id) ?? null;
       const followers = fallbackFollowers && fallbackFollowers > 0 ? fallbackFollowers : 0;
@@ -375,7 +392,7 @@ export async function getProjectsWithLatestMetrics(
   }
 
   // Combine projects with their latest metrics and 24h changes
-  return projects.map((project) => {
+  return filteredProjects.map((project) => {
     const latestMetrics = latestMetricsByProject.get(project.id) ?? null;
     const previousMetrics = previousMetricsByProject.get(project.id) ?? null;
     const changes = compute24hChanges(latestMetrics, previousMetrics);
