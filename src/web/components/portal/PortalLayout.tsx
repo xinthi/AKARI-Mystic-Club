@@ -156,14 +156,6 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
             {/* User Menu Dropdown - replaces Profile and Admin links */}
             {isLoggedIn && <UserMenu />}
-
-            <a
-              href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
-              className="ml-auto sm:ml-0 pill-neon bg-gradient-neon-teal px-4 py-2 text-[11px] font-medium text-black shadow-neon-teal hover:shadow-akari-glow transition-all duration-300 ease-out flex flex-col items-center justify-center"
-            >
-              <span className="whitespace-nowrap">open miniapp</span>
-              <span className="text-[8px] text-black/60 font-normal leading-tight">testing</span>
-            </a>
           </nav>
         </div>
       </header>
@@ -251,16 +243,6 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
               {/* Divider */}
               <div className="border-t border-akari-neon-teal/20 my-4" />
-
-              {/* Open MiniApp Button */}
-              <a
-                href="https://t.me/AKARIMystic_Bot?start=ref_AKARI_649318_XJO7"
-                onClick={() => setIsMobileNavOpen(false)}
-                className="pill-neon w-full bg-gradient-neon-teal px-4 py-3 text-sm font-medium text-black shadow-neon-teal hover:shadow-akari-glow text-center transition-all duration-300 ease-out flex flex-col items-center justify-center"
-              >
-                <span>open miniapp</span>
-                <span className="text-[8px] text-black/60 font-normal leading-tight mt-0.5">testing</span>
-              </a>
 
               {/* Tier Badge - only show when logged in */}
               {isLoggedIn && (
