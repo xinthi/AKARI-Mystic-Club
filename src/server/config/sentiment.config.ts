@@ -5,7 +5,7 @@
  * All values can be overridden via environment variables.
  * 
  * Usage:
- *   import { SENTIMENT_CONFIG } from '@/server/config/sentiment.config';
+ *   import { SENTIMENT_CONFIG } from '../../../../server/config/sentiment.config'; // from src/web/lib/
  */
 
 // =============================================================================

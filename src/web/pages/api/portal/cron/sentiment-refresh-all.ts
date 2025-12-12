@@ -68,7 +68,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { processProjectById, type Project, type SentimentRunOptions } from '@/lib/server/sentiment/processProject';
-import { SENTIMENT_CONFIG } from '@/server/config/sentiment.config';
+import { SENTIMENT_CONFIG } from '../../../../../server/config/sentiment.config';
 
 // =============================================================================
 // CONFIGURATION (from centralized config)
