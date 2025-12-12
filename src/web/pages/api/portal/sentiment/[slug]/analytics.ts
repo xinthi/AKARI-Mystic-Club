@@ -14,7 +14,24 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { createPortalClient, getProjectBySlug, fetchProfileImagesForHandles, getBestProfileImage } from '@/lib/portal/supabase';
-import { can, FEATURE_KEYS } from '@/lib/permissions';
+import { can, FEATURE_KEYS, Role } from '@/lib/permissions';
+
+// =============================================================================
+// DEV MODE CONFIGURATION
+// =============================================================================
+
+const DEV_BYPASS_AUTH = process.env.NODE_ENV === 'development';
+
+// Create a dev mock user for development testing
+function createDevMockUser() {
+  return {
+    id: 'dev-mock-user',
+    displayName: 'Dev User (super_admin)',
+    avatarUrl: null,
+    roles: ['super_admin'] as Role[],
+    featureGrants: [],
+  };
+}
 
 // =============================================================================
 // TYPES
@@ -199,8 +216,14 @@ export default async function handler(
   const startDateStr = startDate.toISOString().split('T')[0];
 
   try {
-    // Authenticate user
-    const user = await getUserFromSession(req);
+    // Authenticate user (with dev mode bypass)
+    let user = await getUserFromSession(req);
+    
+    // In dev mode, use mock super_admin if no session
+    if (!user && DEV_BYPASS_AUTH) {
+      user = createDevMockUser();
+    }
+    
     if (!user) {
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
