@@ -935,6 +935,17 @@ export default function SentimentDetail() {
         if (data.changes24h) setChanges24h(data.changes24h);
         if (data.influencers) setInfluencers(data.influencers);
         if (data.innerCircle) setInnerCircle(data.innerCircle);
+
+        // Track page view for Smart Refresh System (fire and forget)
+        if (data.project?.id) {
+          fetch('/api/portal/sentiment/refresh-state/view', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: data.project.id }),
+          }).catch(() => {
+            // Silent fail - tracking shouldn't break the page
+          });
+        }
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[SentimentDetail] Fetch error:', err);

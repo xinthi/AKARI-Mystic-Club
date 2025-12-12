@@ -860,6 +860,37 @@ model AnalystSocialBoostPromo {
 }
 
 // ============================================
+// PROJECT REFRESH STATE (Smart Refresh System)
+// ============================================
+
+// Tracks user interest and refresh scheduling for each project.
+// Used by the smart refresh cron to determine which projects need refreshing.
+model ProjectRefreshState {
+  projectId            String    @id @map("project_id") @db.Uuid
+  
+  // User interaction timestamps
+  lastManualViewAt     DateTime? @map("last_manual_view_at") @db.Timestamptz(6)
+  lastSearchedAt       DateTime? @map("last_searched_at") @db.Timestamptz(6)
+  lastCronRefreshedAt  DateTime? @map("last_cron_refreshed_at") @db.Timestamptz(6)
+  
+  // Computed metrics
+  inactivityDays       Int       @default(0) @map("inactivity_days")
+  interestScore        Int       @default(0) @map("interest_score")
+  
+  // Refresh scheduling
+  refreshFrequency     String    @default("daily") @map("refresh_frequency") // "daily", "3_days", "weekly"
+  
+  // Timestamps
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([refreshFrequency])
+  @@index([interestScore(sort: Desc)])
+  @@index([lastCronRefreshedAt])
+  @@map("project_refresh_state")
+}
+
+// ============================================
 // USER CT ACTIVITY (Phase 1 Value System)
 // ============================================
 

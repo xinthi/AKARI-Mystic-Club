@@ -642,6 +642,24 @@ export default async function handler(
       console.log(`[API /portal/sentiment/track] Created ${metricsRows.length} days of metrics with REAL data`);
     }
 
+    // Initialize refresh state for Smart Refresh System (new projects start with high interest)
+    try {
+      await supabase
+        .from('project_refresh_state')
+        .insert({
+          project_id: insertedProject.id,
+          last_searched_at: new Date().toISOString(),
+          last_cron_refreshed_at: new Date().toISOString(),
+          interest_score: 3, // New projects start with medium interest
+          inactivity_days: 0,
+          refresh_frequency: 'daily',
+        });
+      console.log(`[API /portal/sentiment/track] Initialized refresh state for ${insertedProject.slug}`);
+    } catch (refreshStateError) {
+      // Silent fail - doesn't block tracking
+      console.warn('[API /portal/sentiment/track] Failed to initialize refresh state:', refreshStateError);
+    }
+
     return res.status(201).json({
       ok: true,
       project: insertedProject,
