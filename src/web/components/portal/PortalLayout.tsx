@@ -218,6 +218,20 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                   const active =
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
+                  
+                  // Render disabled items as non-clickable spans
+                  if (item.isTesting) {
+                    return (
+                      <span
+                        key={item.href}
+                        className="pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col cursor-not-allowed opacity-50 text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
+                      >
+                        <span>{item.label}</span>
+                        <span className="text-[8px] text-amber-500/70 font-normal leading-tight mt-0.5">coming soon</span>
+                      </span>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.href}
@@ -230,9 +244,6 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                       }`}
                     >
                       <span>{item.label}</span>
-                      {item.isTesting && (
-                        <span className="text-[8px] text-akari-muted/50 font-normal leading-tight mt-0.5">testing</span>
-                      )}
                     </Link>
                   );
                 })}
