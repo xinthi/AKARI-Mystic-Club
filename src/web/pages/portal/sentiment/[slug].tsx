@@ -149,6 +149,26 @@ interface AnalyticsData {
 }
 
 // =============================================================================
+// AUDIENCE GEO TYPES (NEW - APPENDED)
+// =============================================================================
+
+interface CountryGeo {
+  countryCode: string | null;
+  countryName: string;
+  regionLabel: string | null;
+  followerCount: number;
+  followerShare: number; // 0-100
+}
+
+interface AudienceGeoData {
+  projectId: string;
+  slug: string;
+  computedAt: string | null;
+  totalFollowersSampled: number;
+  countries: CountryGeo[];
+}
+
+// =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
@@ -888,6 +908,8 @@ export default function SentimentDetail() {
   // Analytics access: markets.analytics OR deep.analytics.addon
   const canViewAnalytics = can(user, 'markets.analytics') || can(user, FEATURE_KEYS.DeepAnalyticsAddon);
   const canViewDeepExplorer = canUseDeepExplorer(user);
+  // Audience Geo: Requires Institutional tier (InstitutionalPlus or DeepExplorer)
+  const canViewAudienceGeo = can(user, FEATURE_KEYS.InstitutionalPlus) || can(user, FEATURE_KEYS.DeepExplorer);
 
   // Upgrade modal state
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
@@ -915,6 +937,10 @@ export default function SentimentDetail() {
   // Watchlist state
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [togglingStar, setTogglingStar] = useState(false);
+
+  // NEW: Audience Geo state
+  const [audienceGeo, setAudienceGeo] = useState<AudienceGeoData | null>(null);
+  const [audienceGeoLoading, setAudienceGeoLoading] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -1021,6 +1047,29 @@ export default function SentimentDetail() {
 
     checkWatchlist();
   }, [slug, isLoggedIn, project]);
+
+  // NEW: Fetch Audience Geo data (only for Institutional tier)
+  useEffect(() => {
+    // Only fetch if user has Institutional access
+    if (!slug || !canViewAudienceGeo) return;
+
+    async function fetchAudienceGeo() {
+      setAudienceGeoLoading(true);
+      try {
+        const res = await fetch(`/api/portal/sentiment/${slug}/audience-geo`);
+        const data = await res.json();
+        if (data.ok) {
+          setAudienceGeo(data);
+        }
+      } catch (err) {
+        console.error('[SentimentDetail] Audience geo fetch error:', err);
+      } finally {
+        setAudienceGeoLoading(false);
+      }
+    }
+
+    fetchAudienceGeo();
+  }, [slug, canViewAudienceGeo]);
 
   // Toggle watchlist
   const handleToggleStar = useCallback(async () => {
@@ -1771,6 +1820,136 @@ export default function SentimentDetail() {
           </section>
         </LockedFeatureOverlay>
 
+        {/* ================================================================= */}
+        {/* NEW: AUDIENCE GEO SECTION (Follower Geography)                   */}
+        {/* This section is ADDITIVE and does NOT touch sentiment formulas   */}
+        {/* Requires Institutional tier to view                              */}
+        {/* ================================================================= */}
+        <LockedFeatureOverlay
+          featureName="Audience Geo"
+          isLocked={!canViewAudienceGeo}
+          requiredTier="institutional_plus"
+          onUpgradeClick={() => setUpgradeModalState({ open: true, targetTier: 'institutional_plus' })}
+          title="Institutional feature"
+          description="See where this project's audience actually lives. Available only for Institutional Plus access."
+          showPricingButton={true}
+          showUpgradeButton={true}
+        >
+          <section className="mt-8 pt-8 border-t border-akari-border/30">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-akari-text flex items-center gap-2">
+                <svg className="w-5 h-5 text-akari-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+                Audience Geo
+              </h2>
+              <span className="text-[10px] text-akari-muted">Follower sample analysis</span>
+            </div>
+
+            {audienceGeoLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+              </div>
+            )}
+
+            {!audienceGeoLoading && audienceGeo && audienceGeo.countries.length > 0 && (
+              <>
+                {/* Summary */}
+                <div className="mb-4 text-xs text-akari-muted">
+                  Based on a sample of <span className="text-akari-text font-medium">{audienceGeo.totalFollowersSampled}</span> followers
+                  {audienceGeo.computedAt && (
+                    <> · Last updated: {new Date(audienceGeo.computedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+                  )}
+                </div>
+
+                {/* Top 5 Countries */}
+                <div className="rounded-xl border border-akari-border/50 bg-akari-card overflow-hidden">
+                  <div className="p-4 border-b border-akari-border/30">
+                    <h3 className="text-sm font-medium text-akari-text">Top Countries</h3>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {audienceGeo.countries.slice(0, 5).map((country, idx) => (
+                      <div key={country.countryCode || idx} className="flex items-center gap-3">
+                        {/* Rank */}
+                        <span className="w-6 text-center text-xs font-medium text-akari-muted">#{idx + 1}</span>
+                        
+                        {/* Country Flag + Name */}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-lg">
+                            {country.countryCode ? getFlagEmoji(country.countryCode) : '🌍'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-akari-text truncate">{country.countryName}</p>
+                            {country.regionLabel && (
+                              <p className="text-[10px] text-akari-muted">{country.regionLabel}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Bar + Percentage */}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="w-20 h-2 bg-akari-cardSoft rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-akari-primary to-akari-neon-teal rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(country.followerShare, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-mono text-akari-text w-12 text-right">
+                            {country.followerShare.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Show more if > 5 countries */}
+                  {audienceGeo.countries.length > 5 && (
+                    <div className="px-4 pb-4">
+                      <details className="group">
+                        <summary className="text-xs text-akari-muted cursor-pointer hover:text-akari-primary transition">
+                          Show {audienceGeo.countries.length - 5} more countries
+                        </summary>
+                        <div className="mt-3 space-y-2 pt-3 border-t border-akari-border/20">
+                          {audienceGeo.countries.slice(5, 15).map((country, idx) => (
+                            <div key={country.countryCode || idx + 5} className="flex items-center gap-3 text-sm">
+                              <span className="w-6 text-center text-xs text-akari-muted">#{idx + 6}</span>
+                              <span className="text-base">{country.countryCode ? getFlagEmoji(country.countryCode) : '🌍'}</span>
+                              <span className="flex-1 text-akari-text truncate">{country.countryName}</span>
+                              <span className="text-xs font-mono text-akari-muted">{country.followerShare.toFixed(1)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
+                {/* Note */}
+                <p className="mt-3 text-[10px] text-akari-muted/70 italic">
+                  This is an estimate based on profile location data, not exact. Followers without location info are excluded from this analysis.
+                </p>
+              </>
+            )}
+
+            {/* Empty State */}
+            {!audienceGeoLoading && (!audienceGeo || audienceGeo.countries.length === 0) && (
+              <div className="rounded-xl border border-akari-border/30 bg-akari-cardSoft/50 p-6 text-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-akari-muted/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-akari-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-akari-muted mb-1">No follower geo data yet</p>
+                <p className="text-xs text-akari-muted/70">
+                  Once the audience geo cron runs for this project, geographic distribution will appear here.
+                </p>
+              </div>
+            )}
+          </section>
+        </LockedFeatureOverlay>
+
         {/* Upgrade Modal */}
         <UpgradeModal
           isOpen={upgradeModalState.open}
@@ -1782,4 +1961,17 @@ export default function SentimentDetail() {
       )}
     </PortalLayout>
   );
+}
+
+// =============================================================================
+// HELPER: Convert country code to flag emoji
+// =============================================================================
+
+function getFlagEmoji(countryCode: string): string {
+  if (!countryCode || countryCode.length !== 2) return '🌍';
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
 }

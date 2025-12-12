@@ -891,6 +891,33 @@ model ProjectRefreshState {
 }
 
 // ============================================
+// PROJECT AUDIENCE GEO (Follower Geography)
+// ============================================
+
+// Stores aggregated follower geo distribution per project
+// based on sampled followers from twitterapi.io
+model ProjectAudienceGeo {
+  id            String    @id @default(uuid()) @db.Uuid
+  projectId     String    @map("project_id") @db.Uuid
+  projectSlug   String    @map("project_slug") @db.Text
+  xUserId       String?   @map("x_user_id") @db.Text  // X user id of the project
+  sampleSize    Int       @map("sample_size")          // Number of followers sampled
+  countryCode   String?   @map("country_code") @db.Text // ISO country code, e.g. 'DE', 'PH'
+  countryName   String    @map("country_name") @db.Text // Normalized country name
+  regionLabel   String?   @map("region_label") @db.Text // Optional region, e.g. 'Europe', 'SEA'
+  followerCount Int       @map("follower_count")        // Number of followers mapped to this country
+  followerShare Decimal   @map("follower_share") @db.Decimal(5, 2) // Percentage 0-100
+  computedAt    DateTime  @map("computed_at") @db.Timestamptz(6)   // When aggregation was computed
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([projectId, countryCode])
+  @@index([projectId])
+  @@index([computedAt(sort: Desc)])
+  @@map("project_audience_geo")
+}
+
+// ============================================
 // USER CT ACTIVITY (Phase 1 Value System)
 // ============================================
 

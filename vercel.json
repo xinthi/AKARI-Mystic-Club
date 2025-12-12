@@ -20,6 +20,10 @@
     {
       "path": "/api/portal/cron/sentiment-refresh-all",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/portal/cron/project-audience-geo",
+      "schedule": "0 4 * * 2,5"
     }
   ]
 }
