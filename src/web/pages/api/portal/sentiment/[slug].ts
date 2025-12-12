@@ -154,10 +154,55 @@ export default async function handler(
       console.log(`[API /portal/sentiment/${slug}] Sample tweet:`, JSON.stringify(tweetsResult.data[0], null, 2));
     }
 
+    // =========================================================================
+    // ENRICH TWEETS WITH PROFILE IMAGES FROM PROFILES TABLE
+    // For tweets missing author_profile_image_url, look up from profiles table
+    // Uses case-insensitive matching since Twitter handles can vary in casing
+    // =========================================================================
+    const rawTweets = tweetsResult.data || [];
+    const authorsNeedingImages = rawTweets
+      .filter((t: any) => !t.author_profile_image_url && t.author_handle)
+      .map((t: any) => t.author_handle);
+    
+    // Build a map of author handle (lowercase) -> profile image URL from profiles table
+    const authorProfileImages = new Map<string, string>();
+    
+    if (authorsNeedingImages.length > 0) {
+      const uniqueAuthorsSet = new Set(authorsNeedingImages.map((h: string) => h.toLowerCase()));
+      const uniqueAuthors = Array.from(uniqueAuthorsSet);
+      
+      try {
+        // Fetch all profiles that have profile images
+        // Then filter client-side for case-insensitive username match
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .not('profile_image_url', 'is', null);
+        
+        if (profilesData && profilesData.length > 0) {
+          for (const p of profilesData) {
+            if (p.username && p.profile_image_url) {
+              const usernameLower = p.username.toLowerCase();
+              // Only include if this username is in our needed list
+              if (uniqueAuthors.includes(usernameLower)) {
+                authorProfileImages.set(usernameLower, p.profile_image_url);
+              }
+            }
+          }
+          console.log(`[API /portal/sentiment/${slug}] Enriched ${authorProfileImages.size}/${uniqueAuthors.length} tweet authors with profile images from profiles table`);
+        }
+      } catch (err: any) {
+        // Non-critical, just log and continue
+        console.warn(`[API /portal/sentiment/${slug}] Could not fetch author profile images:`, err.message);
+      }
+    }
+
     // Map tweets to camelCase for frontend
     // Use project's x_handle as fallback for author when constructing URLs
     const projectHandle = project.x_handle || project.slug;
-    const tweets: ProjectTweet[] = (tweetsResult.data || []).map((t: any) => {
+    const projectProfileImageUrl = (project as any).twitter_profile_image_url || project.avatar_url || null;
+    
+    const tweets: ProjectTweet[] = rawTweets.map((t: any) => {
       const authorHandle = t.author_handle || projectHandle;
       // Prefer stored tweet_url, but validate it's not malformed (no double slashes)
       let tweetUrl = t.tweet_url;
@@ -165,12 +210,23 @@ export default async function handler(
         // Reconstruct URL if missing or malformed
         tweetUrl = `https://x.com/${authorHandle}/status/${t.tweet_id}`;
       }
+      
+      // Get profile image with priority:
+      // 1. From tweet record in DB (author_profile_image_url)
+      // 2. From profiles table lookup (CT influencers)
+      // 3. For official tweets: use project's profile image
+      // 4. null (frontend will show letter avatar)
+      const profileImageFromDb = t.author_profile_image_url || null;
+      const profileImageFromProfiles = authorProfileImages.get(authorHandle.toLowerCase()) || null;
+      const isOfficial = t.is_official || false;
+      const authorProfileImageUrl = profileImageFromDb || profileImageFromProfiles || (isOfficial ? projectProfileImageUrl : null);
+      
       return {
         tweetId: t.tweet_id,
         createdAt: t.created_at,
         authorHandle,
         authorName: t.author_name || authorHandle,
-        authorProfileImageUrl: t.author_profile_image_url || null,
+        authorProfileImageUrl,
         text: t.text || '',
         likes: t.likes || 0,
         replies: t.replies || 0,
@@ -179,7 +235,7 @@ export default async function handler(
         engagementScore: t.engagement_score ?? ((t.likes || 0) + (t.retweets || 0) * 2 + (t.replies || 0) * 3),
         tweetUrl,
         isKOL: t.is_kol || false,
-        isOfficial: t.is_official || false,
+        isOfficial,
       };
     });
 
