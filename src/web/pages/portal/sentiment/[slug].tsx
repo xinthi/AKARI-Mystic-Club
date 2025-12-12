@@ -699,7 +699,7 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                         strokeWidth={isHovered ? strokeWidth + 1 : strokeWidth}
                         className="transition-all duration-150"
                       />
-                      {imageUrl && (
+                      {imageUrl ? (
                         <>
                           <defs>
                             <clipPath id={`clip-${i}-${mIdx}`}>
@@ -716,6 +716,19 @@ function TradingChart({ metrics, tweets, projectHandle, projectImageUrl }: Tradi
                             style={{ pointerEvents: 'none' }}
                           />
                         </>
+                      ) : (
+                        /* Fallback: Show first letter of author handle as avatar */
+                        <text
+                          x={getX(i)}
+                          y={markerY + 4}
+                          textAnchor="middle"
+                          fill={strokeColor}
+                          fontSize="10"
+                          fontWeight="600"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          {(displayTweet.authorHandle || 'U').charAt(0).toUpperCase()}
+                        </text>
                       )}
                     </g>
                   );

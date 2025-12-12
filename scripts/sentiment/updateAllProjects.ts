@@ -677,18 +677,48 @@ export async function processProject(
   // A mention is considered "KOL" if it has decent engagement (likes + retweets*2 >= threshold)
   // Lower threshold to capture more KOL mentions (20 = ~10 likes or 5 retweets)
   const KOL_ENGAGEMENT_THRESHOLD = 20;
+  
+  // Try to fetch profile images for mention authors from profiles table
+  // This enriches mentions with avatars if the authors are known CT profiles
+  const mentionAuthors = [...new Set(mentions.slice(0, 20).map(m => m.author?.toLowerCase()).filter(Boolean))];
+  let authorProfileImages: Map<string, string> = new Map();
+  
+  if (mentionAuthors.length > 0) {
+    try {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('username, profile_image_url')
+        .in('username', mentionAuthors)
+        .not('profile_image_url', 'is', null);
+      
+      if (profilesData && profilesData.length > 0) {
+        for (const p of profilesData) {
+          if (p.username && p.profile_image_url) {
+            authorProfileImages.set(p.username.toLowerCase(), p.profile_image_url);
+          }
+        }
+        console.log(`   📸 Found profile images for ${authorProfileImages.size}/${mentionAuthors.length} mention authors`);
+      }
+    } catch (err: any) {
+      // Non-critical, just log and continue
+      console.log(`   ⚠️  Could not fetch author profile images: ${err.message}`);
+    }
+  }
+  
   const mentionTweetRows: ProjectTweetRow[] = mentions.slice(0, 20).map((m) => {
     const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
     const authorHandle = m.author || 'unknown';
     // IMPORTANT: Use the URL from API response, which contains correct username
     const tweetUrl = m.url || `https://x.com/${authorHandle}/status/${m.id}`;
+    // Try to get profile image from profiles table lookup
+    const authorProfileImageUrl = authorProfileImages.get(authorHandle.toLowerCase()) || null;
     return {
       project_id: project.id,
       tweet_id: m.id,
       tweet_url: tweetUrl,
       author_handle: authorHandle,
       author_name: authorHandle, // Use handle as name since we don't have display name
-      author_profile_image_url: null, // We don't have this from mentions API
+      author_profile_image_url: authorProfileImageUrl, // Now enriched from profiles table if available
       created_at: m.createdAt || new Date().toISOString(),
       text: m.text || '',
       likes: m.likeCount ?? 0,
