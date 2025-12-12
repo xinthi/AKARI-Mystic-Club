@@ -13,7 +13,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { createPortalClient, getProjectBySlug } from '@/lib/portal/supabase';
+import { createPortalClient, getProjectBySlug, fetchProfileImagesForHandles, getBestProfileImage } from '@/lib/portal/supabase';
 import { can, FEATURE_KEYS } from '@/lib/permissions';
 
 // =============================================================================
@@ -40,6 +40,8 @@ interface TweetBreakdown {
   tweetId: string;
   createdAt: string;
   authorHandle: string;
+  authorName: string;
+  authorProfileImageUrl: string | null;
   text: string;
   likes: number;
   retweets: number;
@@ -308,21 +310,38 @@ export default async function handler(
     });
 
     // ==========================================================================
-    // Tweet Breakdown
+    // Tweet Breakdown (with profile image enrichment)
     // ==========================================================================
-    const tweetBreakdown: TweetBreakdown[] = tweetData.slice(0, 50).map((t: any) => ({
-      tweetId: t.tweet_id,
-      createdAt: t.created_at,
-      authorHandle: t.author_handle || '',
-      text: t.text || '',
-      likes: t.likes || 0,
-      retweets: t.retweets || 0,
-      replies: t.replies || 0,
-      engagement: (t.likes || 0) + ((t.retweets || 0) * 2) + (t.replies || 0),
-      sentimentScore: t.sentiment_score,
-      isOfficial: t.is_official || false,
-      tweetUrl: t.tweet_url || `https://x.com/${t.author_handle}/status/${t.tweet_id}`,
-    }));
+    
+    // Fetch profile images for all unique author handles
+    const authorHandles = [...new Set(tweetData.map((t: any) => t.author_handle).filter(Boolean))];
+    const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, authorHandles);
+    
+    const tweetBreakdown: TweetBreakdown[] = tweetData.slice(0, 50).map((t: any) => {
+      const authorHandle = t.author_handle || '';
+      const enrichedProfileImageUrl = getBestProfileImage(
+        t.author_profile_image_url,
+        authorHandle,
+        profilesMap,
+        akariUsersMap
+      );
+      
+      return {
+        tweetId: t.tweet_id,
+        createdAt: t.created_at,
+        authorHandle,
+        authorName: t.author_name || authorHandle,
+        authorProfileImageUrl: enrichedProfileImageUrl,
+        text: t.text || '',
+        likes: t.likes || 0,
+        retweets: t.retweets || 0,
+        replies: t.replies || 0,
+        engagement: (t.likes || 0) + ((t.retweets || 0) * 2) + (t.replies || 0),
+        sentimentScore: t.sentiment_score,
+        isOfficial: t.is_official || false,
+        tweetUrl: t.tweet_url || `https://x.com/${authorHandle}/status/${t.tweet_id}`,
+      };
+    });
 
     // Sort by engagement descending for top tweets
     tweetBreakdown.sort((a, b) => b.engagement - a.engagement);

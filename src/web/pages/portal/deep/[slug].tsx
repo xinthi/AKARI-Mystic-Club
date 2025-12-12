@@ -55,6 +55,7 @@ interface ProjectTweetData {
   createdAt: string;
   authorHandle: string;
   authorName: string | null;
+  authorProfileImageUrl: string | null;
   text: string;
   likes: number;
   replies: number;

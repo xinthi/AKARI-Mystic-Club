@@ -664,3 +664,102 @@ export async function getProjectTweets(
   return data || [];
 }
 
+// =============================================================================
+// PROFILE IMAGE ENRICHMENT
+// =============================================================================
+
+/**
+ * Profile image lookup result containing maps for profiles and akari users
+ */
+export interface ProfileImageMaps {
+  profilesMap: Map<string, string>;
+  akariUsersMap: Map<string, string>;
+}
+
+/**
+ * Fetches profile images from both the profiles table (CT influencers) and 
+ * akari_users table (registered users) for a list of author handles.
+ * 
+ * Used to enrich tweet data with profile images across the platform.
+ * Handles are matched case-insensitively.
+ * 
+ * @param client - Supabase client
+ * @param authorHandles - Array of Twitter handles to look up
+ * @returns Maps of lowercase handles to profile image URLs
+ */
+export async function fetchProfileImagesForHandles(
+  client: SupabaseClient,
+  authorHandles: string[]
+): Promise<ProfileImageMaps> {
+  const profilesMap = new Map<string, string>();
+  const akariUsersMap = new Map<string, string>();
+
+  if (authorHandles.length === 0) {
+    return { profilesMap, akariUsersMap };
+  }
+
+  // Normalize handles to lowercase for case-insensitive matching
+  const lowerHandles = authorHandles.map(h => h.toLowerCase());
+
+  try {
+    // 1. Fetch profile images from 'profiles' table (CT influencers)
+    const { data: profilesData, error: profilesError } = await client
+      .from('profiles')
+      .select('username, profile_image_url')
+      .in('username', lowerHandles);
+
+    if (profilesError) {
+      console.warn('[Supabase] Error fetching profiles for enrichment:', profilesError.message);
+    } else if (profilesData) {
+      profilesData.forEach((p: any) => {
+        if (p.profile_image_url) {
+          profilesMap.set(p.username.toLowerCase(), p.profile_image_url);
+        }
+      });
+    }
+
+    // 2. Fetch profile images from 'akari_users' table (registered users)
+    const { data: akariUsersData, error: akariUsersError } = await client
+      .from('akari_user_identities')
+      .select('username, akari_users(avatar_url)')
+      .eq('provider', 'x')
+      .in('username', lowerHandles);
+
+    if (akariUsersError) {
+      console.warn('[Supabase] Error fetching akari_users for enrichment:', akariUsersError.message);
+    } else if (akariUsersData) {
+      akariUsersData.forEach((au: any) => {
+        if (au.akari_users && au.akari_users.avatar_url) {
+          akariUsersMap.set(au.username.toLowerCase(), au.akari_users.avatar_url);
+        }
+      });
+    }
+  } catch (error: any) {
+    console.warn('[Supabase] Error in fetchProfileImagesForHandles:', error.message);
+  }
+
+  return { profilesMap, akariUsersMap };
+}
+
+/**
+ * Gets the best profile image URL for a given author handle.
+ * Priority: existing image > profiles table > akari_users table > null
+ * 
+ * @param existingImage - Existing image URL from the tweet data
+ * @param authorHandle - Author's Twitter handle
+ * @param profilesMap - Map from fetchProfileImagesForHandles
+ * @param akariUsersMap - Map from fetchProfileImagesForHandles
+ * @returns Best available profile image URL or null
+ */
+export function getBestProfileImage(
+  existingImage: string | null | undefined,
+  authorHandle: string,
+  profilesMap: Map<string, string>,
+  akariUsersMap: Map<string, string>
+): string | null {
+  if (existingImage) return existingImage;
+  
+  const lowerHandle = authorHandle.toLowerCase();
+  return profilesMap.get(lowerHandle) || akariUsersMap.get(lowerHandle) || null;
+}
+

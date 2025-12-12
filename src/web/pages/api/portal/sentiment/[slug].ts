@@ -17,6 +17,8 @@ import {
   getProjectMetricsHistory,
   getProjectInfluencers,
   compute24hChanges,
+  fetchProfileImagesForHandles,
+  getBestProfileImage,
   Project,
   MetricsDaily,
   MetricsChange24h,
