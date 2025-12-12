@@ -135,18 +135,41 @@ function validateCronSecret(req: NextApiRequest): boolean {
   
   // If no CRON_SECRET is configured, reject all requests
   if (!cronSecret) {
-    console.warn('[SentimentRefreshAll] CRON_SECRET not configured');
+    console.warn('[SentimentRefreshAll] CRON_SECRET not configured in environment');
     return false;
   }
 
-  // Check multiple auth methods
+  // Extract authorization header - Vercel sends "Bearer <CRON_SECRET>"
+  const authHeader = req.headers.authorization;
+  const authSecret = authHeader?.startsWith('Bearer ') 
+    ? authHeader.slice(7) // More reliable than replace()
+    : authHeader;
+  
+  // Check multiple auth methods (in order of preference)
   const providedSecret =
-    req.headers.authorization?.replace('Bearer ', '') ||
+    authSecret ||
     (req.headers['x-cron-secret'] as string | undefined) ||
     (req.query.secret as string | undefined) ||
     (req.query.token as string | undefined);
 
-  return providedSecret === cronSecret;
+  // Debug logging - helps diagnose auth issues in Vercel logs
+  const hasAuth = !!authHeader;
+  const hasXCronSecret = !!req.headers['x-cron-secret'];
+  const hasQuerySecret = !!(req.query.secret || req.query.token);
+  
+  console.log(`[SentimentRefreshAll] Auth check: authHeader=${hasAuth}, x-cron-secret=${hasXCronSecret}, queryParam=${hasQuerySecret}`);
+  
+  if (!providedSecret) {
+    console.warn('[SentimentRefreshAll] No secret provided in request');
+    return false;
+  }
+  
+  const isValid = providedSecret === cronSecret;
+  if (!isValid) {
+    console.warn(`[SentimentRefreshAll] Secret mismatch - provided length: ${providedSecret.length}, expected length: ${cronSecret.length}`);
+  }
+  
+  return isValid;
 }
 
 // =============================================================================

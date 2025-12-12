@@ -4,9 +4,9 @@
  * Runs the sentiment update job for all active projects.
  * This fetches Twitter data from twitterapi.io, analyzes sentiment, and updates metrics.
  * 
- * Security: Requires CRON_SECRET in query param.
+ * Security: Requires CRON_SECRET via Authorization header (Vercel auto-adds this) or query param.
  * 
- * Usage: GET /api/cron/sentiment-update?token=CRON_SECRET
+ * Usage: GET /api/cron/sentiment-update
  * Schedule: Daily at 06:00 UTC (configured in vercel.json)
  */
 
@@ -15,10 +15,22 @@ import { runSentimentUpdate } from '@/lib/cron/sentimentJob';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const token = req.query.token;
+    const cronSecret = process.env.CRON_SECRET;
+    
+    if (!cronSecret) {
+      console.error('[CRON/sentiment-update] CRON_SECRET not configured');
+      return res.status(500).json({ ok: false, error: 'CRON_SECRET not configured' });
+    }
 
-    // Protect with CRON_SECRET
-    if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
+    // Check Authorization header (Vercel sends "Bearer <CRON_SECRET>") or query param
+    const authHeader = req.headers.authorization;
+    const authSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    const providedSecret = authSecret || (req.query.token as string | undefined);
+
+    console.log(`[CRON/sentiment-update] Auth check: authHeader=${!!authHeader}, queryToken=${!!req.query.token}`);
+
+    if (!providedSecret || providedSecret !== cronSecret) {
+      console.warn('[CRON/sentiment-update] Unauthorized - secret mismatch or missing');
       return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 

@@ -168,17 +168,36 @@ function validateCronSecret(req: NextApiRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
-    console.warn('[SmartRefresh] CRON_SECRET not configured');
+    console.warn('[SmartRefresh] CRON_SECRET not configured in environment');
     return false;
   }
 
+  // Extract authorization header - Vercel sends "Bearer <CRON_SECRET>"
+  const authHeader = req.headers.authorization;
+  const authSecret = authHeader?.startsWith('Bearer ') 
+    ? authHeader.slice(7) 
+    : authHeader;
+
   const providedSecret =
-    req.headers.authorization?.replace('Bearer ', '') ||
+    authSecret ||
     (req.headers['x-cron-secret'] as string | undefined) ||
     (req.query.secret as string | undefined) ||
     (req.query.token as string | undefined);
 
-  return providedSecret === cronSecret;
+  // Debug logging
+  console.log(`[SmartRefresh] Auth check: authHeader=${!!authHeader}, x-cron-secret=${!!req.headers['x-cron-secret']}, queryParam=${!!(req.query.secret || req.query.token)}`);
+  
+  if (!providedSecret) {
+    console.warn('[SmartRefresh] No secret provided in request');
+    return false;
+  }
+  
+  const isValid = providedSecret === cronSecret;
+  if (!isValid) {
+    console.warn(`[SmartRefresh] Secret mismatch - provided length: ${providedSecret.length}, expected length: ${cronSecret.length}`);
+  }
+  
+  return isValid;
 }
 
 /**
