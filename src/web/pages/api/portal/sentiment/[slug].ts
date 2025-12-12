@@ -155,8 +155,10 @@ export default async function handler(
     }
 
     // =========================================================================
-    // ENRICH TWEETS WITH PROFILE IMAGES FROM PROFILES TABLE
-    // For tweets missing author_profile_image_url, look up from profiles table
+    // ENRICH TWEETS WITH PROFILE IMAGES FROM DATABASE
+    // For tweets missing author_profile_image_url, look up from:
+    // 1. profiles table (CT influencers)
+    // 2. akari_users + akari_user_identities (registered AKARI users)
     // Uses case-insensitive matching since Twitter handles can vary in casing
     // =========================================================================
     const rawTweets = tweetsResult.data || [];
@@ -164,7 +166,7 @@ export default async function handler(
       .filter((t: any) => !t.author_profile_image_url && t.author_handle)
       .map((t: any) => t.author_handle);
     
-    // Build a map of author handle (lowercase) -> profile image URL from profiles table
+    // Build a map of author handle (lowercase) -> profile image URL
     const authorProfileImages = new Map<string, string>();
     
     if (authorsNeedingImages.length > 0) {
@@ -172,8 +174,7 @@ export default async function handler(
       const uniqueAuthors = Array.from(uniqueAuthorsSet);
       
       try {
-        // Fetch all profiles that have profile images
-        // Then filter client-side for case-insensitive username match
+        // 1. Fetch from profiles table (CT influencers)
         const { data: profilesData } = await supabase
           .from('profiles')
           .select('username, profile_image_url')
@@ -183,13 +184,40 @@ export default async function handler(
           for (const p of profilesData) {
             if (p.username && p.profile_image_url) {
               const usernameLower = p.username.toLowerCase();
-              // Only include if this username is in our needed list
               if (uniqueAuthors.includes(usernameLower)) {
                 authorProfileImages.set(usernameLower, p.profile_image_url);
               }
             }
           }
-          console.log(`[API /portal/sentiment/${slug}] Enriched ${authorProfileImages.size}/${uniqueAuthors.length} tweet authors with profile images from profiles table`);
+        }
+        
+        // 2. Fetch from akari_users (registered AKARI platform users)
+        // Join with akari_user_identities to get X username
+        const { data: akariUsersData } = await supabase
+          .from('akari_user_identities')
+          .select(`
+            username,
+            akari_users!inner (
+              avatar_url
+            )
+          `)
+          .eq('provider', 'x')
+          .not('akari_users.avatar_url', 'is', null);
+        
+        if (akariUsersData && akariUsersData.length > 0) {
+          for (const u of akariUsersData) {
+            if (u.username && (u as any).akari_users?.avatar_url) {
+              const usernameLower = u.username.toLowerCase();
+              // Only add if not already found in profiles table
+              if (uniqueAuthors.includes(usernameLower) && !authorProfileImages.has(usernameLower)) {
+                authorProfileImages.set(usernameLower, (u as any).akari_users.avatar_url);
+              }
+            }
+          }
+        }
+        
+        if (authorProfileImages.size > 0) {
+          console.log(`[API /portal/sentiment/${slug}] Enriched ${authorProfileImages.size}/${uniqueAuthors.length} tweet authors with profile images`);
         }
       } catch (err: any) {
         // Non-critical, just log and continue
