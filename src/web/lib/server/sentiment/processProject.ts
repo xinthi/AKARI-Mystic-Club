@@ -1,16 +1,21 @@
 /**
- * Process Single Project - Web-local helper
+ * Process Single Project - Canonical Implementation
  * 
- * This helper processes a single project for sentiment/metrics update.
- * It lives inside src/web so Vercel can bundle it.
+ * This is the CANONICAL source for sentiment/metrics processing.
+ * Both web API routes and CLI scripts should import from here.
  * 
- * This is equivalent to processProject from scripts/sentiment/updateAllProjects.ts
- * but uses imports that are resolvable from within src/web.
+ * Features:
+ * - Environment-driven configuration (see sentiment.config.ts)
+ * - Twitter data fetching (profile, tweets, mentions, followers)
+ * - Sentiment analysis (local keyword-based)
+ * - AKARI score computation
+ * - CT Heat score computation
+ * - Topic stats recomputation
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Import unified Twitter client from src/server (relative path from src/web/lib/server/sentiment)
+// Import unified Twitter client from src/server
 import {
   unifiedGetUserInfo,
   unifiedGetUserLastTweets,
@@ -39,6 +44,12 @@ import {
 // Import topic stats recomputation
 import { recomputeProjectTopicStats } from '../../../../server/sentiment/topics';
 
+// Import centralized configuration
+import {
+  SENTIMENT_CONFIG,
+  type SentimentRunOptions,
+} from '../../../../server/config/sentiment.config';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -50,6 +61,9 @@ export interface Project {
   name: string;
   is_active: boolean;
 }
+
+// Re-export for consumers
+export type { SentimentRunOptions } from '../../../../server/config/sentiment.config';
 
 interface DailyMetrics {
   project_id: string;
@@ -89,16 +103,13 @@ export interface ProcessingResult {
   tweets: ProjectTweetRow[];
 }
 
-export interface SentimentRunOptions {
-  maxTweets?: number;
-  maxMentions?: number;
-}
+// SentimentRunOptions is now imported from sentiment.config.ts
 
 // =============================================================================
-// CONFIGURATION
+// CONFIGURATION (from centralized config)
 // =============================================================================
 
-const DELAY_BETWEEN_API_CALLS_MS = 500; // 500ms between API calls
+const DELAY_BETWEEN_API_CALLS_MS = SENTIMENT_CONFIG.cron.delayBetweenApiCallsMs;
 
 // =============================================================================
 // MAIN FUNCTION
@@ -118,9 +129,9 @@ export async function processProjectById(
   supabase: SupabaseClient,
   options: SentimentRunOptions = {}
 ): Promise<ProcessingResult | null> {
-  // Apply defaults
-  const maxTweets = options.maxTweets ?? 20;
-  const maxMentions = options.maxMentions ?? 100;
+  // Apply defaults from centralized config
+  const maxTweets = options.maxTweets ?? SENTIMENT_CONFIG.twitter.maxTweets;
+  const maxMentions = options.maxMentions ?? SENTIMENT_CONFIG.twitter.maxMentions;
 
   // Get Twitter handle (use existing, don't auto-discover in admin refresh)
   const handle = project.twitter_username?.trim() || null;
@@ -333,7 +344,7 @@ export async function processProjectById(
   });
 
   // Build tweet rows for mentions
-  const KOL_ENGAGEMENT_THRESHOLD = 20;
+  const KOL_ENGAGEMENT_THRESHOLD = SENTIMENT_CONFIG.kol.engagementThreshold;
   const mentionTweetRows: ProjectTweetRow[] = mentions.slice(0, 20).map((m) => {
     const totalEngagement = (m.likeCount ?? 0) + (m.retweetCount ?? 0) * 2;
     const authorHandle = m.author || 'unknown';

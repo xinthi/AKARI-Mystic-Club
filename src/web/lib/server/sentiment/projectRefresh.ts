@@ -10,7 +10,9 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { processProjectById, type Project, type ProcessingResult } from './processProject';
+import { processInnerCircleById, type InnerCircleProject } from './processInnerCircle';
 import { recomputeProjectTopicStats } from '../../../../server/sentiment/topics';
+import { SENTIMENT_CONFIG } from '../../../../server/config/sentiment.config';
 
 // =============================================================================
 // TYPES
@@ -220,17 +222,33 @@ export async function refreshProjectById(
     await delay(DELAY_BETWEEN_API_CALLS_MS);
 
     // Step 3: Process inner circle (if not skipped)
-    // NOTE: Inner circle processing is currently disabled for web builds because
-    // it requires importing from scripts/ which uses dotenv/config that webpack can't handle.
-    // This feature can be re-enabled by creating a web-local version similar to processProjectById.
     let innerCircleUpdated = false;
     let innerCircle: RefreshResult['details']['innerCircle'] | undefined;
 
-    if (!options.skipInnerCircle) {
-      console.log(`[Project Refresh] Inner circle processing is currently disabled in web builds`);
-      console.log(`[Project Refresh] To enable, create a web-local inner circle processor`);
-      // Inner circle processing skipped - would require web-local implementation
-      // to avoid importing from scripts/ which breaks webpack builds
+    if (!options.skipInnerCircle && project.twitter_username) {
+      console.log(`[Project Refresh] Processing inner circle for ${project.name}`);
+      try {
+        const icProject: InnerCircleProject = {
+          id: project.id,
+          slug: project.slug,
+          name: project.name,
+          twitter_username: project.twitter_username,
+        };
+
+        const icResult = await processInnerCircleById(supabase, icProject, {
+          maxFollowersToFetch: options.maxFollowersToFetch,
+          maxInnerCircleSize: options.maxInnerCircleSize,
+        });
+
+        innerCircleUpdated = icResult.innerCircleSize > 0;
+        innerCircle = {
+          members: icResult.innerCircleSize,
+          power: icResult.innerCirclePower,
+        };
+      } catch (icError: any) {
+        console.error(`[Project Refresh] Failed to process inner circle:`, icError.message);
+        // Continue anyway - partial success
+      }
     }
 
     await delay(DELAY_BETWEEN_API_CALLS_MS);

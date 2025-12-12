@@ -68,20 +68,19 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { processProjectById, type Project, type SentimentRunOptions } from '@/lib/server/sentiment/processProject';
+import { SENTIMENT_CONFIG } from '@/server/config/sentiment.config';
 
 // =============================================================================
-// CONFIGURATION
+// CONFIGURATION (from centralized config)
 // =============================================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Rate limiting: delay between processing projects (ms)
-const DELAY_BETWEEN_PROJECTS_MS = 2000;
-
-// Default limits for API budget protection
-const DEFAULT_MAX_TWEETS = 10;
-const DEFAULT_MAX_MENTIONS = 30;
+// Rate limiting and limits from centralized config
+const DELAY_BETWEEN_PROJECTS_MS = SENTIMENT_CONFIG.cron.delayBetweenProjectsMs;
+const DEFAULT_MAX_TWEETS = SENTIMENT_CONFIG.cron.maxTweets;
+const DEFAULT_MAX_MENTIONS = SENTIMENT_CONFIG.cron.maxMentions;
 
 // =============================================================================
 // TYPES

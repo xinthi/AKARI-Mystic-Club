@@ -14,7 +14,9 @@
  * - SUPABASE_SERVICE_ROLE_KEY
  * - TWITTER_PRIMARY_PROVIDER: "twitterapiio" (only twitterapiio is supported)
  * - TWITTERAPIIO_API_KEY (if using TwitterAPI.io)
- * - RAPIDAPI_KEY (if using RapidAPI or as fallback)
+ * 
+ * Configuration can be customized via environment variables.
+ * See src/server/config/sentiment.config.ts for all options.
  */
 
 // Load environment variables from .env at project root
@@ -50,17 +52,23 @@ import {
 // Topic analysis for Zone of Expertise
 import { recomputeProjectTopicStats } from '../../src/server/sentiment/topics';
 
+// Import centralized configuration
+import {
+  SENTIMENT_CONFIG,
+  type SentimentRunOptions,
+} from '../../src/server/config/sentiment.config';
+
 // =============================================================================
-// CONFIGURATION
+// CONFIGURATION (from centralized config)
 // =============================================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? 'twitterapiio';
 
-// Rate limiting settings
-const DELAY_BETWEEN_PROJECTS_MS = 2000; // 2 seconds between projects
-const DELAY_BETWEEN_API_CALLS_MS = 500; // 500ms between API calls
+// Rate limiting settings from centralized config
+const DELAY_BETWEEN_PROJECTS_MS = SENTIMENT_CONFIG.cron.delayBetweenProjectsMs;
+const DELAY_BETWEEN_API_CALLS_MS = SENTIMENT_CONFIG.cron.delayBetweenApiCallsMs;
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -112,20 +120,8 @@ interface ProcessingResult {
   tweets: ProjectTweetRow[];
 }
 
-// =============================================================================
-// OPTIONAL PARAMETERS FOR DEEP REFRESH
-// =============================================================================
-
-/**
- * Options for controlling tweet/mention limits during processing.
- * All existing calls can omit these for backwards compatibility.
- */
-export interface SentimentRunOptions {
-  /** Max tweets to fetch from the project's timeline (default: 20) */
-  maxTweets?: number;
-  /** Max mentions to fetch (tweets mentioning the project) (default: 100) */
-  maxMentions?: number;
-}
+// Re-export types for backwards compatibility
+export type { SentimentRunOptions } from '../../src/server/config/sentiment.config';
 
 // =============================================================================
 // MAIN FUNCTION (Exported for API routes)
@@ -446,9 +442,9 @@ export async function processProject(
   supabase: any,
   options: SentimentRunOptions = {}
 ): Promise<ProcessingResult | null> {
-  // Apply defaults for backwards compatibility
-  const maxTweets = options.maxTweets ?? 20;
-  const maxMentions = options.maxMentions ?? 100;
+  // Apply defaults from centralized config
+  const maxTweets = options.maxTweets ?? SENTIMENT_CONFIG.twitter.maxTweets;
+  const maxMentions = options.maxMentions ?? SENTIMENT_CONFIG.twitter.maxMentions;
   // IMPORTANT: twitter_username is an admin-controlled field.
   // Use existing handle if set, only auto-discover if NULL/empty.
   let handle = project.twitter_username?.trim() || null;
@@ -675,8 +671,7 @@ export async function processProject(
 
   // Build tweet rows for mentions - tweets from others mentioning the project
   // A mention is considered "KOL" if it has decent engagement (likes + retweets*2 >= threshold)
-  // Lower threshold to capture more KOL mentions (20 = ~10 likes or 5 retweets)
-  const KOL_ENGAGEMENT_THRESHOLD = 20;
+  const KOL_ENGAGEMENT_THRESHOLD = SENTIMENT_CONFIG.kol.engagementThreshold;
   
   // Try to fetch profile images for mention authors from profiles table
   // This enriches mentions with avatars if the authors are known CT profiles
