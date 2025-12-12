@@ -470,7 +470,7 @@ export async function fetchProjectFollowersSample(
   // Look up project to get X handle
   const { data: project, error: projectError } = await supabase
     .from('projects')
-    .select('id, slug, twitter_username, x_user_id')
+    .select('id, slug, twitter_username')
     .eq('id', projectId)
     .single();
 
@@ -482,7 +482,7 @@ export async function fetchProjectFollowersSample(
   const xHandle = project.twitter_username;
   if (!xHandle) {
     console.warn(`[AudienceGeo] Project ${projectId} has no twitter_username`);
-    return { followers: [], xHandle: null, xUserId: project.x_user_id || null };
+    return { followers: [], xHandle: null, xUserId: null };
   }
 
   console.log(`[AudienceGeo] Fetching followers for @${xHandle} (max: ${maxFollowers})`);
@@ -525,7 +525,7 @@ export async function fetchProjectFollowersSample(
   return {
     followers,
     xHandle,
-    xUserId: project.x_user_id || null,
+    xUserId: null, // x_user_id not stored in projects table
   };
 }
 
@@ -556,7 +556,7 @@ export async function computeAndStoreAudienceGeo(
   // Get project info
   const { data: project, error: projectError } = await supabase
     .from('projects')
-    .select('id, slug, twitter_username, x_user_id')
+    .select('id, slug, twitter_username')
     .eq('id', projectId)
     .single();
 

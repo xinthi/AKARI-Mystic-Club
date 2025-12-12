@@ -187,7 +187,7 @@ export default async function handler(
 
     let query = supabase
       .from('projects')
-      .select('id, slug, name, twitter_username, x_user_id, is_active')
+      .select('id, slug, name, twitter_username, is_active')
       .eq('is_active', true)
       .not('twitter_username', 'is', null);
 
