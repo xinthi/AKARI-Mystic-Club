@@ -680,7 +680,8 @@ export async function processProject(
   
   // Try to fetch profile images for mention authors from profiles table
   // This enriches mentions with avatars if the authors are known CT profiles
-  const mentionAuthors = [...new Set(mentions.slice(0, 20).map(m => m.author?.toLowerCase()).filter(Boolean))];
+  const mentionAuthorsSet = new Set(mentions.slice(0, 20).map(m => m.author?.toLowerCase()).filter(Boolean));
+  const mentionAuthors = Array.from(mentionAuthorsSet) as string[];
   let authorProfileImages: Map<string, string> = new Map();
   
   if (mentionAuthors.length > 0) {
