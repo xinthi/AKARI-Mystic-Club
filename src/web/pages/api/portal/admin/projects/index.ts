@@ -31,6 +31,12 @@ type AdminProjectsResponse =
   | { ok: false; error: string };
 
 // =============================================================================
+// DEV MODE BYPASS
+// =============================================================================
+
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
+// =============================================================================
 // HELPERS
 // =============================================================================
 
@@ -77,40 +83,47 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
-  }
-
   try {
     const supabase = getSupabaseAdmin();
 
-    // Validate session and get user ID
-    const { data: session, error: sessionError } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
+    // ==========================================================================
+    // DEV MODE: Skip authentication in development
+    // ==========================================================================
+    if (!DEV_MODE) {
+      const sessionToken = getSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ ok: false, error: 'Not authenticated' });
+      }
 
-    if (sessionError || !session) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
-
-    // Check if session is expired
-    if (new Date(session.expires_at) < new Date()) {
-      await supabase
+      // Validate session and get user ID
+      const { data: session, error: sessionError } = await supabase
         .from('akari_user_sessions')
-        .delete()
-        .eq('session_token', sessionToken);
-      return res.status(401).json({ ok: false, error: 'Session expired' });
-    }
+        .select('user_id, expires_at')
+        .eq('session_token', sessionToken)
+        .single();
 
-    const userId = session.user_id;
+      if (sessionError || !session) {
+        return res.status(401).json({ ok: false, error: 'Invalid session' });
+      }
 
-    // Check if user is super admin
-    const isSuperAdmin = await checkSuperAdmin(supabase, userId);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'Forbidden' });
+      // Check if session is expired
+      if (new Date(session.expires_at) < new Date()) {
+        await supabase
+          .from('akari_user_sessions')
+          .delete()
+          .eq('session_token', sessionToken);
+        return res.status(401).json({ ok: false, error: 'Session expired' });
+      }
+
+      const userId = session.user_id;
+
+      // Check if user is super admin
+      const isSuperAdmin = await checkSuperAdmin(supabase, userId);
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+    } else {
+      console.log('[Admin Projects API] DEV MODE - skipping auth');
     }
 
     // Get query parameters
