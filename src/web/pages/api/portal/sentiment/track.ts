@@ -144,16 +144,25 @@ async function fetchAndSaveRealData(
     const profile = await getUserProfile(username);
     if (profile) {
       followerCount = profile.followersCount || 0;
-      console.log(`[Track] Profile: ${profile.name} - ${followerCount} followers`);
+      console.log(`[Track] Profile: ${profile.name} - ${followerCount} followers, userId: ${profile.userId || 'N/A'}`);
       
-      // Update project with real profile data
+      // Update project with real profile data INCLUDING twitter_id (permanent X User ID)
+      const updateData: Record<string, any> = {
+        avatar_url: profile.profileImageUrl || profile.avatarUrl || null,
+        twitter_profile_image_url: profile.profileImageUrl || profile.avatarUrl || null,
+        bio: profile.bio || null,
+      };
+      
+      // IMPORTANT: Store the permanent X User ID if available
+      // This ensures we can identify the project even if they change their handle
+      if (profile.userId) {
+        updateData.twitter_id = profile.userId;
+        console.log(`[Track] Storing twitter_id: ${profile.userId} for @${username}`);
+      }
+      
       await supabase
         .from('projects')
-        .update({
-          avatar_url: profile.profileImageUrl || profile.avatarUrl || null,
-          twitter_profile_image_url: profile.profileImageUrl || profile.avatarUrl || null,
-          bio: profile.bio || null,
-        })
+        .update(updateData)
         .eq('id', projectId);
     }
     
@@ -428,7 +437,7 @@ export default async function handler(
     if (existingProject) {
       console.log(`[API /portal/sentiment/track] Project already tracked: ${existingProject.slug}`);
       
-      // Update missing fields (avatar, twitter_username if not set)
+      // Update missing fields (avatar, twitter_username, twitter_id if not set)
       const updates: Record<string, any> = {
         last_refreshed_at: new Date().toISOString(),
       };
@@ -444,6 +453,16 @@ export default async function handler(
       if (!existingProject.twitter_username) {
         updates.twitter_username = username;
         console.log(`[API /portal/sentiment/track] Setting missing twitter_username: @${username}`);
+      }
+      
+      // IMPORTANT: Fetch and set twitter_id (permanent X User ID) if missing
+      // This ensures we can identify the project even if they change their handle
+      if (!existingProject.twitter_id) {
+        const profileForTwitterId = await getUserProfile(handleToUse);
+        if (profileForTwitterId?.userId) {
+          updates.twitter_id = profileForTwitterId.userId;
+          console.log(`[API /portal/sentiment/track] Setting missing twitter_id: ${profileForTwitterId.userId}`);
+        }
       }
       
       // Apply updates if any
@@ -542,18 +561,38 @@ export default async function handler(
 
     // Create new project
     // IMPORTANT: Set twitter_username to the same as x_handle so sentiment:update works immediately
-    const newProject = {
+    // ALSO: Fetch profile to get twitter_id (permanent X User ID) before creating
+    let twitterId: string | null = null;
+    let profileImageUrl = body.profileImageUrl || null;
+    let bio = body.bio || null;
+    
+    // Fetch profile to get the permanent twitter_id
+    const profileForNewProject = await getUserProfile(username);
+    if (profileForNewProject) {
+      twitterId = profileForNewProject.userId || null;
+      profileImageUrl = profileForNewProject.profileImageUrl || profileForNewProject.avatarUrl || profileImageUrl;
+      bio = profileForNewProject.bio || bio;
+      console.log(`[API /portal/sentiment/track] New project - twitter_id: ${twitterId || 'N/A'}`);
+    }
+    
+    const newProject: Record<string, any> = {
       slug,
       x_handle: username.toLowerCase(),
       twitter_username: username, // Keep original casing for Twitter API calls
       name: displayName,
-      bio: body.bio || null,
-      avatar_url: body.profileImageUrl || null,
-      twitter_profile_image_url: body.profileImageUrl || null,
+      bio,
+      avatar_url: profileImageUrl,
+      twitter_profile_image_url: profileImageUrl,
       is_active: true,
       first_tracked_at: new Date().toISOString(),
       last_refreshed_at: new Date().toISOString(),
     };
+    
+    // IMPORTANT: Store the permanent X User ID if available
+    // This ensures we can identify the project even if they change their handle
+    if (twitterId) {
+      newProject.twitter_id = twitterId;
+    }
 
     const { data: insertedProject, error: insertError } = await supabase
       .from('projects')
