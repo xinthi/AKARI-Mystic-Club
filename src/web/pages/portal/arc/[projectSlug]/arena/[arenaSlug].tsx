@@ -69,7 +69,9 @@ export default function ArenaDetailsPage() {
   const { projectSlug, arenaSlug } = router.query;
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
-  const [creators, setCreators] = useState<Creator[]>([]);
+  const [creators, setCreators] = useState<any[]>([]);
+  const [creatorsLoading, setCreatorsLoading] = useState(false);
+  const [creatorsError, setCreatorsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +116,6 @@ export default function ArenaDetailsPage() {
         }
 
         setArena(detailsData.arena);
-        setCreators(detailsData.creators || []);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArenaDetailsPage] Fetch error:', err);
@@ -125,6 +126,37 @@ export default function ArenaDetailsPage() {
 
     fetchArenaDetails();
   }, [projectSlug, arenaSlug]);
+
+  // Fetch creators for the arena
+  useEffect(() => {
+    if (!arena?.id) return;
+
+    const fetchCreators = async () => {
+      try {
+        setCreatorsLoading(true);
+        setCreatorsError(null);
+
+        const res = await fetch(
+          `/api/portal/arc/arena-creators?arenaId=${arena.id}`
+        );
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || 'Failed to load creators');
+        }
+
+        const body = await res.json();
+        setCreators(body.creators || []);
+      } catch (err: any) {
+        console.error('Failed to load arena creators', err);
+        setCreatorsError(err.message || 'Failed to load creators');
+      } finally {
+        setCreatorsLoading(false);
+      }
+    };
+
+    fetchCreators();
+  }, [arena?.id]);
 
   // Helper function to get arena status badge color
   const getArenaStatusColor = (status: string) => {
@@ -152,6 +184,20 @@ export default function ArenaDetailsPage() {
     const start = new Date(startsAt);
     const end = new Date(endsAt);
     return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+  };
+
+  // Helper function to get ring badge color
+  const getRingColor = (ring: string) => {
+    switch (ring) {
+      case 'core':
+        return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
+      case 'momentum':
+        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
+      case 'discovery':
+        return 'bg-green-500/10 border-green-500/30 text-green-400';
+      default:
+        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+    }
   };
 
   return (
@@ -247,13 +293,45 @@ export default function ArenaDetailsPage() {
             <section>
               <h2 className="text-xl font-semibold text-akari-text mb-4">Creators Leaderboard</h2>
               <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                <p className="text-sm text-akari-muted">
-                  Creators leaderboard will be displayed here.
-                </p>
-                {creators.length > 0 && (
-                  <p className="text-xs text-akari-muted mt-2">
-                    ({creators.length} creators found)
-                  </p>
+                {creatorsLoading ? (
+                  <p className="text-sm text-akari-muted">Loading creators...</p>
+                ) : creatorsError ? (
+                  <p className="text-sm text-akari-danger">Failed to load creators.</p>
+                ) : creators.length === 0 ? (
+                  <p className="text-sm text-akari-muted">No creators in this arena yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {creators.map((creator, index) => {
+                      const rank = index + 1;
+                      return (
+                        <div
+                          key={creator.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm font-semibold text-akari-text w-8">
+                              #{rank}
+                            </span>
+                            <span className="text-sm text-akari-text">
+                              {creator.twitter_username || 'Unknown'}
+                            </span>
+                            {creator.ring && (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(
+                                  creator.ring
+                                )}`}
+                              >
+                                {creator.ring}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-akari-text">
+                            {creator.arc_points}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </section>
