@@ -69,25 +69,72 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-akari-neon-teal/80 to-transparent blur-sm"></div>
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-akari-neon-teal/60 to-transparent"></div>
         <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-4">
-          {/* Mobile: Hamburger + Logo */}
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* Hamburger button - visible and clickable for everyone */}
+          {/* Hamburger + Logo */}
+          <div className="flex items-center gap-3 w-full sm:w-auto" style={{ position: 'relative', zIndex: 100 }}>
+            {/* Hamburger button - ALWAYS VISIBLE - FORCED INLINE STYLES */}
             <button
+              id="portal-hamburger-menu-button"
+              data-testid="hamburger-menu-button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="relative z-10 p-2.5 rounded-lg border-2 border-akari-neon-teal/60 bg-akari-neon-teal/10 text-akari-neon-teal hover:border-akari-neon-teal hover:bg-akari-neon-teal/20 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.6)] cursor-pointer shadow-[0_0_8px_rgba(0,246,162,0.3)] transition-all duration-300 ease-out flex-shrink-0"
               style={{
-                minWidth: '40px',
-                minHeight: '40px',
+                width: '44px',
+                height: '44px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                padding: '10px',
+                borderRadius: '8px',
+                border: '2px solid #00f6a2',
+                backgroundColor: 'rgba(0, 246, 162, 0.25)',
+                color: '#00f6a2',
+                cursor: 'pointer',
+                flexShrink: 0,
+                position: 'relative',
+                zIndex: 100,
+                boxShadow: '0 0 20px rgba(0, 246, 162, 0.8)',
+                visibility: 'visible',
+                opacity: 1,
+                margin: '0',
+                minWidth: '44px',
+                minHeight: '44px',
+                marginRight: '12px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#00f6a2';
+                e.currentTarget.style.backgroundColor = 'rgba(0, 246, 162, 0.3)';
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 246, 162, 0.8)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#00f6a2';
+                e.currentTarget.style.backgroundColor = 'rgba(0, 246, 162, 0.2)';
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(0, 246, 162, 0.6)';
               }}
               aria-label="Open navigation menu"
               title="Open navigation menu"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg 
+                width="24" 
+                height="24" 
+                fill="none" 
+                stroke="#00f6a2" 
+                strokeWidth="3" 
+                viewBox="0 0 24 24" 
+                style={{ 
+                  display: 'block',
+                  visibility: 'visible',
+                  opacity: 1,
+                  pointerEvents: 'none',
+                }}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
+              {/* Fallback text in case SVG doesn't render */}
+              <span style={{ 
+                position: 'absolute', 
+                fontSize: '10px', 
+                color: '#00f6a2',
+                display: 'none',
+              }}>MENU</span>
             </button>
 
             {/* Logo + brand */}
