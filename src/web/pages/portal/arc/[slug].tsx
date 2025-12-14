@@ -305,41 +305,49 @@ export default function ArcProjectHub() {
               {/* Arenas list */}
               {!arenasLoading && arenas.length > 0 && (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {arenas.map((arena) => (
-                    <div
-                      key={arena.id}
-                      className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300"
-                    >
-                      {/* Arena name */}
-                      <h3 className="text-lg font-semibold text-akari-text mb-2">
-                        {arena.name}
-                      </h3>
+                  {arenas.map((arena) => {
+                    const arenaCard = (
+                      <div className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 cursor-pointer">
+                        {/* Arena name */}
+                        <h3 className="text-lg font-semibold text-akari-text mb-2">
+                          {arena.name}
+                        </h3>
 
-                      {/* Arena status */}
-                      <div className="mb-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getArenaStatusColor(
-                            arena.status
-                          )}`}
-                        >
-                          {arena.status}
-                        </span>
+                        {/* Arena status */}
+                        <div className="mb-3">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium border ${getArenaStatusColor(
+                              arena.status
+                            )}`}
+                          >
+                            {arena.status}
+                          </span>
+                        </div>
+
+                        {/* Date range */}
+                        <p className="text-sm text-akari-muted mb-3">
+                          {formatDateRange(arena.starts_at, arena.ends_at)}
+                        </p>
+
+                        {/* Reward depth */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-akari-muted">Reward Depth:</span>
+                          <span className="text-sm font-medium text-akari-text">
+                            {arena.reward_depth}
+                          </span>
+                        </div>
                       </div>
+                    );
 
-                      {/* Date range */}
-                      <p className="text-sm text-akari-muted mb-3">
-                        {formatDateRange(arena.starts_at, arena.ends_at)}
-                      </p>
-
-                      {/* Reward depth */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-akari-muted">Reward Depth:</span>
-                        <span className="text-sm font-medium text-akari-text">
-                          {arena.reward_depth}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    return (
+                      <Link
+                        key={arena.id}
+                        href={`/portal/arc/${slug}/arena/${arena.slug}`}
+                      >
+                        {arenaCard}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </section>

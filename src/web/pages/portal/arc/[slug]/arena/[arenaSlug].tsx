@@ -34,12 +34,13 @@ interface ProjectInfo {
 }
 
 interface Creator {
-  id: string;
+  id?: string;
   twitter_username: string;
   arc_points: number;
-  ring: 'core' | 'momentum' | 'discovery';
-  style: string | null;
-  meta: Record<string, any>;
+  ring?: 'core' | 'momentum' | 'discovery' | string;
+  style?: string | null;
+  meta?: Record<string, any>;
+  joined_at?: string | null;
 }
 
 interface ArenaDetailResponse {
@@ -69,6 +70,11 @@ export default function ArenaDetailsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Leaderboard filter/sort state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
+  const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
 
   // Fetch arena details using the arena slug
   useEffect(() => {
@@ -169,6 +175,52 @@ export default function ArenaDetailsPage() {
         return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
     }
   };
+
+  // Filter and sort creators
+  const visibleCreators = React.useMemo(() => {
+    let filtered = [...creators];
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter((creator) => {
+        const usernameMatch = creator.twitter_username?.toLowerCase().includes(term);
+        const styleMatch = creator.style?.toLowerCase().includes(term);
+        return usernameMatch || styleMatch;
+      });
+    }
+
+    // Filter by ring
+    if (ringFilter !== 'all') {
+      filtered = filtered.filter((creator) => {
+        return creator.ring?.toLowerCase() === ringFilter.toLowerCase();
+      });
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'points_desc':
+          return (b.arc_points ?? 0) - (a.arc_points ?? 0);
+        case 'points_asc':
+          return (a.arc_points ?? 0) - (b.arc_points ?? 0);
+        case 'joined_newest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1; // Missing dates go to bottom
+          if (!b.joined_at) return -1;
+          return new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime();
+        case 'joined_oldest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1; // Missing dates go to bottom
+          if (!b.joined_at) return -1;
+          return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [creators, searchTerm, ringFilter, sortBy]);
 
   // Safe project slug for navigation
   const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
@@ -278,43 +330,104 @@ export default function ArenaDetailsPage() {
                     No creators have joined this arena yet.
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {creators.map((creator, index) => {
-                      const rank = index + 1;
-                      return (
-                        <div
-                          key={creator.id || `creator-${index}`}
-                          className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="text-sm font-semibold text-akari-text w-8">
-                              {rank}
-                            </span>
-                            <span className="text-sm text-akari-text">
-                              @{creator.twitter_username || 'Unknown'}
-                            </span>
-                            {creator.ring && (
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(
-                                  creator.ring
-                                )}`}
-                              >
-                                {creator.ring}
-                              </span>
-                            )}
-                            {creator.style && (
-                              <span className="text-xs text-akari-muted">
-                                {creator.style}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-sm font-medium text-akari-text">
-                            {creator.arc_points ?? 0} pts
-                          </span>
+                  <>
+                    {/* Controls Bar */}
+                    <div className="mb-6 space-y-4">
+                      {/* Search and Filters Row */}
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                        {/* Search Input */}
+                        <input
+                          type="text"
+                          placeholder="Search creators…"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="flex-1 min-w-0 px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                        />
+
+                        {/* Ring Filter Buttons */}
+                        <div className="flex gap-2 flex-wrap">
+                          {(['all', 'core', 'momentum', 'discovery'] as const).map((ring) => (
+                            <button
+                              key={ring}
+                              onClick={() => setRingFilter(ring)}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                ringFilter === ring
+                                  ? ring === 'all'
+                                    ? 'bg-akari-primary/20 border-akari-primary/50 text-akari-primary'
+                                    : getRingColor(ring) + ' border-opacity-50'
+                                  : 'bg-akari-cardSoft/30 border-akari-border/30 text-akari-muted hover:border-akari-border/50'
+                              }`}
+                            >
+                              {ring.charAt(0).toUpperCase() + ring.slice(1)}
+                            </button>
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        {/* Sort Dropdown */}
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="sort-select" className="text-xs text-akari-muted">
+                            Sort:
+                          </label>
+                          <select
+                            id="sort-select"
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                            className="px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                          >
+                            <option value="points_desc">Top points</option>
+                            <option value="points_asc">Lowest points</option>
+                            <option value="joined_newest">Newest joined</option>
+                            <option value="joined_oldest">Oldest joined</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Creators List */}
+                    {visibleCreators.length === 0 ? (
+                      <p className="text-sm text-akari-muted">
+                        No creators match your filters.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {visibleCreators.map((creator, index) => {
+                          const rank = index + 1;
+                          return (
+                            <div
+                              key={creator.id || `creator-${index}`}
+                              className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
+                            >
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm font-semibold text-akari-text w-8">
+                                  {rank}
+                                </span>
+                                <span className="text-sm text-akari-text">
+                                  @{creator.twitter_username || 'Unknown'}
+                                </span>
+                                {creator.ring && (
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(
+                                      creator.ring
+                                    )}`}
+                                  >
+                                    {creator.ring}
+                                  </span>
+                                )}
+                                {creator.style && (
+                                  <span className="text-xs text-akari-muted">
+                                    {creator.style}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-sm font-medium text-akari-text">
+                                {creator.arc_points ?? 0} pts
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </section>
