@@ -14,6 +14,7 @@ import { createPortalClient } from '@/lib/portal/supabase';
 
 interface ArcProject {
   project_id: string;
+  slug: string | null;
   name: string | null;
   twitter_username: string | null;
   arc_tier: 'basic' | 'pro' | 'event_host';
@@ -61,6 +62,7 @@ export default async function handler(
         security_status,
         projects (
           id,
+          slug,
           name,
           twitter_username
         )
@@ -85,6 +87,7 @@ export default async function handler(
     // Map data to response format
     const projects: ArcProject[] = data.map((row: any) => ({
       project_id: row.project_id,
+      slug: row.projects?.slug ?? null,
       name: row.projects?.name ?? null,
       twitter_username: row.projects?.twitter_username ?? null,
       arc_tier: row.tier,

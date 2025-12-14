@@ -14,6 +14,7 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 
 interface ArcProject {
   project_id: string;
+  slug: string | null;
   name: string | null;
   twitter_username: string | null;
   arc_tier: 'basic' | 'pro' | 'event_host';
