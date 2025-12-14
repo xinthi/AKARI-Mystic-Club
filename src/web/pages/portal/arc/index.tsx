@@ -141,9 +141,8 @@ export default function ArcHome() {
         {!loading && !error && projects.length > 0 && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => {
-              // Only make clickable if slug exists
-              const CardContent = (
-                <div className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 cursor-pointer">
+              const cardContent = (
+                <div className={`rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 ${project.slug ? 'cursor-pointer' : ''}`}>
                   {/* Project name */}
                   <h3 className="text-lg font-semibold text-akari-text mb-2">
                     {project.name || 'Unnamed Project'}
@@ -195,14 +194,14 @@ export default function ArcHome() {
                     key={project.project_id}
                     href={`/portal/arc/${project.slug}`}
                   >
-                    {CardContent}
+                    {cardContent}
                   </Link>
                 );
               }
 
               return (
                 <div key={project.project_id}>
-                  {CardContent}
+                  {cardContent}
                 </div>
               );
             })}
