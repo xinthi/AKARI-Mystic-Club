@@ -26,29 +26,35 @@ interface ArenaDetail {
   settings: Record<string, any>;
 }
 
-interface ArenaDetailResponse {
-  ok: boolean;
-  arena?: ArenaDetail;
-  error?: string;
-}
-
-interface Arena {
+interface ProjectInfo {
   id: string;
-  project_id: string;
-  slug: string;
   name: string;
-  description: string | null;
-  status: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
-  starts_at: string | null;
-  ends_at: string | null;
-  reward_depth: number;
+  twitter_username: string;
+  avatar_url: string | null;
 }
 
-interface ArenasResponse {
-  ok: boolean;
-  arenas?: Arena[];
-  error?: string;
+interface Creator {
+  id: string;
+  twitter_username: string;
+  arc_points: number;
+  ring: 'core' | 'momentum' | 'discovery';
+  style: string | null;
+  meta: Record<string, any>;
 }
+
+interface ArenaDetailResponse {
+  ok: true;
+  arena: ArenaDetail;
+  project: ProjectInfo;
+  creators: Creator[];
+}
+
+interface ArenaErrorResponse {
+  ok: false;
+  error: string;
+}
+
+type ArenaResponse = ArenaDetailResponse | ArenaErrorResponse;
 
 // =============================================================================
 // COMPONENT
@@ -56,20 +62,25 @@ interface ArenasResponse {
 
 export default function ArenaDetailsPage() {
   const router = useRouter();
-  const { slug, arenaSlug } = router.query;
+  const { slug: projectSlug, arenaSlug } = router.query;
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
-  const [creators, setCreators] = useState<any[]>([]);
-  const [creatorsLoading, setCreatorsLoading] = useState(false);
-  const [creatorsError, setCreatorsError] = useState<string | null>(null);
+  const [project, setProject] = useState<ProjectInfo | null>(null);
+  const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch arena details
+  // Fetch arena details using the arena slug
   useEffect(() => {
     async function fetchArenaDetails() {
-      if (!slug || typeof slug !== 'string' || !arenaSlug || typeof arenaSlug !== 'string') {
+      // Wait for router to be ready and ensure we have the arena slug
+      if (!router.isReady) {
+        return;
+      }
+
+      if (!arenaSlug || typeof arenaSlug !== 'string') {
         setLoading(false);
+        setError('Arena slug is required');
         return;
       }
 
@@ -77,49 +88,34 @@ export default function ArenaDetailsPage() {
         setLoading(true);
         setError(null);
 
-        // First, fetch arenas list to get the arena ID
-        const arenasRes = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`);
+        // Use the correct API route that returns arena, project, and creators in one call
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}`);
         
-        if (!arenasRes.ok) {
-          throw new Error(`HTTP ${arenasRes.status}: Failed to fetch arenas`);
+        if (!res.ok) {
+          const errorData: ArenaErrorResponse = await res.json().catch(() => ({
+            ok: false,
+            error: `HTTP ${res.status}: Failed to fetch arena`,
+          }));
+          setError(errorData.error || 'Failed to load arena');
+          setLoading(false);
+          return;
         }
 
-        const arenasData: ArenasResponse = await arenasRes.json().catch(() => {
+        const data: ArenaResponse = await res.json().catch(() => {
           throw new Error('Invalid response from server');
         });
 
-        if (!arenasData.ok || !arenasData.arenas) {
-          setError(arenasData.error || 'Failed to load arena');
+        if (!data.ok) {
+          setError(data.error || 'Failed to load arena');
           setLoading(false);
           return;
         }
 
-        // Find the arena matching the slug
-        const foundArena = arenasData.arenas.find((a: Arena) => a.slug === arenaSlug);
-        if (!foundArena) {
-          setError('Arena not found');
-          setLoading(false);
-          return;
-        }
-
-        // Now fetch detailed arena data using the ID
-        const detailsRes = await fetch(`/api/portal/arc/arena-details?arenaId=${encodeURIComponent(foundArena.id)}`);
-        
-        if (!detailsRes.ok) {
-          throw new Error(`HTTP ${detailsRes.status}: Failed to fetch arena details`);
-        }
-
-        const detailsData: ArenaDetailResponse = await detailsRes.json().catch(() => {
-          throw new Error('Invalid response from server');
-        });
-
-        if (!detailsData.ok || !detailsData.arena) {
-          setError(detailsData.error || 'Failed to load arena details');
-          setLoading(false);
-          return;
-        }
-
-        setArena(detailsData.arena);
+        // Data is valid, set all state
+        setArena(data.arena);
+        setProject(data.project);
+        // Creators are already sorted by arc_points DESC from the API
+        setCreators(data.creators || []);
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to connect to API';
         setError(errorMessage);
@@ -130,42 +126,7 @@ export default function ArenaDetailsPage() {
     }
 
     fetchArenaDetails();
-  }, [slug, arenaSlug]);
-
-  // Fetch creators for the arena
-  useEffect(() => {
-    if (!arena || !arena.id) return;
-
-    const fetchCreators = async () => {
-      try {
-        setCreatorsLoading(true);
-        setCreatorsError(null);
-
-        const res = await fetch(`/api/portal/arc/arena-creators?arenaId=${arena.id}`);
-        
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: Failed to fetch creators`);
-        }
-
-        const body = await res.json().catch(() => {
-          throw new Error('Invalid response from server');
-        });
-
-        if (!body.ok) {
-          throw new Error(body?.error || 'Failed to load creators');
-        }
-
-        setCreators(body.creators || []);
-      } catch (err: any) {
-        console.error('Failed to load arena creators', err);
-        setCreatorsError(err?.message || 'Failed to load creators');
-      } finally {
-        setCreatorsLoading(false);
-      }
-    };
-
-    fetchCreators();
-  }, [arena?.id]);
+  }, [router.isReady, arenaSlug]);
 
   // Helper function to get arena status badge color
   const getArenaStatusColor = (status: string) => {
@@ -210,7 +171,7 @@ export default function ArenaDetailsPage() {
   };
 
   // Safe project slug for navigation
-  const safeProjectSlug = typeof slug === 'string' ? slug : '';
+  const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
 
   return (
     <PortalLayout title="ARC Arena">
@@ -230,7 +191,7 @@ export default function ArenaDetailsPage() {
                 href={`/portal/arc/${safeProjectSlug}`}
                 className="hover:text-akari-primary transition-colors"
               >
-                Project
+                {project?.name || 'Project'}
               </Link>
               <span>/</span>
             </>
@@ -242,16 +203,19 @@ export default function ArenaDetailsPage() {
         {loading && (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-            <span className="ml-3 text-akari-muted">Loading arena details...</span>
+            <span className="ml-3 text-akari-muted">Loading arena…</span>
           </div>
         )}
 
-        {/* Error state or Arena not found */}
-        {!loading && (error || !arena) && (
+        {/* Error state */}
+        {!loading && error && (
           <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
             <p className="text-sm text-akari-danger">
-              {error || 'Arena not found'}
+              Failed to load arena. Please try again later.
             </p>
+            {error && error !== 'Failed to load arena. Please try again later.' && (
+              <p className="text-xs text-akari-muted mt-2">{error}</p>
+            )}
           </div>
         )}
 
@@ -262,9 +226,17 @@ export default function ArenaDetailsPage() {
             <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
+                  {project && (
+                    <p className="text-sm text-akari-muted mb-1">
+                      {project.name}
+                    </p>
+                  )}
                   <h1 className="text-2xl font-bold text-akari-text mb-2">
                     {arena.name}
                   </h1>
+                  <p className="text-xs text-akari-muted mb-2">
+                    Slug: {arena.slug}
+                  </p>
                   {arena.description && (
                     <p className="text-base text-akari-muted mb-4">
                       {arena.description}
@@ -297,41 +269,29 @@ export default function ArenaDetailsPage() {
               </div>
             </div>
 
-            {/* Overview Section */}
-            <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Overview</h2>
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                <p className="text-sm text-akari-muted">
-                  Arena overview content will be displayed here.
-                </p>
-              </div>
-            </section>
-
             {/* Creators Leaderboard Section */}
             <section>
               <h2 className="text-xl font-semibold text-akari-text mb-4">Creators Leaderboard</h2>
               <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                {creatorsLoading ? (
-                  <p className="text-sm text-akari-muted">Loading creators...</p>
-                ) : creatorsError ? (
-                  <p className="text-sm text-akari-danger">Failed to load creators.</p>
-                ) : creators.length === 0 ? (
-                  <p className="text-sm text-akari-muted">No creators in this arena yet.</p>
+                {creators.length === 0 ? (
+                  <p className="text-sm text-akari-muted">
+                    No creators have joined this arena yet.
+                  </p>
                 ) : (
                   <div className="space-y-3">
                     {creators.map((creator, index) => {
                       const rank = index + 1;
                       return (
                         <div
-                          key={creator.id || index}
+                          key={creator.id || `creator-${index}`}
                           className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
                         >
                           <div className="flex items-center gap-4">
                             <span className="text-sm font-semibold text-akari-text w-8">
-                              #{rank}
+                              {rank}
                             </span>
                             <span className="text-sm text-akari-text">
-                              {creator.twitter_username || 'Unknown'}
+                              @{creator.twitter_username || 'Unknown'}
                             </span>
                             {creator.ring && (
                               <span
@@ -342,35 +302,20 @@ export default function ArenaDetailsPage() {
                                 {creator.ring}
                               </span>
                             )}
+                            {creator.style && (
+                              <span className="text-xs text-akari-muted">
+                                {creator.style}
+                              </span>
+                            )}
                           </div>
                           <span className="text-sm font-medium text-akari-text">
-                            {creator.arc_points ?? 0}
+                            {creator.arc_points ?? 0} pts
                           </span>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </div>
-            </section>
-
-            {/* Tasks Section */}
-            <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Tasks</h2>
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                <p className="text-sm text-akari-muted">
-                  Arena tasks will be displayed here.
-                </p>
-              </div>
-            </section>
-
-            {/* Arena Analytics Section */}
-            <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Arena Analytics</h2>
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                <p className="text-sm text-akari-muted">
-                  Arena analytics will be displayed here.
-                </p>
               </div>
             </section>
           </>
