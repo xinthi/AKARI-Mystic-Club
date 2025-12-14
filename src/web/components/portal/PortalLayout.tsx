@@ -9,6 +9,7 @@ import { UpgradeModal } from './UpgradeModal';
 import { UserMenu } from './UserMenu';
 import { AnalystPromoModal } from './AnalystPromoModal';
 import { useAnalystPromo } from '@/hooks/useAnalystPromo';
+import { isSuperAdmin } from '@/lib/permissions';
 
 type Props = {
   title?: string;
@@ -30,6 +31,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const { isLoggedIn } = akariUser;
   const tierInfo = getUserTierInfo(akariUser.user);
   const currentTier = getUserTier(akariUser.user);
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
     open: false,
   });
@@ -69,11 +71,21 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
         <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-4">
           {/* Mobile: Hamburger + Logo */}
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* Hamburger button - mobile only */}
+            {/* Hamburger button - visible to all but only clickable for Superadmins */}
             <button
-              onClick={() => setIsMobileNavOpen(true)}
-              className="sm:hidden p-2 text-akari-muted hover:text-akari-neon-teal transition-all duration-300 ease-out hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)]"
-              aria-label="Open navigation menu"
+              onClick={() => {
+                if (userIsSuperAdmin) {
+                  setIsMobileNavOpen(true);
+                }
+              }}
+              disabled={!userIsSuperAdmin}
+              className={`p-2 transition-all duration-300 ease-out ${
+                userIsSuperAdmin
+                  ? 'text-akari-muted hover:text-akari-neon-teal hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)] cursor-pointer'
+                  : 'text-akari-muted/30 cursor-not-allowed opacity-50'
+              }`}
+              aria-label={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
+              title={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
