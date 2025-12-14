@@ -1,8 +1,12 @@
 /**
  * API Route: GET /api/portal/arc/arenas
  * 
- * Returns a list of arenas with optional filtering by project_id and/or status.
- * Orders by starts_at DESC NULLS LAST.
+ * Returns a list of arenas for a given project.
+ * Query params:
+ * - projectId (UUID): Filter by arenas.project_id
+ * - slug (string): Join projects on projects.slug = slug and filter by that
+ * 
+ * At least one of projectId or slug must be provided.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -17,6 +21,7 @@ interface Arena {
   project_id: string;
   slug: string;
   name: string;
+  description: string | null;
   status: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
   starts_at: string | null;
   ends_at: string | null;
@@ -53,65 +58,103 @@ export default async function handler(
     // Create Supabase client (read-only with anon key)
     const supabase = createPortalClient();
 
-    // Extract optional query parameters
+    // Extract query parameters
     const projectId = req.query.projectId as string | undefined;
-    const status = req.query.status as string | undefined;
+    const slug = req.query.slug as string | undefined;
 
-    // Validate status if provided
-    const validStatuses = ['draft', 'scheduled', 'active', 'ended', 'cancelled'];
-    if (status && !validStatuses.includes(status)) {
+    // Validate that at least one filter is provided
+    if (!projectId && !slug) {
       return res.status(400).json({
         ok: false,
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        error: 'Either projectId or slug query parameter is required',
       });
     }
 
-    // Build query
-    let query = supabase
+    let targetProjectId: string | null = null;
+
+    // If slug is provided, first resolve it to project_id
+    if (slug) {
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('slug', slug)
+        .single();
+
+      if (projectError) {
+        // Check if it's a "not found" error
+        if (projectError.code === 'PGRST116') {
+          return res.status(404).json({
+            ok: false,
+            error: 'Project not found',
+          });
+        }
+
+        console.error('[API /portal/arc/arenas] Supabase error fetching project by slug:', projectError);
+        return res.status(500).json({
+          ok: false,
+          error: 'Internal server error',
+        });
+      }
+
+      if (!projectData) {
+        return res.status(404).json({
+          ok: false,
+          error: 'Project not found',
+        });
+      }
+
+      targetProjectId = projectData.id;
+    } else {
+      // Use provided projectId directly
+      targetProjectId = projectId!;
+    }
+
+    // Query arenas filtered by project_id
+    const { data, error } = await supabase
       .from('arenas')
-      .select('id, project_id, slug, name, status, starts_at, ends_at, reward_depth');
-
-    // Apply filters
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    // Order by starts_at DESC NULLS LAST
-    query = query.order('starts_at', { ascending: false, nullsFirst: false });
-
-    // Execute query
-    const { data, error } = await query;
+      .select(`
+        id,
+        project_id,
+        slug,
+        name,
+        description,
+        status,
+        starts_at,
+        ends_at,
+        reward_depth
+      `)
+      .eq('project_id', targetProjectId);
 
     if (error) {
       console.error('[API /portal/arc/arenas] Supabase error:', error);
       return res.status(500).json({
         ok: false,
-        error: 'Failed to fetch arenas',
+        error: 'Internal server error',
       });
     }
+
+    // Map data to response format
+    const arenas: Arena[] = (data || []).map((row: any) => ({
+      id: row.id,
+      project_id: row.project_id,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? null,
+      status: row.status,
+      starts_at: row.starts_at,
+      ends_at: row.ends_at,
+      reward_depth: row.reward_depth,
+    }));
 
     return res.status(200).json({
       ok: true,
-      arenas: (data || []) as Arena[],
+      arenas,
     });
   } catch (error: any) {
     console.error('[API /portal/arc/arenas] Error:', error);
-
-    // Check for specific Supabase errors
-    if (error.message?.includes('configuration missing')) {
-      return res.status(503).json({
-        ok: false,
-        error: 'ARC service is not configured',
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message || 'Failed to fetch arenas',
+      error: 'Internal server error',
     });
   }
 }
