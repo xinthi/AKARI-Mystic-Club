@@ -56,7 +56,7 @@ interface ArenasResponse {
 
 export default function ArenaDetailsPage() {
   const router = useRouter();
-  const { projectSlug, arenaSlug } = router.query;
+  const { slug, arenaSlug } = router.query;
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
   const [creators, setCreators] = useState<any[]>([]);
@@ -68,7 +68,7 @@ export default function ArenaDetailsPage() {
   // Fetch arena details
   useEffect(() => {
     async function fetchArenaDetails() {
-      if (!projectSlug || typeof projectSlug !== 'string' || !arenaSlug || typeof arenaSlug !== 'string') {
+      if (!slug || typeof slug !== 'string' || !arenaSlug || typeof arenaSlug !== 'string') {
         setLoading(false);
         return;
       }
@@ -78,8 +78,15 @@ export default function ArenaDetailsPage() {
         setError(null);
 
         // First, fetch arenas list to get the arena ID
-        const arenasRes = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(projectSlug)}`);
-        const arenasData: ArenasResponse = await arenasRes.json();
+        const arenasRes = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`);
+        
+        if (!arenasRes.ok) {
+          throw new Error(`HTTP ${arenasRes.status}: Failed to fetch arenas`);
+        }
+
+        const arenasData: ArenasResponse = await arenasRes.json().catch(() => {
+          throw new Error('Invalid response from server');
+        });
 
         if (!arenasData.ok || !arenasData.arenas) {
           setError(arenasData.error || 'Failed to load arena');
@@ -97,7 +104,14 @@ export default function ArenaDetailsPage() {
 
         // Now fetch detailed arena data using the ID
         const detailsRes = await fetch(`/api/portal/arc/arena-details?arenaId=${encodeURIComponent(foundArena.id)}`);
-        const detailsData: ArenaDetailResponse = await detailsRes.json();
+        
+        if (!detailsRes.ok) {
+          throw new Error(`HTTP ${detailsRes.status}: Failed to fetch arena details`);
+        }
+
+        const detailsData: ArenaDetailResponse = await detailsRes.json().catch(() => {
+          throw new Error('Invalid response from server');
+        });
 
         if (!detailsData.ok || !detailsData.arena) {
           setError(detailsData.error || 'Failed to load arena details');
@@ -106,8 +120,9 @@ export default function ArenaDetailsPage() {
         }
 
         setArena(detailsData.arena);
-      } catch (err) {
-        setError('Failed to connect to API');
+      } catch (err: any) {
+        const errorMessage = err?.message || 'Failed to connect to API';
+        setError(errorMessage);
         console.error('[ArenaDetailsPage] Fetch error:', err);
       } finally {
         setLoading(false);
@@ -115,7 +130,7 @@ export default function ArenaDetailsPage() {
     }
 
     fetchArenaDetails();
-  }, [projectSlug, arenaSlug]);
+  }, [slug, arenaSlug]);
 
   // Fetch creators for the arena
   useEffect(() => {
@@ -127,16 +142,23 @@ export default function ArenaDetailsPage() {
         setCreatorsError(null);
 
         const res = await fetch(`/api/portal/arc/arena-creators?arenaId=${arena.id}`);
-        const body = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: Failed to fetch creators`);
+        }
 
-        if (!res.ok || !body.ok) {
+        const body = await res.json().catch(() => {
+          throw new Error('Invalid response from server');
+        });
+
+        if (!body.ok) {
           throw new Error(body?.error || 'Failed to load creators');
         }
 
         setCreators(body.creators || []);
       } catch (err: any) {
         console.error('Failed to load arena creators', err);
-        setCreatorsError(err.message || 'Failed to load creators');
+        setCreatorsError(err?.message || 'Failed to load creators');
       } finally {
         setCreatorsLoading(false);
       }
@@ -188,7 +210,7 @@ export default function ArenaDetailsPage() {
   };
 
   // Safe project slug for navigation
-  const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
+  const safeProjectSlug = typeof slug === 'string' ? slug : '';
 
   return (
     <PortalLayout title="ARC Arena">
