@@ -57,15 +57,17 @@ jobs:
 
       # Step 4: Get pnpm store directory
       - name: Get pnpm store directory
+        id: pnpm-store-path
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          echo "store-path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       # Step 5: Setup pnpm cache
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
-          path: ${{ env.STORE_PATH }}
+          path: ${{ steps.pnpm-store-path.outputs.store-path }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
@@ -79,8 +81,29 @@ jobs:
         run: |
           # Install ts-node for running TypeScript directly
           pnpm add -D ts-node typescript @types/node
+
+      # Step 8: Validate required secrets
+      - name: Validate secrets
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          TWITTERAPIIO_API_KEY: ${{ secrets.TWITTERAPIIO_API_KEY }}
+          TWITTER_API65_AUTH_TOKEN: ${{ secrets.TWITTER_API65_AUTH_TOKEN }}
+          TWITTER_PRIMARY_PROVIDER: ${{ secrets.TWITTER_PRIMARY_PROVIDER }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Missing required Supabase secrets"
+            exit 1
+          fi
+          if [ -z "$RAPIDAPI_KEY" ] && [ -z "$TWITTERAPIIO_API_KEY" ] && [ -z "$TWITTER_API65_AUTH_TOKEN" ]; then
+            echo "::error::At least one Twitter API secret is required"
+            exit 1
+          fi
+          echo "✓ All required secrets are present"
           
-      # Step 8: Run sentiment update script
+      # Step 9: Run sentiment update script
       - name: Run sentiment update
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -95,7 +118,7 @@ jobs:
           npx ts-node --transpile-only scripts/sentiment/updateAllProjects.ts
           echo "Sentiment update complete!"
 
-      # Step 9: Run circles update script
+      # Step 10: Run circles update script
       - name: Run circles update
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
