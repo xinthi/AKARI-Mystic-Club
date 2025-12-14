@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 
 // =============================================================================
@@ -139,54 +140,72 @@ export default function ArcHome() {
         {/* Projects grid */}
         {!loading && !error && projects.length > 0 && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <div
-                key={project.project_id}
-                className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300"
-              >
-                {/* Project name */}
-                <h3 className="text-lg font-semibold text-akari-text mb-2">
-                  {project.name || 'Unnamed Project'}
-                </h3>
+            {projects.map((project) => {
+              // Only make clickable if slug exists
+              const CardContent = (
+                <div className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 cursor-pointer">
+                  {/* Project name */}
+                  <h3 className="text-lg font-semibold text-akari-text mb-2">
+                    {project.name || 'Unnamed Project'}
+                  </h3>
 
-                {/* Twitter username */}
-                {project.twitter_username && (
-                  <p className="text-sm text-akari-muted mb-4">
-                    @{project.twitter_username}
-                  </p>
-                )}
+                  {/* Twitter username */}
+                  {project.twitter_username && (
+                    <p className="text-sm text-akari-muted mb-4">
+                      @{project.twitter_username}
+                    </p>
+                  )}
 
-                {/* Status badges */}
-                <div className="flex flex-wrap gap-2">
-                  {/* ARC Tier */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
-                      project.arc_tier
-                    )}`}
-                  >
-                    {project.arc_tier}
-                  </span>
+                  {/* Status badges */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* ARC Tier */}
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
+                        project.arc_tier
+                      )}`}
+                    >
+                      {project.arc_tier}
+                    </span>
 
-                  {/* ARC Status */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      project.arc_status
-                    )}`}
-                  >
-                    {project.arc_status}
-                  </span>
+                    {/* ARC Status */}
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                        project.arc_status
+                      )}`}
+                    >
+                      {project.arc_status}
+                    </span>
 
-                  {/* Security Status */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
-                      project.security_status
-                    )}`}
-                  >
-                    {project.security_status}
-                  </span>
+                    {/* Security Status */}
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
+                        project.security_status
+                      )}`}
+                    >
+                      {project.security_status}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+
+              // Wrap in Link if slug exists, otherwise render as-is
+              if (project.slug) {
+                return (
+                  <Link
+                    key={project.project_id}
+                    href={`/portal/arc/${project.slug}`}
+                  >
+                    {CardContent}
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={project.project_id}>
+                  {CardContent}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
