@@ -79,10 +79,10 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 }
               }}
               disabled={!userIsSuperAdmin}
-              className={`p-2 transition-all duration-300 ease-out ${
+              className={`p-2 rounded-lg border transition-all duration-300 ease-out ${
                 userIsSuperAdmin
-                  ? 'text-akari-muted hover:text-akari-neon-teal hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)] cursor-pointer'
-                  : 'text-akari-muted/30 cursor-not-allowed opacity-50'
+                  ? 'text-akari-muted hover:text-akari-neon-teal hover:border-akari-neon-teal/50 hover:bg-akari-neon-teal/5 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)] cursor-pointer border-akari-neon-teal/20'
+                  : 'text-akari-muted/60 cursor-not-allowed border-akari-muted/20 bg-akari-muted/5'
               }`}
               aria-label={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
               title={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
