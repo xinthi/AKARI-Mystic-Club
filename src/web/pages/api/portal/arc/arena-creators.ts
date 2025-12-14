@@ -66,43 +66,29 @@ export default async function handler(
       });
     }
 
-    // Query arena_creators with profiles join
+    // Query arena_creators
     const { data, error } = await supabase
       .from('arena_creators')
-      .select(`
-        id,
-        arena_id,
-        profile_id,
-        twitter_username,
-        arc_points,
-        ring,
-        style,
-        created_at,
-        profiles (
-          username,
-          twitter_username,
-          avatar_url
-        )
-      `)
+      .select('id, arena_id, profile_id, twitter_username, arc_points, ring, style, created_at')
       .eq('arena_id', arenaId)
       .order('arc_points', { ascending: false });
 
     if (error) {
-      console.error('[API /portal/arc/arena-creators] Supabase error:', error);
+      console.error('arena-creators error', error);
       return res.status(500).json({
         ok: false,
-        error: 'Internal server error',
+        error: error.message ?? 'Internal server error',
       });
     }
 
     // Map data to response format
-    const creators: Creator[] = (data || []).map((row: any) => ({
+    const creators = (data ?? []).map((row) => ({
       id: row.id,
       arena_id: row.arena_id,
       profile_id: row.profile_id,
-      username: row.profiles?.username ?? null,
-      twitter_username: row.twitter_username ?? row.profiles?.twitter_username ?? null,
-      avatar_url: row.profiles?.avatar_url ?? null,
+      username: null,
+      twitter_username: row.twitter_username,
+      avatar_url: null,
       arc_points: row.arc_points,
       ring: row.ring,
       style: row.style,
