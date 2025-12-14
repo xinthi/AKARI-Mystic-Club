@@ -16,7 +16,6 @@ interface ArcProject {
   project_id: string;
   name: string;
   twitter_username: string;
-  avatar_url: string | null;
   arc_tier: 'basic' | 'pro' | 'event_host';
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
@@ -53,6 +52,7 @@ export default async function handler(
     const supabase = createPortalClient();
 
     // Select from project_arc_settings joined with projects
+    // Only return rows where is_arc_enabled = true
     const { data, error } = await supabase
       .from('project_arc_settings')
       .select(`
@@ -63,10 +63,10 @@ export default async function handler(
         projects (
           id,
           name,
-          x_handle,
-          avatar_url
+          x_handle
         )
-      `);
+      `)
+      .eq('is_arc_enabled', true);
 
     if (error) {
       console.error('[API /portal/arc/projects] Supabase error:', error);
@@ -78,18 +78,19 @@ export default async function handler(
 
     // Transform the data to match the response shape
     // Map x_handle to twitter_username for API response
-    const projects: ArcProject[] = (data || []).map((row: any) => {
-      const project = row.projects;
-      return {
-        project_id: row.project_id,
-        name: project?.name || '',
-        twitter_username: project?.x_handle || '',
-        avatar_url: project?.avatar_url || null,
-        arc_tier: row.tier,
-        arc_status: row.status,
-        security_status: row.security_status,
-      };
-    });
+    const projects: ArcProject[] = (data || [])
+      .filter((row: any) => row.projects !== null) // Filter out rows where project doesn't exist
+      .map((row: any) => {
+        const project = row.projects;
+        return {
+          project_id: row.project_id,
+          name: project?.name || '',
+          twitter_username: project?.x_handle || '',
+          arc_tier: row.tier,
+          arc_status: row.status,
+          security_status: row.security_status,
+        };
+      });
 
     return res.status(200).json({
       ok: true,
