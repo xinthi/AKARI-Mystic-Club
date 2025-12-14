@@ -21,6 +21,7 @@ const navItems = [
   { href: '/portal/markets', label: 'markets', isTesting: true },
   { href: '/portal/memes', label: 'meme radar', isTesting: true },
   { href: '/portal/sentiment', label: 'sentiment', isTesting: false },
+  { href: '/portal/arc', label: 'arc', isTesting: false },
   { href: '/portal/new-launches', label: 'new launches', isTesting: true },
   { href: '/portal/pricing', label: 'pricing', isTesting: false },
 ];
@@ -74,11 +75,11 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             {/* Hamburger menu button */}
             <button
               onClick={() => setIsMobileNavOpen(true)}
-              className="p-2 text-akari-muted hover:text-akari-neon-teal transition-all duration-300 ease-out hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)]"
+              className="p-2 rounded-lg border border-akari-neon-teal/40 bg-akari-neon-teal/10 text-akari-neon-teal hover:border-akari-neon-teal hover:bg-akari-neon-teal/20 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.6)] transition-all duration-300 ease-out flex-shrink-0"
               aria-label="Open navigation menu"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
 
