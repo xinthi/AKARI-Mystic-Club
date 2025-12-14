@@ -26,19 +26,9 @@ interface ArenaDetail {
   settings: Record<string, any>;
 }
 
-interface Creator {
-  id: string;
-  twitter_username: string;
-  arc_points: number;
-  ring: 'core' | 'momentum' | 'discovery';
-  style: string | null;
-  meta: Record<string, any>;
-}
-
 interface ArenaDetailResponse {
   ok: boolean;
   arena?: ArenaDetail;
-  creators?: Creator[];
   error?: string;
 }
 
@@ -129,23 +119,20 @@ export default function ArenaDetailsPage() {
 
   // Fetch creators for the arena
   useEffect(() => {
-    if (!arena?.id) return;
+    if (!arena || !arena.id) return;
 
     const fetchCreators = async () => {
       try {
         setCreatorsLoading(true);
         setCreatorsError(null);
 
-        const res = await fetch(
-          `/api/portal/arc/arena-creators?arenaId=${arena.id}`
-        );
+        const res = await fetch(`/api/portal/arc/arena-creators?arenaId=${arena.id}`);
+        const body = await res.json();
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
+        if (!res.ok || !body.ok) {
           throw new Error(body?.error || 'Failed to load creators');
         }
 
-        const body = await res.json();
         setCreators(body.creators || []);
       } catch (err: any) {
         console.error('Failed to load arena creators', err);
@@ -200,6 +187,9 @@ export default function ArenaDetailsPage() {
     }
   };
 
+  // Safe project slug for navigation
+  const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
+
   return (
     <PortalLayout title="ARC Arena">
       <div className="space-y-6">
@@ -212,13 +202,17 @@ export default function ArenaDetailsPage() {
             ARC Home
           </Link>
           <span>/</span>
-          <Link
-            href={`/portal/arc/${projectSlug}`}
-            className="hover:text-akari-primary transition-colors"
-          >
-            Project
-          </Link>
-          <span>/</span>
+          {safeProjectSlug && (
+            <>
+              <Link
+                href={`/portal/arc/${safeProjectSlug}`}
+                className="hover:text-akari-primary transition-colors"
+              >
+                Project
+              </Link>
+              <span>/</span>
+            </>
+          )}
           <span className="text-akari-text">Arena</span>
         </div>
 
@@ -230,10 +224,12 @@ export default function ArenaDetailsPage() {
           </div>
         )}
 
-        {/* Error state */}
-        {error && !loading && (
+        {/* Error state or Arena not found */}
+        {!loading && (error || !arena) && (
           <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">{error}</p>
+            <p className="text-sm text-akari-danger">
+              {error || 'Arena not found'}
+            </p>
           </div>
         )}
 
@@ -305,7 +301,7 @@ export default function ArenaDetailsPage() {
                       const rank = index + 1;
                       return (
                         <div
-                          key={creator.id}
+                          key={creator.id || index}
                           className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
                         >
                           <div className="flex items-center gap-4">
@@ -326,7 +322,7 @@ export default function ArenaDetailsPage() {
                             )}
                           </div>
                           <span className="text-sm font-medium text-akari-text">
-                            {creator.arc_points}
+                            {creator.arc_points ?? 0}
                           </span>
                         </div>
                       );
