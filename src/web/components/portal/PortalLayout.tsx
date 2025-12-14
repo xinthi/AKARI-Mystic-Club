@@ -32,6 +32,17 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const tierInfo = getUserTierInfo(akariUser.user);
   const currentTier = getUserTier(akariUser.user);
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  
+  // Debug: Log user role in dev mode
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[PortalLayout] User roles:', {
+      realRoles: akariUser.user?.realRoles,
+      effectiveRoles: akariUser.user?.effectiveRoles,
+      isSuperAdmin: userIsSuperAdmin,
+      xUsername: akariUser.user?.xUsername,
+    });
+  }
+  
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
     open: false,
   });
@@ -74,21 +85,31 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             {/* Hamburger button - visible to all but only clickable for Superadmins */}
             <button
               onClick={() => {
+                console.log('[PortalLayout] Hamburger clicked, userIsSuperAdmin:', userIsSuperAdmin);
                 if (userIsSuperAdmin) {
                   setIsMobileNavOpen(true);
+                } else {
+                  console.warn('[PortalLayout] Hamburger clicked but user is not Superadmin');
                 }
               }}
               disabled={!userIsSuperAdmin}
-              className={`p-2 rounded-lg border transition-all duration-300 ease-out ${
+              className={`relative z-10 p-2.5 rounded-lg border-2 transition-all duration-300 ease-out flex-shrink-0 ${
                 userIsSuperAdmin
-                  ? 'text-akari-muted hover:text-akari-neon-teal hover:border-akari-neon-teal/50 hover:bg-akari-neon-teal/5 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.5)] cursor-pointer border-akari-neon-teal/20'
-                  : 'text-akari-muted/60 cursor-not-allowed border-akari-muted/20 bg-akari-muted/5'
+                  ? 'text-akari-neon-teal border-akari-neon-teal bg-akari-neon-teal/20 hover:text-akari-neon-teal hover:border-akari-neon-teal hover:bg-akari-neon-teal/30 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.6)] cursor-pointer shadow-[0_0_8px_rgba(0,246,162,0.4)]'
+                  : 'text-akari-muted/60 cursor-not-allowed border-akari-muted/40 bg-akari-muted/20'
               }`}
+              style={{
+                minWidth: '40px',
+                minHeight: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
               aria-label={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
               title={userIsSuperAdmin ? 'Open navigation menu' : 'Navigation menu (Superadmin only)'}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
 
