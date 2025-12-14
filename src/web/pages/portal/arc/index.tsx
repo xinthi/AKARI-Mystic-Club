@@ -12,7 +12,7 @@ export default function ArcHome() {
     <PortalLayout title="ARC">
       <div className="space-y-6">
         <h1 className="text-3xl font-bold text-gradient-teal">
-          ARC – Narrative Universe
+          ARC Narrative Universe
         </h1>
         <p className="text-akari-text">
           ARC Home is live
