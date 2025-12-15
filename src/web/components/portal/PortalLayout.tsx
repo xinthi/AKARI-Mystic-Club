@@ -43,10 +43,12 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
   // Filter nav items based on environment and user permissions
   const isProduction = process.env.NODE_ENV === 'production';
+  const isDevMode = process.env.NODE_ENV === 'development';
+  const canSeeArc = isDevMode || userIsSuperAdmin;
   const visibleNavItems = navItems.filter((item) => {
-    // ARC link: only show to SuperAdmins in production, everyone in dev
+    // ARC link: show to SuperAdmins in production, everyone in dev
     if (item.href === '/portal/arc') {
-      return !isProduction || userIsSuperAdmin;
+      return canSeeArc;
     }
     return true;
   });
