@@ -74,6 +74,9 @@ export default function ArcHome() {
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
+  
+  // Dev mode: treat user as following all projects
+  const isDevMode = process.env.NODE_ENV === 'development';
 
   // Fetch ARC projects and user campaign statuses
   useEffect(() => {
@@ -99,26 +102,6 @@ export default function ArcHome() {
           const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
           setUserCampaignStatuses(statuses);
 
-          // Build my campaigns list
-          const joinedCampaigns: UserCampaign[] = [];
-          statuses.forEach((status, projectId) => {
-            if (status.hasJoined) {
-              const project = data.projects.find(p => p.project_id === projectId);
-              if (project) {
-                joinedCampaigns.push({
-                  project_id: project.project_id,
-                  slug: project.slug,
-                  name: project.name,
-                  twitter_username: project.twitter_username,
-                  arcPoints: status.arcPoints || 0,
-                  ring: status.ring,
-                  meta: project.meta,
-                });
-              }
-            }
-          });
-          setMyCampaigns(joinedCampaigns);
-        }
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArcHome] Fetch error:', err);
@@ -150,8 +133,8 @@ export default function ArcHome() {
       }
 
       // Refresh campaign statuses
-      if (userTwitterUsername) {
         const projectIds = projects.map(p => p.project_id);
+      if (userTwitterUsername) {
         const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
         setUserCampaignStatuses(statuses);
 
@@ -174,6 +157,17 @@ export default function ArcHome() {
           }
         });
         setMyCampaigns(joinedCampaigns);
+      } else if (isDevMode) {
+        // In dev mode, update statuses to show user as following
+        const devStatuses = new Map<string, { isFollowing: boolean; hasJoined: boolean }>();
+        projectIds.forEach(projectId => {
+          const existing = userCampaignStatuses.get(projectId);
+          devStatuses.set(projectId, {
+            isFollowing: true,
+            hasJoined: existing?.hasJoined || false,
+          });
+        });
+        setUserCampaignStatuses(devStatuses);
       }
 
       // Redirect to project ARC page
