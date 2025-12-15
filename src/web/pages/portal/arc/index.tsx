@@ -1,8 +1,7 @@
 /**
  * ARC Home Page
  * 
- * Creator Arenas - Narrative Universe
- * Displays all projects with ARC settings enabled
+ * Campaign Discovery Hub - Modern dashboard for creators and projects
  */
 
 import React, { useEffect, useState } from 'react';
@@ -10,6 +9,11 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
+import { FeaturedCampaigns } from '@/components/arc/FeaturedCampaigns';
+import { MyCampaigns } from '@/components/arc/MyCampaigns';
+import { CampaignGrid } from '@/components/arc/CampaignGrid';
+import { TrendingNarratives } from '@/components/arc/TrendingNarratives';
+import { getUserCampaignStatuses } from '@/lib/arc/helpers';
 
 // =============================================================================
 // TYPES
@@ -23,12 +27,35 @@ interface ArcProject {
   arc_tier: 'basic' | 'pro' | 'event_host';
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
+  meta?: {
+    banner_url?: string | null;
+    accent_color?: string | null;
+    tagline?: string | null;
+  };
+  stats?: {
+    creatorCount?: number;
+    totalPoints?: number;
+    trend?: 'rising' | 'stable' | 'cooling';
+  };
 }
 
 interface ArcProjectsResponse {
   ok: boolean;
   projects?: ArcProject[];
   error?: string;
+}
+
+interface UserCampaign {
+  project_id: string;
+  slug: string | null;
+  name: string | null;
+  twitter_username: string | null;
+  arcPoints: number;
+  ring?: string;
+  rank?: number;
+  meta?: {
+    accent_color?: string | null;
+  };
 }
 
 // =============================================================================
@@ -39,16 +66,23 @@ export default function ArcHome() {
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const [projects, setProjects] = useState<ArcProject[]>([]);
+  const [myCampaigns, setMyCampaigns] = useState<UserCampaign[]>([]);
+  const [userCampaignStatuses, setUserCampaignStatuses] = useState<Map<string, { isFollowing: boolean; hasJoined: boolean }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
 
-  // Fetch ARC projects
+  // Get user's Twitter username
+  const userTwitterUsername = akariUser.user?.xUsername || null;
+
+  // Fetch ARC projects and user campaign statuses
   useEffect(() => {
-    async function fetchProjects() {
+    async function fetchData() {
       try {
         setLoading(true);
         setError(null);
 
+        // Fetch projects
         const res = await fetch('/api/portal/arc/projects');
         const data: ArcProjectsResponse = await res.json();
 
@@ -58,6 +92,33 @@ export default function ArcHome() {
         }
 
         setProjects(data.projects);
+
+        // Fetch user campaign statuses
+        if (userTwitterUsername && data.projects.length > 0) {
+          const projectIds = data.projects.map(p => p.project_id);
+          const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
+          setUserCampaignStatuses(statuses);
+
+          // Build my campaigns list
+          const joinedCampaigns: UserCampaign[] = [];
+          statuses.forEach((status, projectId) => {
+            if (status.hasJoined) {
+              const project = data.projects.find(p => p.project_id === projectId);
+              if (project) {
+                joinedCampaigns.push({
+                  project_id: project.project_id,
+                  slug: project.slug,
+                  name: project.name,
+                  twitter_username: project.twitter_username,
+                  arcPoints: status.arcPoints || 0,
+                  ring: status.ring,
+                  meta: project.meta,
+                });
+              }
+            }
+          });
+          setMyCampaigns(joinedCampaigns);
+        }
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArcHome] Fetch error:', err);
@@ -66,47 +127,65 @@ export default function ArcHome() {
       }
     }
 
-    fetchProjects();
-  }, []);
+    fetchData();
+  }, [userTwitterUsername]);
 
-  // Helper function to get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
-      case 'suspended':
-        return 'bg-red-500/10 border-red-500/30 text-red-400';
-      case 'inactive':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
-    }
-  };
+  // Handle join campaign
+  const handleJoinCampaign = async (projectId: string) => {
+    if (joiningProjectId) return; // Prevent double-clicks
 
-  // Helper function to get tier badge color
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'event_host':
-        return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
-      case 'pro':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
-      case 'basic':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-    }
-  };
+    try {
+      setJoiningProjectId(projectId);
 
-  // Helper function to get security status badge color
-  const getSecurityColor = (status: string) => {
-    switch (status) {
-      case 'alert':
-        return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
-      case 'clear':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
-      case 'normal':
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
+      const res = await fetch('/api/portal/arc/join-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to join campaign');
+      }
+
+      // Refresh campaign statuses
+      if (userTwitterUsername) {
+        const projectIds = projects.map(p => p.project_id);
+        const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
+        setUserCampaignStatuses(statuses);
+
+        // Update my campaigns
+        const joinedCampaigns: UserCampaign[] = [];
+        statuses.forEach((status, pid) => {
+          if (status.hasJoined) {
+            const project = projects.find(p => p.project_id === pid);
+            if (project) {
+              joinedCampaigns.push({
+                project_id: project.project_id,
+                slug: project.slug,
+                name: project.name,
+                twitter_username: project.twitter_username,
+                arcPoints: status.arcPoints || 0,
+                ring: status.ring,
+                meta: project.meta,
+              });
+            }
+          }
+        });
+        setMyCampaigns(joinedCampaigns);
+      }
+
+      // Redirect to project ARC page
+      const project = projects.find(p => p.project_id === projectId);
+      if (project?.slug) {
+        window.location.href = `/portal/arc/${project.slug}`;
+      }
+    } catch (err: any) {
+      console.error('[ArcHome] Join campaign error:', err);
+      alert(err?.message || 'Failed to join campaign. Please try again.');
+    } finally {
+      setJoiningProjectId(null);
     }
   };
 
