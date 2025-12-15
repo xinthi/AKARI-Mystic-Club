@@ -61,14 +61,26 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     
     switch (ring.toLowerCase()) {
       case 'core':
-        return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
+        return 'bg-purple-500/20 border-purple-500/40 text-purple-300';
       case 'momentum':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
+        return 'bg-blue-500/20 border-blue-500/40 text-blue-300';
       case 'discovery':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
+        return 'bg-green-500/20 border-green-500/40 text-green-300';
       default:
         return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
     }
+  };
+
+  // Helper function to get avatar/initial for creator
+  const getCreatorAvatar = (username: string, size: 'small' | 'large' = 'small') => {
+    if (!username) return null;
+    const firstLetter = username.charAt(0).toUpperCase();
+    const sizeClasses = size === 'large' ? 'w-16 h-16 text-xl' : 'w-8 h-8 text-sm';
+    return (
+      <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text`}>
+        {firstLetter}
+      </div>
+    );
   };
 
   // Helper function to format date
@@ -145,8 +157,11 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           <>
             {/* Header card */}
             <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
+              <div className="flex items-start gap-6">
+                <div className="flex-shrink-0">
+                  {getCreatorAvatar(creator.twitter_username, 'large')}
+                </div>
+                <div className="flex-1 min-w-0">
                   <h1 className="text-3xl font-bold text-akari-text mb-2">
                     @{creator.twitter_username}
                   </h1>
@@ -157,13 +172,15 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                   )}
                 </div>
                 {creator.primary_ring && (
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getRingColor(
-                      creator.primary_ring
-                    )}`}
-                  >
-                    {creator.primary_ring}
-                  </span>
+                  <div className="flex-shrink-0">
+                    <span
+                      className={`px-4 py-2 rounded-full text-sm font-medium border ${getRingColor(
+                        creator.primary_ring
+                      )}`}
+                    >
+                      {creator.primary_ring}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -188,19 +205,25 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
 
               {/* Points by Ring */}
               <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
-                <p className="text-xs text-akari-muted mb-1">Points by Ring</p>
-                <div className="flex flex-wrap gap-2 text-sm text-akari-text">
+                <p className="text-xs text-akari-muted mb-2">Points by Ring</p>
+                <div className="flex flex-wrap gap-2">
                   {creator.ring_points.core > 0 && (
-                    <span>Core {creator.ring_points.core.toLocaleString()}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getRingColor('core')}`}>
+                      Core {creator.ring_points.core.toLocaleString()}
+                    </span>
                   )}
                   {creator.ring_points.momentum > 0 && (
-                    <span>Momentum {creator.ring_points.momentum.toLocaleString()}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getRingColor('momentum')}`}>
+                      Momentum {creator.ring_points.momentum.toLocaleString()}
+                    </span>
                   )}
                   {creator.ring_points.discovery > 0 && (
-                    <span>Discovery {creator.ring_points.discovery.toLocaleString()}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getRingColor('discovery')}`}>
+                      Discovery {creator.ring_points.discovery.toLocaleString()}
+                    </span>
                   )}
                   {creator.ring_points.core === 0 && creator.ring_points.momentum === 0 && creator.ring_points.discovery === 0 && (
-                    <span className="text-akari-muted">No points yet</span>
+                    <span className="text-sm text-akari-muted">No points yet</span>
                   )}
                 </div>
               </div>
@@ -234,7 +257,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                           return (
                             <tr
                               key={arena.arena_id}
-                              className="hover:bg-akari-cardSoft/20 transition-colors"
+                              className="hover:bg-akari-cardSoft/20 transition-colors group"
                             >
                               <td className="px-4 py-3 text-sm text-akari-text">
                                 <div>
@@ -249,7 +272,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                               <td className="px-4 py-3 text-sm text-akari-text">
                                 <Link
                                   href={`/portal/arc/${projectSlug}/arena/${arena.arena_slug}`}
-                                  className="text-akari-primary hover:text-akari-neon-teal transition-colors"
+                                  className="font-medium text-akari-primary hover:text-akari-neon-teal transition-colors underline decoration-akari-primary/30 hover:decoration-akari-neon-teal/50"
                                 >
                                   {arena.arena_name}
                                 </Link>

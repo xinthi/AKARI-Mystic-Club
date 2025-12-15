@@ -185,14 +185,25 @@ export default function ArenaDetailsPage() {
   const getRingColor = (ring: string) => {
     switch (ring) {
       case 'core':
-        return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
+        return 'bg-purple-500/20 border-purple-500/40 text-purple-300';
       case 'momentum':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
+        return 'bg-blue-500/20 border-blue-500/40 text-blue-300';
       case 'discovery':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
+        return 'bg-green-500/20 border-green-500/40 text-green-300';
       default:
         return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
     }
+  };
+
+  // Helper function to get avatar/initial for creator
+  const getCreatorAvatar = (username: string | null | undefined) => {
+    if (!username) return null;
+    const firstLetter = username.charAt(0).toUpperCase();
+    return (
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center text-sm font-semibold text-akari-text">
+        {firstLetter}
+      </div>
+    );
   };
 
   // Filter and sort creators
@@ -619,50 +630,56 @@ export default function ArenaDetailsPage() {
                       <div className="space-y-3">
                         {visibleCreators.map((creator, index) => {
                           const rank = index + 1;
+                          const creatorUrl = `/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`;
                           return (
                             <div
                               key={creator.id || `creator-${index}`}
-                              className="flex items-center justify-between p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:border-akari-neon-teal/30 transition-colors"
+                              className="group relative flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:bg-akari-cardSoft/50 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all duration-200"
                             >
-                              <div className="flex items-center gap-4">
-                                <span className="text-sm font-semibold text-akari-text w-8">
+                              <Link
+                                href={creatorUrl}
+                                className="flex-1 flex items-center gap-4 min-w-0 cursor-pointer"
+                              >
+                                <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
                                   {rank}
                                 </span>
-                                <Link
-                                  href={`/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`}
-                                  className="text-sm text-akari-text hover:text-akari-primary transition-colors"
-                                >
-                                  @{creator.twitter_username || 'Unknown'}
-                                </Link>
-                                {creator.ring && (
-                                  <span
-                                    className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(
-                                      creator.ring
-                                    )}`}
-                                  >
-                                    {creator.ring}
+                                {getCreatorAvatar(creator.twitter_username)}
+                                <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                  <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                    @{creator.twitter_username || 'Unknown'}
                                   </span>
-                                )}
-                                {creator.style && (
-                                  <span className="text-xs text-akari-muted">
-                                    {creator.style}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-akari-text">
+                                  {creator.ring && (
+                                    <span
+                                      className={`px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(
+                                        creator.ring
+                                      )}`}
+                                    >
+                                      {creator.ring}
+                                    </span>
+                                  )}
+                                  {creator.style && (
+                                    <span className="text-xs text-akari-muted truncate max-w-[200px]">
+                                      {creator.style}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-sm font-medium text-akari-text ml-auto whitespace-nowrap">
                                   {creator.arc_points ?? 0} pts
                                 </span>
-                                {userIsSuperAdmin && creator.id && (
-                                  <button
-                                    onClick={() => openEditModal(creator)}
-                                    className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
-                                    title="Edit creator"
-                                  >
-                                    Edit
-                                  </button>
-                                )}
-                              </div>
+                              </Link>
+                              {userIsSuperAdmin && creator.id && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openEditModal(creator);
+                                  }}
+                                  className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors flex-shrink-0 z-10 relative"
+                                  title="Edit creator"
+                                >
+                                  Edit
+                                </button>
+                              )}
                             </div>
                           );
                         })}
