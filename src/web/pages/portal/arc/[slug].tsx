@@ -81,6 +81,75 @@ interface ArenaDetailResponse {
 type TabType = 'overview' | 'leaderboard' | 'missions' | 'storyline' | 'map';
 
 // =============================================================================
+// MISSION TYPES AND HELPERS
+// =============================================================================
+
+type MissionStatus = 'locked' | 'available' | 'completed';
+
+interface Mission {
+  id: string;
+  title: string;
+  description: string;
+  rewardPoints: number;
+  recommendedContent: string; // e.g. "Thread", "Meme", "Quote RT"
+  status: MissionStatus;
+}
+
+/**
+ * Build missions based on user's join status and ARC points
+ */
+function buildMissions(
+  hasJoined: boolean,
+  projectArcPoints: number
+): Mission[] {
+  const baseMissions: Omit<Mission, 'status'>[] = [
+    {
+      id: 'intro-thread',
+      title: 'Share your first thread',
+      description: 'Write a thread explaining why this project matters and tag the project account.',
+      rewardPoints: 40,
+      recommendedContent: 'Thread',
+    },
+    {
+      id: 'meme-drop',
+      title: 'Post a meme',
+      description: 'Post a meme about the project using the main hashtag.',
+      rewardPoints: 25,
+      recommendedContent: 'Meme',
+    },
+    {
+      id: 'signal-boost',
+      title: 'Quote RT an announcement',
+      description: 'Quote-retweet the latest project update with your commentary.',
+      rewardPoints: 20,
+      recommendedContent: 'Quote RT',
+    },
+    {
+      id: 'deep-dive',
+      title: 'Publish a deep dive',
+      description: 'Publish a detailed analysis or recap of a key feature, product, or roadmap item.',
+      rewardPoints: 80,
+      recommendedContent: 'Deep dive',
+    },
+  ];
+
+  return baseMissions.map((m) => {
+    let status: MissionStatus;
+
+    if (!hasJoined) {
+      status = 'locked';
+    } else if (projectArcPoints >= m.rewardPoints * 2) {
+      // simple placeholder heuristic: if user has at least 2x rewardPoints, treat as completed
+      status = 'completed';
+    } else {
+      status = 'available';
+    }
+
+    return { ...m, status };
+  });
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
@@ -793,88 +862,96 @@ export default function ArcProjectHub() {
               )}
 
               {/* Missions Tab */}
-              {activeTab === 'missions' && (
-                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-                  {!userStatus?.hasJoined ? (
-                    <div className="text-center py-12">
-                      <p className="text-sm text-akari-muted mb-4">
-                        You need to join the campaign to view missions.
-                      </p>
-                      {!userStatus?.isFollowing ? (
-                        <button
-                          onClick={() => setShowFollowModal(true)}
-                          className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
-                        >
-                          Follow on X to join
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleJoinCampaign}
-                          disabled={joiningProjectId === project.project_id}
-                          className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
-                        >
-                          {joiningProjectId === project.project_id ? 'Joining...' : 'Join campaign'}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      {/* Progress header */}
-                      <div className="mb-6 p-4 rounded-lg bg-black/60 border border-white/10">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <div className="text-xs text-white/60 mb-1">Your ARC Points</div>
-                            <div className="text-2xl font-bold text-white">{userStatus.arcPoints || 0}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs text-white/60 mb-1">Current Ring</div>
-                            <div className="text-lg font-semibold text-white capitalize">{userStatus.ring || 'Discovery'}</div>
+              {activeTab === 'missions' && (() => {
+                const hasJoined = userStatus?.hasJoined || false;
+                const projectArcPoints = userStatus?.arcPoints || 0;
+                const missions = buildMissions(hasJoined, projectArcPoints);
+
+                return (
+                  <section className="space-y-6">
+                    {/* Header / Progress */}
+                    <div className="rounded-xl border border-white/10 bg-black/50 px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <h2 className="text-lg font-semibold text-white">Creator Missions</h2>
+                        <p className="text-sm text-white/60">
+                          Complete missions by creating content about this project. ARC points are awarded automatically by the scoring engine.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div>
+                          <div className="text-white/60">Your ARC points</div>
+                          <div className="text-xl font-semibold text-white">{projectArcPoints}</div>
+                        </div>
+                        <div className="h-10 w-px bg-white/10" />
+                        <div>
+                          <div className="text-white/60">Status</div>
+                          <div className="font-semibold text-emerald-400">
+                            {hasJoined ? 'Campaign joined' : 'Join required'}
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Missions list */}
-                      <div className="space-y-3">
-                        {[
-                          { id: 1, title: 'Post a thread about this project', points: 50, status: 'available' as const },
-                          { id: 2, title: 'Share a meme with the project hashtag', points: 30, status: 'available' as const },
-                          { id: 3, title: 'Quote-retweet the latest announcement', points: 20, status: 'available' as const },
-                          { id: 4, title: 'Create original content about the project', points: 100, status: 'available' as const },
-                          { id: 5, title: 'Engage with other creators in the arena', points: 25, status: 'available' as const },
-                          { id: 6, title: 'Complete all basic missions', points: 200, status: 'locked' as const },
-                        ].map((mission) => (
+                    {/* Locked state message */}
+                    {!hasJoined && (
+                      <div className="rounded-xl border border-yellow-400/30 bg-yellow-400/5 px-4 py-3 text-sm text-yellow-200">
+                        Follow the project on X and join this campaign to unlock missions.
+                      </div>
+                    )}
+
+                    {/* Mission list */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {missions.map((mission) => {
+                        const isLocked = mission.status === 'locked';
+                        const isCompleted = mission.status === 'completed';
+
+                        return (
                           <div
                             key={mission.id}
-                            className={`p-4 rounded-lg border ${
-                              mission.status === 'locked'
-                                ? 'bg-black/40 border-white/5 opacity-50'
-                                : 'bg-black/60 border-white/10 hover:border-akari-neon-teal/30'
-                            } transition-all`}
+                            className={`rounded-xl border px-4 py-4 bg-black/60 transition ${
+                              isLocked
+                                ? 'border-white/10 opacity-60'
+                                : isCompleted
+                                ? 'border-emerald-400/60'
+                                : 'border-white/15 hover:border-white/40 hover:shadow-lg'
+                            }`}
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="text-sm font-medium text-white">{mission.title}</h3>
-                                  {mission.status === 'locked' && (
-                                    <span className="px-2 py-0.5 text-xs font-medium bg-white/10 border border-white/20 rounded text-white/60">
-                                      Locked
-                                    </span>
-                                  )}
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold text-white">
+                                  {mission.title}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="px-2 py-0.5 text-xs font-medium bg-akari-neon-teal/20 border border-akari-neon-teal/50 rounded text-akari-neon-teal">
-                                    +{mission.points} points
-                                  </span>
+                                <div className="mt-1 text-xs text-white/60">
+                                  {mission.description}
                                 </div>
+                                <div className="mt-2 text-xs text-white/50">
+                                  Recommended: {mission.recommendedContent}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
+                                  +{mission.rewardPoints} pts
+                                </span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[11px] ${
+                                    isLocked
+                                      ? 'bg-slate-700 text-slate-200'
+                                      : isCompleted
+                                      ? 'bg-emerald-500/20 text-emerald-300'
+                                      : 'bg-blue-500/15 text-blue-200'
+                                  }`}
+                                >
+                                  {isLocked ? 'Locked' : isCompleted ? 'Completed' : 'Available'}
+                                </span>
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })()}
 
               {/* Storyline Tab */}
               {activeTab === 'storyline' && (
