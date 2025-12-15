@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -42,16 +42,21 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const promo = useAnalystPromo();
 
   // Filter nav items based on environment and user permissions
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isDevMode = process.env.NODE_ENV === 'development';
-  const canSeeArc = isDevMode || userIsSuperAdmin;
-  const visibleNavItems = navItems.filter((item) => {
-    // ARC link: show to SuperAdmins in production, everyone in dev
-    if (item.href === '/portal/arc') {
-      return canSeeArc;
-    }
-    return true;
-  });
+  // Use useMemo to recalculate when user loads/changes
+  const visibleNavItems = useMemo(() => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isDevMode = process.env.NODE_ENV === 'development';
+    // ARC is visible to SuperAdmins in production, everyone in dev
+    const canSeeArc = isDevMode || userIsSuperAdmin;
+    
+    return navItems.filter((item) => {
+      // ARC link: show to SuperAdmins in production, everyone in dev
+      if (item.href === '/portal/arc') {
+        return canSeeArc;
+      }
+      return true;
+    });
+  }, [userIsSuperAdmin]);
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
