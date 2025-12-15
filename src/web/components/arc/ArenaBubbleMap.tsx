@@ -206,57 +206,201 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     setPositions(newPositions);
   }, [computeBubbleSizes]);
 
+  // Calculate radial positions for connected bubbles around hovered bubble
+  const calculateRadialPositions = React.useCallback((
+    centerX: number,
+    centerY: number,
+    connectedKeys: string[],
+    minRadius: number = 150
+  ): Map<string, { x: number; y: number }> => {
+    const radialPositions = new Map<string, { x: number; y: number }>();
+    
+    if (!connectedKeys || connectedKeys.length === 0) {
+      return radialPositions;
+    }
+    
+    const angleStep = (2 * Math.PI) / connectedKeys.length;
+
+    connectedKeys.forEach((key, index) => {
+      if (!key) return;
+      const angle = index * angleStep;
+      const radius = minRadius + (Math.random() * 50); // Add some variation
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      radialPositions.set(key, { x, y });
+    });
+
+    return radialPositions;
+  }, []);
+
   // Animation loop
   useEffect(() => {
     if (!containerRef.current || positions.size === 0) return;
 
     const container = containerRef.current;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
+    const containerWidth = container.clientWidth || 0;
+    const containerHeight = container.clientHeight || 0;
+    
+    if (containerWidth === 0 || containerHeight === 0) return;
 
     const animate = () => {
       setPositions((prev) => {
         const next = new Map(prev);
         
-        prev.forEach((pos, key) => {
-          const creator = computeBubbleSizes.find(c => (c.twitter_username || '') === key) || computeBubbleSizes[0];
-          const size = creator?.size || 50;
-          const padding = size / 2;
+        // If hovering, calculate radial layout
+        if (isHovered && hoveredConnections && hoveredConnections.length > 0) {
+          const hoveredKey = isHovered.toLowerCase();
+          const hoveredPos = prev.get(hoveredKey);
           
-          let newX = pos.x + pos.vx;
-          let newY = pos.y + pos.vy;
-          let newVx = pos.vx;
-          let newVy = pos.vy;
+          if (hoveredPos && containerWidth > 0 && containerHeight > 0) {
+            // Stop the hovered bubble
+            const hoveredCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === hoveredKey);
+            const hoveredSize = hoveredCreator?.size || 50;
+            
+            next.set(hoveredKey, {
+              x: hoveredPos.x,
+              y: hoveredPos.y,
+              vx: 0,
+              vy: 0,
+            });
 
-          // Bounce off walls
-          if (newX <= padding || newX >= containerWidth - padding) {
-            newVx = -newVx * 0.8; // Damping
-            newX = Math.max(padding, Math.min(containerWidth - padding, newX));
+            // Get connected bubbles (first degree only for radial layout)
+            const connectedKeys = hoveredConnections
+              .filter(conn => conn.degree === 1)
+              .map(conn => {
+                const otherKey = conn.from === hoveredKey ? conn.to : conn.from;
+                return otherKey;
+              })
+              .filter((key, index, self) => self.indexOf(key) === index); // Remove duplicates
+
+            // Calculate radial positions
+            const radialPositions = calculateRadialPositions(
+              hoveredPos.x,
+              hoveredPos.y,
+              connectedKeys,
+              120
+            );
+
+            // Animate connected bubbles to radial positions
+            connectedKeys.forEach(key => {
+              const currentPos = prev.get(key);
+              const targetPos = radialPositions.get(key);
+              
+              if (currentPos && targetPos) {
+                const dx = targetPos.x - currentPos.x;
+                const dy = targetPos.y - currentPos.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Smooth transition to radial position
+                const speed = Math.min(distance * 0.1, 3);
+                const newX = distance > 5 ? currentPos.x + (dx / distance) * speed : targetPos.x;
+                const newY = distance > 5 ? currentPos.y + (dy / distance) * speed : targetPos.y;
+                
+                // Ensure within bounds
+                const creator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === key);
+                const size = creator?.size || 50;
+                const padding = size / 2;
+                
+                const clampedX = Math.max(padding, Math.min(containerWidth - padding, newX));
+                const clampedY = Math.max(padding, Math.min(containerHeight - padding, newY));
+                
+                next.set(key, {
+                  x: clampedX,
+                  y: clampedY,
+                  vx: 0,
+                  vy: 0,
+                });
+              }
+            });
+
+            // Other bubbles continue normal movement (but slower)
+            prev.forEach((pos, key) => {
+              if (!key || key === hoveredKey || connectedKeys.includes(key)) return;
+              
+              const creator = computeBubbleSizes.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === key) || computeBubbleSizes[0];
+              if (!creator) return;
+              const size = creator.size || 50;
+              const padding = size / 2;
+              
+              let newX = pos.x + pos.vx * 0.3; // Slower movement
+              let newY = pos.y + pos.vy * 0.3;
+              let newVx = pos.vx;
+              let newVy = pos.vy;
+
+              // Bounce off walls
+              if (newX <= padding || newX >= containerWidth - padding) {
+                newVx = -newVx * 0.8;
+                newX = Math.max(padding, Math.min(containerWidth - padding, newX));
+              }
+              if (newY <= padding || newY >= containerHeight - padding) {
+                newVy = -newVy * 0.8;
+                newY = Math.max(padding, Math.min(containerHeight - padding, newY));
+              }
+
+              // Add slight random drift
+              newVx += (Math.random() - 0.5) * 0.02;
+              newVy += (Math.random() - 0.5) * 0.02;
+
+              // Limit velocity
+              const maxVel = 1.0;
+              const vel = Math.sqrt(newVx * newVx + newVy * newVy);
+              if (vel > maxVel) {
+                newVx = (newVx / vel) * maxVel;
+                newVy = (newVy / vel) * maxVel;
+              }
+
+              next.set(key, {
+                x: newX,
+                y: newY,
+                vx: newVx,
+                vy: newVy,
+              });
+            });
           }
-          if (newY <= padding || newY >= containerHeight - padding) {
-            newVy = -newVy * 0.8; // Damping
-            newY = Math.max(padding, Math.min(containerHeight - padding, newY));
-          }
+        } else {
+          // Normal free-flow animation when not hovering
+          prev.forEach((pos, key) => {
+            if (!key) return;
+            const creator = computeBubbleSizes.find(c => c && c.twitter_username && (c.twitter_username.toLowerCase() || '') === key) || computeBubbleSizes[0];
+            if (!creator) return;
+            const size = creator.size || 50;
+            const padding = size / 2;
+            
+            let newX = pos.x + pos.vx;
+            let newY = pos.y + pos.vy;
+            let newVx = pos.vx;
+            let newVy = pos.vy;
 
-          // Add slight random drift
-          newVx += (Math.random() - 0.5) * 0.05;
-          newVy += (Math.random() - 0.5) * 0.05;
+            // Bounce off walls
+            if (newX <= padding || newX >= containerWidth - padding) {
+              newVx = -newVx * 0.8;
+              newX = Math.max(padding, Math.min(containerWidth - padding, newX));
+            }
+            if (newY <= padding || newY >= containerHeight - padding) {
+              newVy = -newVy * 0.8;
+              newY = Math.max(padding, Math.min(containerHeight - padding, newY));
+            }
 
-          // Limit velocity
-          const maxVel = 1.5;
-          const vel = Math.sqrt(newVx * newVx + newVy * newVy);
-          if (vel > maxVel) {
-            newVx = (newVx / vel) * maxVel;
-            newVy = (newVy / vel) * maxVel;
-          }
+            // Add slight random drift
+            newVx += (Math.random() - 0.5) * 0.05;
+            newVy += (Math.random() - 0.5) * 0.05;
 
-          next.set(key, {
-            x: newX,
-            y: newY,
-            vx: newVx,
-            vy: newVy,
+            // Limit velocity
+            const maxVel = 1.5;
+            const vel = Math.sqrt(newVx * newVx + newVy * newVy);
+            if (vel > maxVel) {
+              newVx = (newVx / vel) * maxVel;
+              newVy = (newVy / vel) * maxVel;
+            }
+
+            next.set(key, {
+              x: newX,
+              y: newY,
+              vx: newVx,
+              vy: newVy,
+            });
           });
-        });
+        }
 
         return next;
       });
@@ -271,7 +415,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [positions.size, computeBubbleSizes]);
+  }, [positions.size, computeBubbleSizes, isHovered, hoveredConnections, calculateRadialPositions]);
 
   // Get connections for hovered creator (must be before early return)
   const hoveredConnections = React.useMemo(() => {
@@ -304,51 +448,52 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         className="absolute inset-0 pointer-events-none z-0"
         style={{ width: '100%', height: '100%' }}
       >
-        {/* Show all first-degree connections (direct connections between bubbles) */}
-        {computeNetworkConnections
-          .filter(conn => conn.degree === 1)
+        {/* Show connection lines from hovered bubble to its network */}
+        {isHovered && hoveredConnections && hoveredConnections.length > 0 && hoveredConnections
+          .filter(conn => conn && conn.degree === 1)
           .map((conn, idx) => {
-            const fromKey = conn.from.toLowerCase();
-            const toKey = conn.to.toLowerCase();
-            const fromPos = positions.get(fromKey);
-            const toPos = positions.get(toKey);
+            if (!conn || !isHovered) return null;
+            const hoveredKey = isHovered.toLowerCase();
+            const fromKey = conn.from?.toLowerCase();
+            const toKey = conn.to?.toLowerCase();
+            if (!fromKey || !toKey) return null;
             
-            if (!fromPos || !toPos) return null;
+            const otherKey = fromKey === hoveredKey ? toKey : fromKey;
+            
+            const hoveredPos = positions.get(hoveredKey);
+            const otherPos = positions.get(otherKey);
+            
+            if (!hoveredPos || !otherPos) return null;
 
-            const fromCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === fromKey);
-            const toCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === toKey);
-            const fromSize = fromCreator?.size || 50;
-            const toSize = toCreator?.size || 50;
+            const hoveredCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === hoveredKey);
+            const otherCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === otherKey);
+            const hoveredSize = hoveredCreator?.size || 50;
+            const otherSize = otherCreator?.size || 50;
 
             // Calculate line endpoints at bubble edges
-            const dx = toPos.x - fromPos.x;
-            const dy = toPos.y - fromPos.y;
+            const dx = otherPos.x - hoveredPos.x;
+            const dy = otherPos.y - hoveredPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const unitX = dx / distance;
             const unitY = dy / distance;
             
-            const startX = fromPos.x + unitX * (fromSize / 2);
-            const startY = fromPos.y + unitY * (fromSize / 2);
-            const endX = toPos.x - unitX * (toSize / 2);
-            const endY = toPos.y - unitY * (toSize / 2);
-
-            const isHighlighted = isHovered && hoveredConnections.some(
-              hc => (hc.from === fromKey && hc.to === toKey) || (hc.from === toKey && hc.to === fromKey)
-            );
+            const startX = hoveredPos.x + unitX * (hoveredSize / 2);
+            const startY = hoveredPos.y + unitY * (hoveredSize / 2);
+            const endX = otherPos.x - unitX * (otherSize / 2);
+            const endY = otherPos.y - unitY * (otherSize / 2);
 
             return (
               <line
-                key={`direct-${fromKey}-${toKey}-${idx}`}
+                key={`network-${hoveredKey}-${otherKey}-${idx}`}
                 x1={startX}
                 y1={startY}
                 x2={endX}
                 y2={endY}
-                stroke="rgba(139, 92, 246, 0.5)"
-                strokeWidth={isHighlighted ? 3 : 2}
+                stroke="rgba(139, 92, 246, 0.8)"
+                strokeWidth={3}
                 className="transition-all duration-300"
                 style={{
-                  opacity: isHighlighted ? 1 : 0.6,
-                  filter: isHighlighted ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 1))' : 'drop-shadow(0 0 2px rgba(139, 92, 246, 0.5))',
+                  filter: 'drop-shadow(0 0 4px rgba(139, 92, 246, 1))',
                 }}
               />
             );
