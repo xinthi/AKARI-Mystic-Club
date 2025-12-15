@@ -6,7 +6,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 // =============================================================================
 // TYPES
@@ -29,6 +28,7 @@ interface FeaturedProject {
 interface FeaturedCampaignsProps {
   projects: FeaturedProject[];
   userTwitterUsername?: string | null;
+  userCampaignStatuses?: Map<string, { isFollowing: boolean; hasJoined: boolean }>;
   onJoinCampaign?: (projectId: string) => void;
 }
 
@@ -39,6 +39,7 @@ interface FeaturedCampaignsProps {
 export function FeaturedCampaigns({ 
   projects, 
   userTwitterUsername,
+  userCampaignStatuses,
   onJoinCampaign 
 }: FeaturedCampaignsProps) {
   // Get featured projects (first 4 active projects)
@@ -63,8 +64,12 @@ export function FeaturedCampaigns({
           const accentColor = project.meta?.accent_color || '#8B5CF6';
           const bannerUrl = project.meta?.banner_url;
           const avatarUrl = getProjectAvatarUrl(project.twitter_username);
-          const isFollowing = false; // TODO: Check via API
-          const hasJoined = false; // TODO: Check via API
+          const status = userCampaignStatuses?.get(project.project_id) || {
+            isFollowing: false,
+            hasJoined: false,
+          };
+          const isFollowing = status.isFollowing;
+          const hasJoined = status.hasJoined;
 
           let ctaLabel = 'Follow on X to join';
           let ctaAction: () => void = () => {
@@ -101,13 +106,14 @@ export function FeaturedCampaigns({
               {/* Banner */}
               {bannerUrl && (
                 <div className="relative w-full h-32 bg-akari-cardSoft/30 overflow-hidden">
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={bannerUrl}
                     alt={`${project.name} banner`}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                    sizes="100vw"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
                   />
                 </div>
               )}
@@ -117,13 +123,14 @@ export function FeaturedCampaigns({
                 <div className="flex items-center gap-3 mb-3">
                   {avatarUrl ? (
                     <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                      <Image
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
                         src={avatarUrl}
                         alt={project.name || 'Project'}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                        sizes="48px"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                       />
                     </div>
                   ) : (

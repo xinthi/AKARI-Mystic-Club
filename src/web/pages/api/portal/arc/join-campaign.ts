@@ -7,7 +7,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
-import { getSessionToken } from '@/lib/portalAuth';
 
 // =============================================================================
 // TYPES
@@ -46,7 +45,16 @@ export default async function handler(
 
   try {
     const supabase = createPortalClient();
-    const sessionToken = getSessionToken(req);
+    
+    // Get session token from cookies
+    const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+    let sessionToken: string | null = null;
+    for (const cookie of cookies) {
+      if (cookie.startsWith('akari_session=')) {
+        sessionToken = cookie.substring('akari_session='.length);
+        break;
+      }
+    }
 
     if (!sessionToken) {
       return res.status(401).json({

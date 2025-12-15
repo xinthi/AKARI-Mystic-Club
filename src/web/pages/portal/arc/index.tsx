@@ -190,114 +190,91 @@ export default function ArcHome() {
   };
 
   return (
-    <PortalLayout title="ARC">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gradient-teal">
-            ARC Narrative Universe
-          </h1>
-          {userIsSuperAdmin && (
-            <Link
-              href="/portal/arc/admin"
-              className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-            >
-              ARC Admin
-            </Link>
-          )}
+    <PortalLayout title="ARC Universe">
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="relative">
+          <div 
+            className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-purple-500/20 blur-3xl rounded-3xl"
+            style={{
+              filter: 'blur(40px)',
+            }}
+          />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <h1 
+                className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
+                style={{
+                  textShadow: '0 0 40px rgba(139, 92, 246, 0.5)',
+                }}
+              >
+                ARC Universe
+              </h1>
+              <p className="text-lg text-akari-muted">
+                Explore active campaigns, join narratives, and earn ARC points for your content.
+              </p>
+            </div>
+            {userIsSuperAdmin && (
+              <Link
+                href="/portal/arc/admin"
+                className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+              >
+                ARC Admin
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-            <span className="ml-3 text-akari-muted">Loading ARC projects...</span>
+            <span className="ml-3 text-akari-muted">Loading campaigns...</span>
           </div>
         )}
 
         {/* Error state */}
         {error && !loading && (
           <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">Failed to load ARC projects.</p>
+            <p className="text-sm text-akari-danger">Failed to load campaigns.</p>
           </div>
+        )}
+
+        {/* Content */}
+        {!loading && !error && projects.length > 0 && (
+          <>
+            {/* Featured Campaigns */}
+            <FeaturedCampaigns
+              projects={projects}
+              userTwitterUsername={userTwitterUsername}
+              userCampaignStatuses={userCampaignStatuses}
+              onJoinCampaign={handleJoinCampaign}
+            />
+
+            {/* My Campaigns */}
+            {myCampaigns.length > 0 && (
+              <MyCampaigns campaigns={myCampaigns} />
+            )}
+
+            {/* All Campaigns */}
+            <CampaignGrid
+              projects={projects}
+              userTwitterUsername={userTwitterUsername}
+              userCampaignStatuses={userCampaignStatuses}
+              onJoinCampaign={handleJoinCampaign}
+            />
+
+            {/* Trending Narratives */}
+            <TrendingNarratives />
+          </>
         )}
 
         {/* Empty state */}
         {!loading && !error && projects.length === 0 && (
           <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
             <p className="text-sm text-akari-muted">
-              No ARC projects yet. ARC will light up as soon as campaigns go live.
+              No ARC campaigns yet. Campaigns will appear here as they go live.
             </p>
-          </div>
-        )}
-
-        {/* Projects grid */}
-        {!loading && !error && projects.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => {
-              const cardContent = (
-                <div className={`rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 ${project.slug ? 'cursor-pointer' : ''}`}>
-                  {/* Project name */}
-                  <h3 className="text-lg font-semibold text-akari-text mb-2">
-                    {project.name || 'Unnamed Project'}
-                  </h3>
-
-                  {/* Twitter username */}
-                  {project.twitter_username && (
-                    <p className="text-sm text-akari-muted mb-4">
-                      @{project.twitter_username}
-                    </p>
-                  )}
-
-                  {/* Status badges */}
-                  <div className="flex flex-wrap gap-2">
-                    {/* ARC Tier */}
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
-                        project.arc_tier
-                      )}`}
-                    >
-                      {project.arc_tier}
-                    </span>
-
-                    {/* ARC Status */}
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                        project.arc_status
-                      )}`}
-                    >
-                      {project.arc_status}
-                    </span>
-
-                    {/* Security Status */}
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
-                        project.security_status
-                      )}`}
-                    >
-                      {project.security_status}
-                    </span>
-                  </div>
-                </div>
-              );
-
-              // Wrap in Link if slug exists, otherwise render as-is
-              if (project.slug) {
-                return (
-                  <Link
-                    key={project.project_id}
-                    href={`/portal/arc/${project.slug}`}
-                  >
-                    {cardContent}
-                  </Link>
-                );
-              }
-
-              return (
-                <div key={project.project_id}>
-                  {cardContent}
-                </div>
-              );
-            })}
           </div>
         )}
       </div>

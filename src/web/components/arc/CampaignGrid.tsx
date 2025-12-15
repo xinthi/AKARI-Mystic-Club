@@ -6,7 +6,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 // =============================================================================
 // TYPES
@@ -124,13 +123,14 @@ export function CampaignGrid({
                 {/* Banner */}
                 {bannerUrl ? (
                   <div className="relative w-full h-40 bg-akari-cardSoft/30 overflow-hidden">
-                    <Image
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={bannerUrl}
                       alt={`${project.name} banner`}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                      sizes="100vw"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
                     />
                   </div>
                 ) : (
@@ -147,13 +147,14 @@ export function CampaignGrid({
                   <div className="flex items-center gap-3 mb-3">
                     {avatarUrl ? (
                       <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
-                        <Image
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                           src={avatarUrl}
                           alt={project.name || 'Project'}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                          sizes="40px"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
                         />
                       </div>
                     ) : (
