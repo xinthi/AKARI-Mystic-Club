@@ -628,9 +628,12 @@ export default function ArenaDetailsPage() {
                                 <span className="text-sm font-semibold text-akari-text w-8">
                                   {rank}
                                 </span>
-                                <span className="text-sm text-akari-text">
+                                <Link
+                                  href={`/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`}
+                                  className="text-sm text-akari-text hover:text-akari-primary transition-colors"
+                                >
                                   @{creator.twitter_username || 'Unknown'}
-                                </span>
+                                </Link>
                                 {creator.ring && (
                                   <span
                                     className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(
