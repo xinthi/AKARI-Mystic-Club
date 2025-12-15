@@ -57,23 +57,24 @@ function getTrendColor(creator: Creator): {
   ring: string;
   overlay: string;
 } {
-  const hasPrevious = creator.previous_points !== undefined;
-  const isIncreasing = hasPrevious && creator.arc_points > creator.previous_points;
-  const isDecreasing = hasPrevious && creator.arc_points < creator.previous_points;
+  const previousPoints = creator.previous_points;
+  const hasPrevious = previousPoints !== undefined;
+  const isIncreasing = hasPrevious && creator.arc_points > previousPoints;
+  const isDecreasing = hasPrevious && creator.arc_points < previousPoints;
 
   if (isIncreasing) {
     return {
       border: "border-green-400/60",
       glow: "shadow-[0_0_20px_rgba(34,197,94,0.4)]",
       ring: "ring-2 ring-green-400/30",
-      overlay: "bg-green-500/40", // More visible green overlay
+      overlay: "bg-green-500/50", // More visible green overlay
     };
   } else if (isDecreasing) {
     return {
       border: "border-red-400/60",
       glow: "shadow-[0_0_20px_rgba(239,68,68,0.4)]",
       ring: "ring-2 ring-red-400/30",
-      overlay: "bg-red-500/40", // More visible red overlay
+      overlay: "bg-red-500/50", // More visible red overlay
     };
   }
   // Neutral/stable
@@ -482,14 +483,15 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                 isHovered || isSelected ? 'ring-4 ring-akari-neon-teal/60' : ''
               }`}
             >
-              {/* Profile image - background layer */}
-              <div className="absolute inset-0 rounded-full overflow-hidden">
+              {/* Profile image - background layer (dimmed) */}
+              <div className="absolute inset-0 rounded-full overflow-hidden bg-gradient-to-br from-slate-600 to-slate-800">
                 <img
                   src={profileImageUrl}
                   alt={`@${creator.twitter_username}`}
                   className="w-full h-full object-cover"
                   style={{
-                    background: 'linear-gradient(to bottom right, rgb(71, 85, 105), rgb(30, 41, 59))',
+                    opacity: 0.5,
+                    filter: 'brightness(0.6) saturate(0.8)',
                   }}
                   onError={(e) => {
                     // Hide image on error - initials will show through
@@ -498,7 +500,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                   }}
                 />
                 {/* Fallback initials - shown if image fails or while loading */}
-                <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm pointer-events-none bg-gradient-to-br from-slate-600 to-slate-800">
+                <div className="absolute inset-0 flex items-center justify-center text-white/70 font-bold text-sm pointer-events-none">
                   {creator.twitter_username.charAt(0).toUpperCase()}
                 </div>
               </div>
@@ -506,16 +508,9 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
               {/* Trend-based colored overlay (red/green) - on top of profile image */}
               {trendColors.overlay !== 'bg-transparent' && (
                 <div 
-                  className={`absolute inset-0 rounded-full ${trendColors.overlay} transition-opacity duration-300`}
-                  style={{
-                    mixBlendMode: 'overlay',
-                    pointerEvents: 'none',
-                  }}
+                  className={`absolute inset-0 rounded-full ${trendColors.overlay} transition-opacity duration-300 pointer-events-none`}
                 />
               )}
-
-              {/* Subtle dark gradient overlay for better text visibility */}
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20 rounded-full pointer-events-none" />
 
               {/* Ring indicator (small badge at top-right) */}
               {creator.ring && (
