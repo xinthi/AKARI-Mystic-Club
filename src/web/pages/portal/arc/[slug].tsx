@@ -885,7 +885,7 @@ export default function ArcProjectHub() {
                         <div className="h-10 w-px bg-white/10" />
                         <div>
                           <div className="text-white/60">Status</div>
-                          <div className="font-semibold text-emerald-400">
+                          <div className={`font-semibold ${hasJoined ? 'text-emerald-400' : 'text-yellow-300'}`}>
                             {hasJoined ? 'Campaign joined' : 'Join required'}
                           </div>
                         </div>
