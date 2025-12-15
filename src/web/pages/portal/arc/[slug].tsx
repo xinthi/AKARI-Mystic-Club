@@ -2,14 +2,17 @@
  * ARC Project Hub Page
  * 
  * Dynamic route for individual ARC project pages
- * Shows project details and arenas
+ * Shows project details, arenas, leaderboard, missions, storyline, and map
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Image from 'next/image';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { useAkariUser } from '@/lib/akari-auth';
+import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/helpers';
+import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 
 // =============================================================================
 // TYPES
@@ -27,6 +30,11 @@ interface ArcProject {
     banner_url?: string | null;
     accent_color?: string | null;
     tagline?: string | null;
+  };
+  stats?: {
+    creatorCount?: number;
+    totalPoints?: number;
+    trend?: 'rising' | 'stable' | 'cooling';
   };
 }
 
@@ -54,6 +62,24 @@ interface ArenasResponse {
   error?: string;
 }
 
+interface Creator {
+  id?: string;
+  twitter_username: string;
+  arc_points: number;
+  ring?: 'core' | 'momentum' | 'discovery' | string;
+  style?: string | null;
+  meta?: Record<string, any>;
+  joined_at?: string | null;
+}
+
+interface ArenaDetailResponse {
+  ok: true;
+  arena: Arena;
+  creators: Creator[];
+}
+
+type TabType = 'overview' | 'leaderboard' | 'missions' | 'storyline' | 'map';
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -61,24 +87,35 @@ interface ArenasResponse {
 export default function ArcProjectHub() {
   const router = useRouter();
   const { slug } = router.query;
+  const akariUser = useAkariUser();
+  const userTwitterUsername = akariUser.user?.xUsername || null;
 
   const [project, setProject] = useState<ArcProject | null>(null);
   const [arenas, setArenas] = useState<Arena[]>([]);
+  const [allCreators, setAllCreators] = useState<Creator[]>([]);
+  const [userStatus, setUserStatus] = useState<UserCampaignStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [projectLoading, setProjectLoading] = useState(true);
-  const [arenasLoading, setArenasLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
+  const [showFollowModal, setShowFollowModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [selectedArenaId, setSelectedArenaId] = useState<string | null>(null);
+
+  // Leaderboard filter/sort state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
+  const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
 
   // Fetch project from projects list
   useEffect(() => {
     async function fetchProject() {
       if (!slug || typeof slug !== 'string') {
-        setProjectLoading(false);
+        setLoading(false);
         return;
       }
 
       try {
-        setProjectLoading(true);
+        setLoading(true);
         setError(null);
 
         const res = await fetch('/api/portal/arc/projects');
@@ -86,18 +123,17 @@ export default function ArcProjectHub() {
 
         if (!data.ok || !data.projects) {
           setError(data.error || 'Failed to load project');
-          setProjectLoading(false);
+          setLoading(false);
           return;
         }
 
-        // Find project matching the slug
         const foundProject = data.projects.find((p) => p.slug === slug);
         setProject(foundProject || null);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArcProjectHub] Fetch project error:', err);
       } finally {
-        setProjectLoading(false);
+        setLoading(false);
       }
     }
 
@@ -107,82 +143,265 @@ export default function ArcProjectHub() {
   // Fetch arenas for this project
   useEffect(() => {
     async function fetchArenas() {
-      if (!slug || typeof slug !== 'string') {
-        setArenasLoading(false);
+      if (!slug || typeof slug !== 'string' || !project) {
         return;
       }
 
       try {
-        setArenasLoading(true);
-
         const res = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`);
         const data: ArenasResponse = await res.json();
 
         if (!data.ok) {
-          // Don't set error for arenas - just show empty state
           setArenas([]);
           return;
         }
 
-        setArenas(data.arenas || []);
+        const fetchedArenas = data.arenas || [];
+        setArenas(fetchedArenas);
+
+        // Set selected arena to first active arena, or first arena if none active
+        if (fetchedArenas.length > 0 && !selectedArenaId) {
+          const activeArena = fetchedArenas.find(a => a.status === 'active') || fetchedArenas[0];
+          if (activeArena) {
+            setSelectedArenaId(activeArena.id);
+          }
+        }
       } catch (err) {
         console.error('[ArcProjectHub] Fetch arenas error:', err);
         setArenas([]);
-      } finally {
-        setArenasLoading(false);
       }
     }
 
     fetchArenas();
-  }, [slug]);
+  }, [slug, project, selectedArenaId]);
 
-  // Update overall loading state
+  // Fetch creators for selected arena
   useEffect(() => {
-    setLoading(projectLoading || arenasLoading);
-  }, [projectLoading, arenasLoading]);
+    async function fetchCreators() {
+      if (!selectedArenaId) {
+        setAllCreators([]);
+        return;
+      }
 
-  // Helper function to get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
-      case 'suspended':
-        return 'bg-red-500/10 border-red-500/30 text-red-400';
-      case 'inactive':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+      try {
+        const arena = arenas.find(a => a.id === selectedArenaId);
+        if (!arena) {
+          setAllCreators([]);
+          return;
+        }
+
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`);
+        const data: ArenaDetailResponse = await res.json();
+
+        if (data.ok) {
+          setAllCreators(data.creators || []);
+        } else {
+          setAllCreators([]);
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Fetch creators error:', err);
+        setAllCreators([]);
+      }
+    }
+
+    fetchCreators();
+  }, [selectedArenaId, arenas]);
+
+  // Fetch user campaign status
+  useEffect(() => {
+    async function fetchUserStatus() {
+      if (!project || !userTwitterUsername) {
+        setUserStatus(null);
+        return;
+      }
+
+      try {
+        const statuses = await getUserCampaignStatuses([project.project_id], userTwitterUsername);
+        const status = statuses.get(project.project_id);
+        setUserStatus(status || { isFollowing: false, hasJoined: false });
+      } catch (err) {
+        console.error('[ArcProjectHub] Error fetching user status:', err);
+        setUserStatus({ isFollowing: false, hasJoined: false });
+      }
+    }
+
+    fetchUserStatus();
+  }, [project, userTwitterUsername]);
+
+  // Calculate project stats from arenas
+  const projectStats = useMemo(() => {
+    const activeArenas = arenas.filter(a => a.status === 'active');
+    const totalCreators = new Set(allCreators.map(c => c.twitter_username)).size;
+    const totalPoints = allCreators.reduce((sum, c) => sum + (c.arc_points || 0), 0);
+    
+    // Get date range from active arenas
+    let earliestStart: string | null = null;
+    let latestEnd: string | null = null;
+    activeArenas.forEach(arena => {
+      if (arena.starts_at && (!earliestStart || arena.starts_at < earliestStart)) {
+        earliestStart = arena.starts_at;
+      }
+      if (arena.ends_at && (!latestEnd || arena.ends_at > latestEnd)) {
+        latestEnd = arena.ends_at;
+      }
+    });
+
+    return {
+      activeCreators: totalCreators,
+      totalPoints,
+      dateRange: earliestStart && latestEnd 
+        ? `${new Date(earliestStart).toLocaleDateString()} → ${new Date(latestEnd).toLocaleDateString()}`
+        : earliestStart 
+        ? `From ${new Date(earliestStart).toLocaleDateString()}`
+        : latestEnd
+        ? `Until ${new Date(latestEnd).toLocaleDateString()}`
+        : 'Ongoing',
+    };
+  }, [arenas, allCreators]);
+
+  // Handle join campaign
+  const handleJoinCampaign = async () => {
+    if (!project || joiningProjectId) return;
+
+    try {
+      setJoiningProjectId(project.project_id);
+
+      const res = await fetch('/api/portal/arc/join-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.project_id }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to join campaign');
+      }
+
+      // Refresh user status
+      if (userTwitterUsername) {
+        const statuses = await getUserCampaignStatuses([project.project_id], userTwitterUsername);
+        const status = statuses.get(project.project_id);
+        setUserStatus(status || { isFollowing: false, hasJoined: false });
+      }
+
+      // Switch to Missions tab
+      setActiveTab('missions');
+    } catch (err: any) {
+      console.error('[ArcProjectHub] Join campaign error:', err);
+      alert(err?.message || 'Failed to join campaign. Please try again.');
+    } finally {
+      setJoiningProjectId(null);
     }
   };
 
-  // Helper function to get tier badge color
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'event_host':
-        return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
-      case 'pro':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
-      case 'basic':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
+  // Compute narrative summary
+  const narrativeSummary = useMemo(() => {
+    if (arenas.length === 0) {
+      return 'No arenas have been created for this project yet.';
     }
+
+    const activeArenas = arenas.filter(a => a.status === 'active');
+    const parts: string[] = [];
+
+    if (activeArenas.length > 0) {
+      parts.push(`${activeArenas.length} active arena${activeArenas.length > 1 ? 's' : ''} ${activeArenas.length > 1 ? 'are' : 'is'} running.`);
+    }
+
+    if (projectStats.activeCreators > 0) {
+      parts.push(`${projectStats.activeCreators} creator${projectStats.activeCreators > 1 ? 's have' : ' has'} joined, earning ${projectStats.totalPoints.toLocaleString()} total ARC points.`);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : 'This project is preparing to launch campaigns.';
+  }, [arenas, projectStats]);
+
+  // Filter and sort creators for leaderboard
+  const visibleCreators = useMemo(() => {
+    let filtered = [...allCreators];
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter((creator) => {
+        const usernameMatch = creator.twitter_username?.toLowerCase().includes(term);
+        const styleMatch = creator.style?.toLowerCase().includes(term);
+        return usernameMatch || styleMatch;
+      });
+    }
+
+    if (ringFilter !== 'all') {
+      filtered = filtered.filter((creator) => {
+        return creator.ring?.toLowerCase() === ringFilter.toLowerCase();
+      });
+    }
+
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'points_desc':
+          return (b.arc_points ?? 0) - (a.arc_points ?? 0);
+        case 'points_asc':
+          return (a.arc_points ?? 0) - (b.arc_points ?? 0);
+        case 'joined_newest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1;
+          if (!b.joined_at) return -1;
+          return new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime();
+        case 'joined_oldest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1;
+          if (!b.joined_at) return -1;
+          return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [allCreators, searchTerm, ringFilter, sortBy]);
+
+  // Compute storyline events
+  const storyEvents = useMemo(() => {
+    return allCreators
+      .map((creator) => {
+        const date = creator.joined_at || null;
+        const sortKey = date ? new Date(date).getTime() : 0;
+        const ringName = creator.ring 
+          ? creator.ring.charAt(0).toUpperCase() + creator.ring.slice(1)
+          : 'Unknown';
+        const text = `@${creator.twitter_username || 'Unknown'} joined as ${ringName} with ${creator.arc_points ?? 0} ARC points.`;
+
+        return {
+          date,
+          sortKey,
+          text,
+        };
+      })
+      .sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return b.sortKey - a.sortKey;
+      });
+  }, [allCreators]);
+
+  // Get accent color
+  const accentColor = project?.meta?.accent_color || '#00f6a2';
+
+  // Helper functions
+  const getRingColor = (ring?: string | null) => {
+    const r = (ring || '').toLowerCase();
+    if (r === 'core') return 'bg-purple-500/20 border-purple-500/50 text-purple-400';
+    if (r === 'momentum') return 'bg-blue-500/20 border-blue-500/50 text-blue-400';
+    if (r === 'discovery') return 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400';
+    return 'bg-slate-500/20 border-slate-500/50 text-slate-400';
   };
 
-  // Helper function to get security status badge color
-  const getSecurityColor = (status: string) => {
-    switch (status) {
-      case 'alert':
-        return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
-      case 'clear':
-        return 'bg-green-500/10 border-green-500/30 text-green-400';
-      case 'normal':
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-    }
+  const formatDateRange = (startsAt: string | null, endsAt: string | null) => {
+    if (!startsAt && !endsAt) return 'No dates set';
+    if (!startsAt) return `Until ${new Date(endsAt!).toLocaleDateString()}`;
+    if (!endsAt) return `From ${new Date(startsAt).toLocaleDateString()}`;
+    return `${new Date(startsAt).toLocaleDateString()} → ${new Date(endsAt).toLocaleDateString()}`;
   };
 
-  // Helper function to get arena status badge color
   const getArenaStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -193,25 +412,13 @@ export default function ArcProjectHub() {
         return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
       case 'cancelled':
         return 'bg-red-500/10 border-red-500/30 text-red-400';
-      case 'draft':
       default:
         return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
     }
   };
 
-  // Helper function to format date range
-  const formatDateRange = (startsAt: string | null, endsAt: string | null) => {
-    if (!startsAt && !endsAt) return 'No dates set';
-    if (!startsAt) return `Until ${new Date(endsAt!).toLocaleDateString()}`;
-    if (!endsAt) return `From ${new Date(startsAt).toLocaleDateString()}`;
-    
-    const start = new Date(startsAt);
-    const end = new Date(endsAt);
-    return `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
-  };
-
   return (
-    <PortalLayout title="ARC">
+    <PortalLayout title={project?.name || 'ARC Project'}>
       <div className="space-y-6">
         {/* Back link */}
         <Link
@@ -244,17 +451,11 @@ export default function ArcProjectHub() {
         {/* Project found - show content */}
         {!loading && project && (
           <>
-            {/* Project header card */}
-            <div 
-              className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card"
-              style={{
-                borderTopColor: project.meta?.accent_color || undefined,
-                borderTopWidth: project.meta?.accent_color ? '3px' : undefined,
-              }}
-            >
+            {/* Project Hero Section */}
+            <section className="mb-8 rounded-2xl overflow-hidden border border-white/5 bg-black/60">
               {/* Banner */}
-              {project.meta?.banner_url && (
-                <div className="w-full h-32 bg-akari-cardSoft/30 overflow-hidden relative">
+              <div className="relative h-32 md:h-40">
+                {project.meta?.banner_url ? (
                   <Image
                     src={project.meta.banner_url}
                     alt={`${project.name || 'Project'} banner`}
@@ -263,146 +464,515 @@ export default function ArcProjectHub() {
                     unoptimized
                     sizes="100vw"
                   />
+                ) : (
+                  <div 
+                    className="w-full h-full"
+                    style={{
+                      background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}05 100%)`,
+                    }}
+                  />
+                )}
+                {/* Dark overlay */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/80" />
+              </div>
+
+              {/* Content row */}
+              <div className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                {/* Left: logo + name + tagline */}
+                <div className="flex items-start gap-4 flex-1">
+                  {/* Project logo/avatar placeholder */}
+                  <div 
+                    className="flex-shrink-0 w-16 h-16 rounded-xl border-2 flex items-center justify-center text-2xl font-bold"
+                    style={{
+                      borderColor: accentColor,
+                      backgroundColor: `${accentColor}10`,
+                      color: accentColor,
+                    }}
+                  >
+                    {project.name?.charAt(0).toUpperCase() || '?'}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h1 
+                      className="text-2xl font-bold mb-1"
+                      style={{
+                        color: accentColor,
+                        textShadow: `0 0 10px ${accentColor}40`,
+                      }}
+                    >
+                      {project.name || 'Unnamed Project'}
+                    </h1>
+                    {project.twitter_username && (
+                      <p className="text-sm text-akari-muted mb-2">
+                        @{project.twitter_username}
+                      </p>
+                    )}
+                    {project.meta?.tagline && (
+                      <p className="text-sm text-akari-muted">
+                        {project.meta.tagline}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
 
-              <div className="p-6">
-                <h1 
-                  className="text-2xl font-bold mb-2"
-                  style={{
-                    color: project.meta?.accent_color || undefined,
-                    textShadow: project.meta?.accent_color ? `0 0 10px ${project.meta.accent_color}40` : undefined,
-                  }}
-                >
-                  {project.name || 'Unnamed Project'}
-                </h1>
+                {/* Right: stats + CTA buttons */}
+                <div className="flex flex-col gap-4 md:items-end">
+                  {/* Stats cards */}
+                  <div className="flex gap-3">
+                    <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Active creators</div>
+                      <div className="text-lg font-semibold text-white">{projectStats.activeCreators}</div>
+                    </div>
+                    <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Total ARC points</div>
+                      <div className="text-lg font-semibold text-white">{projectStats.totalPoints.toLocaleString()}</div>
+                    </div>
+                    <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Campaign dates</div>
+                      <div className="text-sm font-semibold text-white">{projectStats.dateRange}</div>
+                    </div>
+                  </div>
 
-                {project.meta?.tagline && (
-                  <p className="text-base text-akari-muted mb-2">
-                    {project.meta.tagline}
-                  </p>
-                )}
-
-                {project.twitter_username && (
-                  <p className="text-base text-akari-muted mb-4">
-                    @{project.twitter_username}
-                  </p>
-                )}
-
-                {/* Status badges */}
-                <div className="flex flex-wrap gap-2">
-                  {/* ARC Tier */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
-                      project.arc_tier
-                    )}`}
-                    style={{
-                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
-                    }}
-                  >
-                    {project.arc_tier}
-                  </span>
-
-                  {/* ARC Status */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      project.arc_status
-                    )}`}
-                    style={{
-                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
-                    }}
-                  >
-                    {project.arc_status}
-                  </span>
-
-                  {/* Security Status */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
-                      project.security_status
-                    )}`}
-                    style={{
-                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
-                    }}
-                  >
-                    {project.security_status}
-                  </span>
+                  {/* CTA buttons */}
+                  <div className="flex gap-2">
+                    {!userStatus?.isFollowing ? (
+                      <button
+                        onClick={() => setShowFollowModal(true)}
+                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                      >
+                        Follow on X to join
+                      </button>
+                    ) : !userStatus?.hasJoined ? (
+                      <button
+                        onClick={handleJoinCampaign}
+                        disabled={joiningProjectId === project.project_id}
+                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
+                      >
+                        {joiningProjectId === project.project_id ? 'Joining...' : 'Join campaign'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setActiveTab('missions')}
+                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                      >
+                        View missions
+                      </button>
+                    )}
+                    {project.twitter_username && (
+                      <a
+                        href={`https://x.com/${project.twitter_username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                      >
+                        View on X
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
+            </section>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+              {(['overview', 'leaderboard', 'missions', 'storyline', 'map'] as TabType[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    activeTab === tab
+                      ? 'text-black bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 shadow-[0_0_15px_rgba(0,246,162,0.3)]'
+                      : 'text-akari-muted hover:text-akari-text hover:bg-white/5'
+                  }`}
+                  style={
+                    activeTab === tab
+                      ? {}
+                      : {}
+                  }
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
 
-            {/* Arenas section */}
-            <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Arenas</h2>
+            {/* Tab Content */}
+            <div className="mt-6">
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {/* Narrative summary */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                    <h2 className="text-lg font-semibold text-white mb-3">Campaign Overview</h2>
+                    <p className="text-sm text-akari-muted leading-relaxed">{narrativeSummary}</p>
+                  </div>
 
-              {/* Loading arenas */}
-              {arenasLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                  <span className="ml-3 text-sm text-akari-muted">Loading arenas...</span>
-                </div>
-              )}
+                  {/* Key stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                      <div className="text-xs text-white/60 mb-1">Active Arenas</div>
+                      <div className="text-2xl font-bold text-white">{arenas.filter(a => a.status === 'active').length}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                      <div className="text-xs text-white/60 mb-1">Total Creators</div>
+                      <div className="text-2xl font-bold text-white">{projectStats.activeCreators}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                      <div className="text-xs text-white/60 mb-1">Total Points</div>
+                      <div className="text-2xl font-bold text-white">{projectStats.totalPoints.toLocaleString()}</div>
+                    </div>
+                  </div>
 
-              {/* No arenas */}
-              {!arenasLoading && arenas.length === 0 && (
-                <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-                  <p className="text-sm text-akari-muted">
-                    No active arenas yet. Once campaigns are launched, they will appear here.
-                  </p>
-                </div>
-              )}
-
-              {/* Arenas list */}
-              {!arenasLoading && arenas.length > 0 && (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {arenas.map((arena) => {
-                    const arenaCard = (
-                      <div className="rounded-xl border border-slate-700 p-4 bg-akari-card hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all duration-300 cursor-pointer">
-                        {/* Arena name */}
-                        <h3 className="text-lg font-semibold text-akari-text mb-2">
-                          {arena.name}
-                        </h3>
-
-                        {/* Arena status */}
-                        <div className="mb-3">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium border ${getArenaStatusColor(
-                              arena.status
-                            )}`}
-                          >
-                            {arena.status}
-                          </span>
-                        </div>
-
-                        {/* Date range */}
-                        <p className="text-sm text-akari-muted mb-3">
-                          {formatDateRange(arena.starts_at, arena.ends_at)}
+                  {/* Arenas list */}
+                  <div>
+                    <h2 className="text-lg font-semibold text-white mb-4">Arenas</h2>
+                    {arenas.length === 0 ? (
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                        <p className="text-sm text-akari-muted">
+                          No arenas have been created for this project yet.
                         </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {arenas.map((arena) => (
+                          <Link
+                            key={arena.id}
+                            href={`/portal/arc/${slug}/arena/${arena.slug}`}
+                            className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all"
+                          >
+                            <h3 className="text-lg font-semibold text-white mb-2">{arena.name}</h3>
+                            <div className="mb-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getArenaStatusColor(arena.status)}`}>
+                                {arena.status}
+                              </span>
+                            </div>
+                            <p className="text-sm text-akari-muted mb-2">
+                              {formatDateRange(arena.starts_at, arena.ends_at)}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-akari-muted">Reward Depth:</span>
+                              <span className="text-sm font-medium text-white">{arena.reward_depth}</span>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-                        {/* Reward depth */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-akari-muted">Reward Depth:</span>
-                          <span className="text-sm font-medium text-akari-text">
-                            {arena.reward_depth}
-                          </span>
+              {/* Leaderboard Tab */}
+              {activeTab === 'leaderboard' && (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                  {arenas.length === 0 ? (
+                    <p className="text-sm text-akari-muted text-center py-8">
+                      No arenas available for this project.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Arena selector */}
+                      {arenas.length > 1 && (
+                        <div className="mb-6">
+                          <label htmlFor="arena-select" className="text-xs text-white/60 mb-2 block">
+            Select Arena:
+                          </label>
+                          <select
+                            id="arena-select"
+                            value={selectedArenaId || ''}
+                            onChange={(e) => setSelectedArenaId(e.target.value)}
+                            className="w-full md:w-auto px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
+                          >
+                            {arenas.map((arena) => (
+                              <option key={arena.id} value={arena.id}>
+                                {arena.name} ({arena.status})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {allCreators.length === 0 ? (
+                        <p className="text-sm text-akari-muted text-center py-8">
+                          No creators have joined this arena yet.
+                        </p>
+                      ) : (
+                        <>
+                          {/* Controls Bar */}
+                          <div className="mb-6 space-y-4">
+                            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                              <input
+                                type="text"
+                                placeholder="Search creators…"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="flex-1 min-w-0 px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-akari-neon-teal/50"
+                              />
+
+                              <div className="flex gap-2 flex-wrap">
+                                {(['all', 'core', 'momentum', 'discovery'] as const).map((ring) => (
+                                  <button
+                                    key={ring}
+                                    onClick={() => setRingFilter(ring)}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                      ringFilter === ring
+                                        ? ring === 'all'
+                                          ? 'bg-akari-neon-teal/20 border-akari-neon-teal/50 text-akari-neon-teal'
+                                          : getRingColor(ring)
+                                        : 'bg-black/60 border-white/20 text-white/60 hover:border-white/40'
+                                    }`}
+                                  >
+                                    {ring.charAt(0).toUpperCase() + ring.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                                className="px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
+                              >
+                                <option value="points_desc">Top points</option>
+                                <option value="points_asc">Lowest points</option>
+                                <option value="joined_newest">Newest joined</option>
+                                <option value="joined_oldest">Oldest joined</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Creators List */}
+                          {visibleCreators.length === 0 ? (
+                            <p className="text-sm text-akari-muted text-center py-8">
+                              No creators match your filters.
+                            </p>
+                          ) : (
+                            <div className="space-y-3">
+                              {visibleCreators.map((creator, index) => {
+                                const rank = index + 1;
+                                return (
+                                  <Link
+                                    key={creator.id || `creator-${index}`}
+                                    href={`/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`}
+                                    className="group flex items-center gap-3 p-3 rounded-lg bg-black/60 border border-white/10 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all"
+                                  >
+                                    <div className="text-lg font-bold text-white/60 w-8 text-center">
+                                      #{rank}
+                                    </div>
+                                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-semibold text-white">
+                                      {creator.twitter_username?.charAt(0).toUpperCase() || '?'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-white truncate">
+                                        @{creator.twitter_username || 'Unknown'}
+                                      </div>
+                                      {creator.style && (
+                                        <div className="text-xs text-white/60 truncate">{creator.style}</div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {creator.ring && (
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(creator.ring)}`}>
+                                          {creator.ring}
+                                        </span>
+                                      )}
+                                      <div className="text-right">
+                                        <div className="text-sm font-bold text-white">
+                                          {creator.arc_points?.toLocaleString() || 0}
+                                        </div>
+                                        <div className="text-xs text-white/60">points</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Missions Tab */}
+              {activeTab === 'missions' && (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                  {!userStatus?.hasJoined ? (
+                    <div className="text-center py-12">
+                      <p className="text-sm text-akari-muted mb-4">
+                        You need to join the campaign to view missions.
+                      </p>
+                      {!userStatus?.isFollowing ? (
+                        <button
+                          onClick={() => setShowFollowModal(true)}
+                          className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                        >
+                          Follow on X to join
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleJoinCampaign}
+                          disabled={joiningProjectId === project.project_id}
+                          className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
+                        >
+                          {joiningProjectId === project.project_id ? 'Joining...' : 'Join campaign'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Progress header */}
+                      <div className="mb-6 p-4 rounded-lg bg-black/60 border border-white/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="text-xs text-white/60 mb-1">Your ARC Points</div>
+                            <div className="text-2xl font-bold text-white">{userStatus.arcPoints || 0}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-white/60 mb-1">Current Ring</div>
+                            <div className="text-lg font-semibold text-white capitalize">{userStatus.ring || 'Discovery'}</div>
+                          </div>
                         </div>
                       </div>
-                    );
 
-                    return (
-                      <Link
-                        key={arena.id}
-                        href={`/portal/arc/${slug}/arena/${arena.slug}`}
-                      >
-                        {arenaCard}
-                      </Link>
-                    );
-                  })}
+                      {/* Missions list */}
+                      <div className="space-y-3">
+                        {[
+                          { id: 1, title: 'Post a thread about this project', points: 50, status: 'available' as const },
+                          { id: 2, title: 'Share a meme with the project hashtag', points: 30, status: 'available' as const },
+                          { id: 3, title: 'Quote-retweet the latest announcement', points: 20, status: 'available' as const },
+                          { id: 4, title: 'Create original content about the project', points: 100, status: 'available' as const },
+                          { id: 5, title: 'Engage with other creators in the arena', points: 25, status: 'available' as const },
+                          { id: 6, title: 'Complete all basic missions', points: 200, status: 'locked' as const },
+                        ].map((mission) => (
+                          <div
+                            key={mission.id}
+                            className={`p-4 rounded-lg border ${
+                              mission.status === 'locked'
+                                ? 'bg-black/40 border-white/5 opacity-50'
+                                : 'bg-black/60 border-white/10 hover:border-akari-neon-teal/30'
+                            } transition-all`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="text-sm font-medium text-white">{mission.title}</h3>
+                                  {mission.status === 'locked' && (
+                                    <span className="px-2 py-0.5 text-xs font-medium bg-white/10 border border-white/20 rounded text-white/60">
+                                      Locked
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 text-xs font-medium bg-akari-neon-teal/20 border border-akari-neon-teal/50 rounded text-akari-neon-teal">
+                                    +{mission.points} points
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
-            </section>
+
+              {/* Storyline Tab */}
+              {activeTab === 'storyline' && (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                  {storyEvents.length === 0 ? (
+                    <p className="text-sm text-akari-muted text-center py-8">
+                      No events in the storyline yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {storyEvents.map((event, index) => (
+                        <div key={index} className="flex gap-4 pb-4 border-b border-white/5 last:border-0">
+                          <div className="flex-shrink-0 w-2 h-2 rounded-full bg-akari-neon-teal mt-2" />
+                          <div className="flex-1">
+                            <div className="text-xs text-white/60 mb-1">
+                              {event.date ? new Date(event.date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              }) : 'Unknown date'}
+                            </div>
+                            <div className="text-sm text-white">{event.text}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Map Tab */}
+              {activeTab === 'map' && (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-4">Creator Map</h2>
+                  {arenas.length === 0 ? (
+                    <p className="text-sm text-akari-muted text-center py-8">
+                      No arenas available for this project.
+                    </p>
+                  ) : (
+                    <>
+                      {arenas.length > 1 && (
+                        <div className="mb-4">
+                          <label htmlFor="map-arena-select" className="text-xs text-white/60 mb-2 block">
+                            Select Arena:
+                          </label>
+                          <select
+                            id="map-arena-select"
+                            value={selectedArenaId || ''}
+                            onChange={(e) => setSelectedArenaId(e.target.value)}
+                            className="w-full md:w-auto px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
+                          >
+                            {arenas.map((arena) => (
+                              <option key={arena.id} value={arena.id}>
+                                {arena.name} ({arena.status})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <ArenaBubbleMap creators={allCreators} />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
+
+      {/* Follow Modal */}
+      {showFollowModal && project && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-black/90 border border-white/20 rounded-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Follow on X</h3>
+            <p className="text-sm text-akari-muted mb-6">
+              To join this campaign, you need to follow @{project.twitter_username || 'the project'} on X first.
+            </p>
+            <div className="flex gap-3">
+              {project.twitter_username && (
+                <a
+                  href={`https://x.com/${project.twitter_username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all text-center"
+                >
+                  Open X Profile
+                </a>
+              )}
+              <button
+                onClick={() => setShowFollowModal(false)}
+                className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PortalLayout>
   );
 }
