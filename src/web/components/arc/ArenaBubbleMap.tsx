@@ -33,6 +33,7 @@ interface NetworkConnection {
   from: string; // twitter_username
   to: string; // twitter_username
   degree: 1 | 2; // 1 = direct connection, 2 = secondary connection
+  via?: string; // intermediate node for 2nd degree connections
 }
 
 // =============================================================================
@@ -85,7 +86,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
       }
     });
 
-    // Add second degree connections
+    // Add second degree connections with intermediate nodes
     firstDegreeMap.forEach((connected, from) => {
       connected.forEach(mid => {
         const midConnections = firstDegreeMap.get(mid);
@@ -96,6 +97,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                 from: from,
                 to: to,
                 degree: 2,
+                via: mid, // Store intermediate node
               });
             }
           });
@@ -302,42 +304,144 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         className="absolute inset-0 pointer-events-none z-0"
         style={{ width: '100%', height: '100%' }}
       >
-        {isHovered && hoveredConnections.map((conn, idx) => {
-          const fromKey = conn.from.toLowerCase();
-          const toKey = conn.to.toLowerCase();
-          const fromPos = positions.get(fromKey);
-          const toPos = positions.get(toKey);
-          
-          if (!fromPos || !toPos) return null;
+        {/* Show all first-degree connections (direct connections between bubbles) */}
+        {computeNetworkConnections
+          .filter(conn => conn.degree === 1)
+          .map((conn, idx) => {
+            const fromKey = conn.from.toLowerCase();
+            const toKey = conn.to.toLowerCase();
+            const fromPos = positions.get(fromKey);
+            const toPos = positions.get(toKey);
+            
+            if (!fromPos || !toPos) return null;
 
-          const fromCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === fromKey);
-          const toCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === toKey);
-          const fromSize = fromCreator?.size || 50;
-          const toSize = toCreator?.size || 50;
+            const fromCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === fromKey);
+            const toCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === toKey);
+            const fromSize = fromCreator?.size || 50;
+            const toSize = toCreator?.size || 50;
 
-          // Line color based on connection degree
-          const lineColor = conn.degree === 1 
-            ? 'rgba(139, 92, 246, 0.6)' // Purple for first degree
-            : 'rgba(59, 130, 246, 0.4)'; // Blue for second degree
-          const lineWidth = conn.degree === 1 ? 2 : 1;
+            // Calculate line endpoints at bubble edges
+            const dx = toPos.x - fromPos.x;
+            const dy = toPos.y - fromPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const unitX = dx / distance;
+            const unitY = dy / distance;
+            
+            const startX = fromPos.x + unitX * (fromSize / 2);
+            const startY = fromPos.y + unitY * (fromSize / 2);
+            const endX = toPos.x - unitX * (toSize / 2);
+            const endY = toPos.y - unitY * (toSize / 2);
 
-          return (
-            <line
-              key={`${fromKey}-${toKey}-${idx}`}
-              x1={fromPos.x}
-              y1={fromPos.y}
-              x2={toPos.x}
-              y2={toPos.y}
-              stroke={lineColor}
-              strokeWidth={lineWidth}
-              strokeDasharray={conn.degree === 2 ? '4,4' : '0'}
-              className="transition-opacity duration-300"
-              style={{
-                filter: 'drop-shadow(0 0 2px rgba(139, 92, 246, 0.5))',
-              }}
-            />
-          );
-        })}
+            const isHighlighted = isHovered && hoveredConnections.some(
+              hc => (hc.from === fromKey && hc.to === toKey) || (hc.from === toKey && hc.to === fromKey)
+            );
+
+            return (
+              <line
+                key={`direct-${fromKey}-${toKey}-${idx}`}
+                x1={startX}
+                y1={startY}
+                x2={endX}
+                y2={endY}
+                stroke="rgba(139, 92, 246, 0.5)"
+                strokeWidth={isHighlighted ? 3 : 2}
+                className="transition-all duration-300"
+                style={{
+                  opacity: isHighlighted ? 1 : 0.6,
+                  filter: isHighlighted ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 1))' : 'drop-shadow(0 0 2px rgba(139, 92, 246, 0.5))',
+                }}
+              />
+            );
+          })}
+
+        {/* Show second-degree connections (paths through mutual connections) */}
+        {isHovered && hoveredConnections
+          .filter(conn => conn.degree === 2 && conn.via)
+          .map((conn, idx) => {
+            const fromKey = conn.from.toLowerCase();
+            const toKey = conn.to.toLowerCase();
+            const viaKey = conn.via.toLowerCase();
+            const fromPos = positions.get(fromKey);
+            const toPos = positions.get(toKey);
+            const viaPos = positions.get(viaKey);
+            
+            if (!fromPos || !toPos || !viaPos) return null;
+
+            const fromCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === fromKey);
+            const toCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === toKey);
+            const viaCreator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === viaKey);
+            const fromSize = fromCreator?.size || 50;
+            const toSize = toCreator?.size || 50;
+            const viaSize = viaCreator?.size || 50;
+
+            // Calculate line endpoints for A → B (from → via)
+            const dx1 = viaPos.x - fromPos.x;
+            const dy1 = viaPos.y - fromPos.y;
+            const distance1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+            const unitX1 = dx1 / distance1;
+            const unitY1 = dy1 / distance1;
+            const startX1 = fromPos.x + unitX1 * (fromSize / 2);
+            const startY1 = fromPos.y + unitY1 * (fromSize / 2);
+            const endX1 = viaPos.x - unitX1 * (viaSize / 2);
+            const endY1 = viaPos.y - unitY1 * (viaSize / 2);
+
+            // Calculate line endpoints for B → C (via → to)
+            const dx2 = toPos.x - viaPos.x;
+            const dy2 = toPos.y - viaPos.y;
+            const distance2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+            const unitX2 = dx2 / distance2;
+            const unitY2 = dy2 / distance2;
+            const startX2 = viaPos.x + unitX2 * (viaSize / 2);
+            const startY2 = viaPos.y + unitY2 * (viaSize / 2);
+            const endX2 = toPos.x - unitX2 * (toSize / 2);
+            const endY2 = toPos.y - unitY2 * (toSize / 2);
+
+            return (
+              <g key={`path-${fromKey}-${viaKey}-${toKey}-${idx}`}>
+                {/* Line from A to B (source to mutual connection) */}
+                <line
+                  x1={startX1}
+                  y1={startY1}
+                  x2={endX1}
+                  y2={endY1}
+                  stroke="rgba(59, 130, 246, 0.6)"
+                  strokeWidth={2}
+                  strokeDasharray="5,5"
+                  className="transition-opacity duration-300"
+                  style={{
+                    filter: 'drop-shadow(0 0 3px rgba(59, 130, 246, 0.8))',
+                  }}
+                />
+                {/* Line from B to C (mutual connection to target) */}
+                <line
+                  x1={startX2}
+                  y1={startY2}
+                  x2={endX2}
+                  y2={endY2}
+                  stroke="rgba(59, 130, 246, 0.6)"
+                  strokeWidth={2}
+                  strokeDasharray="5,5"
+                  className="transition-opacity duration-300"
+                  style={{
+                    filter: 'drop-shadow(0 0 3px rgba(59, 130, 246, 0.8))',
+                  }}
+                />
+                {/* Highlight the mutual connection node (B) */}
+                <circle
+                  cx={viaPos.x}
+                  cy={viaPos.y}
+                  r="6"
+                  fill="rgba(59, 130, 246, 0.9)"
+                  stroke="rgba(255, 255, 255, 0.8)"
+                  strokeWidth="1.5"
+                  className="transition-opacity duration-300"
+                  style={{
+                    filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 1))',
+                  }}
+                />
+              </g>
+            );
+          })}
       </svg>
 
       {computeBubbleSizes.map((creator, index) => {
@@ -413,7 +517,33 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                 )}
                 {hoveredConnections.length > 0 && (
                   <div className="text-[10px] text-akari-muted mt-1 pt-1 border-t border-akari-border/20">
-                    {hoveredConnections.filter(c => c.degree === 1).length} direct · {hoveredConnections.filter(c => c.degree === 2).length} secondary
+                    <div className="mb-1">
+                      {hoveredConnections.filter(c => c.degree === 1).length} direct · {hoveredConnections.filter(c => c.degree === 2).length} secondary
+                    </div>
+                    {/* Show connection paths */}
+                    {hoveredConnections.filter(c => c.degree === 1).slice(0, 3).map((conn, idx) => {
+                      const otherKey = conn.from.toLowerCase() === isHovered?.toLowerCase() 
+                        ? conn.to 
+                        : conn.from;
+                      const otherCreator = creators.find(c => c.twitter_username.toLowerCase() === otherKey);
+                      return (
+                        <div key={`direct-${idx}`} className="text-[9px] opacity-75">
+                          → @{otherCreator?.twitter_username || otherKey}
+                        </div>
+                      );
+                    })}
+                    {hoveredConnections.filter(c => c.degree === 2).slice(0, 2).map((conn, idx) => {
+                      const otherKey = conn.from.toLowerCase() === isHovered?.toLowerCase() 
+                        ? conn.to 
+                        : conn.from;
+                      const viaCreator = creators.find(c => c.twitter_username.toLowerCase() === conn.via?.toLowerCase());
+                      const otherCreator = creators.find(c => c.twitter_username.toLowerCase() === otherKey);
+                      return (
+                        <div key={`second-${idx}`} className="text-[9px] opacity-60">
+                          → @{viaCreator?.twitter_username || conn.via} → @{otherCreator?.twitter_username || otherKey}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
