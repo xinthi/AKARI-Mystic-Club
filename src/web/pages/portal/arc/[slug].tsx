@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import Image from 'next/image';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 
 // =============================================================================
@@ -253,15 +254,14 @@ export default function ArcProjectHub() {
             >
               {/* Banner */}
               {project.meta?.banner_url && (
-                <div className="w-full h-32 bg-akari-cardSoft/30 overflow-hidden">
-                  <img
+                <div className="w-full h-32 bg-akari-cardSoft/30 overflow-hidden relative">
+                  <Image
                     src={project.meta.banner_url}
-                    alt={`${project.name} banner`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      // Hide image on error
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
+                    alt={`${project.name || 'Project'} banner`}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                    sizes="100vw"
                   />
                 </div>
               )}
