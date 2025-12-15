@@ -105,18 +105,18 @@ export default async function handler(
       console.log('[API /portal/arc/join-campaign] Dev mode: No session token, using dev_user');
       const supabaseAdmin = getSupabaseAdmin();
       
-      // Try to find existing dev_user profile
+      // Try to find existing dev_user profile (profiles table uses 'username', not 'twitter_username')
       const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
-        .select('id, twitter_username')
-        .ilike('twitter_username', 'dev_user')
+        .select('id, username')
+        .ilike('username', 'dev_user')
         .limit(1)
         .maybeSingle();
 
       if (existingProfile) {
         profile = {
           id: existingProfile.id,
-          twitter_username: existingProfile.twitter_username || 'dev_user',
+          twitter_username: existingProfile.username || 'dev_user',
         };
         console.log('[API /portal/arc/join-campaign] Dev mode: Found existing dev_user profile:', profile.id);
       } else {
@@ -124,10 +124,10 @@ export default async function handler(
         const { data: newProfile, error: createError } = await supabaseAdmin
           .from('profiles')
           .insert({
-            twitter_username: 'dev_user',
+            username: 'dev_user',  // profiles table uses 'username' column
             name: 'Dev User',
           })
-          .select('id, twitter_username')
+          .select('id, username')
           .single();
 
         if (createError) {
@@ -135,22 +135,22 @@ export default async function handler(
           console.log('[API /portal/arc/join-campaign] Dev mode: Insert failed, trying to find existing profile:', createError.message);
           const { data: retryProfile } = await supabaseAdmin
             .from('profiles')
-            .select('id, twitter_username')
-            .ilike('twitter_username', 'dev_user')
+            .select('id, username')
+            .ilike('username', 'dev_user')
             .limit(1)
             .maybeSingle();
           
           if (retryProfile) {
             profile = {
               id: retryProfile.id,
-              twitter_username: retryProfile.twitter_username || 'dev_user',
+              twitter_username: retryProfile.username || 'dev_user',
             };
             console.log('[API /portal/arc/join-campaign] Dev mode: Found dev_user profile after insert failure:', profile.id);
           }
         } else if (newProfile) {
           profile = {
             id: newProfile.id,
-            twitter_username: newProfile.twitter_username || 'dev_user',
+            twitter_username: newProfile.username || 'dev_user',
           };
           console.log('[API /portal/arc/join-campaign] Dev mode: Created dev_user profile:', profile.id);
         }

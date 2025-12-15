@@ -124,15 +124,15 @@ export function CampaignGrid({
             return (
               <div
                 key={project.project_id}
-                className="rounded-xl overflow-hidden bg-black/40 border border-white/10 hover:border-white/20 hover:shadow-lg transition-all"
+                className="rounded-xl overflow-hidden bg-black/40 border border-white/10 hover:border-white/20 transition-all"
                 style={{
-                  boxShadow: `0 4px 6px rgba(0, 0, 0, 0.3), 0 0 8px ${accentColor}20`,
+                  boxShadow: `0 4px 6px rgba(0, 0, 0, 0.3)`,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = `0 8px 12px rgba(0, 0, 0, 0.4), 0 0 16px ${accentColor}40`;
+                  e.currentTarget.style.boxShadow = `0 8px 12px rgba(0, 0, 0, 0.4), 0 0 16px ${accentColor}33`;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = `0 4px 6px rgba(0, 0, 0, 0.3), 0 0 8px ${accentColor}20`;
+                  e.currentTarget.style.boxShadow = `0 4px 6px rgba(0, 0, 0, 0.3)`;
                 }}
               >
                 {/* Banner */}
@@ -198,7 +198,7 @@ export function CampaignGrid({
                   )}
 
                   {/* Stats row */}
-                  <div className="px-4 py-3 text-sm space-y-1 mb-3 bg-black/20 rounded-lg border border-white/5">
+                  <div className="px-4 py-3 text-sm space-y-1 bg-black/20 rounded-lg border border-white/5">
                     {project.stats?.creatorCount !== undefined && (
                       <div className="flex items-center justify-between">
                         <span className="text-white/60">Active Creators</span>
@@ -237,28 +237,15 @@ export function CampaignGrid({
                         console.error('[CampaignGrid] Error in ctaAction:', err);
                       }
                     }}
-                    className="w-full mt-3 py-2.5 rounded-lg text-center font-semibold transition-all cursor-pointer"
+                    className="w-full mt-3 py-2 rounded-lg text-center font-semibold transition-all cursor-pointer"
                     style={{
-                      backgroundColor: ctaLabel === 'Follow on X to join' ? 'transparent' : accentColor,
-                      color: ctaLabel === 'Follow on X to join' ? accentColor : 'white',
-                      border: `1.5px solid ${accentColor}`,
-                      boxShadow: ctaLabel === 'Follow on X to join' ? 'none' : `0 0 20px ${accentColor}50`,
+                      backgroundColor: accentColor,
                     }}
                     onMouseEnter={(e) => {
-                      if (ctaLabel === 'Follow on X to join') {
-                        e.currentTarget.style.backgroundColor = `${accentColor}20`;
-                      } else {
-                        e.currentTarget.style.opacity = '0.9';
-                        e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}70`;
-                      }
+                      e.currentTarget.style.opacity = '0.9';
                     }}
                     onMouseLeave={(e) => {
-                      if (ctaLabel === 'Follow on X to join') {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      } else {
-                        e.currentTarget.style.opacity = '1';
-                        e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}50`;
-                      }
+                      e.currentTarget.style.opacity = '1';
                     }}
                   >
                     {ctaLabel}
