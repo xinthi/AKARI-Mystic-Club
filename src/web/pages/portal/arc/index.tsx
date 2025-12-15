@@ -133,6 +133,7 @@ export default function ArcHome() {
               });
             });
             setUserCampaignStatuses(devStatuses);
+            console.log('[ArcHome] Dev mode - set userCampaignStatuses:', Array.from(devStatuses.entries()));
           }
         }
       } catch (err) {
@@ -150,6 +151,8 @@ export default function ArcHome() {
   const handleJoinCampaign = async (projectId: string) => {
     if (joiningProjectId) return; // Prevent double-clicks
 
+    console.log('[ArcHome] Joining campaign:', projectId);
+
     try {
       setJoiningProjectId(projectId);
 
@@ -160,6 +163,8 @@ export default function ArcHome() {
       });
 
       const result = await res.json();
+
+      console.log('[ArcHome] Join campaign response:', result);
 
       if (!res.ok || !result.ok) {
         throw new Error(result.error || 'Failed to join campaign');
@@ -275,7 +280,10 @@ export default function ArcHome() {
               projects={projects}
               userTwitterUsername={userTwitterUsername}
               userCampaignStatuses={userCampaignStatuses}
-              onJoinCampaign={handleJoinCampaign}
+              onJoinCampaign={(projectId) => {
+                console.log('[ArcHome] FeaturedCampaigns onJoinCampaign called:', projectId);
+                handleJoinCampaign(projectId);
+              }}
             />
 
             {/* My Campaigns */}
@@ -288,7 +296,10 @@ export default function ArcHome() {
               projects={projects}
               userTwitterUsername={userTwitterUsername}
               userCampaignStatuses={userCampaignStatuses}
-              onJoinCampaign={handleJoinCampaign}
+              onJoinCampaign={(projectId) => {
+                console.log('[ArcHome] CampaignGrid onJoinCampaign called:', projectId);
+                handleJoinCampaign(projectId);
+              }}
             />
 
             {/* Trending Narratives */}

@@ -91,10 +91,15 @@ export function CampaignGrid({
               hasJoined: false,
             };
 
+            // In dev mode, treat as following
+            const effectiveIsFollowing = isDevMode || status.isFollowing;
+
             let ctaLabel = 'Follow on X to join';
             let ctaAction: () => void = () => {
+              console.log('[CampaignGrid] CTA action called - isDevMode:', isDevMode, 'effectiveIsFollowing:', effectiveIsFollowing, 'hasJoined:', status.hasJoined);
               if (isDevMode) {
                 // In dev mode, allow direct navigation
+                console.log('[CampaignGrid] Dev mode - navigating to:', project.slug);
                 if (project.slug) {
                   window.location.href = `/portal/arc/${project.slug}`;
                 }
@@ -103,12 +108,10 @@ export function CampaignGrid({
               }
             };
 
-            // In dev mode, treat as following
-            const effectiveIsFollowing = isDevMode || status.isFollowing;
-
             if (effectiveIsFollowing && status.hasJoined) {
               ctaLabel = 'View missions';
               ctaAction = () => {
+                console.log('[CampaignGrid] View missions - navigating to:', project.slug);
                 if (project.slug) {
                   window.location.href = `/portal/arc/${project.slug}`;
                 }
@@ -116,8 +119,11 @@ export function CampaignGrid({
             } else if (effectiveIsFollowing && !status.hasJoined) {
               ctaLabel = 'Join campaign';
               ctaAction = () => {
+                console.log('[CampaignGrid] Join campaign - projectId:', project.project_id, 'onJoinCampaign:', !!onJoinCampaign);
                 if (onJoinCampaign) {
                   onJoinCampaign(project.project_id);
+                } else {
+                  console.warn('[CampaignGrid] onJoinCampaign not provided');
                 }
               };
             }
@@ -125,7 +131,7 @@ export function CampaignGrid({
             return (
               <div
                 key={project.project_id}
-                className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card hover:border-opacity-60 transition-all duration-300 group"
+                className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card hover:border-opacity-60 transition-all duration-300 group relative"
                 style={{
                   borderColor: `${accentColor}30`,
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
@@ -225,8 +231,18 @@ export function CampaignGrid({
 
                   {/* CTA Button */}
                   <button
-                    onClick={ctaAction}
-                    className="w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[CampaignGrid] Button clicked for project:', project.project_id, 'Action:', ctaLabel, 'isDevMode:', isDevMode);
+                      try {
+                        ctaAction();
+                      } catch (err) {
+                        console.error('[CampaignGrid] Error in ctaAction:', err);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer relative z-10"
                     style={{
                       backgroundColor: status.hasJoined ? accentColor : 'transparent',
                       color: status.hasJoined ? 'white' : accentColor,
@@ -239,6 +255,7 @@ export function CampaignGrid({
                       } else {
                         e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}60`;
                       }
+                      e.currentTarget.style.transform = 'scale(1.02)';
                     }}
                     onMouseLeave={(e) => {
                       if (!status.hasJoined) {
@@ -246,6 +263,7 @@ export function CampaignGrid({
                       } else {
                         e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}40`;
                       }
+                      e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
                     {ctaLabel}

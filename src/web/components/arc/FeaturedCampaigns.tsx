@@ -77,8 +77,10 @@ export function FeaturedCampaigns({
 
           let ctaLabel = 'Follow on X to join';
           let ctaAction: () => void = () => {
+            console.log('[FeaturedCampaigns] CTA action called - isDevMode:', isDevMode, 'effectiveIsFollowing:', effectiveIsFollowing, 'hasJoined:', hasJoined);
             if (isDevMode) {
               // In dev mode, allow direct navigation
+              console.log('[FeaturedCampaigns] Dev mode - navigating to:', project.slug);
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
               }
@@ -90,6 +92,7 @@ export function FeaturedCampaigns({
           if (effectiveIsFollowing && hasJoined) {
             ctaLabel = 'View campaign';
             ctaAction = () => {
+              console.log('[FeaturedCampaigns] View campaign - navigating to:', project.slug);
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
               }
@@ -97,8 +100,11 @@ export function FeaturedCampaigns({
           } else if (effectiveIsFollowing && !hasJoined) {
             ctaLabel = 'Join campaign';
             ctaAction = () => {
+              console.log('[FeaturedCampaigns] Join campaign - projectId:', project.project_id, 'onJoinCampaign:', !!onJoinCampaign);
               if (onJoinCampaign) {
                 onJoinCampaign(project.project_id);
+              } else {
+                console.warn('[FeaturedCampaigns] onJoinCampaign not provided');
               }
             };
           }
@@ -110,6 +116,7 @@ export function FeaturedCampaigns({
               style={{
                 borderColor: `${accentColor}40`,
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                position: 'relative',
               }}
             >
               {/* Banner */}
@@ -171,17 +178,29 @@ export function FeaturedCampaigns({
 
                 {/* CTA Button */}
                 <button
-                  onClick={ctaAction}
-                  className="w-full px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 text-white"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[FeaturedCampaigns] Button clicked for project:', project.project_id, 'Action:', ctaLabel);
+                    try {
+                      ctaAction();
+                    } catch (err) {
+                      console.error('[FeaturedCampaigns] Error in ctaAction:', err);
+                    }
+                  }}
+                  className="w-full px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 text-white cursor-pointer relative z-10"
                   style={{
                     backgroundColor: accentColor,
                     boxShadow: `0 0 20px ${accentColor}40`,
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}60`;
+                    e.currentTarget.style.transform = 'scale(1.02)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}40`;
+                    e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
                   {ctaLabel}
