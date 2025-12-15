@@ -353,7 +353,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                 {arenas.length === 0 ? (
                   <div className="p-6 text-center">
                     <p className="text-sm text-akari-muted">
-                      This creator hasn't joined any arenas yet.
+                      This creator hasn&apos;t joined any arenas yet.
                     </p>
                   </div>
                 ) : (

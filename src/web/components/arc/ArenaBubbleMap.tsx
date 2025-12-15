@@ -271,6 +271,15 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     };
   }, [positions.size, computeBubbleSizes]);
 
+  // Get connections for hovered creator (must be before early return)
+  const hoveredConnections = React.useMemo(() => {
+    if (!isHovered) return [];
+    const hoveredKey = isHovered.toLowerCase();
+    return computeNetworkConnections.filter(
+      conn => conn.from === hoveredKey || conn.to === hoveredKey
+    );
+  }, [isHovered, computeNetworkConnections]);
+
   if (creators.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -280,15 +289,6 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
       </div>
     );
   }
-
-  // Get connections for hovered creator
-  const hoveredConnections = React.useMemo(() => {
-    if (!isHovered) return [];
-    const hoveredKey = isHovered.toLowerCase();
-    return computeNetworkConnections.filter(
-      conn => conn.from === hoveredKey || conn.to === hoveredKey
-    );
-  }, [isHovered, computeNetworkConnections]);
 
   return (
     <div 
