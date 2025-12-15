@@ -223,6 +223,88 @@ export default function ArenaDetailsPage() {
     }
   };
 
+  // Compute arena narrative summary
+  interface ArenaNarrativeSummary {
+    creatorCount: number;
+    totalPoints: number;
+    topCreator?: { username: string; points: number; ring?: string | null };
+    pointsByRing: Record<string, number>;
+  }
+
+  const narrativeSummary = React.useMemo((): ArenaNarrativeSummary => {
+    const creatorCount = creators.length;
+    let totalPoints = 0;
+    const pointsByRing: Record<string, number> = {};
+    let topCreator: { username: string; points: number; ring?: string | null } | undefined;
+
+    for (const creator of creators) {
+      const points = creator.arc_points ?? 0;
+      totalPoints += points;
+
+      // Track points by ring
+      if (creator.ring) {
+        const ring = creator.ring.toLowerCase();
+        pointsByRing[ring] = (pointsByRing[ring] || 0) + points;
+      }
+
+      // Track top creator
+      if (!topCreator || points > topCreator.points) {
+        topCreator = {
+          username: creator.twitter_username || 'Unknown',
+          points,
+          ring: creator.ring || null,
+        };
+      }
+    }
+
+    return {
+      creatorCount,
+      totalPoints,
+      topCreator,
+      pointsByRing,
+    };
+  }, [creators]);
+
+  // Generate narrative summary text
+  const narrativeSummaryText = React.useMemo(() => {
+    if (narrativeSummary.creatorCount === 0) {
+      return 'No creators have joined this arena yet.';
+    }
+
+    const parts: string[] = [];
+    
+    // Main summary
+    const creatorText = narrativeSummary.creatorCount === 1 ? 'creator has' : 'creators have';
+    parts.push(`${narrativeSummary.creatorCount} ${creatorText} joined this arena so far.`);
+
+    // Top creator
+    if (narrativeSummary.topCreator) {
+      const ringText = narrativeSummary.topCreator.ring
+        ? narrativeSummary.topCreator.ring.charAt(0).toUpperCase() + narrativeSummary.topCreator.ring.slice(1)
+        : '';
+      const ringPart = ringText ? ` as ${ringText}` : '';
+      parts.push(`Top creator is @${narrativeSummary.topCreator.username} with ${narrativeSummary.topCreator.points.toLocaleString()} ARC points${ringPart}.`);
+    }
+
+    // Ring breakdown (only if there are meaningful totals)
+    const ringParts: string[] = [];
+    if (narrativeSummary.pointsByRing.core > 0) {
+      ringParts.push(`Core: ${narrativeSummary.pointsByRing.core.toLocaleString()}`);
+    }
+    if (narrativeSummary.pointsByRing.momentum > 0) {
+      ringParts.push(`Momentum: ${narrativeSummary.pointsByRing.momentum.toLocaleString()}`);
+    }
+    if (narrativeSummary.pointsByRing.discovery > 0) {
+      ringParts.push(`Discovery: ${narrativeSummary.pointsByRing.discovery.toLocaleString()}`);
+    }
+
+    if (ringParts.length > 0) {
+      parts.push(ringParts.join(' · ') + '.');
+    }
+
+    return parts.join(' ');
+  }, [narrativeSummary]);
+
   // Compute arena storyline events
   const storyEvents = React.useMemo(() => {
     return creators
@@ -760,8 +842,18 @@ export default function ArenaDetailsPage() {
 
               {/* Storyline Tab Content */}
               {activeTab === 'storyline' && (
-                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                  <h2 className="text-xl font-semibold text-akari-text mb-4">Arena Storyline</h2>
+                <>
+                  {/* Narrative Summary */}
+                  <div className="rounded-xl border border-slate-700 p-4 bg-akari-card mb-4">
+                    <h3 className="text-sm font-semibold text-akari-text mb-2">Narrative Summary</h3>
+                    <p className="text-sm text-akari-muted leading-relaxed">
+                      {narrativeSummaryText}
+                    </p>
+                  </div>
+
+                  {/* Arena Storyline */}
+                  <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                    <h2 className="text-xl font-semibold text-akari-text mb-4">Arena Storyline</h2>
                   {storyEvents.length === 0 ? (
                     <p className="text-sm text-akari-muted">
                       No storyline events yet. Add creators to start the narrative.
@@ -790,7 +882,8 @@ export default function ArenaDetailsPage() {
                       ))}
                     </div>
                   )}
-                </div>
+                  </div>
+                </>
               )}
             </section>
           </>

@@ -111,6 +111,48 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     }
   };
 
+  // Generate creator narrative summary text
+  const creatorNarrativeSummary = React.useMemo(() => {
+    if (!creator) return '';
+
+    if (creator.arenas_count === 0) {
+      return `@${creator.twitter_username} has not joined any ARC arenas yet.`;
+    }
+
+    const parts: string[] = [];
+    
+    // Main summary
+    const ringText = creator.primary_ring
+      ? creator.primary_ring.charAt(0).toUpperCase() + creator.primary_ring.slice(1)
+      : 'creator';
+    const arenaText = creator.arenas_count === 1 ? 'arena' : 'arenas';
+    parts.push(`@${creator.twitter_username} is a ${ringText} creator with ${creator.total_points.toLocaleString()} ARC points across ${creator.arenas_count} ${arenaText}.`);
+
+    // Style
+    if (creator.primary_style) {
+      parts.push(`Known for ${creator.primary_style}.`);
+    }
+
+    // Ring breakdown (only if multiple rings have points)
+    const ringParts: string[] = [];
+    if (creator.ring_points.core > 0) {
+      ringParts.push(`Core: ${creator.ring_points.core.toLocaleString()}`);
+    }
+    if (creator.ring_points.momentum > 0) {
+      ringParts.push(`Momentum: ${creator.ring_points.momentum.toLocaleString()}`);
+    }
+    if (creator.ring_points.discovery > 0) {
+      ringParts.push(`Discovery: ${creator.ring_points.discovery.toLocaleString()}`);
+    }
+
+    // Only show ring breakdown if there are multiple rings with points
+    if (ringParts.length > 1) {
+      parts.push(ringParts.join(' · ') + '.');
+    }
+
+    return parts.join(' ');
+  }, [creator]);
+
   // Compute creator storyline events
   const creatorEvents = React.useMemo(() => {
     return arenas
@@ -269,6 +311,18 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                 </div>
               </div>
             </div>
+
+            {/* Narrative Summary Section */}
+            {creator && (
+              <section>
+                <h2 className="text-xl font-semibold text-akari-text mb-4">Narrative Summary</h2>
+                <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                  <p className="text-sm text-akari-muted leading-relaxed">
+                    {creatorNarrativeSummary || `@${creator.twitter_username} has not joined any ARC arenas yet.`}
+                  </p>
+                </div>
+              </section>
+            )}
 
             {/* ARC Storyline Section */}
             <section>
