@@ -96,7 +96,7 @@ export default function ArcHome() {
           totalPoints: project.stats?.totalPoints || 0,
           trend: project.stats?.trend || 'stable',
           userIsParticipant,
-          userRank: status?.arcPoints ? undefined : null, // Rank would need to be computed separately
+          userRank: null, // Rank can be populated later when we have per-project ranking
         },
       };
     });
