@@ -9,6 +9,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
+import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
 // TYPES
@@ -64,6 +67,8 @@ type ArenaResponse = ArenaDetailResponse | ArenaErrorResponse;
 export default function ArenaDetailsPage() {
   const router = useRouter();
   const { slug: projectSlug, arenaSlug } = router.query;
+  const akariUser = useAkariUser();
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -75,6 +80,21 @@ export default function ArenaDetailsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
   const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
+
+  // Admin modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // Form state for Add/Edit
+  const [formData, setFormData] = useState({
+    twitter_username: '',
+    arc_points: 0,
+    ring: 'discovery' as 'core' | 'momentum' | 'discovery',
+    style: '',
+  });
 
   // Fetch arena details using the arena slug
   useEffect(() => {
@@ -222,6 +242,173 @@ export default function ArenaDetailsPage() {
     return filtered;
   }, [creators, searchTerm, ringFilter, sortBy]);
 
+  // Refresh creators list
+  const refreshCreators = async () => {
+    if (!arenaSlug || typeof arenaSlug !== 'string') return;
+
+    try {
+      const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}`);
+      if (!res.ok) return;
+
+      const data: ArenaResponse = await res.json();
+      if (data.ok) {
+        setCreators(data.creators || []);
+      }
+    } catch (err) {
+      console.error('[ArenaDetailsPage] Error refreshing creators:', err);
+    }
+  };
+
+  // Handle Add Creator
+  const handleAddCreator = async () => {
+    if (!arena || !formData.twitter_username.trim()) {
+      setModalError('Twitter username is required');
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const supabase = createPortalClient();
+      const { data, error } = await supabase
+        .from('arena_creators')
+        .insert({
+          arena_id: arena.id,
+          twitter_username: formData.twitter_username.trim(),
+          arc_points: formData.arc_points,
+          ring: formData.ring,
+          style: formData.style.trim() || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Refresh the list
+      await refreshCreators();
+
+      // Reset form and close modal
+      setFormData({
+        twitter_username: '',
+        arc_points: 0,
+        ring: 'discovery',
+        style: '',
+      });
+      setShowAddModal(false);
+      setModalError(null);
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Error adding creator:', err);
+      setModalError(err?.message || 'Failed to add creator');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Handle Edit Creator
+  const handleEditCreator = async () => {
+    if (!editingCreator || !editingCreator.id || !arena) {
+      setModalError('Invalid creator data');
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const supabase = createPortalClient();
+      const { error } = await supabase
+        .from('arena_creators')
+        .update({
+          arc_points: formData.arc_points,
+          ring: formData.ring,
+          style: formData.style.trim() || null,
+        })
+        .eq('id', editingCreator.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // Refresh the list
+      await refreshCreators();
+
+      // Close modal
+      setShowEditModal(false);
+      setEditingCreator(null);
+      setModalError(null);
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Error updating creator:', err);
+      setModalError(err?.message || 'Failed to update creator');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Handle Remove Creator
+  const handleRemoveCreator = async (creatorId: string) => {
+    if (!window.confirm('Are you sure you want to remove this creator from the arena?')) {
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const supabase = createPortalClient();
+      const { error } = await supabase
+        .from('arena_creators')
+        .delete()
+        .eq('id', creatorId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Refresh the list
+      await refreshCreators();
+
+      // Close modal if open
+      setShowEditModal(false);
+      setEditingCreator(null);
+      setModalError(null);
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Error removing creator:', err);
+      setModalError(err?.message || 'Failed to remove creator');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Open Edit Modal
+  const openEditModal = (creator: Creator) => {
+    setEditingCreator(creator);
+    setFormData({
+      twitter_username: creator.twitter_username,
+      arc_points: creator.arc_points,
+      ring: (creator.ring as 'core' | 'momentum' | 'discovery') || 'discovery',
+      style: creator.style || '',
+    });
+    setModalError(null);
+    setShowEditModal(true);
+  };
+
+  // Close modals
+  const closeModals = () => {
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setEditingCreator(null);
+    setFormData({
+      twitter_username: '',
+      arc_points: 0,
+      ring: 'discovery',
+      style: '',
+    });
+    setModalError(null);
+  };
+
   // Safe project slug for navigation
   const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
 
@@ -323,7 +510,26 @@ export default function ArenaDetailsPage() {
 
             {/* Creators Leaderboard Section */}
             <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Creators Leaderboard</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-akari-text">Creators Leaderboard</h2>
+                {userIsSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setFormData({
+                        twitter_username: '',
+                        arc_points: 0,
+                        ring: 'discovery',
+                        style: '',
+                      });
+                      setModalError(null);
+                      setShowAddModal(true);
+                    }}
+                    className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                  >
+                    Add Creator
+                  </button>
+                )}
+              </div>
               <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
                 {creators.length === 0 ? (
                   <p className="text-sm text-akari-muted">
