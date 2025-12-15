@@ -58,11 +58,11 @@ export function FeaturedCampaigns({
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-bold text-akari-text">Featured Campaigns</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <section className="mb-12">
+      <h2 className="text-xl font-semibold mb-4 text-white">Featured Campaigns</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {featured.map((project) => {
-          const accentColor = project.meta?.accent_color || '#8B5CF6';
+          const accentColor = project.meta?.accent_color || '#6A5ACD';
           const bannerUrl = project.meta?.banner_url;
           const avatarUrl = getProjectAvatarUrl(project.twitter_username);
           const status = userCampaignStatuses?.get(project.project_id) || {
@@ -77,10 +77,7 @@ export function FeaturedCampaigns({
 
           let ctaLabel = 'Follow on X to join';
           let ctaAction: () => void = () => {
-            console.log('[FeaturedCampaigns] CTA action called - isDevMode:', isDevMode, 'effectiveIsFollowing:', effectiveIsFollowing, 'hasJoined:', hasJoined);
             if (isDevMode) {
-              // In dev mode, allow direct navigation
-              console.log('[FeaturedCampaigns] Dev mode - navigating to:', project.slug);
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
               }
@@ -92,7 +89,6 @@ export function FeaturedCampaigns({
           if (effectiveIsFollowing && hasJoined) {
             ctaLabel = 'View campaign';
             ctaAction = () => {
-              console.log('[FeaturedCampaigns] View campaign - navigating to:', project.slug);
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
               }
@@ -100,11 +96,8 @@ export function FeaturedCampaigns({
           } else if (effectiveIsFollowing && !hasJoined) {
             ctaLabel = 'Join campaign';
             ctaAction = () => {
-              console.log('[FeaturedCampaigns] Join campaign - projectId:', project.project_id, 'onJoinCampaign:', !!onJoinCampaign);
               if (onJoinCampaign) {
                 onJoinCampaign(project.project_id);
-              } else {
-                console.warn('[FeaturedCampaigns] onJoinCampaign not provided');
               }
             };
           }
@@ -112,33 +105,28 @@ export function FeaturedCampaigns({
           return (
             <div
               key={project.project_id}
-              className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card hover:border-opacity-60 transition-all duration-300 group"
+              className="relative rounded-xl overflow-hidden shadow-lg bg-gradient-to-b from-black/20 to-black/60 border border-white/10 hover:border-white/20 transition-all hover:scale-[1.02]"
               style={{
-                borderColor: `${accentColor}40`,
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                position: 'relative',
+                boxShadow: `0 0 12px ${accentColor}44`,
               }}
             >
-              {/* Banner */}
+              {/* Banner Background */}
               {bannerUrl && (
-                <div className="relative w-full h-32 bg-akari-cardSoft/30 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={bannerUrl}
-                    alt={`${project.name} banner`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                </div>
+                <div
+                  style={{ backgroundImage: `url(${bannerUrl})` }}
+                  className="absolute inset-0 bg-cover bg-center opacity-40"
+                />
               )}
+              
+              {/* Dark Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/80" />
 
-              <div className="p-4">
-                {/* Avatar and name */}
-                <div className="flex items-center gap-3 mb-3">
+              {/* Content */}
+              <div className="relative p-6 flex flex-col items-center text-center">
+                {/* Avatar */}
+                <div className="mb-4">
                   {avatarUrl ? (
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                    <div className="relative w-16 h-16 rounded-full overflow-hidden flex-shrink-0 mx-auto border-2 border-white/20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={avatarUrl}
@@ -151,27 +139,28 @@ export function FeaturedCampaigns({
                     </div>
                   ) : (
                     <div 
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0"
+                      className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto border-2 border-white/20"
                       style={{ backgroundColor: accentColor }}
                     >
                       {(project.name || '?')[0].toUpperCase()}
                     </div>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-akari-text truncate">
-                      {project.name || 'Unnamed Project'}
-                    </h3>
-                    {project.twitter_username && (
-                      <p className="text-xs text-akari-muted">
-                        @{project.twitter_username}
-                      </p>
-                    )}
-                  </div>
                 </div>
+
+                {/* Title */}
+                <h3 className="text-lg font-bold text-white mb-1">
+                  {project.name || 'Unnamed Project'}
+                </h3>
+                
+                {project.twitter_username && (
+                  <p className="text-sm text-white/60 mb-3">
+                    @{project.twitter_username}
+                  </p>
+                )}
 
                 {/* Tagline */}
                 {project.meta?.tagline && (
-                  <p className="text-sm text-akari-muted mb-4 line-clamp-2">
+                  <p className="text-sm text-white/70 mb-6 line-clamp-2">
                     {project.meta.tagline}
                   </p>
                 )}
@@ -182,24 +171,23 @@ export function FeaturedCampaigns({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('[FeaturedCampaigns] Button clicked for project:', project.project_id, 'Action:', ctaLabel);
                     try {
                       ctaAction();
                     } catch (err) {
                       console.error('[FeaturedCampaigns] Error in ctaAction:', err);
                     }
                   }}
-                  className="w-full px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 text-white cursor-pointer relative z-10"
+                  className="w-full px-4 py-3 text-sm font-semibold rounded-lg transition-all duration-300 text-white cursor-pointer relative z-10"
                   style={{
                     backgroundColor: accentColor,
-                    boxShadow: `0 0 20px ${accentColor}40`,
+                    boxShadow: `0 0 20px ${accentColor}60`,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}60`;
+                    e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}80`;
                     e.currentTarget.style.transform = 'scale(1.02)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}40`;
+                    e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}60`;
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >

@@ -62,31 +62,34 @@ export function TrendingNarratives({ narratives }: TrendingNarrativesProps) {
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-2xl font-bold text-akari-text">Trending Narratives</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <section className="mb-12">
+      <h2 className="text-xl font-semibold mb-4 text-white">Trending Narratives</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayNarratives.map((narrative) => (
           <div
             key={narrative.id}
-            className="rounded-xl border border-slate-700 p-5 bg-akari-card hover:border-akari-primary/30 transition-all duration-300"
+            className="rounded-xl border border-white/10 p-5 bg-black/40 hover:border-white/20 hover:shadow-lg transition-all duration-300"
+            style={{
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+            }}
           >
-            <h3 className="text-lg font-semibold text-akari-text mb-3 capitalize">
+            <h3 className="text-lg font-bold text-white mb-4 capitalize">
               {narrative.label}
             </h3>
 
             <div className="space-y-2 mb-4">
               {narrative.postCount !== undefined && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-akari-muted">Related Posts</span>
-                  <span className="text-akari-text font-medium">
+                  <span className="text-white/60">Related Posts</span>
+                  <span className="text-white font-semibold">
                     {narrative.postCount.toLocaleString()}
                   </span>
                 </div>
               )}
               {narrative.creatorCount !== undefined && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-akari-muted">Creators</span>
-                  <span className="text-akari-text font-medium">
+                  <span className="text-white/60">Creators</span>
+                  <span className="text-white font-semibold">
                     {narrative.creatorCount}
                   </span>
                 </div>
@@ -95,14 +98,14 @@ export function TrendingNarratives({ narratives }: TrendingNarrativesProps) {
 
             {/* Associated campaigns */}
             {narrative.associatedCampaigns && narrative.associatedCampaigns.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-akari-border/20">
-                <p className="text-xs text-akari-muted mb-2">Related Campaigns</p>
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-xs text-white/60 mb-2">Related Campaigns</p>
                 <div className="flex flex-wrap gap-2">
                   {narrative.associatedCampaigns.slice(0, 3).map((campaign) => (
                     <Link
                       key={campaign.project_id}
                       href={campaign.slug ? `/portal/arc/${campaign.slug}` : '#'}
-                      className="px-2.5 py-1 rounded-full text-xs font-medium bg-akari-cardSoft/30 border border-akari-border/30 text-akari-text hover:bg-akari-cardSoft/50 transition-colors"
+                      className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
                     >
                       {campaign.name || 'Campaign'}
                     </Link>

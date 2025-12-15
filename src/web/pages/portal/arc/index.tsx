@@ -225,25 +225,14 @@ export default function ArcHome() {
     <PortalLayout title="ARC Universe">
       <div className="space-y-8">
         {/* Header */}
-        <div className="relative">
-          <div 
-            className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-purple-500/20 blur-3xl rounded-3xl"
-            style={{
-              filter: 'blur(40px)',
-            }}
-          />
-          <div className="relative flex items-center justify-between">
+        <div className="w-full py-10 bg-gradient-to-b from-[#15192D] to-transparent rounded-xl mb-8">
+          <div className="flex items-center justify-between">
             <div>
-              <h1 
-                className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 bg-clip-text text-transparent"
-                style={{
-                  textShadow: '0 0 40px rgba(139, 92, 246, 0.5)',
-                }}
-              >
+              <h1 className="text-3xl font-bold text-white drop-shadow-sm mb-2">
                 ARC Universe
               </h1>
-              <p className="text-lg text-akari-muted">
-                Explore active campaigns, join narratives, and earn ARC points for your content.
+              <p className="text-white/60 mt-1">
+                Explore active campaigns, join narratives, and earn ARC points.
               </p>
             </div>
             {userIsSuperAdmin && (

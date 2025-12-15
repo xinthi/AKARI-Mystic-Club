@@ -79,11 +79,11 @@ export function CampaignGrid({
 
   return (
     <>
-      <section className="space-y-4">
-        <h2 className="text-2xl font-bold text-akari-text">All Campaigns</h2>
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4 text-white">All Campaigns</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project) => {
-            const accentColor = project.meta?.accent_color || '#8B5CF6';
+            const accentColor = project.meta?.accent_color || '#6A5ACD';
             const bannerUrl = project.meta?.banner_url;
             const avatarUrl = getProjectAvatarUrl(project.twitter_username);
             const status = userCampaignStatuses?.get(project.project_id) || {
@@ -96,10 +96,7 @@ export function CampaignGrid({
 
             let ctaLabel = 'Follow on X to join';
             let ctaAction: () => void = () => {
-              console.log('[CampaignGrid] CTA action called - isDevMode:', isDevMode, 'effectiveIsFollowing:', effectiveIsFollowing, 'hasJoined:', status.hasJoined);
               if (isDevMode) {
-                // In dev mode, allow direct navigation
-                console.log('[CampaignGrid] Dev mode - navigating to:', project.slug);
                 if (project.slug) {
                   window.location.href = `/portal/arc/${project.slug}`;
                 }
@@ -111,7 +108,6 @@ export function CampaignGrid({
             if (effectiveIsFollowing && status.hasJoined) {
               ctaLabel = 'View missions';
               ctaAction = () => {
-                console.log('[CampaignGrid] View missions - navigating to:', project.slug);
                 if (project.slug) {
                   window.location.href = `/portal/arc/${project.slug}`;
                 }
@@ -119,11 +115,8 @@ export function CampaignGrid({
             } else if (effectiveIsFollowing && !status.hasJoined) {
               ctaLabel = 'Join campaign';
               ctaAction = () => {
-                console.log('[CampaignGrid] Join campaign - projectId:', project.project_id, 'onJoinCampaign:', !!onJoinCampaign);
                 if (onJoinCampaign) {
                   onJoinCampaign(project.project_id);
-                } else {
-                  console.warn('[CampaignGrid] onJoinCampaign not provided');
                 }
               };
             }
@@ -131,39 +124,42 @@ export function CampaignGrid({
             return (
               <div
                 key={project.project_id}
-                className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card hover:border-opacity-60 transition-all duration-300 group relative"
+                className="rounded-xl overflow-hidden bg-black/40 border border-white/10 hover:border-white/20 hover:shadow-lg transition-all"
                 style={{
-                  borderColor: `${accentColor}30`,
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  boxShadow: `0 4px 6px rgba(0, 0, 0, 0.3), 0 0 8px ${accentColor}20`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = `0 8px 12px rgba(0, 0, 0, 0.4), 0 0 16px ${accentColor}40`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = `0 4px 6px rgba(0, 0, 0, 0.3), 0 0 8px ${accentColor}20`;
                 }}
               >
                 {/* Banner */}
-                {bannerUrl ? (
-                  <div className="relative w-full h-40 bg-akari-cardSoft/30 overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={bannerUrl}
-                      alt={`${project.name} banner`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
+                <div className="h-32 relative">
+                  {bannerUrl ? (
+                    <>
+                      <div
+                        style={{ backgroundImage: `url(${bannerUrl})` }}
+                        className="absolute inset-0 bg-cover bg-center opacity-50"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-black/80" />
+                    </>
+                  ) : (
+                    <div
+                      className="absolute inset-0 bg-gradient-to-br opacity-30"
+                      style={{
+                        background: `linear-gradient(135deg, ${accentColor}30 0%, ${accentColor}60 100%)`,
                       }}
                     />
-                  </div>
-                ) : (
-                  <div 
-                    className="w-full h-40 bg-gradient-to-br opacity-20"
-                    style={{
-                      background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}40 100%)`,
-                    }}
-                  />
-                )}
+                  )}
+                </div>
 
-                <div className="p-5">
+                <div className="p-4">
                   {/* Avatar and name */}
                   <div className="flex items-center gap-3 mb-3">
                     {avatarUrl ? (
-                      <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                      <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-white/10">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={avatarUrl}
@@ -176,18 +172,18 @@ export function CampaignGrid({
                       </div>
                     ) : (
                       <div 
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                        className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0 border-2 border-white/10"
                         style={{ backgroundColor: accentColor }}
                       >
                         {(project.name || '?')[0].toUpperCase()}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-akari-text truncate">
+                      <h3 className="text-lg font-bold text-white truncate">
                         {project.name || 'Unnamed Project'}
                       </h3>
                       {project.twitter_username && (
-                        <p className="text-xs text-akari-muted">
+                        <p className="text-xs text-white/60">
                           @{project.twitter_username}
                         </p>
                       )}
@@ -196,33 +192,33 @@ export function CampaignGrid({
 
                   {/* Tagline */}
                   {project.meta?.tagline && (
-                    <p className="text-sm text-akari-muted mb-4 line-clamp-2">
+                    <p className="text-sm text-white/70 mb-4 line-clamp-2">
                       {project.meta.tagline}
                     </p>
                   )}
 
                   {/* Stats row */}
-                  <div className="space-y-2 mb-4">
+                  <div className="px-4 py-3 text-sm space-y-1 mb-3 bg-black/20 rounded-lg border border-white/5">
                     {project.stats?.creatorCount !== undefined && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-akari-muted">Active Creators</span>
-                        <span className="text-akari-text font-medium">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/60">Active Creators</span>
+                        <span className="text-white font-semibold">
                           {project.stats.creatorCount}
                         </span>
                       </div>
                     )}
                     {project.stats?.totalPoints !== undefined && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-akari-muted">Total ARC Points</span>
-                        <span className="text-akari-text font-medium">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/60">Total ARC Points</span>
+                        <span className="text-white font-semibold">
                           {project.stats.totalPoints.toLocaleString()}
                         </span>
                       </div>
                     )}
                     {project.stats?.trend && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-akari-muted">Engagement</span>
-                        <span className={`font-medium ${getTrendColor(project.stats.trend)}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/60">Engagement</span>
+                        <span className={`font-semibold ${getTrendColor(project.stats.trend)}`}>
                           {getTrendIcon(project.stats.trend)} {project.stats.trend}
                         </span>
                       </div>
@@ -235,35 +231,34 @@ export function CampaignGrid({
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      console.log('[CampaignGrid] Button clicked for project:', project.project_id, 'Action:', ctaLabel, 'isDevMode:', isDevMode);
                       try {
                         ctaAction();
                       } catch (err) {
                         console.error('[CampaignGrid] Error in ctaAction:', err);
                       }
                     }}
-                    className="w-full px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer relative z-10"
+                    className="w-full mt-3 py-2.5 rounded-lg text-center font-semibold transition-all cursor-pointer"
                     style={{
-                      backgroundColor: status.hasJoined ? accentColor : 'transparent',
-                      color: status.hasJoined ? 'white' : accentColor,
+                      backgroundColor: ctaLabel === 'Follow on X to join' ? 'transparent' : accentColor,
+                      color: ctaLabel === 'Follow on X to join' ? accentColor : 'white',
                       border: `1.5px solid ${accentColor}`,
-                      boxShadow: status.hasJoined ? `0 0 20px ${accentColor}40` : 'none',
+                      boxShadow: ctaLabel === 'Follow on X to join' ? 'none' : `0 0 20px ${accentColor}50`,
                     }}
                     onMouseEnter={(e) => {
-                      if (!status.hasJoined) {
-                        e.currentTarget.style.backgroundColor = `${accentColor}10`;
+                      if (ctaLabel === 'Follow on X to join') {
+                        e.currentTarget.style.backgroundColor = `${accentColor}20`;
                       } else {
-                        e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}60`;
+                        e.currentTarget.style.opacity = '0.9';
+                        e.currentTarget.style.boxShadow = `0 0 30px ${accentColor}70`;
                       }
-                      e.currentTarget.style.transform = 'scale(1.02)';
                     }}
                     onMouseLeave={(e) => {
-                      if (!status.hasJoined) {
+                      if (ctaLabel === 'Follow on X to join') {
                         e.currentTarget.style.backgroundColor = 'transparent';
                       } else {
-                        e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}40`;
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.boxShadow = `0 0 20px ${accentColor}50`;
                       }
-                      e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
                     {ctaLabel}
