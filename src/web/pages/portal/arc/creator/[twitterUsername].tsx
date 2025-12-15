@@ -97,6 +97,47 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     }
   };
 
+  // Helper function to format date for storyline
+  const formatStorylineDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown date';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Unknown date';
+    }
+  };
+
+  // Compute creator storyline events
+  const creatorEvents = React.useMemo(() => {
+    return arenas
+      .map((arena) => {
+        const date = arena.joined_at || null;
+        const sortKey = date ? new Date(date).getTime() : 0;
+        const ringName = arena.ring 
+          ? arena.ring.charAt(0).toUpperCase() + arena.ring.slice(1)
+          : 'Unknown';
+        const dateStr = formatStorylineDate(date);
+        const text = `${dateStr} – Joined "${arena.arena_name}" as ${ringName} (${arena.arc_points.toLocaleString()} pts)`;
+
+        return {
+          date,
+          sortKey,
+          text,
+        };
+      })
+      .sort((a, b) => {
+        // Newest first, but put items without dates at the bottom
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return b.sortKey - a.sortKey;
+      });
+  }, [arenas]);
+
   // Helper to get project slug - use provided slug or fallback to twitter username
   const getProjectSlug = (arena: CreatorArenaEntry) => {
     if (arena.project_slug) {
@@ -228,6 +269,28 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                 </div>
               </div>
             </div>
+
+            {/* ARC Storyline Section */}
+            <section>
+              <h2 className="text-xl font-semibold text-akari-text mb-4">ARC Storyline</h2>
+              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                {creatorEvents.length === 0 ? (
+                  <p className="text-sm text-akari-muted">
+                    No ARC activity recorded yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {creatorEvents.map((event, index) => (
+                      <div key={index} className="pb-4 border-b border-akari-border/30 last:border-0 last:pb-0">
+                        <p className="text-sm text-akari-text">
+                          {event.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
 
             {/* Arenas table */}
             <section>

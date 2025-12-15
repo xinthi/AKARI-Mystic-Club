@@ -75,6 +75,9 @@ export default function ArenaDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline'>('leaderboard');
+
   // Leaderboard filter/sort state
   const [searchTerm, setSearchTerm] = useState('');
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
@@ -205,6 +208,46 @@ export default function ArenaDetailsPage() {
       </div>
     );
   };
+
+  // Helper function to format date for storyline
+  const formatStorylineDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Unknown date';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Unknown date';
+    }
+  };
+
+  // Compute arena storyline events
+  const storyEvents = React.useMemo(() => {
+    return creators
+      .map((creator) => {
+        const date = creator.joined_at || null;
+        const sortKey = date ? new Date(date).getTime() : 0;
+        const ringName = creator.ring 
+          ? creator.ring.charAt(0).toUpperCase() + creator.ring.slice(1)
+          : 'Unknown';
+        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${creator.arc_points ?? 0} ARC points.`;
+
+        return {
+          date,
+          sortKey,
+          text,
+        };
+      })
+      .sort((a, b) => {
+        // Newest first, but put items without dates at the bottom
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return b.sortKey - a.sortKey;
+      });
+  }, [creators]);
 
   // Filter and sort creators
   const visibleCreators = React.useMemo(() => {
@@ -540,11 +583,33 @@ export default function ArenaDetailsPage() {
               </div>
             </div>
 
-            {/* Creators Leaderboard Section */}
+            {/* Creators Leaderboard / Storyline Section */}
             <section>
+              {/* Tabs */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-akari-text">Creators Leaderboard</h2>
-                {userIsSuperAdmin && (
+                <div className="flex gap-2 border-b border-akari-border/30">
+                  <button
+                    onClick={() => setActiveTab('leaderboard')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === 'leaderboard'
+                        ? 'text-akari-primary border-b-2 border-akari-primary'
+                        : 'text-akari-muted hover:text-akari-text'
+                    }`}
+                  >
+                    Leaderboard
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('storyline')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === 'storyline'
+                        ? 'text-akari-primary border-b-2 border-akari-primary'
+                        : 'text-akari-muted hover:text-akari-text'
+                    }`}
+                  >
+                    Storyline
+                  </button>
+                </div>
+                {userIsSuperAdmin && activeTab === 'leaderboard' && (
                   <button
                     onClick={() => {
                       setFormData({
@@ -562,6 +627,10 @@ export default function ArenaDetailsPage() {
                   </button>
                 )}
               </div>
+
+              {/* Leaderboard Tab Content */}
+              {activeTab === 'leaderboard' && (
+              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
               <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
                 {creators.length === 0 ? (
                   <p className="text-sm text-akari-muted">
@@ -688,6 +757,42 @@ export default function ArenaDetailsPage() {
                   </>
                 )}
               </div>
+              )}
+
+              {/* Storyline Tab Content */}
+              {activeTab === 'storyline' && (
+                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  <h2 className="text-xl font-semibold text-akari-text mb-4">Arena Storyline</h2>
+                  {storyEvents.length === 0 ? (
+                    <p className="text-sm text-akari-muted">
+                      No storyline events yet. Add creators to start the narrative.
+                    </p>
+                  ) : (
+                    <div className="space-y-6">
+                      {storyEvents.map((event, index) => (
+                        <div key={index} className="flex gap-4">
+                          {/* Timeline visual */}
+                          <div className="flex flex-col items-center">
+                            <div className="w-2 h-2 rounded-full bg-akari-primary mt-1" />
+                            {index < storyEvents.length - 1 && (
+                              <div className="w-px h-full min-h-[40px] bg-akari-border/30 mt-2" />
+                            )}
+                          </div>
+                          {/* Event content */}
+                          <div className="flex-1 pb-4">
+                            <p className="text-xs text-akari-muted mb-1">
+                              {formatStorylineDate(event.date)}
+                            </p>
+                            <p className="text-sm text-akari-text">
+                              {event.text}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           </>
         )}
