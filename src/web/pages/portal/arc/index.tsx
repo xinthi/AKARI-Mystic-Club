@@ -8,6 +8,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
 
 // =============================================================================
 // TYPES
@@ -34,6 +36,8 @@ interface ArcProjectsResponse {
 // =============================================================================
 
 export default function ArcHome() {
+  const akariUser = useAkariUser();
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const [projects, setProjects] = useState<ArcProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +113,19 @@ export default function ArcHome() {
   return (
     <PortalLayout title="ARC">
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-gradient-teal">
-          ARC Narrative Universe
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gradient-teal">
+            ARC Narrative Universe
+          </h1>
+          {userIsSuperAdmin && (
+            <Link
+              href="/portal/arc/admin"
+              className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+            >
+              ARC Admin
+            </Link>
+          )}
+        </div>
 
         {/* Loading state */}
         {loading && (
