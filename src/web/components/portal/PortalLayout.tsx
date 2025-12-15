@@ -48,7 +48,8 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
     // Check dev mode bypass (same as yellow DEV MODE panel)
     const isDevBypass = process.env.NODE_ENV === 'development';
     // Check Super Admin status (same logic as ARC Admin button on /portal/arc)
-    const isSuperAdminUser = isSuperAdmin(akariUser.user);
+    // Use realRoles directly to ensure recalculation when roles change
+    const isSuperAdminUser = akariUser.realRoles?.includes('super_admin') ?? false;
     // ARC is visible to SuperAdmins in production, everyone in dev
     const canSeeArc = isDevBypass || isSuperAdminUser;
     
@@ -59,7 +60,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       }
       return true;
     });
-  }, [akariUser.user]);
+  }, [akariUser.realRoles, akariUser.isLoading]);
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
