@@ -630,9 +630,8 @@ export default function ArenaDetailsPage() {
 
               {/* Leaderboard Tab Content */}
               {activeTab === 'leaderboard' && (
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                {creators.length === 0 ? (
+                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  {creators.length === 0 ? (
                   <p className="text-sm text-akari-muted">
                     No creators have joined this arena yet.
                   </p>
