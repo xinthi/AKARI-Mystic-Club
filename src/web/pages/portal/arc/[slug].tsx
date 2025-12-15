@@ -344,6 +344,20 @@ export default function ArcProjectHub() {
       const result = await res.json();
 
       if (!res.ok || !result.ok) {
+        // Handle not_following case
+        if (result.reason === 'not_following') {
+          const projectHandle = project?.twitter_username;
+          
+          if (projectHandle) {
+            alert(`You must follow @${projectHandle} on X to join this campaign. Please follow the project and try again.`);
+            // Optionally open X profile in new tab
+            window.open(`https://x.com/${projectHandle}`, '_blank');
+          } else {
+            alert(`You must follow ${project?.name || 'this project'} on X to join this campaign.`);
+          }
+          return;
+        }
+        
         throw new Error(result.error || 'Failed to join campaign');
       }
 

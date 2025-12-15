@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { fetchUserProfile, fetchUserFollowersSample } from '../../../../../server/rapidapi/twitter';
 
 // =============================================================================
 // TYPES
@@ -26,7 +27,8 @@ type JoinCampaignResponse =
     }
   | {
       ok: false;
-      error: string;
+      error?: string;
+      reason?: 'not_following';
     };
 
 // =============================================================================
@@ -69,6 +71,61 @@ async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, us
   return (roles?.length ?? 0) > 0;
 }
 
+/**
+ * Check if user follows project's X account
+ * Returns true if:
+ * - Project has no twitter_username (no check needed)
+ * - User follows the project (verified via API)
+ * - Dev mode (bypass)
+ * - SuperAdmin (bypass)
+ */
+async function checkUserFollowsProject(
+  userTwitterUsername: string,
+  projectTwitterUsername: string | null,
+  isDevMode: boolean,
+  isSuperAdmin: boolean
+): Promise<boolean> {
+  // Bypass checks in dev mode or for SuperAdmins
+  if (isDevMode || isSuperAdmin) {
+    return true;
+  }
+
+  // If project has no Twitter handle, allow join
+  if (!projectTwitterUsername) {
+    return true;
+  }
+
+  try {
+    // Normalize usernames (remove @ if present)
+    const cleanUserHandle = userTwitterUsername.replace(/^@/, '').toLowerCase();
+    const cleanProjectHandle = projectTwitterUsername.replace(/^@/, '').toLowerCase();
+
+    // Get project's user profile to verify it exists
+    const projectProfile = await fetchUserProfile(cleanProjectHandle);
+    if (!projectProfile) {
+      console.warn(`[join-campaign] Could not fetch project profile for @${cleanProjectHandle}`);
+      // If we can't verify, be conservative and require follow
+      return false;
+    }
+
+    // Fetch a sample of project's followers/interactors
+    // Note: This is a simplified check using a sample - in production you might want
+    // a more efficient method, but this works for most cases
+    const followers = await fetchUserFollowersSample(cleanProjectHandle, 1000);
+    
+    // Check if user's handle is in the followers list
+    const userFollows = followers.some(
+      follower => follower.handle?.toLowerCase() === cleanUserHandle
+    );
+
+    return userFollows;
+  } catch (error) {
+    console.error('[join-campaign] Error checking follow status:', error);
+    // On error, be conservative and require follow
+    return false;
+  }
+}
+
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -89,6 +146,8 @@ export default async function handler(
     const isDevMode = process.env.NODE_ENV === 'development';
     
     let profile: { id: string; twitter_username: string } | null = null;
+    let userId: string | null = null;
+    let isSuperAdmin = false;
 
     // Get session token from cookies
     const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
@@ -190,11 +249,11 @@ export default async function handler(
         });
       }
 
-      const userId = session.user_id;
+      userId = session.user_id;
 
       // Check if user is SuperAdmin
       const supabaseAdmin = getSupabaseAdmin();
-      const isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
+      isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
 
       // Get user profile to get Twitter username
       const { data: userProfile, error: profileError } = await supabase
@@ -292,9 +351,38 @@ export default async function handler(
       .single();
 
     if (arenaError || !activeArena) {
-      return res.status(404).json({
+      return res.status(400).json({
         ok: false,
         error: 'No active arena found for this project',
+      });
+    }
+
+    // Load project to get Twitter username
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id, twitter_username')
+      .eq('id', projectId)
+      .single();
+
+    if (projectError || !project) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Project not found or not ARC-enabled',
+      });
+    }
+
+    // Check if user follows project's X account
+    const userFollowsProject = await checkUserFollowsProject(
+      profile.twitter_username,
+      project.twitter_username,
+      isDevMode,
+      isSuperAdmin
+    );
+
+    if (!userFollowsProject) {
+      return res.status(200).json({
+        ok: false,
+        reason: 'not_following',
       });
     }
 
