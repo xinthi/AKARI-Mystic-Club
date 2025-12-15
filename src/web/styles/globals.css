@@ -224,6 +224,16 @@ body {
   display: none;
 }
 
+/* Force hamburger menu button to be visible */
+.portal-hamburger-button,
+#portal-hamburger-menu-button {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
 /* Fade in animation */
 @keyframes fade-in {
   from {
