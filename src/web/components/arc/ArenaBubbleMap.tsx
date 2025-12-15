@@ -47,6 +47,17 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
   const animationFrameRef = useRef<number>();
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Validate creators prop
+  if (!creators || !Array.isArray(creators)) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-akari-muted">
+          Invalid creators data.
+        </p>
+      </div>
+    );
+  }
+
   // Helper to get Twitter profile image URL
   const getProfileImageUrl = (username: string | null | undefined): string | null => {
     if (!username) return null;
@@ -142,9 +153,14 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
 
   // Compute normalized sizes
   const computeBubbleSizes = React.useMemo(() => {
-    if (creators.length === 0) return [];
+    if (!creators || creators.length === 0) return [];
 
-    const points = creators.map(c => c.arc_points ?? 0);
+    const validCreators = creators.filter(c => c && c.twitter_username);
+    if (validCreators.length === 0) return [];
+
+    const points = validCreators.map(c => (c.arc_points ?? 0));
+    if (points.length === 0) return [];
+    
     const minPoints = Math.min(...points);
     const maxPoints = Math.max(...points);
     const range = maxPoints - minPoints;
@@ -153,7 +169,9 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     const minSize = 40;
     const maxSize = 100;
 
-    return creators.map((creator) => {
+    return validCreators.map((creator) => {
+      if (!creator || !creator.twitter_username) return null;
+      
       const points = creator.arc_points ?? 0;
       let size = minSize;
       
@@ -169,7 +187,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         ...creator,
         size: Math.round(size),
       };
-    });
+    }).filter((c): c is NonNullable<typeof c> => c !== null);
   }, [creators]);
 
   // Initialize random positions and velocities
@@ -177,19 +195,28 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     if (!containerRef.current || computeBubbleSizes.length === 0) return;
 
     const container = containerRef.current;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
+    const containerWidth = container.clientWidth || 0;
+    const containerHeight = container.clientHeight || 0;
+    
+    if (containerWidth === 0 || containerHeight === 0) return;
 
     const newPositions = new Map<string, BubblePosition>();
     
     computeBubbleSizes.forEach((creator, index) => {
-      const key = creator.twitter_username || `creator-${index}`;
-      const size = creator.size;
+      if (!creator || !creator.twitter_username) return;
+      
+      const key = creator.twitter_username.toLowerCase().trim() || `creator-${index}`;
+      const size = creator.size || 50;
       
       // Random starting position (avoid edges)
       const padding = Math.max(size, 50);
-      const x = padding + Math.random() * (containerWidth - padding * 2);
-      const y = padding + Math.random() * (containerHeight - padding * 2);
+      const availableWidth = Math.max(0, containerWidth - padding * 2);
+      const availableHeight = Math.max(0, containerHeight - padding * 2);
+      
+      if (availableWidth <= 0 || availableHeight <= 0) return;
+      
+      const x = padding + Math.random() * availableWidth;
+      const y = padding + Math.random() * availableHeight;
       
       // Random velocity (slow drift)
       const speed = 0.3 + Math.random() * 0.4; // 0.3 to 0.7 pixels per frame
@@ -203,7 +230,9 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
       });
     });
 
-    setPositions(newPositions);
+    if (newPositions.size > 0) {
+      setPositions(newPositions);
+    }
   }, [computeBubbleSizes]);
 
   // Calculate radial positions for connected bubbles around hovered bubble
@@ -297,7 +326,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                 const newY = distance > 5 ? currentPos.y + (dy / distance) * speed : targetPos.y;
                 
                 // Ensure within bounds
-                const creator = computeBubbleSizes.find(c => c.twitter_username.toLowerCase() === key);
+                const creator = computeBubbleSizes.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === key);
                 const size = creator?.size || 50;
                 const padding = size / 2;
                 
@@ -474,6 +503,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
             const dx = otherPos.x - hoveredPos.x;
             const dy = otherPos.y - hoveredPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance === 0) return null;
             const unitX = dx / distance;
             const unitY = dy / distance;
             
@@ -523,6 +553,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
             const dx1 = viaPos.x - fromPos.x;
             const dy1 = viaPos.y - fromPos.y;
             const distance1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+            if (distance1 === 0) return null;
             const unitX1 = dx1 / distance1;
             const unitY1 = dy1 / distance1;
             const startX1 = fromPos.x + unitX1 * (fromSize / 2);
@@ -534,6 +565,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
             const dx2 = toPos.x - viaPos.x;
             const dy2 = toPos.y - viaPos.y;
             const distance2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+            if (distance2 === 0) return null;
             const unitX2 = dx2 / distance2;
             const unitY2 = dy2 / distance2;
             const startX2 = viaPos.x + unitX2 * (viaSize / 2);
@@ -590,13 +622,15 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
       </svg>
 
       {computeBubbleSizes.map((creator, index) => {
-        const key = creator.twitter_username || `creator-${index}`;
+        if (!creator || !creator.twitter_username) return null;
+        
+        const key = creator.twitter_username.toLowerCase().trim() || `creator-${index}`;
         const pos = positions.get(key);
-        const creatorUrl = `/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`;
-        const isHoveredBubble = isHovered === key;
-        const profileImageUrl = getProfileImageUrl(creator.twitter_username);
-
         if (!pos) return null;
+        
+        const creatorUrl = `/portal/arc/creator/${encodeURIComponent(creator.twitter_username.toLowerCase().trim())}`;
+        const isHoveredBubble = isHovered?.toLowerCase() === key;
+        const profileImageUrl = getProfileImageUrl(creator.twitter_username);
 
         return (
           <Link
@@ -666,23 +700,29 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                       {hoveredConnections.filter(c => c.degree === 1).length} direct · {hoveredConnections.filter(c => c.degree === 2).length} secondary
                     </div>
                     {/* Show connection paths */}
-                    {hoveredConnections.filter(c => c.degree === 1).slice(0, 3).map((conn, idx) => {
-                      const otherKey = conn.from.toLowerCase() === isHovered?.toLowerCase() 
+                    {hoveredConnections.filter(c => c && c.degree === 1).slice(0, 3).map((conn, idx) => {
+                      if (!conn || !isHovered) return null;
+                      const hoveredKey = isHovered.toLowerCase();
+                      const otherKey = conn.from?.toLowerCase() === hoveredKey 
                         ? conn.to 
                         : conn.from;
-                      const otherCreator = creators.find(c => c.twitter_username.toLowerCase() === otherKey);
+                      if (!otherKey) return null;
+                      const otherCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
                       return (
                         <div key={`direct-${idx}`} className="text-[9px] opacity-75">
                           → @{otherCreator?.twitter_username || otherKey}
                         </div>
                       );
                     })}
-                    {hoveredConnections.filter(c => c.degree === 2).slice(0, 2).map((conn, idx) => {
-                      const otherKey = conn.from.toLowerCase() === isHovered?.toLowerCase() 
+                    {hoveredConnections.filter(c => c && c.degree === 2).slice(0, 2).map((conn, idx) => {
+                      if (!conn || !isHovered) return null;
+                      const hoveredKey = isHovered.toLowerCase();
+                      const otherKey = conn.from?.toLowerCase() === hoveredKey 
                         ? conn.to 
                         : conn.from;
-                      const viaCreator = creators.find(c => c.twitter_username.toLowerCase() === conn.via?.toLowerCase());
-                      const otherCreator = creators.find(c => c.twitter_username.toLowerCase() === otherKey);
+                      if (!otherKey || !conn.via) return null;
+                      const viaCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === conn.via?.toLowerCase());
+                      const otherCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
                       return (
                         <div key={`second-${idx}`} className="text-[9px] opacity-60">
                           → @{viaCreator?.twitter_username || conn.via} → @{otherCreator?.twitter_username || otherKey}

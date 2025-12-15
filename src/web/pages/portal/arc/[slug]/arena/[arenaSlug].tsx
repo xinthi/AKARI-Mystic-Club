@@ -901,7 +901,13 @@ export default function ArenaDetailsPage() {
               {activeTab === 'map' && (
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
                   <h2 className="text-xl font-semibold text-akari-text mb-4">Creator Map</h2>
-                  <ArenaBubbleMap creators={creators} />
+                  {creators && creators.length > 0 ? (
+                    <ArenaBubbleMap creators={creators.filter(c => c && c.twitter_username)} />
+                  ) : (
+                    <div className="flex items-center justify-center py-12">
+                      <p className="text-sm text-akari-muted">No creators to display.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
