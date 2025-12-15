@@ -335,10 +335,8 @@ export default function ArenaDetailsPage() {
       // Refresh the list
       await refreshCreators();
 
-      // Close modal
-      setShowEditModal(false);
-      setEditingCreator(null);
-      setModalError(null);
+      // Close modal and reset state
+      closeModals();
     } catch (err: any) {
       console.error('[ArenaDetailsPage] Error updating creator:', err);
       setModalError(err?.message || 'Failed to update creator');
@@ -370,10 +368,8 @@ export default function ArenaDetailsPage() {
       // Refresh the list
       await refreshCreators();
 
-      // Close modal if open
-      setShowEditModal(false);
-      setEditingCreator(null);
-      setModalError(null);
+      // Close modal and reset state
+      closeModals();
     } catch (err: any) {
       console.error('[ArenaDetailsPage] Error removing creator:', err);
       setModalError(err?.message || 'Failed to remove creator');
@@ -625,9 +621,20 @@ export default function ArenaDetailsPage() {
                                   </span>
                                 )}
                               </div>
-                              <span className="text-sm font-medium text-akari-text">
-                                {creator.arc_points ?? 0} pts
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-akari-text">
+                                  {creator.arc_points ?? 0} pts
+                                </span>
+                                {userIsSuperAdmin && creator.id && (
+                                  <button
+                                    onClick={() => openEditModal(creator)}
+                                    className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                    title="Edit creator"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -638,6 +645,207 @@ export default function ArenaDetailsPage() {
               </div>
             </section>
           </>
+        )}
+
+        {/* Add Creator Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-akari-text">Add Creator</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-akari-muted hover:text-akari-text transition-colors"
+                  disabled={modalLoading}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Twitter Username</label>
+                  <input
+                    type="text"
+                    value={formData.twitter_username}
+                    onChange={(e) => setFormData({ ...formData, twitter_username: e.target.value })}
+                    placeholder="username (without @)"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">ARC Points</label>
+                  <input
+                    type="number"
+                    value={formData.arc_points}
+                    onChange={(e) => setFormData({ ...formData, arc_points: Number(e.target.value) || 0 })}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Ring</label>
+                  <select
+                    value={formData.ring}
+                    onChange={(e) => setFormData({ ...formData, ring: e.target.value as 'core' | 'momentum' | 'discovery' })}
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  >
+                    <option value="core">Core</option>
+                    <option value="momentum">Momentum</option>
+                    <option value="discovery">Discovery</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Style (optional)</label>
+                  <input
+                    type="text"
+                    value={formData.style}
+                    onChange={(e) => setFormData({ ...formData, style: e.target.value })}
+                    placeholder="e.g., Threads + deep dives"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                {modalError && (
+                  <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
+                    <p className="text-xs text-akari-danger">{modalError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={closeModals}
+                    className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+                    disabled={modalLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddCreator}
+                    disabled={modalLoading}
+                    className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {modalLoading ? 'Adding...' : 'Add Creator'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Creator Modal */}
+        {showEditModal && editingCreator && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-akari-text">Edit Creator</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-akari-muted hover:text-akari-text transition-colors"
+                  disabled={modalLoading}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Twitter Username</label>
+                  <input
+                    type="text"
+                    value={formData.twitter_username}
+                    disabled
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/20 border border-akari-border/20 rounded-lg text-akari-muted cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">ARC Points</label>
+                  <input
+                    type="number"
+                    value={formData.arc_points}
+                    onChange={(e) => setFormData({ ...formData, arc_points: Number(e.target.value) || 0 })}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Ring</label>
+                  <select
+                    value={formData.ring}
+                    onChange={(e) => setFormData({ ...formData, ring: e.target.value as 'core' | 'momentum' | 'discovery' })}
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  >
+                    <option value="core">Core</option>
+                    <option value="momentum">Momentum</option>
+                    <option value="discovery">Discovery</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Style (optional)</label>
+                  <input
+                    type="text"
+                    value={formData.style}
+                    onChange={(e) => setFormData({ ...formData, style: e.target.value })}
+                    placeholder="e.g., Threads + deep dives"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                {modalError && (
+                  <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
+                    <p className="text-xs text-akari-danger">{modalError}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 pt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={closeModals}
+                      className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+                      disabled={modalLoading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleEditCreator}
+                      disabled={modalLoading}
+                      className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {modalLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                  {editingCreator.id && (
+                    <button
+                      onClick={() => editingCreator.id && handleRemoveCreator(editingCreator.id)}
+                      disabled={modalLoading}
+                      className="w-full px-4 py-2 text-sm font-medium border border-akari-danger/30 text-akari-danger rounded-lg hover:bg-akari-danger/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Remove from Arena
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </PortalLayout>
