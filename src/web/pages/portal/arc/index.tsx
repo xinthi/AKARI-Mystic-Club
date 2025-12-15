@@ -4,7 +4,7 @@
  * Campaign Discovery Hub - Modern dashboard for creators and projects
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -13,6 +13,7 @@ import { FeaturedCampaigns } from '@/components/arc/FeaturedCampaigns';
 import { MyCampaigns } from '@/components/arc/MyCampaigns';
 import { CampaignGrid } from '@/components/arc/CampaignGrid';
 import { TrendingNarratives } from '@/components/arc/TrendingNarratives';
+import { ArcUniverseMap } from '@/components/arc/ArcUniverseMap';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
 
 // =============================================================================
@@ -77,6 +78,42 @@ export default function ArcHome() {
   
   // Dev mode: treat user as following all projects
   const isDevMode = process.env.NODE_ENV === 'development';
+
+  // Map projects to ArcUniverseMap format
+  const mappedProjectsForUniverse = useMemo(() => {
+    return projects.map(project => {
+      const status = userCampaignStatuses.get(project.project_id);
+      const userIsParticipant = status?.hasJoined || false;
+      
+      return {
+        id: project.project_id,
+        name: project.name || 'Unknown',
+        slug: project.slug || '',
+        twitter_username: project.twitter_username,
+        meta: project.meta,
+        stats: {
+          activeCreators: project.stats?.creatorCount || 0,
+          totalPoints: project.stats?.totalPoints || 0,
+          trend: project.stats?.trend || 'stable',
+          userIsParticipant,
+          userRank: status?.arcPoints ? undefined : null, // Rank would need to be computed separately
+        },
+      };
+    });
+  }, [projects, userCampaignStatuses]);
+
+  // Calculate user stats
+  const userStats = useMemo(() => {
+    const joinedCount = myCampaigns.length;
+    const totalArcPoints = myCampaigns.reduce((sum, campaign) => sum + campaign.arcPoints, 0);
+    const activeCampaigns = projects.filter(p => p.arc_status === 'active').length;
+    
+    return {
+      projectsJoined: joinedCount,
+      totalArcPoints,
+      activeCampaigns,
+    };
+  }, [myCampaigns, projects]);
 
   // Fetch ARC projects and user campaign statuses
   useEffect(() => {
@@ -224,28 +261,6 @@ export default function ArcHome() {
   return (
     <PortalLayout title="ARC Universe">
       <div className="space-y-8">
-        {/* Header */}
-        <div className="w-full py-10 bg-gradient-to-b from-[#15192D] to-transparent">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white drop-shadow-sm">
-                ARC Universe
-              </h1>
-              <p className="text-white/60 mt-1">
-                Explore active campaigns, join narratives, and earn ARC points.
-              </p>
-            </div>
-            {userIsSuperAdmin && (
-              <Link
-                href="/portal/arc/admin"
-                className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-              >
-                ARC Admin
-              </Link>
-            )}
-          </div>
-        </div>
-
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -264,6 +279,52 @@ export default function ArcHome() {
         {/* Content */}
         {!loading && !error && projects.length > 0 && (
           <>
+            {/* Hero Section - Two Column Layout */}
+            <section className="mb-10 rounded-2xl bg-gradient-to-b from-[#15192D] to-black/80 border border-white/5 px-6 py-6 lg:px-10 lg:py-8 flex flex-col lg:flex-row gap-8 items-stretch">
+              {/* Left: text + user stats */}
+              <div className="flex-1 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h1 className="text-3xl font-bold text-white">ARC Universe</h1>
+                    {userIsSuperAdmin && (
+                      <Link
+                        href="/portal/arc/admin"
+                        className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                      >
+                        ARC Admin
+                      </Link>
+                    )}
+                  </div>
+                  <p className="text-white/60 mt-2">
+                    Track how narratives move across campaigns. Join projects, earn ARC points, and grow your influence.
+                  </p>
+                </div>
+
+                {/* User stats row */}
+                {userTwitterUsername && (
+                  <div className="flex flex-wrap gap-3 mt-4">
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Projects joined</div>
+                      <div className="text-lg font-semibold text-white">{userStats.projectsJoined}</div>
+                    </div>
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Total ARC points</div>
+                      <div className="text-lg font-semibold text-white">{userStats.totalArcPoints.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Active campaigns</div>
+                      <div className="text-lg font-semibold text-white">{userStats.activeCampaigns}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: project bubble map */}
+              <div className="flex-1 min-h-[400px]">
+                <ArcUniverseMap projects={mappedProjectsForUniverse} />
+              </div>
+            </section>
+
             {/* Featured Campaigns */}
             <FeaturedCampaigns
               projects={projects}
