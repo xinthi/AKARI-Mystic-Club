@@ -41,6 +41,16 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   // Analyst Social Boost Promo
   const promo = useAnalystPromo();
 
+  // Filter nav items based on environment and user permissions
+  const isProduction = process.env.NODE_ENV === 'production';
+  const visibleNavItems = navItems.filter((item) => {
+    // ARC link: only show to SuperAdmins in production, everyone in dev
+    if (item.href === '/portal/arc') {
+      return !isProduction || userIsSuperAdmin;
+    }
+    return true;
+  });
+
   // Lock body scroll when mobile nav is open
   useEffect(() => {
     if (isMobileNavOpen) {
@@ -101,7 +111,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
           {/* Nav links - hidden on mobile, shown on desktop */}
           <nav className="hidden sm:flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active =
                 router.pathname === item.href ||
                 (item.href !== '/portal' && router.pathname.startsWith(item.href));
@@ -209,7 +219,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             <div className="flex flex-col p-4 space-y-4">
               {/* Navigation Items */}
               <nav className="flex flex-col space-y-2">
-                {navItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const active =
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
