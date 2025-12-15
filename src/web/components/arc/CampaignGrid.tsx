@@ -48,6 +48,7 @@ export function CampaignGrid({
   onJoinCampaign 
 }: CampaignGridProps) {
   const [showFollowModal, setShowFollowModal] = useState<string | null>(null);
+  const isDevMode = process.env.NODE_ENV === 'development';
 
   const getProjectAvatarUrl = (username: string | null) => {
     if (!username) return null;
@@ -92,17 +93,27 @@ export function CampaignGrid({
 
             let ctaLabel = 'Follow on X to join';
             let ctaAction: () => void = () => {
-              setShowFollowModal(project.project_id);
+              if (isDevMode) {
+                // In dev mode, allow direct navigation
+                if (project.slug) {
+                  window.location.href = `/portal/arc/${project.slug}`;
+                }
+              } else {
+                setShowFollowModal(project.project_id);
+              }
             };
 
-            if (status.isFollowing && status.hasJoined) {
+            // In dev mode, treat as following
+            const effectiveIsFollowing = isDevMode || status.isFollowing;
+
+            if (effectiveIsFollowing && status.hasJoined) {
               ctaLabel = 'View missions';
               ctaAction = () => {
                 if (project.slug) {
                   window.location.href = `/portal/arc/${project.slug}`;
                 }
               };
-            } else if (status.isFollowing && !status.hasJoined) {
+            } else if (effectiveIsFollowing && !status.hasJoined) {
               ctaLabel = 'Join campaign';
               ctaAction = () => {
                 if (onJoinCampaign) {

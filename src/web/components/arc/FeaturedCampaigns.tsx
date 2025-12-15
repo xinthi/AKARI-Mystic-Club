@@ -42,6 +42,7 @@ export function FeaturedCampaigns({
   userCampaignStatuses,
   onJoinCampaign 
 }: FeaturedCampaignsProps) {
+  const isDevMode = process.env.NODE_ENV === 'development';
   // Get featured projects (first 4 active projects)
   const featured = projects
     .filter(p => p.arc_status === 'active')
@@ -71,21 +72,29 @@ export function FeaturedCampaigns({
           const isFollowing = status.isFollowing;
           const hasJoined = status.hasJoined;
 
+          // In dev mode, treat as following
+          const effectiveIsFollowing = isDevMode || isFollowing;
+
           let ctaLabel = 'Follow on X to join';
           let ctaAction: () => void = () => {
-            if (project.twitter_username) {
+            if (isDevMode) {
+              // In dev mode, allow direct navigation
+              if (project.slug) {
+                window.location.href = `/portal/arc/${project.slug}`;
+              }
+            } else if (project.twitter_username) {
               window.open(`https://x.com/${project.twitter_username}`, '_blank');
             }
           };
 
-          if (isFollowing && hasJoined) {
+          if (effectiveIsFollowing && hasJoined) {
             ctaLabel = 'View campaign';
             ctaAction = () => {
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
               }
             };
-          } else if (isFollowing && !hasJoined) {
+          } else if (effectiveIsFollowing && !hasJoined) {
             ctaLabel = 'Join campaign';
             ctaAction = () => {
               if (onJoinCampaign) {

@@ -97,11 +97,44 @@ export default function ArcHome() {
         setProjects(data.projects);
 
         // Fetch user campaign statuses
-        if (userTwitterUsername && data.projects.length > 0) {
+        if (data.projects.length > 0) {
           const projectIds = data.projects.map(p => p.project_id);
-          const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
-          setUserCampaignStatuses(statuses);
-
+          
+          if (userTwitterUsername) {
+            const statuses = await getUserCampaignStatuses(projectIds, userTwitterUsername);
+            setUserCampaignStatuses(statuses);
+            
+            // Build my campaigns list
+            const joinedCampaigns: UserCampaign[] = [];
+            statuses.forEach((status, projectId) => {
+              if (status.hasJoined) {
+                const project = data.projects.find(p => p.project_id === projectId);
+                if (project) {
+                  joinedCampaigns.push({
+                    project_id: project.project_id,
+                    slug: project.slug,
+                    name: project.name,
+                    twitter_username: project.twitter_username,
+                    arcPoints: status.arcPoints || 0,
+                    ring: status.ring,
+                    meta: project.meta,
+                  });
+                }
+              }
+            });
+            setMyCampaigns(joinedCampaigns);
+          } else if (isDevMode) {
+            // In dev mode, treat user as following all projects (but not joined yet)
+            const devStatuses = new Map<string, { isFollowing: boolean; hasJoined: boolean }>();
+            projectIds.forEach(projectId => {
+              devStatuses.set(projectId, {
+                isFollowing: true,
+                hasJoined: false,
+              });
+            });
+            setUserCampaignStatuses(devStatuses);
+          }
+        }
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArcHome] Fetch error:', err);
@@ -111,7 +144,7 @@ export default function ArcHome() {
     }
 
     fetchData();
-  }, [userTwitterUsername]);
+  }, [userTwitterUsername, isDevMode]);
 
   // Handle join campaign
   const handleJoinCampaign = async (projectId: string) => {
