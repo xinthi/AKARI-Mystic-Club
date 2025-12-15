@@ -6,6 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
@@ -29,6 +30,46 @@ type JoinCampaignResponse =
     };
 
 // =============================================================================
+// HELPERS
+// =============================================================================
+
+/**
+ * Get Supabase admin client for service role access
+ */
+function getSupabaseAdmin(): SupabaseClient {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error('[getSupabaseAdmin] Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL');
+  }
+
+  if (!supabaseServiceRoleKey) {
+    throw new Error('[getSupabaseAdmin] Missing SUPABASE_SERVICE_ROLE_KEY');
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+/**
+ * Check if a user is a SuperAdmin
+ */
+async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
+  const { data: roles } = await supabase
+    .from('akari_user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'super_admin');
+
+  return (roles?.length ?? 0) > 0;
+}
+
+// =============================================================================
 // HANDLER
 // =============================================================================
 
@@ -45,7 +86,10 @@ export default async function handler(
 
   try {
     const supabase = createPortalClient();
+    const isDevMode = process.env.NODE_ENV === 'development';
     
+    let profile: { id: string; twitter_username: string } | null = null;
+
     // Get session token from cookies
     const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
     let sessionToken: string | null = null;
@@ -56,55 +100,171 @@ export default async function handler(
       }
     }
 
-    if (!sessionToken) {
-      return res.status(401).json({
-        ok: false,
-        error: 'Not authenticated',
-      });
-    }
+    // DEV MODE: If no session token, use dev_user profile
+    if (isDevMode && !sessionToken) {
+      console.log('[API /portal/arc/join-campaign] Dev mode: No session token, using dev_user');
+      const supabaseAdmin = getSupabaseAdmin();
+      
+      // Try to find existing dev_user profile
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('id, twitter_username')
+        .ilike('twitter_username', 'dev_user')
+        .limit(1)
+        .maybeSingle();
 
-    // Get user session
-    const { data: session, error: sessionError } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
+      if (existingProfile) {
+        profile = {
+          id: existingProfile.id,
+          twitter_username: existingProfile.twitter_username || 'dev_user',
+        };
+        console.log('[API /portal/arc/join-campaign] Dev mode: Found existing dev_user profile:', profile.id);
+      } else {
+        // Create a dev_user profile if it doesn't exist
+        const { data: newProfile, error: createError } = await supabaseAdmin
+          .from('profiles')
+          .insert({
+            twitter_username: 'dev_user',
+            name: 'Dev User',
+          })
+          .select('id, twitter_username')
+          .single();
 
-    if (sessionError || !session) {
-      return res.status(401).json({
-        ok: false,
-        error: 'Invalid session',
-      });
-    }
+        if (createError) {
+          // If insert failed (likely duplicate), try to find it
+          console.log('[API /portal/arc/join-campaign] Dev mode: Insert failed, trying to find existing profile:', createError.message);
+          const { data: retryProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('id, twitter_username')
+            .ilike('twitter_username', 'dev_user')
+            .limit(1)
+            .maybeSingle();
+          
+          if (retryProfile) {
+            profile = {
+              id: retryProfile.id,
+              twitter_username: retryProfile.twitter_username || 'dev_user',
+            };
+            console.log('[API /portal/arc/join-campaign] Dev mode: Found dev_user profile after insert failure:', profile.id);
+          }
+        } else if (newProfile) {
+          profile = {
+            id: newProfile.id,
+            twitter_username: newProfile.twitter_username || 'dev_user',
+          };
+          console.log('[API /portal/arc/join-campaign] Dev mode: Created dev_user profile:', profile.id);
+        }
+      }
+    } else {
+      // Normal authentication flow
+      if (!sessionToken) {
+        return res.status(401).json({
+          ok: false,
+          error: 'Not authenticated',
+        });
+      }
 
-    // Check if session is expired
-    if (new Date(session.expires_at) < new Date()) {
-      await supabase
+      // Get user session
+      const { data: session, error: sessionError } = await supabase
         .from('akari_user_sessions')
-        .delete()
-        .eq('session_token', sessionToken);
-      return res.status(401).json({
-        ok: false,
-        error: 'Session expired',
-      });
+        .select('user_id, expires_at')
+        .eq('session_token', sessionToken)
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(401).json({
+          ok: false,
+          error: 'Invalid session',
+        });
+      }
+
+      // Check if session is expired
+      if (new Date(session.expires_at) < new Date()) {
+        await supabase
+          .from('akari_user_sessions')
+          .delete()
+          .eq('session_token', sessionToken);
+        return res.status(401).json({
+          ok: false,
+          error: 'Session expired',
+        });
+      }
+
+      const userId = session.user_id;
+
+      // Check if user is SuperAdmin
+      const supabaseAdmin = getSupabaseAdmin();
+      const isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
+
+      // Get user profile to get Twitter username
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, twitter_username')
+        .eq('akari_user_id', userId)
+        .single();
+
+      // SuperAdmin: If no profile found, create one automatically (bypass X account requirement)
+      if ((profileError || !userProfile) && isSuperAdmin) {
+        console.log('[API /portal/arc/join-campaign] SuperAdmin without profile, creating one automatically');
+        
+        const defaultTwitterUsername = `admin_${userId.substring(0, 8)}`;
+        
+        const { data: newProfile, error: createError } = await supabaseAdmin
+          .from('profiles')
+          .insert({
+            twitter_username: defaultTwitterUsername,
+            name: 'Super Admin',
+            akari_user_id: userId,
+          })
+          .select('id, twitter_username')
+          .single();
+
+        if (createError) {
+          // If insert failed (likely duplicate), try to find it
+          const { data: retryProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('id, twitter_username')
+            .eq('akari_user_id', userId)
+            .limit(1)
+            .maybeSingle();
+          
+          if (retryProfile) {
+            profile = {
+              id: retryProfile.id,
+              twitter_username: retryProfile.twitter_username || defaultTwitterUsername,
+            };
+          }
+        } else if (newProfile) {
+          profile = {
+            id: newProfile.id,
+            twitter_username: newProfile.twitter_username || defaultTwitterUsername,
+          };
+        }
+      } else if (profileError || !userProfile) {
+        // Not SuperAdmin and no profile - return error
+        return res.status(404).json({
+          ok: false,
+          error: 'User profile not found. Please ensure your X account is connected.',
+        });
+      } else {
+        profile = userProfile;
+        
+        // SuperAdmin: If profile exists but no twitter_username, use a default
+        if (!profile.twitter_username && isSuperAdmin) {
+          profile.twitter_username = `admin_${userId.substring(0, 8)}`;
+          console.log('[API /portal/arc/join-campaign] SuperAdmin: Using default twitter_username:', profile.twitter_username);
+        }
+      }
     }
 
-    const userId = session.user_id;
-
-    // Get user profile to get Twitter username
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, twitter_username')
-      .eq('akari_user_id', userId)
-      .single();
-
-    if (profileError || !profile) {
+    if (!profile) {
       return res.status(404).json({
         ok: false,
         error: 'User profile not found. Please ensure your X account is connected.',
       });
     }
 
+    // Non-SuperAdmin users must have twitter_username
     if (!profile.twitter_username) {
       return res.status(400).json({
         ok: false,
