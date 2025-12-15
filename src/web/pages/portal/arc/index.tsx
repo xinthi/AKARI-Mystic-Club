@@ -143,9 +143,10 @@ export default function ArcHome() {
             
             // Build my campaigns list
             const joinedCampaigns: UserCampaign[] = [];
+            const projects = data?.projects ?? [];
             statuses.forEach((status, projectId) => {
               if (status.hasJoined) {
-                const project = data.projects.find(p => p.project_id === projectId);
+                const project = projects.find(p => p.project_id === projectId);
                 if (project) {
                   joinedCampaigns.push({
                     project_id: project.project_id,
