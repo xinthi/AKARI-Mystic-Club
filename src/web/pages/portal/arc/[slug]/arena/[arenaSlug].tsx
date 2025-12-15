@@ -11,7 +11,6 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
 // TYPES
@@ -270,21 +269,29 @@ export default function ArenaDetailsPage() {
     setModalError(null);
 
     try {
-      const supabase = createPortalClient();
-      const { data, error } = await supabase
-        .from('arena_creators')
-        .insert({
-          arena_id: arena.id,
+      const res = await fetch('/api/portal/arc/arena-creators-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          arenaId: arena.id,
           twitter_username: formData.twitter_username.trim(),
           arc_points: formData.arc_points,
           ring: formData.ring,
           style: formData.style.trim() || null,
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (error) {
-        throw error;
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to add creator');
       }
 
       // Refresh the list
@@ -301,7 +308,7 @@ export default function ArenaDetailsPage() {
       setModalError(null);
     } catch (err: any) {
       console.error('[ArenaDetailsPage] Error adding creator:', err);
-      setModalError(err?.message || 'Failed to add creator');
+      setModalError(err?.message || 'Failed to save creator. Please try again.');
     } finally {
       setModalLoading(false);
     }
@@ -318,18 +325,28 @@ export default function ArenaDetailsPage() {
     setModalError(null);
 
     try {
-      const supabase = createPortalClient();
-      const { error } = await supabase
-        .from('arena_creators')
-        .update({
+      const res = await fetch('/api/portal/arc/arena-creators-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingCreator.id,
           arc_points: formData.arc_points,
           ring: formData.ring,
           style: formData.style.trim() || null,
-        })
-        .eq('id', editingCreator.id);
+        }),
+      });
 
-      if (error) {
-        throw error;
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to update creator');
       }
 
       // Refresh the list
@@ -339,7 +356,7 @@ export default function ArenaDetailsPage() {
       closeModals();
     } catch (err: any) {
       console.error('[ArenaDetailsPage] Error updating creator:', err);
-      setModalError(err?.message || 'Failed to update creator');
+      setModalError(err?.message || 'Failed to save creator. Please try again.');
     } finally {
       setModalLoading(false);
     }
@@ -355,14 +372,22 @@ export default function ArenaDetailsPage() {
     setModalError(null);
 
     try {
-      const supabase = createPortalClient();
-      const { error } = await supabase
-        .from('arena_creators')
-        .delete()
-        .eq('id', creatorId);
+      const res = await fetch(`/api/portal/arc/arena-creators-admin?id=${encodeURIComponent(creatorId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-      if (error) {
-        throw error;
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to remove creator');
       }
 
       // Refresh the list
@@ -372,7 +397,7 @@ export default function ArenaDetailsPage() {
       closeModals();
     } catch (err: any) {
       console.error('[ArenaDetailsPage] Error removing creator:', err);
-      setModalError(err?.message || 'Failed to remove creator');
+      setModalError(err?.message || 'Failed to remove creator. Please try again.');
     } finally {
       setModalLoading(false);
     }
