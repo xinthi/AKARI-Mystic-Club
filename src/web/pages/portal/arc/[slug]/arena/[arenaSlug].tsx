@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
+import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 
 // =============================================================================
 // TYPES
@@ -76,7 +77,7 @@ export default function ArenaDetailsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline'>('leaderboard');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline' | 'map'>('leaderboard');
 
   // Leaderboard filter/sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -690,6 +691,16 @@ export default function ArenaDetailsPage() {
                   >
                     Storyline
                   </button>
+                  <button
+                    onClick={() => setActiveTab('map')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                      activeTab === 'map'
+                        ? 'text-akari-primary border-b-2 border-akari-primary'
+                        : 'text-akari-muted hover:text-akari-text'
+                    }`}
+                  >
+                    Map
+                  </button>
                 </div>
                 {userIsSuperAdmin && activeTab === 'leaderboard' && (
                   <button
@@ -884,6 +895,14 @@ export default function ArenaDetailsPage() {
                   )}
                   </div>
                 </>
+              )}
+
+              {/* Map Tab Content */}
+              {activeTab === 'map' && (
+                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  <h2 className="text-xl font-semibold text-akari-text mb-4">Creator Map</h2>
+                  <ArenaBubbleMap creators={creators} />
+                </div>
               )}
             </section>
           </>

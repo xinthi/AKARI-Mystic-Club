@@ -20,6 +20,11 @@ interface ArcProject {
   arc_tier: 'basic' | 'pro' | 'event_host';
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
+  meta?: {
+    banner_url?: string | null;
+    accent_color?: string | null;
+    tagline?: string | null;
+  };
 }
 
 type ArcProjectsResponse =
@@ -60,6 +65,7 @@ export default async function handler(
         tier,
         status,
         security_status,
+        meta,
         projects (
           id,
           slug,
@@ -93,6 +99,7 @@ export default async function handler(
       arc_tier: row.tier,
       arc_status: row.status,
       security_status: row.security_status,
+      meta: (row.meta as any) || {},
     }));
 
     return res.status(200).json({

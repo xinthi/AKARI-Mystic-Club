@@ -22,6 +22,11 @@ interface ArcProject {
   arc_tier: 'basic' | 'pro' | 'event_host';
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
+  meta?: {
+    banner_url?: string | null;
+    accent_color?: string | null;
+    tagline?: string | null;
+  };
 }
 
 interface ArcProjectsResponse {
@@ -239,45 +244,89 @@ export default function ArcProjectHub() {
         {!loading && project && (
           <>
             {/* Project header card */}
-            <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-              <h1 className="text-2xl font-bold text-akari-text mb-2">
-                {project.name || 'Unnamed Project'}
-              </h1>
-
-              {project.twitter_username && (
-                <p className="text-base text-akari-muted mb-4">
-                  @{project.twitter_username}
-                </p>
+            <div 
+              className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card"
+              style={{
+                borderTopColor: project.meta?.accent_color || undefined,
+                borderTopWidth: project.meta?.accent_color ? '3px' : undefined,
+              }}
+            >
+              {/* Banner */}
+              {project.meta?.banner_url && (
+                <div className="w-full h-32 bg-akari-cardSoft/30 overflow-hidden">
+                  <img
+                    src={project.meta.banner_url}
+                    alt={`${project.name} banner`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Hide image on error
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
               )}
 
-              {/* Status badges */}
-              <div className="flex flex-wrap gap-2">
-                {/* ARC Tier */}
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
-                    project.arc_tier
-                  )}`}
+              <div className="p-6">
+                <h1 
+                  className="text-2xl font-bold mb-2"
+                  style={{
+                    color: project.meta?.accent_color || undefined,
+                    textShadow: project.meta?.accent_color ? `0 0 10px ${project.meta.accent_color}40` : undefined,
+                  }}
                 >
-                  {project.arc_tier}
-                </span>
+                  {project.name || 'Unnamed Project'}
+                </h1>
 
-                {/* ARC Status */}
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                    project.arc_status
-                  )}`}
-                >
-                  {project.arc_status}
-                </span>
+                {project.meta?.tagline && (
+                  <p className="text-base text-akari-muted mb-2">
+                    {project.meta.tagline}
+                  </p>
+                )}
 
-                {/* Security Status */}
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
-                    project.security_status
-                  )}`}
-                >
-                  {project.security_status}
-                </span>
+                {project.twitter_username && (
+                  <p className="text-base text-akari-muted mb-4">
+                    @{project.twitter_username}
+                  </p>
+                )}
+
+                {/* Status badges */}
+                <div className="flex flex-wrap gap-2">
+                  {/* ARC Tier */}
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getTierColor(
+                      project.arc_tier
+                    )}`}
+                    style={{
+                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
+                    }}
+                  >
+                    {project.arc_tier}
+                  </span>
+
+                  {/* ARC Status */}
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                      project.arc_status
+                    )}`}
+                    style={{
+                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
+                    }}
+                  >
+                    {project.arc_status}
+                  </span>
+
+                  {/* Security Status */}
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
+                      project.security_status
+                    )}`}
+                    style={{
+                      borderColor: project.meta?.accent_color ? `${project.meta.accent_color}40` : undefined,
+                    }}
+                  >
+                    {project.security_status}
+                  </span>
+                </div>
               </div>
             </div>
 

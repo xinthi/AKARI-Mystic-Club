@@ -4,7 +4,7 @@
  * Lists all ARC-enabled projects for admin management
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -25,6 +25,11 @@ interface ArcProject {
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
   arenas_count: number;
+  meta?: {
+    banner_url?: string | null;
+    accent_color?: string | null;
+    tagline?: string | null;
+  };
 }
 
 interface ArcAdminHomeProps {
@@ -39,6 +44,16 @@ interface ArcAdminHomeProps {
 export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editingProject, setEditingProject] = useState<ArcProject | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [settingsFormData, setSettingsFormData] = useState({
+    banner_url: '',
+    accent_color: '',
+    tagline: '',
+  });
 
   // Helper function to get tier badge color
   const getTierColor = (tier: string) => {
@@ -198,16 +213,31 @@ export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
                           {project.arenas_count}
                         </td>
                         <td className="px-4 py-3">
-                          {project.slug ? (
-                            <Link
-                              href={`/portal/arc/admin/${project.slug}`}
-                              className="px-3 py-1.5 text-xs font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                          <div className="flex items-center gap-2">
+                            {project.slug && (
+                              <Link
+                                href={`/portal/arc/admin/${project.slug}`}
+                                className="px-3 py-1.5 text-xs font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                              >
+                                Manage Arenas
+                              </Link>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditingProject(project);
+                                setSettingsFormData({
+                                  banner_url: project.meta?.banner_url || '',
+                                  accent_color: project.meta?.accent_color || '',
+                                  tagline: project.meta?.tagline || '',
+                                });
+                                setModalError(null);
+                                setShowSettingsModal(true);
+                              }}
+                              className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 text-akari-text rounded-lg hover:bg-akari-cardSoft/30 transition-colors"
                             >
-                              Manage Arenas
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-akari-muted">No slug</span>
-                          )}
+                              Edit Settings
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -217,8 +247,184 @@ export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
             )}
           </div>
         )}
+
+        {/* Edit ARC Settings Modal */}
+        {showSettingsModal && editingProject && (
+          <ProjectSettingsModal
+            project={editingProject}
+            formData={settingsFormData}
+            setFormData={setSettingsFormData}
+            onClose={() => {
+              setShowSettingsModal(false);
+              setEditingProject(null);
+              setSettingsFormData({ banner_url: '', accent_color: '', tagline: '' });
+              setModalError(null);
+            }}
+            onSuccess={() => {
+              // Refresh the page to show updated settings
+              window.location.reload();
+            }}
+            loading={modalLoading}
+            error={modalError}
+            setLoading={setModalLoading}
+            setError={setModalError}
+          />
+        )}
       </div>
     </PortalLayout>
+  );
+}
+
+// =============================================================================
+// PROJECT SETTINGS MODAL COMPONENT
+// =============================================================================
+
+interface ProjectSettingsModalProps {
+  project: ArcProject;
+  formData: {
+    banner_url: string;
+    accent_color: string;
+    tagline: string;
+  };
+  setFormData: (data: any) => void;
+  onClose: () => void;
+  onSuccess: () => void;
+  loading: boolean;
+  error: string | null;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+function ProjectSettingsModal({
+  project,
+  formData,
+  setFormData,
+  onClose,
+  onSuccess,
+  loading,
+  error,
+  setLoading,
+  setError,
+}: ProjectSettingsModalProps) {
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/project-settings-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.project_id,
+          meta: {
+            banner_url: formData.banner_url.trim() || null,
+            accent_color: formData.accent_color.trim() || null,
+            tagline: formData.tagline.trim() || null,
+          },
+        }),
+      });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+
+      const result = await res.json();
+
+      if (!res.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to update project settings');
+      }
+
+      onSuccess();
+    } catch (err: any) {
+      console.error('[ProjectSettingsModal] Error:', err);
+      setError(err?.message || 'Failed to update settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-akari-text">
+            Edit ARC Settings - {project.name}
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-akari-muted hover:text-akari-text transition-colors"
+            disabled={loading}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs text-akari-muted">Banner URL</label>
+            <input
+              type="text"
+              value={formData.banner_url}
+              onChange={(e) => setFormData({ ...formData, banner_url: e.target.value })}
+              placeholder="https://example.com/banner.jpg"
+              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-akari-muted">Accent Color (Hex)</label>
+            <input
+              type="text"
+              value={formData.accent_color}
+              onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
+              placeholder="#FF5733"
+              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              disabled={loading}
+            />
+            <p className="mt-1 text-xs text-akari-muted">Enter a hex color code (e.g., #FF5733)</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-akari-muted">Tagline</label>
+            <input
+              type="text"
+              value={formData.tagline}
+              onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
+              placeholder="Short project tagline"
+              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              disabled={loading}
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
+              <p className="text-xs text-akari-danger">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -238,6 +444,7 @@ export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async (
         tier,
         status,
         security_status,
+        meta,
         projects (
           id,
           slug,
@@ -293,6 +500,7 @@ export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async (
       arc_status: row.status,
       security_status: row.security_status,
       arenas_count: arenasCountByProject.get(row.project_id) || 0,
+      meta: (row.meta as any) || {},
     }));
 
     return {
