@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS arc_leaderboard_requests (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Unique constraint: prevent duplicate pending requests per project
+-- Note: This allows multiple requests if previous ones are approved/rejected
+-- Only one pending request per project total (regardless of requester)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_arc_leaderboard_requests_unique_pending
+  ON arc_leaderboard_requests(project_id)
+  WHERE status = 'pending';
+
 -- =============================================================================
 -- INDEXES
 -- =============================================================================
@@ -45,86 +52,70 @@ CREATE INDEX IF NOT EXISTS idx_arc_leaderboard_requests_pending
 
 ALTER TABLE arc_leaderboard_requests ENABLE ROW LEVEL SECURITY;
 
--- Policy: Requester can read their own requests
+-- Helper function to get current user's profile ID from auth.uid()
+-- Maps from akari_users.id (auth.uid()) to profiles.id via akari_user_identities
+CREATE OR REPLACE FUNCTION get_current_user_profile_id()
+RETURNS UUID AS $$
+DECLARE
+  profile_id UUID;
+BEGIN
+  SELECT p.id INTO profile_id
+  FROM profiles p
+  INNER JOIN akari_user_identities aui ON aui.username = p.username
+  WHERE aui.user_id = auth.uid()::text::uuid
+    AND aui.provider = 'x'
+  LIMIT 1;
+  
+  RETURN profile_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Policy 1: Requester can insert their own row
+-- Check that requested_by matches the current user's profile ID
+CREATE POLICY "Requester can insert own requests"
+ON arc_leaderboard_requests FOR INSERT
+WITH CHECK (
+  requested_by = get_current_user_profile_id()
+);
+
+-- Policy 2: Requester can read rows where requested_by = their profile ID
 CREATE POLICY "Requester can read own requests"
 ON arc_leaderboard_requests FOR SELECT
 USING (
-  requested_by IN (
-    SELECT id FROM profiles WHERE username = (
-      SELECT username FROM akari_user_identities 
-      WHERE user_id = auth.uid()::text::uuid
-      AND provider = 'x'
-      LIMIT 1
-    )
-  )
+  requested_by = get_current_user_profile_id()
 );
 
--- Policy: Super admin can read all requests
+-- Policy 3: Super admin can read all rows
+-- Check profiles.real_roles contains 'super_admin'
 CREATE POLICY "Super admin can read all requests"
 ON arc_leaderboard_requests FOR SELECT
 USING (
   EXISTS (
-    SELECT 1 FROM akari_user_roles
-    WHERE user_id = auth.uid()::text::uuid
-    AND role = 'super_admin'
-  )
-  OR EXISTS (
     SELECT 1 FROM profiles
-    WHERE id IN (
-      SELECT id FROM profiles WHERE username = (
-        SELECT username FROM akari_user_identities 
-        WHERE user_id = auth.uid()::text::uuid
-        AND provider = 'x'
-        LIMIT 1
-      )
-    )
+    WHERE id = get_current_user_profile_id()
     AND real_roles @> ARRAY['super_admin']::text[]
   )
 );
 
--- Policy: Super admin can update all requests
+-- Policy 4: Super admin can update all rows
 CREATE POLICY "Super admin can update all requests"
 ON arc_leaderboard_requests FOR UPDATE
 USING (
   EXISTS (
-    SELECT 1 FROM akari_user_roles
-    WHERE user_id = auth.uid()::text::uuid
-    AND role = 'super_admin'
-  )
-  OR EXISTS (
     SELECT 1 FROM profiles
-    WHERE id IN (
-      SELECT id FROM profiles WHERE username = (
-        SELECT username FROM akari_user_identities 
-        WHERE user_id = auth.uid()::text::uuid
-        AND provider = 'x'
-        LIMIT 1
-      )
-    )
+    WHERE id = get_current_user_profile_id()
     AND real_roles @> ARRAY['super_admin']::text[]
   )
 )
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM akari_user_roles
-    WHERE user_id = auth.uid()::text::uuid
-    AND role = 'super_admin'
-  )
-  OR EXISTS (
     SELECT 1 FROM profiles
-    WHERE id IN (
-      SELECT id FROM profiles WHERE username = (
-        SELECT username FROM akari_user_identities 
-        WHERE user_id = auth.uid()::text::uuid
-        AND provider = 'x'
-        LIMIT 1
-      )
-    )
+    WHERE id = get_current_user_profile_id()
     AND real_roles @> ARRAY['super_admin']::text[]
   )
 );
 
--- Policy: Service role can do everything (for API routes)
+-- Policy: Service role can do everything (for API routes using service key)
 CREATE POLICY "Service role full access on arc_leaderboard_requests"
 ON arc_leaderboard_requests FOR ALL
 USING (true)
