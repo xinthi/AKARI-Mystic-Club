@@ -10,7 +10,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
 // TYPES
@@ -43,17 +43,6 @@ type TopProjectsResponse =
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 /**
  * Get current timestamp as ISO string
@@ -119,11 +108,10 @@ export default async function handler(
     }
 
     // This is a read-only public endpoint - no auth required
-    // If auth is needed in the future, check session here and return 401 if missing
-
+    // Use portal client (anon key) for public read access
     let supabase;
     try {
-      supabase = getSupabaseAdmin();
+      supabase = createPortalClient();
     } catch (configError: any) {
       console.error('[Top Projects API] Configuration error:', configError);
       return res.status(500).json({
