@@ -243,13 +243,15 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     fetchData();
   }, [userTwitterUsername, isDevMode, userIsSuperAdmin, akariUser.user]);
 
-  // Load top projects data
-  useEffect(() => {
-    async function loadTopProjects() {
+    // Load top projects data
+    const loadTopProjects = useCallback(async () => {
       setTopProjectsLoading(true);
       setTopProjectsError(null);
       try {
-        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
+        // Add timestamp to prevent caching
+        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20&_t=${Date.now()}`, {
+          cache: 'no-store',
+        });
         
         if (!res.ok) {
           const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -326,12 +328,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       } finally {
         setTopProjectsLoading(false);
       }
-    }
+    }, [topProjectsView, topProjectsTimeframe]);
 
-    if (canManageArc) {
-      loadTopProjects();
-    }
-  }, [topProjectsView, topProjectsTimeframe, canManageArc]);
+    // Initial load
+    useEffect(() => {
+      if (canManageArc) {
+        loadTopProjects();
+      }
+    }, [canManageArc, loadTopProjects]);
 
   // Handle join campaign
   const handleJoinCampaign = async (projectId: string) => {
@@ -479,7 +483,28 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
             {/* Top Projects Treemap */}
             <section className="mb-8">
-              <h2 className="text-xl font-semibold text-white mb-4">Top Projects</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Top Projects</h2>
+                <button
+                  onClick={() => loadTopProjects()}
+                  disabled={topProjectsLoading}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {topProjectsLoading ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </>
+                  )}
+                </button>
+              </div>
               {topProjectsLoading ? (
                 <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />

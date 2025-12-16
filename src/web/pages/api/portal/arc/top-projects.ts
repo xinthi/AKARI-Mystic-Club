@@ -227,6 +227,12 @@ export default async function handler(
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
         console.log('[Top Projects API] No active projects found');
+        
+        // Set cache-control headers to prevent aggressive caching
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        
         return res.status(200).json({
           ok: true,
           items: [],
@@ -400,6 +406,11 @@ export default async function handler(
 
       // Apply limit
       const limitedProjects = projectsWithGrowth.slice(0, limit);
+
+      // Set cache-control headers to prevent aggressive caching
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
 
       return res.status(200).json({
         ok: true,

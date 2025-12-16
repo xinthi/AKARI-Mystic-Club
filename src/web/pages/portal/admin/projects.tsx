@@ -64,6 +64,48 @@ function formatDate(dateString: string | null): string {
   });
 }
 
+// Toast notification component
+function Toast({ 
+  message, 
+  type, 
+  onClose 
+}: { 
+  message: string; 
+  type: 'success' | 'error'; 
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div 
+      className={`fixed bottom-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-slide-up ${
+        type === 'success' 
+          ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400' 
+          : 'bg-red-500/20 border border-red-500/50 text-red-400'
+      }`}
+    >
+      {type === 'success' ? (
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+      )}
+      <span className="text-sm">{message}</span>
+      <button onClick={onClose} className="ml-2 hover:opacity-70">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -79,6 +121,7 @@ export default function AdminProjectsPage() {
   const [classifyingProjectId, setClassifyingProjectId] = useState<string | null>(null);
   const [refreshingProjectId, setRefreshingProjectId] = useState<string | null>(null);
   const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     slug: '',
@@ -333,8 +376,17 @@ export default function AdminProjectsPage() {
             : p
         )
       );
+
+      // Show toast notification
+      setToast({
+        message: 'Updated. ARC Treemap updates on refresh.',
+        type: 'success',
+      });
     } catch (err: any) {
-      alert(err.message || 'Failed to update project');
+      setToast({
+        message: err.message || 'Failed to update project',
+        type: 'error',
+      });
       // Reload projects on error to sync state
       await loadProjects();
     } finally {
@@ -345,6 +397,7 @@ export default function AdminProjectsPage() {
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
+      <>
       <PortalLayout title="Projects Admin">
         <div className="px-4 py-4 md:px-6 lg:px-10">
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
@@ -352,6 +405,7 @@ export default function AdminProjectsPage() {
           </div>
         </div>
       </PortalLayout>
+      </>
     );
   }
 
@@ -369,7 +423,8 @@ export default function AdminProjectsPage() {
   }
 
   return (
-    <PortalLayout title="Projects Admin">
+    <>
+      <PortalLayout title="Projects Admin">
       <div className="px-4 py-4 md:px-6 lg:px-10">
         {/* Header */}
         <div className="mb-6">
@@ -779,6 +834,33 @@ export default function AdminProjectsPage() {
         )}
       </div>
     </PortalLayout>
+    
+    {/* Toast notification */}
+    {toast && (
+      <Toast 
+        message={toast.message} 
+        type={toast.type} 
+        onClose={() => setToast(null)} 
+      />
+    )}
+    
+    {/* CSS for toast animation */}
+    <style jsx global>{`
+      @keyframes slide-up {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-slide-up {
+        animation: slide-up 0.2s ease-out;
+      }
+    `}</style>
+    </>
   );
 }
 
