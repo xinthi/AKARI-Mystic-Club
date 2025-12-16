@@ -228,9 +228,12 @@ export default async function handler(
         (p) => !EXCLUDED_SLUGS.includes(p.slug?.toLowerCase())
       );
 
+      console.log(`[Top Projects API] Query result: ${projectsData?.length || 0} total, ${projects.length} after filtering exclusions`);
+      
       // Return empty result if no projects (not an error)
+      // This happens when no projects have been classified as 'project' by SuperAdmin
       if (projects.length === 0) {
-        console.log('[Top Projects API] No projects found with profile_type="project"');
+        console.log('[Top Projects API] No projects found with profile_type="project". SuperAdmin must classify projects as "Project" in Projects Admin for them to appear here.');
         return res.status(200).json({
           ok: true,
           items: [],

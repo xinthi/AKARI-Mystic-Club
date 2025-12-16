@@ -286,6 +286,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           setTopProjectsData([]);
           return;
         }
+        
+        console.log(`[ARC] Received ${items.length} projects from API`);
+        
+        // If no projects, log helpful message
+        if (items.length === 0) {
+          console.log('[ARC] No projects returned. Projects must have profile_type="project" (set by SuperAdmin in Projects Admin) to appear in ARC Top Projects.');
+        }
 
         // Safely map projects to treemap items with error handling
         try {
