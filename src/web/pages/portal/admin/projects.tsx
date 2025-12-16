@@ -379,7 +379,7 @@ export default function AdminProjectsPage() {
 
       // Show toast notification
       setToast({
-        message: 'Updated. ARC Treemap updates on refresh.',
+        message: 'Updated',
         type: 'success',
       });
     } catch (err: any) {
