@@ -99,6 +99,7 @@ export default function ArcProjectPage() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [justification, setJustification] = useState('');
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [canRequest, setCanRequest] = useState<boolean | null>(null); // null = checking, true/false = result
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
@@ -192,11 +193,42 @@ export default function ArcProjectPage() {
     fetchProject();
   }, [projectId]);
 
+  // Check if user can request leaderboard (founder/admin/mod only)
+  useEffect(() => {
+    async function checkCanRequest() {
+      if (!project || !akariUser.isLoggedIn) {
+        setCanRequest(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
+        
+        if (!res.ok) {
+          setCanRequest(false);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.ok) {
+          setCanRequest(data.canRequest);
+        } else {
+          setCanRequest(false);
+        }
+      } catch (err) {
+        console.debug('[ArcProjectPage] Could not check permission:', err);
+        setCanRequest(false);
+      }
+    }
+
+    checkCanRequest();
+  }, [project, akariUser.isLoggedIn]);
+
   // Fetch existing request if project is not enabled
   useEffect(() => {
     async function fetchExistingRequest() {
-      // Only fetch if user is logged in
-      if (!project || !akariUser.isLoggedIn) {
+      // Only fetch if user is logged in and can request
+      if (!project || !akariUser.isLoggedIn || canRequest === false) {
         return;
       }
 
@@ -208,8 +240,8 @@ export default function ArcProjectPage() {
         try {
           const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
           
-          // If not authenticated, silently return (user just isn't logged in)
-          if (res.status === 401) {
+          // If not authenticated or forbidden, silently return
+          if (res.status === 401 || res.status === 403) {
             return;
           }
 
@@ -230,8 +262,10 @@ export default function ArcProjectPage() {
       }
     }
 
-    fetchExistingRequest();
-  }, [project, akariUser.isLoggedIn]);
+    if (canRequest !== null) {
+      fetchExistingRequest();
+    }
+  }, [project, akariUser.isLoggedIn, canRequest]);
 
   // Fetch leaderboard if project has leaderboard/gamified access
   useEffect(() => {
@@ -573,8 +607,8 @@ export default function ArcProjectPage() {
                 </div>
               )}
 
-              {/* Request form */}
-              {!existingRequest && akariUser.isLoggedIn && (
+              {/* Request form - only show if user can request (founder/admin/mod) */}
+              {!existingRequest && akariUser.isLoggedIn && canRequest === true && (
                 <>
                   {!showRequestForm ? (
                     <button

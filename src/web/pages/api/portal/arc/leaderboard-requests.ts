@@ -6,6 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { canRequestLeaderboard } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -189,6 +190,26 @@ export default async function handler(
       return res.status(404).json({
         ok: false,
         error: 'Project not found',
+      });
+    }
+
+    // Get user ID from session for permission check
+    const { data: session } = await supabase
+      .from('akari_user_sessions')
+      .select('user_id')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (!session?.user_id) {
+      return res.status(401).json({ ok: false, error: 'Invalid session' });
+    }
+
+    // Check if user can request leaderboard (owner/admin/moderator only)
+    const canRequest = await canRequestLeaderboard(supabase, session.user_id, projectId);
+    if (!canRequest) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Only project admins/founders can request a leaderboard for this project.',
       });
     }
 

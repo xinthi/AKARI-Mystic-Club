@@ -212,3 +212,33 @@ export async function isProjectOwnerOrAdmin(
   return permissions.isOwner || permissions.isAdmin || permissions.isSuperAdmin;
 }
 
+/**
+ * Check if user can request ARC leaderboard for a project
+ * 
+ * Allowed if user is:
+ * - Project owner (claimed_by === userId)
+ * - Project admin (project_team_members.role = 'admin')
+ * - Project moderator (project_team_members.role = 'moderator')
+ * - Super Admin
+ * 
+ * @param supabase - Supabase client
+ * @param userId - akari_users.id
+ * @param projectId - projects.id
+ * @returns true if user can request leaderboard
+ */
+export async function canRequestLeaderboard(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string
+): Promise<boolean> {
+  const permissions = await checkProjectPermissions(supabase, userId, projectId);
+  
+  // Super admin can always request
+  if (permissions.isSuperAdmin) {
+    return true;
+  }
+  
+  // Owner, admin, or moderator can request
+  return permissions.isOwner || permissions.isAdmin || permissions.isModerator;
+}
+

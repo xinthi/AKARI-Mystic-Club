@@ -13,7 +13,7 @@ import { createPortalClient } from '@/lib/portal/supabase';
 
 interface ArcSummary {
   trackedProjects: number; // All projects with profile_type='project' (tracked in Sentiment)
-  arcEnabled: number; // Projects with leaderboards active (arc_active=true AND arc_access_level in ('leaderboard','gamified'))
+  arcEnabled: number; // Projects with ARC enabled: arc_active=true AND arc_access_level != 'none' (includes leaderboard, gamified, creator_manager)
   activePrograms: number; // All active events (creator_manager_programs + arenas where status='active')
   creatorsParticipating: number; // Unique creators across all events (creator_manager_creators + arena_creators)
 }
@@ -74,14 +74,15 @@ export default async function handler(
       console.error('[ARC Summary API] Error counting tracked projects:', projectsError);
     }
 
-    // Get ARC enabled projects with leaderboards active
-    // arc_active=true AND arc_access_level in ('leaderboard', 'gamified')
+    // Get ARC enabled projects
+    // ARC Enabled = arc_active === true AND arc_access_level !== 'none'
+    // This includes: 'leaderboard', 'gamified', 'creator_manager'
     const { count: arcEnabledCount, error: arcEnabledError } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
       .eq('arc_active', true)
-      .in('arc_access_level', ['leaderboard', 'gamified'])
-      .eq('is_active', true);
+      .neq('arc_access_level', 'none')
+      .eq('profile_type', 'project'); // Only count projects, not personal profiles
 
     if (arcEnabledError) {
       console.error('[ARC Summary API] Error counting ARC enabled projects:', arcEnabledError);
