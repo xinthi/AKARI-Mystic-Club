@@ -9,9 +9,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ErrorDisplay } from '@/components/portal/ErrorDisplay';
 import { useAkariUser } from '@/lib/akari-auth';
-import { checkProjectPermissions } from '@/lib/project-permissions';
-import { createClient } from '@supabase/supabase-js';
 
 // =============================================================================
 // TYPES
@@ -47,19 +46,6 @@ interface ProjectWithPrograms extends Project {
 }
 
 // =============================================================================
-// HELPERS
-// =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
-
-// =============================================================================
 // COMPONENT
 // =============================================================================
 
@@ -76,40 +62,25 @@ export default function CreatorManagerHome() {
 
   const loadProjects = useCallback(async () => {
     try {
-      const supabase = getSupabaseAdmin();
+      setLoading(true);
+      setError(null);
 
-      // Get all projects
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('id, name, slug, avatar_url, twitter_username')
-        .order('name');
+      // Use API route instead of direct Supabase calls
+      const response = await fetch('/api/portal/creator-manager/projects');
+      const data = await response.json();
 
-      if (projectsError) throw projectsError;
-
-      // Filter projects where user has permissions
-      const projectsWithAccess: ProjectWithPrograms[] = [];
-      
-      for (const project of projectsData || []) {
-        const permissions = await checkProjectPermissions(
-          supabase,
-          akariUser.userId!,
-          project.id
-        );
-
-        if (permissions.canManage) {
-          // Get programs for this project
-          const programsRes = await fetch(
-            `/api/portal/creator-manager/programs?projectId=${project.id}`
-          );
-          const programsData = await programsRes.json();
-
-          projectsWithAccess.push({
-            ...project,
-            programs: programsData.ok ? programsData.programs : [],
-          });
+      if (!data.ok) {
+        // Handle configuration errors gracefully
+        if (data.error?.includes('configuration') || data.error?.includes('Service configuration')) {
+          setError('Server configuration error. Please contact support.');
+        } else {
+          setError(data.error || 'Failed to load projects');
         }
+        setAllProjects([]);
+        return;
       }
 
+      const projectsWithAccess = data.projects || [];
       setAllProjects(projectsWithAccess);
       
       // Auto-expand project if projectId query exists
@@ -124,20 +95,20 @@ export default function CreatorManagerHome() {
       // If no filter, projects are collapsed by default (empty Set)
     } catch (err: any) {
       console.error('[Creator Manager] Error loading projects:', err);
-      setError(err.message || 'Failed to load projects');
+      setError('Failed to load projects. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [akariUser.userId, projectIdFromQuery]);
+  }, [projectIdFromQuery]);
 
   useEffect(() => {
-    if (!akariUser.userId) {
+    if (!akariUser.isLoggedIn) {
       setLoading(false);
       return;
     }
 
     loadProjects();
-  }, [akariUser.userId, loadProjects]);
+  }, [akariUser.isLoggedIn, loadProjects]);
 
   // Filter projects based on projectId query param
   const filteredProjects = projectIdFromQuery
@@ -182,8 +153,22 @@ export default function CreatorManagerHome() {
   if (error) {
     return (
       <PortalLayout title="Creator Manager">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">{error}</p>
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 text-sm text-akari-muted">
+            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+              ARC Home
+            </Link>
+            <span>/</span>
+            <span className="text-akari-text">Creator Manager</span>
+          </div>
+
+          <ErrorDisplay
+            error={error}
+            onRetry={() => {
+              setError(null);
+              loadProjects();
+            }}
+          />
         </div>
       </PortalLayout>
     );

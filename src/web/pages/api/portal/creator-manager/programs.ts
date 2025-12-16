@@ -10,7 +10,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
@@ -52,17 +52,6 @@ type ProgramsResponse =
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 function getSessionToken(req: NextApiRequest): string | null {
   const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
@@ -125,10 +114,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ProgramsResponse>
 ) {
-  const supabase = getSupabaseAdmin();
+  try {
+    const supabase = getSupabaseAdmin();
 
-  // GET: List programs
-  if (req.method === 'GET') {
+    // GET: List programs
+    if (req.method === 'GET') {
     const projectId = req.query.projectId as string | undefined;
 
     if (!projectId) {
@@ -258,6 +248,22 @@ export default async function handler(
     }
   }
 
-  return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  } catch (error: any) {
+    console.error('[Creator Manager Programs] Configuration error:', error);
+
+    // Check for Supabase configuration errors
+    if (error.message?.includes('Missing Supabase') || error.message?.includes('configuration')) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Service configuration error. Please contact support.',
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error',
+    });
+  }
 }
 

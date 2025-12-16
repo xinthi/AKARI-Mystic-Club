@@ -144,7 +144,7 @@ export function ProfileCardPreview({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3"
       style={{
         background: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(8px)',
@@ -178,8 +178,8 @@ export function ProfileCardPreview({
         </div>
 
         {/* Actions */}
-        <div className="px-4 pb-4">
-          <div className="flex gap-2">
+        <div className="px-4 pb-4 relative z-10 bg-[#0d0d12]">
+          <div className="flex gap-2 relative">
             <button
               onClick={handleDownload}
               disabled={isGenerating}
