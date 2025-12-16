@@ -37,6 +37,7 @@ type AdminProjectsResponse =
   | {
       ok: true;
       projects: AdminProjectSummary[];
+      total: number;
     }
   | { ok: false; error: string };
 
@@ -123,13 +124,15 @@ export default async function handler(
 
     // Get query parameters
     const searchQuery = req.query.q as string | undefined;
-    const statusFilter = req.query.status as string | undefined;
-    const page = req.query.page as string | undefined;
-    const pageSize = req.query.pageSize as string | undefined;
+    // Support both 'filter' and 'status' for backward compatibility
+    const filterParam = (req.query.filter as string | undefined) || (req.query.status as string | undefined);
+    const page = parseInt((req.query.page as string) || '1', 10);
+    const pageSizeParam = parseInt((req.query.pageSize as string) || (req.query.limit as string) || '50', 10);
+    const pageSize = Math.min(Math.max(1, pageSizeParam), 200); // Clamp between 1 and 200
 
     console.log('[AdminProjectsAPI] Request query params:', {
       q: searchQuery,
-      status: statusFilter,
+      filter: filterParam,
       page,
       pageSize,
     });
@@ -190,9 +193,15 @@ export default async function handler(
         profileId = profile?.id || null;
         realRoles = profile?.real_roles || null;
         console.log('[AdminProjectsAPI] Profile ID:', profileId, 'real_roles:', realRoles);
+        
+        // Primary check: profiles.real_roles must contain 'super_admin'
+        if (!realRoles || !realRoles.includes('super_admin')) {
+          console.log('[AdminProjectsAPI] User does not have super_admin in profiles.real_roles');
+          // Fall through to checkSuperAdmin which also checks akari_user_roles
+        }
       }
 
-      // Check if user is super admin
+      // Check if user is super admin (checks both akari_user_roles and profiles.real_roles)
       const isSuperAdmin = await checkSuperAdmin(supabase, userId);
       console.log('[AdminProjectsAPI] Is SuperAdmin:', isSuperAdmin);
       
@@ -203,27 +212,64 @@ export default async function handler(
       console.log('[AdminProjectsAPI] DEV MODE - skipping auth');
     }
 
-    // Build projects query
+    // Build projects query - first get count for total
+    let countQuery = supabase
+      .from('projects')
+      .select('id', { count: 'exact', head: true });
+
+    // Build main query
     let projectsQuery = supabase
       .from('projects')
-      .select('id, name, display_name, slug, x_handle, twitter_username, profile_type, is_company, claimed_by, claimed_at, arc_access_level, arc_active, arc_active_until, is_active, updated_at')
-      .order('name', { ascending: true });
+      .select('id, name, display_name, slug, x_handle, twitter_username, profile_type, is_company, claimed_by, claimed_at, arc_access_level, arc_active, arc_active_until, is_active, updated_at');
 
-    // Apply status filter
-    if (statusFilter === 'active') {
+    // Apply filter
+    if (filterParam === 'active') {
       projectsQuery = projectsQuery.eq('is_active', true);
-    } else if (statusFilter === 'hidden') {
+      countQuery = countQuery.eq('is_active', true);
+    } else if (filterParam === 'hidden') {
       projectsQuery = projectsQuery.eq('is_active', false);
+      countQuery = countQuery.eq('is_active', false);
+    } else if (filterParam === 'unclassified') {
+      // Unclassified: profile_type is null OR profile_type is 'personal'
+      projectsQuery = projectsQuery.or('profile_type.is.null,profile_type.eq.personal');
+      countQuery = countQuery.or('profile_type.is.null,profile_type.eq.personal');
+    } else if (filterParam === 'projects') {
+      projectsQuery = projectsQuery.eq('profile_type', 'project');
+      countQuery = countQuery.eq('profile_type', 'project');
+    } else if (filterParam === 'arc_active') {
+      projectsQuery = projectsQuery.eq('arc_active', true);
+      countQuery = countQuery.eq('arc_active', true);
     }
     // 'all' or undefined: no filter
 
     // Apply search filter
     if (searchQuery && searchQuery.trim()) {
-      const search = searchQuery.trim().toLowerCase();
-      projectsQuery = projectsQuery.or(
-        `name.ilike.%${search}%,slug.ilike.%${search}%,x_handle.ilike.%${search}%`
-      );
+      const search = searchQuery.trim();
+      // Use ilike with proper escaping for PostgREST
+      const searchConditions = [
+        `display_name.ilike.%${search}%`,
+        `twitter_username.ilike.%${search}%`,
+        `slug.ilike.%${search}%`,
+        `name.ilike.%${search}%`,
+        `x_handle.ilike.%${search}%`,
+      ].join(',');
+      projectsQuery = projectsQuery.or(searchConditions);
+      countQuery = countQuery.or(searchConditions);
     }
+
+    // Get total count
+    const { count: total, error: countError } = await countQuery;
+    
+    if (countError) {
+      console.error('[AdminProjectsAPI] Error counting projects:', countError);
+      return res.status(500).json({ ok: false, error: 'Failed to count projects' });
+    }
+
+    // Apply pagination and ordering
+    const offset = (page - 1) * pageSize;
+    projectsQuery = projectsQuery
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + pageSize - 1);
 
     const { data: projects, error: projectsError } = await projectsQuery;
 
@@ -232,10 +278,10 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch projects' });
     }
 
-    console.log('[AdminProjectsAPI] Query returned', projects?.length || 0, 'projects');
+    console.log('[AdminProjectsAPI] Query returned', projects?.length || 0, 'projects out of', total || 0, 'total');
 
     if (!projects || projects.length === 0) {
-      return res.status(200).json({ ok: true, projects: [] });
+      return res.status(200).json({ ok: true, projects: [], total: total || 0 });
     }
 
     const projectIds = projects.map((p) => p.id);
@@ -325,9 +371,9 @@ export default async function handler(
       };
     });
 
-    return res.status(200).json({ ok: true, projects: projectsWithMetrics });
+    return res.status(200).json({ ok: true, projects: projectsWithMetrics, total: total || 0 });
   } catch (error: any) {
-    console.error('[Admin Projects API] Error:', error);
+    console.error('[AdminProjectsAPI] Error:', error);
     return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
   }
 }

@@ -114,41 +114,65 @@ export default function AdminProjectsPage() {
         params.append('q', debouncedSearch.trim());
       }
       if (statusFilter !== 'all') {
-        params.append('status', statusFilter);
+        params.append('filter', statusFilter);
       }
       
-      // Add pagination (simple - can be enhanced later)
+      // Add pagination
       params.append('page', '1');
-      params.append('limit', '100');
+      params.append('pageSize', '100');
 
       const res = await fetch(`/api/portal/admin/projects?${params.toString()}`, {
+        method: 'GET',
         credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      // Handle HTTP errors before parsing JSON
-      if (res.status === 401 || res.status === 403) {
-        setError('Not authorized (SuperAdmin only)');
-        console.error('[ProjectsAdmin] fetch failed: Not authorized', res.status);
-        return;
-      }
+      // Handle non-OK responses
+      if (!res.ok) {
+        let errorMessage = 'Unknown error';
+        let errorData: any = null;
 
-      if (res.status === 500) {
-        const data = await res.json().catch(() => ({ error: 'Server error' }));
-        setError(`Server error: ${data.error || 'Unknown error'}`);
-        console.error('[ProjectsAdmin] fetch failed: Server error', data);
+        try {
+          const text = await res.text();
+          if (text) {
+            try {
+              errorData = JSON.parse(text);
+              errorMessage = errorData.error || errorData.message || 'Unknown error';
+            } catch {
+              errorMessage = text;
+            }
+          }
+        } catch (e) {
+          // Failed to read response
+        }
+
+        const statusMessage = `${res.status} ${errorMessage}`;
+        setError(statusMessage);
+        console.error('[ProjectsAdmin] fetch failed:', {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorMessage,
+          data: errorData,
+        });
         return;
       }
 
       const data: AdminProjectsResponse = await res.json();
 
       if (!data.ok) {
-        throw new Error(data.error || 'Failed to load projects');
+        const errorMsg = data.error || 'Failed to load projects';
+        setError(errorMsg);
+        console.error('[ProjectsAdmin] API returned ok:false:', errorMsg);
+        return;
       }
 
       setProjects(data.projects || []);
     } catch (err: any) {
+      const errorMsg = err.message || 'Failed to load projects';
+      setError(errorMsg);
       console.error('[ProjectsAdmin] fetch failed:', err);
-      setError(err.message || 'Failed to load projects');
     } finally {
       setLoading(false);
     }
