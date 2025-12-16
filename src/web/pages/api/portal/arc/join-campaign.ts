@@ -336,7 +336,7 @@ export default async function handler(
     }
 
     // Non-SuperAdmin users must have twitter_username
-    if (!profile.twitter_username) {
+    if (!profile.twitter_username && !isSuperAdmin) {
       return res.status(400).json({
         ok: false,
         error: 'Twitter username not found. Please connect your X account.',
