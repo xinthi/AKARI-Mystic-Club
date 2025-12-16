@@ -401,7 +401,7 @@ export default function AdminProjectsPage() {
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
                       <div className="flex items-center gap-1">
                         Ecosystem Type
-                        <span className="text-xs text-akari-muted/60" title="AKARI-approved entity type (Personal/Project)">
+                        <span className="text-xs text-akari-muted/60" title="SuperAdmin controlled. Only 'Project' appears in ARC Top Projects.">
                           ℹ️
                         </span>
                       </div>
@@ -529,15 +529,23 @@ export default function AdminProjectsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Profile Type</label>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Ecosystem Type
+                    <span className="text-xs text-yellow-400 ml-2" title="This is the ONLY field that controls ARC Top Projects visibility">
+                      ⚠️ Controls ARC visibility
+                    </span>
+                  </label>
                   <select
                     value={classifyForm.profileType}
                     onChange={(e) => setClassifyForm({ ...classifyForm, profileType: e.target.value as 'project' | 'personal' })}
                     className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                   >
-                    <option value="project">Project</option>
                     <option value="personal">Personal</option>
+                    <option value="project">Project</option>
                   </select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Only projects with type "Project" appear in ARC Top Projects treemap.
+                  </p>
                 </div>
 
                 {classifyForm.profileType === 'project' && (

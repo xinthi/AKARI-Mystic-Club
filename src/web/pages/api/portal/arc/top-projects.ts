@@ -3,6 +3,16 @@
  * 
  * Returns top projects by growth percentage for a given timeframe.
  * 
+ * IMPORTANT: This endpoint ONLY filters by projects.profile_type='project'.
+ * It does NOT depend on:
+ * - profiles.identity_type or akari_users.persona_type (user identity)
+ * - projects.claimed_by (project ownership)
+ * 
+ * Classification Logic:
+ * - Only projects with projects.profile_type='project' appear here
+ * - projects.profile_type is controlled by SuperAdmin via Projects Admin
+ * - User identity (akari_users.persona_type) does NOT affect visibility
+ * 
  * Query params:
  * - mode: 'gainers' | 'losers' (default: 'gainers')
  * - timeframe: '24h' | '7d' | '30d' | '90d' (default: '7d')
@@ -187,6 +197,10 @@ export default async function handler(
     }
 
     // Get all active tracked projects with profile_type='project'
+    // CRITICAL: This is the ONLY filter that determines ARC Top Projects visibility
+    // - Does NOT depend on akari_users.persona_type (user identity)
+    // - Does NOT depend on projects.claimed_by (project ownership)
+    // - Only SuperAdmin can set profile_type='project' via Projects Admin
     // Include all projects regardless of arc_active status
     // Match the exclusion logic from Sentiment section
     const EXCLUDED_SLUGS = ['dev_user', 'devuser'];
@@ -197,7 +211,7 @@ export default async function handler(
         .from('projects')
         .select('id, slug, name, display_name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, profile_type, is_company')
         .eq('is_active', true)
-        .eq('profile_type', 'project') // Only show projects classified as 'project'
+        .eq('profile_type', 'project') // ONLY filter: SuperAdmin must classify as 'project' to appear here
         .order('name', { ascending: true });
 
       if (projectsError) {

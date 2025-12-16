@@ -597,6 +597,8 @@ export default async function handler(
       claimed_by: null,
       claimed_at: null,
       profile_type: 'personal', // Default to 'personal', SuperAdmin can change to 'project'
+      // IMPORTANT: profile_type='project' is required for ARC Top Projects visibility
+      // Users cannot set this - only SuperAdmin via Projects Admin
       is_company: false, // Default to false, SuperAdmin can set to true
       arc_active: false, // Default to false, only SuperAdmin can activate
     };

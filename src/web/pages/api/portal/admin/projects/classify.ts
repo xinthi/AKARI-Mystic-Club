@@ -1,16 +1,25 @@
 /**
  * API Route: POST /api/portal/admin/projects/classify
  * 
- * SuperAdmin-only endpoint to classify a tracked Twitter profile as:
- * - profile_type: 'project' or 'personal'
- * - is_company: true/false (for project/company profiles)
+ * SuperAdmin-only endpoint to classify a tracked Twitter profile's Ecosystem Type.
  * 
- * This helps determine if a profile should be treated as an ARC project.
+ * IMPORTANT: This is the ONLY way to control ARC Top Projects visibility.
+ * 
+ * Classification Logic:
+ * - Ecosystem Type (projects.profile_type): SuperAdmin controlled via this endpoint
+ *   - Values: 'personal' | 'project'
+ *   - Controls: ARC Top Projects visibility (only 'project' appears)
+ *   - Default: 'personal' (set when user tracks a profile)
+ * 
+ * - Identity (akari_users.persona_type): User self-declared via /portal/me
+ *   - Values: 'individual' | 'company'
+ *   - Does NOT affect: ARC Top Projects visibility
+ *   - This endpoint does NOT update identity
  * 
  * Request body:
  *   - projectId: UUID of the project (required)
- *   - profileType: 'project' | 'personal' (required)
- *   - isCompany: boolean (optional, defaults to false)
+ *   - profileType: 'project' | 'personal' (required) - ONLY field that controls ARC visibility
+ *   - isCompany: boolean (optional, defaults to false) - Display metadata only
  * 
  * Returns updated project data.
  */
@@ -161,9 +170,11 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
-    // Update classification
+    // Update classification (Ecosystem Type)
+    // CRITICAL: profile_type='project' is the ONLY requirement for ARC Top Projects visibility
+    // This does NOT update user identity (akari_users.persona_type)
     const updateData: Record<string, any> = {
-      profile_type: body.profileType,
+      profile_type: body.profileType, // 'personal' or 'project' - controls ARC visibility
     };
 
     // Set is_company based on profileType and provided value

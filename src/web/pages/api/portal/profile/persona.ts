@@ -3,6 +3,20 @@
  * 
  * Updates the current user's Mystic Identity (persona type and tag).
  * 
+ * IMPORTANT: This endpoint ONLY updates akari_users.persona_type (identity).
+ * It does NOT update projects.profile_type (ecosystem type).
+ * 
+ * Classification Logic:
+ * - Identity (akari_users.persona_type): User self-declared via this endpoint
+ *   - Values: 'individual' | 'company'
+ *   - Used for: Display purposes, identity badge in Projects Admin
+ *   - Does NOT affect: ARC Top Projects visibility
+ * 
+ * - Ecosystem Type (projects.profile_type): SuperAdmin controlled
+ *   - Values: 'personal' | 'project'
+ *   - Updated by: SuperAdmin only via Projects Admin
+ *   - Controls: ARC Top Projects visibility (only 'project' appears)
+ * 
  * This is an authenticated endpoint - requires a valid session cookie.
  * 
  * Request body:
@@ -156,7 +170,8 @@ export default async function handler(
       });
     }
 
-    // Update the user's persona
+    // Update the user's persona (identity only - does NOT affect projects.profile_type)
+    // This is the user's self-declared identity, separate from ecosystem classification
     const { error: updateError } = await supabase
       .from('akari_users')
       .update({
