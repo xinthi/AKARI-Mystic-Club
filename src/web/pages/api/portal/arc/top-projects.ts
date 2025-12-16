@@ -235,7 +235,7 @@ export default async function handler(
         return (
           startMetric?.akari_score !== null &&
           endMetric?.akari_score !== null &&
-          startMetric.akari_score > 0
+          (startMetric?.akari_score ?? 0) > 0
         );
       });
 
