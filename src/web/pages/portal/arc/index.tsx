@@ -7,11 +7,19 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
-import { ArcTopProjectsTreemap, TopProjectItem } from '@/components/arc/ArcTopProjectsTreemap';
+import { TopProjectItem } from '@/components/arc/ArcTopProjectsTreemap';
+
+// Dynamic import with SSR disabled - recharts requires browser APIs
+const ArcTopProjectsTreemap = dynamic(
+  () => import('@/components/arc/ArcTopProjectsTreemap').then(mod => ({ default: mod.ArcTopProjectsTreemap })),
+  { ssr: false }
+);
 
 // =============================================================================
 // TYPES
@@ -69,6 +77,7 @@ interface ArcHomeProps {
 // =============================================================================
 
 export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomeProps) {
+  const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   
@@ -89,6 +98,16 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<Date | null>(null);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [treemapError, setTreemapError] = useState<Error | null>(null);
+
+  // Check for safe-mode query param
+  const isSafeMode = router.query.safe === '1';
+
+  // Set mounted flag on client
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
@@ -469,8 +488,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   <p className="text-sm text-white/60">No projects available</p>
                   <p className="text-xs text-white/40 mt-2">Try changing the timeframe or view mode</p>
                 </div>
-              ) : (
-                <ArcTopProjectsTreemap
+              ) : isSafeMode || !mounted ? (
+                // Safe mode or not mounted: render simple list fallback
+                <TopProjectsListFallback
                   items={topProjectsData}
                   mode={topProjectsView}
                   timeframe={topProjectsTimeframe}
@@ -478,6 +498,26 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   onTimeframeChange={setTopProjectsTimeframe}
                   lastUpdated={topProjectsLastUpdated ?? undefined}
                 />
+              ) : (
+                // Render treemap with error boundary
+                <SafeTreemapWrapper
+                  items={topProjectsData}
+                  mode={topProjectsView}
+                  timeframe={topProjectsTimeframe}
+                  onModeChange={setTopProjectsView}
+                  onTimeframeChange={setTopProjectsTimeframe}
+                  lastUpdated={topProjectsLastUpdated ?? undefined}
+                  onError={setTreemapError}
+                />
+              )}
+              {treemapError && (
+                <div className="mt-4 rounded-xl border border-akari-danger/30 bg-akari-card p-4 text-center">
+                  <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
+                  <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                  <p className="text-xs text-white/40 mt-2">
+                    Showing list view instead. <Link href="?safe=1" className="underline">Use safe mode</Link>
+                  </p>
+                </div>
               )}
             </section>
 
@@ -543,6 +583,213 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       </div>
     </PortalLayout>
   );
+}
+
+// =============================================================================
+// FALLBACK COMPONENTS
+// =============================================================================
+
+/**
+ * Simple list fallback for top projects (used in safe mode or when treemap fails)
+ */
+function TopProjectsListFallback({
+  items,
+  mode,
+  timeframe,
+  onModeChange,
+  onTimeframeChange,
+  lastUpdated,
+}: {
+  items: TopProjectItem[];
+  mode: 'gainers' | 'losers';
+  timeframe: '24h' | '7d' | '30d' | '90d';
+  onModeChange?: (mode: 'gainers' | 'losers') => void;
+  onTimeframeChange?: (timeframe: '24h' | '7d' | '30d' | '90d') => void;
+  lastUpdated?: Date | string | number;
+}) {
+  const router = useRouter();
+
+  // Format last updated timestamp
+  const lastUpdatedText = useMemo(() => {
+    if (lastUpdated === undefined || lastUpdated === null) return null;
+    try {
+      const date = typeof lastUpdated === 'number' 
+        ? new Date(lastUpdated) 
+        : typeof lastUpdated === 'string' 
+        ? new Date(lastUpdated) 
+        : lastUpdated;
+      if (isNaN(date.getTime())) return null;
+      return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+    } catch {
+      return null;
+    }
+  }, [lastUpdated]);
+
+  const formatGrowthPct = (growthPct: number): string => {
+    const sign = growthPct >= 0 ? '+' : '';
+    return `${sign}${growthPct.toFixed(2)}%`;
+  };
+
+  return (
+    <div className="w-full">
+      {/* Header with Last updated and Controls */}
+      <div className="flex items-center justify-between mb-4">
+        {lastUpdatedText && (
+          <div className="text-xs text-white/50">
+            Last updated: {lastUpdatedText}
+          </div>
+        )}
+        {!lastUpdatedText && <div />}
+        
+        <div className="flex items-center gap-3">
+          {onModeChange && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => onModeChange('gainers')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'gainers'
+                    ? 'bg-akari-primary text-white'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                Top Gainers
+              </button>
+              <button
+                onClick={() => onModeChange('losers')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'losers'
+                    ? 'bg-akari-primary text-white'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                Top Losers
+              </button>
+            </div>
+          )}
+          {onTimeframeChange && (
+            <div className="flex gap-2">
+              {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => onTimeframeChange(tf)}
+                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                    timeframe === tf
+                      ? 'bg-white/10 text-white border border-white/20'
+                      : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* List view */}
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-6">
+        <div className="space-y-3">
+          {items.map((item) => {
+            const name = item.name || item.twitter_username || 'Unknown';
+            const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+            const twitterUsername = item.twitter_username || '';
+            const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+            
+            return (
+              <div
+                key={item.projectId || Math.random()}
+                className={`flex items-center justify-between p-4 rounded-lg border ${
+                  isClickable
+                    ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
+                    : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
+                }`}
+                onClick={() => {
+                  if (isClickable && item.slug) {
+                    router.push(`/portal/arc/${item.slug}`);
+                  } else if (isClickable && twitterUsername) {
+                    router.push(`/portal/sentiment/profile/${twitterUsername}`);
+                  }
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{name}</div>
+                  {twitterUsername && (
+                    <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                  )}
+                  {!isClickable && (
+                    <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
+                  )}
+                </div>
+                <div className={`text-sm font-bold ml-4 ${
+                  growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                }`}>
+                  {formatGrowthPct(growthPct)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Safe wrapper for treemap that catches rendering errors
+ */
+function SafeTreemapWrapper({
+  items,
+  mode,
+  timeframe,
+  onModeChange,
+  onTimeframeChange,
+  lastUpdated,
+  onError,
+}: {
+  items: TopProjectItem[];
+  mode: 'gainers' | 'losers';
+  timeframe: '24h' | '7d' | '30d' | '90d';
+  onModeChange?: (mode: 'gainers' | 'losers') => void;
+  onTimeframeChange?: (timeframe: '24h' | '7d' | '30d' | '90d') => void;
+  lastUpdated?: Date | string | number;
+  onError: (error: Error | null) => void;
+}) {
+  useEffect(() => {
+    // Reset error when props change
+    onError(null);
+  }, [items, mode, timeframe, onError]);
+
+  try {
+    return (
+      <ArcTopProjectsTreemap
+        items={items}
+        mode={mode}
+        timeframe={timeframe}
+        onModeChange={onModeChange}
+        onTimeframeChange={onTimeframeChange}
+        lastUpdated={lastUpdated}
+      />
+    );
+  } catch (error: any) {
+    console.error('[ARC] Treemap rendering error:', error);
+    onError(error instanceof Error ? error : new Error(String(error)));
+    
+    // Render fallback on error
+    return (
+      <TopProjectsListFallback
+        items={items}
+        mode={mode}
+        timeframe={timeframe}
+        onModeChange={onModeChange}
+        onTimeframeChange={onTimeframeChange}
+        lastUpdated={lastUpdated}
+      />
+    );
+  }
 }
 
 // =============================================================================
