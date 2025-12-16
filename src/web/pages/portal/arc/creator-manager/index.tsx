@@ -80,13 +80,13 @@ export default function CreatorManagerHome() {
         return;
       }
 
-      const projectsWithAccess = data.projects || [];
+      const projectsWithAccess: ProjectWithPrograms[] = data.projects || [];
       setAllProjects(projectsWithAccess);
       
       // Auto-expand project if projectId query exists
       if (projectIdFromQuery && projectsWithAccess.length > 0) {
         const matchingProject = projectsWithAccess.find(
-          (p) => p.id === projectIdFromQuery || p.slug === projectIdFromQuery
+          (p: ProjectWithPrograms) => p.id === projectIdFromQuery || p.slug === projectIdFromQuery
         );
         if (matchingProject) {
           setExpandedProjects(new Set([matchingProject.id]));
