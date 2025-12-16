@@ -61,13 +61,38 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
-  const { data: roles } = await supabase
+  // Check akari_user_roles table
+  const { data: userRoles } = await supabase
     .from('akari_user_roles')
     .select('role')
     .eq('user_id', userId)
     .eq('role', 'super_admin');
 
-  return (roles?.length ?? 0) > 0;
+  if (userRoles && userRoles.length > 0) {
+    return true;
+  }
+
+  // Also check profiles.real_roles via Twitter username
+  const { data: xIdentity } = await supabase
+    .from('akari_user_identities')
+    .select('username')
+    .eq('user_id', userId)
+    .eq('provider', 'x')
+    .single();
+
+  if (xIdentity?.username) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('real_roles')
+      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+      .single();
+
+    if (profile?.real_roles?.includes('super_admin')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // =============================================================================
@@ -122,7 +147,7 @@ export default async function handler(
 
     const isSuperAdmin = await checkSuperAdmin(supabase, session.user_id);
     if (!isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'Forbidden: SuperAdmin access required' });
+      return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
     // Get project

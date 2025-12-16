@@ -121,7 +121,24 @@ export default function AdminProjectsPage() {
       params.append('page', '1');
       params.append('limit', '100');
 
-      const res = await fetch(`/api/portal/admin/projects?${params.toString()}`);
+      const res = await fetch(`/api/portal/admin/projects?${params.toString()}`, {
+        credentials: 'include',
+      });
+
+      // Handle HTTP errors before parsing JSON
+      if (res.status === 401 || res.status === 403) {
+        setError('Not authorized (SuperAdmin only)');
+        console.error('[ProjectsAdmin] fetch failed: Not authorized', res.status);
+        return;
+      }
+
+      if (res.status === 500) {
+        const data = await res.json().catch(() => ({ error: 'Server error' }));
+        setError(`Server error: ${data.error || 'Unknown error'}`);
+        console.error('[ProjectsAdmin] fetch failed: Server error', data);
+        return;
+      }
+
       const data: AdminProjectsResponse = await res.json();
 
       if (!data.ok) {
@@ -130,6 +147,7 @@ export default function AdminProjectsPage() {
 
       setProjects(data.projects || []);
     } catch (err: any) {
+      console.error('[ProjectsAdmin] fetch failed:', err);
       setError(err.message || 'Failed to load projects');
     } finally {
       setLoading(false);
@@ -160,6 +178,7 @@ export default function AdminProjectsPage() {
       const res = await fetch(`/api/portal/admin/projects/${editingProject.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(editForm),
       });
 
@@ -184,6 +203,7 @@ export default function AdminProjectsPage() {
     try {
       const res = await fetch(`/api/portal/admin/projects/${projectId}/refresh`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -220,6 +240,7 @@ export default function AdminProjectsPage() {
       const res = await fetch('/api/portal/admin/projects/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           projectId: classifyingProjectId,
           profileType: classifyForm.profileType,

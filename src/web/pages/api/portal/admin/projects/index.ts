@@ -72,13 +72,38 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
-  const { data: roles } = await supabase
+  // Check akari_user_roles table
+  const { data: userRoles } = await supabase
     .from('akari_user_roles')
     .select('role')
     .eq('user_id', userId)
     .eq('role', 'super_admin');
 
-  return (roles?.length ?? 0) > 0;
+  if (userRoles && userRoles.length > 0) {
+    return true;
+  }
+
+  // Also check profiles.real_roles via Twitter username
+  const { data: xIdentity } = await supabase
+    .from('akari_user_identities')
+    .select('username')
+    .eq('user_id', userId)
+    .eq('provider', 'x')
+    .single();
+
+  if (xIdentity?.username) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('real_roles')
+      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+      .single();
+
+    if (profile?.real_roles?.includes('super_admin')) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // =============================================================================
@@ -96,11 +121,26 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
+    // Get query parameters
+    const searchQuery = req.query.q as string | undefined;
+    const statusFilter = req.query.status as string | undefined;
+    const page = req.query.page as string | undefined;
+    const pageSize = req.query.pageSize as string | undefined;
+
+    console.log('[AdminProjectsAPI] Request query params:', {
+      q: searchQuery,
+      status: statusFilter,
+      page,
+      pageSize,
+    });
+
     // ==========================================================================
     // DEV MODE: Skip authentication in development
     // ==========================================================================
     if (!DEV_MODE) {
       const sessionToken = getSessionToken(req);
+      console.log('[AdminProjectsAPI] Session token exists:', !!sessionToken);
+      
       if (!sessionToken) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
       }
@@ -113,6 +153,7 @@ export default async function handler(
         .single();
 
       if (sessionError || !session) {
+        console.log('[AdminProjectsAPI] Invalid session:', sessionError?.message);
         return res.status(401).json({ ok: false, error: 'Invalid session' });
       }
 
@@ -126,19 +167,41 @@ export default async function handler(
       }
 
       const userId = session.user_id;
+      console.log('[AdminProjectsAPI] User ID:', userId);
+
+      // Get user's profile to check real_roles
+      const { data: xIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', userId)
+        .eq('provider', 'x')
+        .single();
+
+      let profileId: string | null = null;
+      let realRoles: string[] | null = null;
+
+      if (xIdentity?.username) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, real_roles')
+          .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+          .single();
+        
+        profileId = profile?.id || null;
+        realRoles = profile?.real_roles || null;
+        console.log('[AdminProjectsAPI] Profile ID:', profileId, 'real_roles:', realRoles);
+      }
 
       // Check if user is super admin
       const isSuperAdmin = await checkSuperAdmin(supabase, userId);
+      console.log('[AdminProjectsAPI] Is SuperAdmin:', isSuperAdmin);
+      
       if (!isSuperAdmin) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
+        return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
       }
     } else {
-      console.log('[Admin Projects API] DEV MODE - skipping auth');
+      console.log('[AdminProjectsAPI] DEV MODE - skipping auth');
     }
-
-    // Get query parameters
-    const searchQuery = req.query.q as string | undefined;
-    const statusFilter = req.query.status as string | undefined;
 
     // Build projects query
     let projectsQuery = supabase
@@ -165,9 +228,11 @@ export default async function handler(
     const { data: projects, error: projectsError } = await projectsQuery;
 
     if (projectsError) {
-      console.error('[Admin Projects API] Error fetching projects:', projectsError);
+      console.error('[AdminProjectsAPI] Error fetching projects:', projectsError);
       return res.status(500).json({ ok: false, error: 'Failed to fetch projects' });
     }
+
+    console.log('[AdminProjectsAPI] Query returned', projects?.length || 0, 'projects');
 
     if (!projects || projects.length === 0) {
       return res.status(200).json({ ok: true, projects: [] });
