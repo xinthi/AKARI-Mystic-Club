@@ -27,13 +27,15 @@ interface ReviewMissionRequest {
   action: 'approve' | 'reject';
 }
 
+type MissionProgressStatus = 'in_progress' | 'submitted' | 'approved' | 'rejected';
+
 type ReviewMissionResponse =
   | {
       ok: true;
       message: string;
       progress: {
         id: string;
-        status: string;
+        status: MissionProgressStatus;
         last_update_at: string;
       };
       creator?: {
@@ -123,8 +125,13 @@ export default async function handler(
   }
 
   const body: ReviewMissionRequest = req.body;
-  if (!body.creatorProfileId || !body.action || !['approve', 'reject'].includes(body.action)) {
-    return res.status(400).json({ ok: false, error: 'creatorProfileId and action (approve/reject) are required' });
+  if (!body.creatorProfileId || !body.action) {
+    return res.status(400).json({ ok: false, error: 'creatorProfileId and action are required' });
+  }
+  
+  // Validate action is 'approve' or 'reject'
+  if (body.action !== 'approve' && body.action !== 'reject') {
+    return res.status(400).json({ ok: false, error: 'action must be "approve" or "reject"' });
   }
 
   try {
@@ -169,12 +176,21 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Mission submission not found' });
     }
 
-    if (progress.status === body.action === 'approve' ? 'approved' : 'rejected') {
-      return res.status(400).json({ ok: false, error: `Mission is already ${body.action === 'approve' ? 'approved' : 'rejected'}` });
+    // Validate progress.status is a valid MissionProgressStatus
+    const validStatuses: MissionProgressStatus[] = ['in_progress', 'submitted', 'approved', 'rejected'];
+    const progressStatus = progress.status as MissionProgressStatus;
+    if (!validStatuses.includes(progressStatus)) {
+      return res.status(500).json({ ok: false, error: 'Invalid mission status' });
+    }
+
+    // Compute target status and check if already in that state
+    const targetStatus: MissionProgressStatus = body.action === 'approve' ? 'approved' : 'rejected';
+    if (progressStatus === targetStatus) {
+      return res.status(400).json({ ok: false, error: `Mission is already ${targetStatus}` });
     }
 
     // Update mission progress status
-    const newStatus = body.action === 'approve' ? 'approved' : 'rejected';
+    const newStatus: MissionProgressStatus = body.action === 'approve' ? 'approved' : 'rejected';
     const { data: updatedProgress, error: updateProgressError } = await supabase
       .from('creator_manager_mission_progress')
       .update({
