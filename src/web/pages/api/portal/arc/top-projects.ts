@@ -25,6 +25,7 @@ interface TopProject {
   id: string;
   display_name: string;
   twitter_username: string;
+  slug: string | null;
   growth_pct: number;
   arc_active: boolean;
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
@@ -190,7 +191,7 @@ export default async function handler(
     try {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('id, display_name, x_handle, arc_access_level, arc_active, profile_type')
+        .select('id, display_name, x_handle, arc_access_level, arc_active, profile_type, slug')
         .eq('is_active', true)
         .eq('profile_type', 'project')
         .order('name', { ascending: true });
@@ -349,6 +350,7 @@ export default async function handler(
             id: p.id,
             display_name: p.display_name || 'Unnamed Project',
             twitter_username: p.x_handle || '',
+            slug: p.slug || null,
             growth_pct: growthPct,
             arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
             arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',

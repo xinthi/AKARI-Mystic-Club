@@ -316,7 +316,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               logo_url: null, // API no longer returns logo_url
               growth_pct: typeof p.growth_pct === 'number' ? p.growth_pct : 0,
               heat: undefined, // API no longer returns heat
-              slug: null, // API no longer returns slug
+              slug: p.slug || null, // Use slug from API, fallback to null
               arc_access_level: p.arc_access_level || 'none',
               arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
             };
