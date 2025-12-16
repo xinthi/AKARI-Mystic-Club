@@ -68,9 +68,10 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     // First degree: Same ring creators (direct connections)
     validCreators.forEach((creator, i) => {
       if (!creator.ring) return;
+      const creatorRing = creator.ring; // Store to help TypeScript understand it's non-null
       validCreators.forEach((other, j) => {
         if (i === j || !other.ring) return;
-        if (creator.ring.toLowerCase() === other.ring.toLowerCase()) {
+        if (creatorRing.toLowerCase() === other.ring.toLowerCase()) {
           connections.push({
             from: creator.twitter_username.toLowerCase(),
             to: other.twitter_username.toLowerCase(),
