@@ -1,14 +1,20 @@
 /**
  * API Route: POST /api/portal/sentiment/track
  * 
- * Tracks/saves a new Twitter profile from search results to the projects table.
- * This makes the profile appear in the leaderboard for all users.
+ * EXPLICIT USER ACTION: Tracks/saves a new Twitter profile from search results to the projects table.
+ * This endpoint is ONLY called when a user explicitly clicks "Track project in AKARI" or similar action.
  * 
- * AUTOMATICALLY fetches real data from Twitter API:
- * - Profile info (followers, bio, avatar)
- * - Recent tweets (saved to project_tweets)
- * - Mentions from others
- * - Real sentiment and engagement scores
+ * IMPORTANT: Projects are NOT auto-created. This endpoint requires an explicit user trigger.
+ * 
+ * When called, this endpoint:
+ * - Creates a new project entry in the projects table (if it doesn't exist)
+ * - Fetches real data from Twitter API:
+ *   - Profile info (followers, bio, avatar)
+ *   - Recent tweets (saved to project_tweets)
+ *   - Mentions from others
+ *   - Real sentiment and engagement scores
+ * 
+ * The project is NOT claimed by default. The official project account must log in and claim it separately.
  * 
  * Request body:
  *   - username: Twitter handle (required)
@@ -580,12 +586,18 @@ export default async function handler(
       x_handle: username.toLowerCase(),
       twitter_username: username, // Keep original casing for Twitter API calls
       name: displayName,
+      display_name: displayName, // Set display_name for consistency
       bio,
       avatar_url: profileImageUrl,
       twitter_profile_image_url: profileImageUrl,
       is_active: true,
       first_tracked_at: new Date().toISOString(),
       last_refreshed_at: new Date().toISOString(),
+      // Project is NOT claimed by default - must be explicitly claimed
+      claimed_by: null,
+      claimed_at: null,
+      profile_type: 'project', // Default to 'project', SuperAdmin can change to 'personal'
+      is_company: false, // Default to false, SuperAdmin can set to true
     };
     
     // IMPORTANT: Store the permanent X User ID if available
