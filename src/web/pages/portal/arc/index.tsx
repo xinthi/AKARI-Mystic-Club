@@ -608,7 +608,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         {!loading && !error && projects.length === 0 && (
           <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
             <p className="text-sm text-akari-muted">
-              No ARC campaigns yet. Campaigns will appear here as they go live.
+              No projects have been approved for ARC yet.
             </p>
           </div>
         )}

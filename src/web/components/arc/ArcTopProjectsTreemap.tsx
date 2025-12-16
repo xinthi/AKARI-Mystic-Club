@@ -159,7 +159,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="text-xs text-white/60 mb-2 truncate">@{twitterUsername}</div>
       )}
       {isLocked && (
-        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC tier enabled</div>
+        <div className="text-xs text-yellow-400 mb-2">🔒 This project has not enabled ARC yet.</div>
       )}
       <div className="space-y-1.5 text-xs">
         <div className="flex justify-between gap-4">

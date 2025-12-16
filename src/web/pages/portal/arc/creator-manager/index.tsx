@@ -338,7 +338,7 @@ export default function CreatorManagerHome() {
                     {!hasPrograms ? (
                       <div className="mt-4 p-6 rounded-lg border border-akari-border/50 bg-akari-cardSoft text-center">
                         <p className="text-akari-muted mb-4">
-                          This project has no active Creator Manager programs.
+                          This project has not opened Creator Manager programs.
                         </p>
                         <button
                           onClick={() =>
