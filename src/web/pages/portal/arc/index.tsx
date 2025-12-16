@@ -464,20 +464,50 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         {!loading && !error && projects.length > 0 && (
           <>
             {/* Header Section */}
-            <section className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <h1 className="text-3xl font-bold text-white">ARC Universe</h1>
-                {userIsSuperAdmin && (
-                  <Link
-                    href="/portal/arc/admin"
-                    className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+            <section className="mb-6">
+              <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
+                ARC INFLUENCEFI TERMINAL
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+                <h1 className="text-3xl font-bold md:text-4xl">
+                  Track <span className="text-gradient-neon">Influence</span> Across Crypto Twitter
+                </h1>
+                <div className="flex items-center gap-2">
+                  {userIsSuperAdmin && (
+                    <Link
+                      href="/portal/arc/admin"
+                      className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      ARC Admin
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => loadTopProjects()}
+                    disabled={topProjectsLoading}
+                    className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    ARC Admin
-                  </Link>
-                )}
+                    {topProjectsLoading ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
+                        Refreshing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-              <p className="text-white/60 text-sm">
-                InfluenceFi dashboard powered by AKARI Sentiment
+              <p className="max-w-2xl text-sm text-akari-muted">
+                InfluenceFi validates who actually moves narratives, not who shouts the loudest. ARC ranks creators by measurable impact across approved projects.
               </p>
             </section>
 
@@ -485,25 +515,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
             <section className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-white">Top Projects</h2>
-                <button
-                  onClick={() => loadTopProjects()}
-                  disabled={topProjectsLoading}
-                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {topProjectsLoading ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Refreshing...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh
-                    </>
-                  )}
-                </button>
               </div>
               {topProjectsLoading ? (
                 <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
