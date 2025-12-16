@@ -5,7 +5,7 @@
  * Allows creators to submit missions
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -83,6 +83,11 @@ export default function CreatorProgramDetail() {
   const [showSubmitModal, setShowSubmitModal] = useState<string | null>(null);
   const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '', notes: '' });
 
+  // Normalize current user's username for comparisons
+  const myUsername = useMemo(() => {
+    return (akariUser.user?.xUsername ?? '').replace('@', '').toLowerCase();
+  }, [akariUser.user?.xUsername]);
+
   const loadData = useCallback(async () => {
     if (!programId || typeof programId !== 'string') return;
 
@@ -125,9 +130,10 @@ export default function CreatorProgramDetail() {
               const creatorsData = await creatorsRes.json();
               if (creatorsData.ok) {
                 // Find current user's creator record
-                const currentCreator = creatorsData.creators.find((c: any) => 
-                  c.profile?.username === akariUser.user?.username?.replace('@', '')
-                );
+                const currentCreator = creatorsData.creators.find((c: any) => {
+                  const creatorUsername = (c.profile?.username ?? c.profile?.twitter_username ?? '').replace('@', '').toLowerCase();
+                  return creatorUsername === myUsername;
+                });
                 if (currentCreator) {
                   setCreatorProfileId(currentCreator.creator_profile_id);
                 }
@@ -204,7 +210,7 @@ export default function CreatorProgramDetail() {
     } finally {
       setLoading(false);
     }
-  }, [programId]);
+  }, [programId, myUsername]);
 
   useEffect(() => {
     if (akariUser.isLoggedIn) {
@@ -397,7 +403,7 @@ export default function CreatorProgramDetail() {
                 <div
                   key={entry.rank}
                   className={`flex items-center justify-between p-3 rounded-lg border ${
-                    entry.username === akariUser.user?.username?.replace('@', '')
+                    entry.username.toLowerCase() === myUsername
                       ? 'border-akari-primary bg-akari-primary/10'
                       : 'border-akari-border bg-akari-cardSoft'
                   }`}
