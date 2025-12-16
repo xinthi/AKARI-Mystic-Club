@@ -611,10 +611,10 @@ export function ArcTopProjectsTreemap({
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-sm text-white/60 mb-2">No projects to display</p>
               <p className="text-xs text-white/40 text-center max-w-md mb-2">
-                Only projects with <span className="text-purple-400 font-semibold">profile_type = 'project'</span> appear in ARC heatmap.
+                Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
               </p>
               <p className="text-xs text-white/40 text-center max-w-md">
-                SuperAdmin must classify projects as 'project' in Projects Admin for them to appear here.
+                SuperAdmin must classify projects as &apos;project&apos; in Projects Admin for them to appear here.
               </p>
             </div>
           ) : (
@@ -734,10 +734,10 @@ export function ArcTopProjectsTreemap({
         <div className="h-full flex flex-col items-center justify-center">
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md mb-2">
-            Only projects with <span className="text-purple-400 font-semibold">profile_type = 'project'</span> appear in ARC heatmap.
+            Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
           </p>
           <p className="text-xs text-white/40 text-center max-w-md">
-            SuperAdmin must classify projects as 'project' in Projects Admin for them to appear here.
+            SuperAdmin must classify projects as &apos;project&apos; in Projects Admin for them to appear here.
           </p>
         </div>
       ) : (
