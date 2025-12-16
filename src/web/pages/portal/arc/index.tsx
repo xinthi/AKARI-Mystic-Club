@@ -101,7 +101,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [mounted, setMounted] = useState(false);
   const [treemapError, setTreemapError] = useState<Error | null>(null);
   const [summary, setSummary] = useState<{
-    approvedProjects: number;
+    trackedProjects: number;
     arcEnabled: number;
     activePrograms: number;
     creatorsParticipating: number;
@@ -357,7 +357,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         } else {
           // Safe fallback - set zeros
           setSummary({
-            approvedProjects: 0,
+            trackedProjects: 0,
             arcEnabled: 0,
             activePrograms: 0,
             creatorsParticipating: 0,
@@ -367,7 +367,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         console.error('[ARC] Error loading summary:', err);
         // Safe fallback
         setSummary({
-          approvedProjects: 0,
+          trackedProjects: 0,
           arcEnabled: 0,
           activePrograms: 0,
           creatorsParticipating: 0,
@@ -562,14 +562,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
             {/* ARC Summary Strip */}
             <section className="mb-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Approved Projects */}
+                {/* Tracked Projects */}
                 <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-                  <div className="text-xs text-white/60 mb-1">Approved Projects</div>
+                  <div className="text-xs text-white/60 mb-1">Tracked Projects</div>
                   <div className="text-2xl font-bold text-white">
                     {summaryLoading ? (
                       <div className="h-7 w-12 bg-white/10 rounded animate-pulse" />
                     ) : (
-                      summary?.approvedProjects ?? 0
+                      summary?.trackedProjects ?? 0
                     )}
                   </div>
                 </div>

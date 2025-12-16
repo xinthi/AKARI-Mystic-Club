@@ -12,10 +12,10 @@ import { createPortalClient } from '@/lib/portal/supabase';
 // =============================================================================
 
 interface ArcSummary {
-  approvedProjects: number;
-  arcEnabled: number;
-  activePrograms: number;
-  creatorsParticipating: number;
+  trackedProjects: number; // All projects with profile_type='project' (tracked in Sentiment)
+  arcEnabled: number; // Projects with leaderboards active (arc_active=true AND arc_access_level in ('leaderboard','gamified'))
+  activePrograms: number; // All active events (creator_manager_programs + arenas where status='active')
+  creatorsParticipating: number; // Unique creators across all events (creator_manager_creators + arena_creators)
 }
 
 type ArcSummaryResponse =
@@ -54,7 +54,7 @@ export default async function handler(
       return res.status(200).json({
         ok: true,
         summary: {
-          approvedProjects: 0,
+          trackedProjects: 0,
           arcEnabled: 0,
           activePrograms: 0,
           creatorsParticipating: 0,
@@ -62,56 +62,108 @@ export default async function handler(
       });
     }
 
-    // Get approved projects (profile_type = 'project')
-    const { count: approvedProjectsCount, error: projectsError } = await supabase
+    // Get tracked projects (profile_type = 'project' AND is_active = true)
+    // These are all projects tracked in AKARI Sentiment that are classified as projects
+    const { count: trackedProjectsCount, error: projectsError } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
       .eq('profile_type', 'project')
       .eq('is_active', true);
 
     if (projectsError) {
-      console.error('[ARC Summary API] Error counting approved projects:', projectsError);
+      console.error('[ARC Summary API] Error counting tracked projects:', projectsError);
     }
 
-    // Get ARC enabled projects (arc_active = true)
+    // Get ARC enabled projects with leaderboards active
+    // arc_active=true AND arc_access_level in ('leaderboard', 'gamified')
     const { count: arcEnabledCount, error: arcEnabledError } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
       .eq('arc_active', true)
+      .in('arc_access_level', ['leaderboard', 'gamified'])
       .eq('is_active', true);
 
     if (arcEnabledError) {
       console.error('[ARC Summary API] Error counting ARC enabled projects:', arcEnabledError);
     }
 
-    // Get active Creator Manager programs
-    const { count: activeProgramsCount, error: programsError } = await supabase
-      .from('creator_manager_programs')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
+    // Get active programs: Creator Manager programs + ARC Arenas
+    // Both where status='active'
+    const [creatorManagerProgramsResult, arenasResult] = await Promise.all([
+      supabase
+        .from('creator_manager_programs')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
+      supabase
+        .from('arenas')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active'),
+    ]);
 
-    if (programsError) {
-      console.error('[ARC Summary API] Error counting active programs:', programsError);
+    const creatorManagerProgramsCount = creatorManagerProgramsResult.count || 0;
+    const arenasCount = arenasResult.count || 0;
+    const activeProgramsCount = creatorManagerProgramsCount + arenasCount;
+
+    if (creatorManagerProgramsResult.error) {
+      console.error('[ARC Summary API] Error counting Creator Manager programs:', creatorManagerProgramsResult.error);
+    }
+    if (arenasResult.error) {
+      console.error('[ARC Summary API] Error counting arenas:', arenasResult.error);
     }
 
-    // Get creators participating (status in ('pending', 'approved'))
-    const { count: creatorsCount, error: creatorsError } = await supabase
-      .from('creator_manager_creators')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['pending', 'approved']);
+    // Get creators participating across all events
+    // Count unique creators from:
+    // 1. creator_manager_creators (status in ('pending', 'approved'))
+    // 2. arena_creators (all entries)
+    const [creatorManagerCreatorsResult, arenaCreatorsResult] = await Promise.all([
+      supabase
+        .from('creator_manager_creators')
+        .select('creator_profile_id')
+        .in('status', ['pending', 'approved']),
+      supabase
+        .from('arena_creators')
+        .select('profile_id'),
+    ]);
 
-    if (creatorsError) {
-      console.error('[ARC Summary API] Error counting creators:', creatorsError);
+    // Get unique creator IDs from both sources
+    const creatorManagerCreatorsData = creatorManagerCreatorsResult.data || [];
+    const arenaCreatorsData = arenaCreatorsResult.data || [];
+
+    // Collect all unique creator profile IDs (union of both sources)
+    const uniqueCreatorIds = new Set<string>();
+
+    // Add Creator Manager creators
+    creatorManagerCreatorsData.forEach((c: any) => {
+      if (c.creator_profile_id && typeof c.creator_profile_id === 'string') {
+        uniqueCreatorIds.add(c.creator_profile_id);
+      }
+    });
+
+    // Add Arena creators
+    arenaCreatorsData.forEach((c: any) => {
+      if (c.profile_id && typeof c.profile_id === 'string') {
+        uniqueCreatorIds.add(c.profile_id);
+      }
+    });
+
+    // Total unique creators participating across all events
+    const creatorsParticipatingCount = uniqueCreatorIds.size;
+
+    if (creatorManagerCreatorsResult.error) {
+      console.error('[ARC Summary API] Error counting Creator Manager creators:', creatorManagerCreatorsResult.error);
+    }
+    if (arenaCreatorsResult.error) {
+      console.error('[ARC Summary API] Error counting arena creators:', arenaCreatorsResult.error);
     }
 
     // Return summary with safe fallbacks (0 if errors occurred)
     return res.status(200).json({
       ok: true,
       summary: {
-        approvedProjects: approvedProjectsCount || 0,
+        trackedProjects: trackedProjectsCount || 0,
         arcEnabled: arcEnabledCount || 0,
         activePrograms: activeProgramsCount || 0,
-        creatorsParticipating: creatorsCount || 0,
+        creatorsParticipating: creatorsParticipatingCount || 0,
       },
     });
   } catch (error: any) {
@@ -120,7 +172,7 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       summary: {
-        approvedProjects: 0,
+        trackedProjects: 0,
         arcEnabled: 0,
         activePrograms: 0,
         creatorsParticipating: 0,
