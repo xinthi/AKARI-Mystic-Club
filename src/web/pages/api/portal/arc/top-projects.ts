@@ -23,6 +23,7 @@ interface TopProject {
   logo_url: string | null;
   growth_pct: number;
   heat: number | null; // ct_heat_score
+  slug: string | null; // Project slug for navigation
 }
 
 type TopProjectsResponse =
@@ -126,7 +127,7 @@ export default async function handler(
     // Get all active tracked projects
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
-      .select('id, name, x_handle, avatar_url, twitter_profile_image_url')
+      .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url')
       .eq('is_active', true)
       .neq('slug', 'dev_user'); // Exclude dev_user
 
@@ -218,6 +219,7 @@ export default async function handler(
           logo_url: logoUrl,
           growth_pct: growthPct,
           heat,
+          slug: p.slug || null,
         };
       })
       .filter((p) => {
