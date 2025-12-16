@@ -286,7 +286,7 @@ export default function CreatorProgramDetail() {
           {program.creatorStatus === 'pending' && (
             <div className="text-center">
               <p className="text-akari-muted mb-2">Application Pending</p>
-              <p className="text-sm text-akari-muted">Your application is under review. You'll be notified once a decision is made.</p>
+              <p className="text-sm text-akari-muted">Your application is under review. You&apos;ll be notified once a decision is made.</p>
             </div>
           )}
           {program.creatorStatus === 'rejected' && (
@@ -297,7 +297,7 @@ export default function CreatorProgramDetail() {
           )}
           {program.creatorStatus === 'approved' && (
             <div className="text-center">
-              <p className="text-green-300 mb-4">You're approved! Start completing missions to earn rewards.</p>
+              <p className="text-green-300 mb-4">You&apos;re approved! Start completing missions to earn rewards.</p>
               <button
                 onClick={() => {
                   const missionsSection = document.getElementById('missions-section');
