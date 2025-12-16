@@ -118,14 +118,21 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
     return null;
   }
 
-  const data = payload[0].payload;
-  const isClickable = data.isClickable;
+  const data = payload[0]?.payload;
+  if (!data) return null;
+
+  // Safe field access with fallbacks
+  const name = data.name || data.twitter_username || 'Unknown';
+  const growthPct = typeof data.growth_pct === 'number' ? data.growth_pct : 0;
+  const isClickable = data.isClickable === true;
+  const twitterUsername = data.twitter_username || '';
+  const heat = (typeof data.heat === 'number' && Number.isFinite(data.heat)) ? data.heat : null;
 
   return (
     <div className="bg-black/95 border border-white/20 rounded-lg p-3 shadow-2xl max-w-[240px]">
-      <div className="text-sm font-semibold text-white mb-1 truncate">{data.name}</div>
-      {data.twitter_username && (
-        <div className="text-xs text-white/60 mb-2 truncate">@{data.twitter_username}</div>
+      <div className="text-sm font-semibold text-white mb-1 truncate">{name}</div>
+      {twitterUsername && (
+        <div className="text-xs text-white/60 mb-2 truncate">@{twitterUsername}</div>
       )}
       {!isClickable && (
         <div className="text-xs text-yellow-400 mb-2">🔒 No ARC leaderboard active</div>
@@ -134,15 +141,15 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="flex justify-between gap-4">
           <span className="text-white/60 flex-shrink-0">Growth:</span>
           <span className={`font-semibold flex-shrink-0 ${
-            data.growth_pct > 0 ? 'text-green-400' : data.growth_pct < 0 ? 'text-red-400' : 'text-white/60'
+            growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
           }`}>
-            {formatGrowthPct(data.growth_pct)}
+            {formatGrowthPct(growthPct)}
           </span>
         </div>
-        {data.heat !== null && data.heat !== undefined && (
+        {heat !== null && (
           <div className="flex justify-between gap-4">
             <span className="text-white/60 flex-shrink-0">Heat:</span>
-            <span className="text-white font-medium flex-shrink-0">{data.heat}</span>
+            <span className="text-white font-medium flex-shrink-0">{heat}</span>
           </div>
         )}
       </div>
@@ -166,49 +173,82 @@ export function ArcTopProjectsTreemap({
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
 
-  // Format last updated timestamp
+  // Format last updated timestamp (safe handling of undefined)
   const lastUpdatedText = useMemo(() => {
-    if (!lastUpdated) return null;
-    const date = typeof lastUpdated === 'number' 
-      ? new Date(lastUpdated) 
-      : typeof lastUpdated === 'string' 
-      ? new Date(lastUpdated) 
-      : lastUpdated;
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
+    if (lastUpdated === undefined || lastUpdated === null) return null;
+    try {
+      const date = typeof lastUpdated === 'number' 
+        ? new Date(lastUpdated) 
+        : typeof lastUpdated === 'string' 
+        ? new Date(lastUpdated) 
+        : lastUpdated;
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return null;
+      }
+      
+      return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+    } catch (err) {
+      console.error('[ArcTopProjectsTreemap] Error formatting lastUpdated:', err);
+      return null;
+    }
   }, [lastUpdated]);
 
-  // Prepare data for treemap
+  // Filter items to only those with finite numeric size before rendering
+  const validItems = useMemo(() => {
+    if (!items || items.length === 0) return [];
+    
+    return items.filter((item) => {
+      // Get safe growth_pct with fallback
+      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+      const size = Math.abs(growthPct);
+      
+      // Keep only if finite and > 0
+      return Number.isFinite(size) && size > 0;
+    });
+  }, [items]);
+
+  // Prepare data for treemap (only use valid items)
   const treemapData = useMemo((): TreemapDataPoint[] => {
-    if (items.length === 0) return [];
+    if (validItems.length === 0) return [];
 
     // Get absolute growth values for normalization
-    const absGrowthValues = items.map(item => Math.abs(item.growth_pct));
+    const absGrowthValues = validItems.map(item => {
+      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+      return Math.abs(growthPct);
+    });
     const normalizedValues = normalizeForTreemap(absGrowthValues);
 
-    return items.map((item, index) => {
+    return validItems.map((item, index) => {
+      // Safe field access with fallbacks
+      const name = item.name || item.twitter_username || 'Unknown';
+      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+      const projectId = item.projectId || '';
+      
       // Determine if clickable: must be arc_active=true and arc_access_level != 'none'
       const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
       
       return {
-        name: item.name,
+        name,
         value: normalizedValues[index],
-        growth_pct: item.growth_pct,
-        projectId: item.projectId,
-        twitter_username: item.twitter_username,
-        logo_url: item.logo_url,
-        heat: item.heat,
-        slug: item.slug,
-        arc_access_level: item.arc_access_level,
-        arc_active: item.arc_active,
-        fill: isClickable ? getGrowthColor(item.growth_pct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
+        growth_pct: growthPct,
+        projectId,
+        twitter_username: item.twitter_username || '',
+        logo_url: item.logo_url || null,
+        heat: (typeof item.heat === 'number' && Number.isFinite(item.heat)) ? item.heat : null,
+        slug: item.slug || null,
+        arc_access_level: item.arc_access_level || 'none',
+        arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
+        fill: isClickable ? getGrowthColor(growthPct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
         isClickable,
       };
     });
-  }, [items]);
+  }, [validItems]);
 
   // Handle click on treemap cell
   const handleCellClick = (data: TreemapDataPoint) => {
@@ -230,10 +270,17 @@ export function ArcTopProjectsTreemap({
 
   // Custom cell component with hover effects and keyboard accessibility
   const CustomCell = ({ x, y, width, height, payload }: any) => {
-    const isHovered = hoveredProjectId === payload.projectId;
-    const isFocused = focusedProjectId === payload.projectId;
-    const isPositive = payload.growth_pct > 0;
-    const isClickable = payload.isClickable;
+    if (!payload) return null;
+    
+    // Safe field access with fallbacks
+    const projectId = payload.projectId || '';
+    const name = payload.name || payload.twitter_username || 'Unknown';
+    const growthPct = typeof payload.growth_pct === 'number' ? payload.growth_pct : 0;
+    const twitterUsername = payload.twitter_username || '';
+    const isClickable = payload.isClickable === true;
+    const isHovered = hoveredProjectId === projectId;
+    const isFocused = focusedProjectId === projectId;
+    const isPositive = growthPct > 0;
     const borderColor = isClickable
       ? (isPositive 
           ? 'rgba(34, 197, 94, 0.6)' 
@@ -262,12 +309,12 @@ export function ArcTopProjectsTreemap({
         tabIndex={isClickable ? 0 : -1}
         role={isClickable ? "button" : "img"}
         aria-label={isClickable 
-          ? `${payload.name}, growth: ${formatGrowthPct(payload.growth_pct)}` 
-          : `${payload.name}, locked: No ARC leaderboard active`}
-        onMouseEnter={() => setHoveredProjectId(payload.projectId)}
+          ? `${name}, growth: ${formatGrowthPct(growthPct)}` 
+          : `${name}, locked: No ARC leaderboard active`}
+        onMouseEnter={() => setHoveredProjectId(projectId)}
         onMouseLeave={() => setHoveredProjectId(null)}
         onClick={() => handleCellClick(payload)}
-        onFocus={() => isClickable && setFocusedProjectId(payload.projectId)}
+        onFocus={() => isClickable && setFocusedProjectId(projectId)}
         onBlur={() => setFocusedProjectId(null)}
         onKeyDown={isClickable ? handleKeyDown : undefined}
         style={{ cursor: isClickable ? 'pointer' : 'not-allowed', outline: 'none' }}
@@ -294,12 +341,12 @@ export function ArcTopProjectsTreemap({
             y={y + height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill={payload.growth_pct > 0 ? '#4ade80' : payload.growth_pct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.8)'}
+            fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.8)'}
             fontSize={Math.min(width / 8, 12)}
             fontWeight="bold"
             className="pointer-events-none"
           >
-            {formatGrowthPct(payload.growth_pct)}
+            {formatGrowthPct(growthPct)}
           </text>
         )}
         
@@ -315,18 +362,18 @@ export function ArcTopProjectsTreemap({
               fontWeight="semibold"
               className="pointer-events-none"
             >
-              {payload.name.length > 15 ? payload.name.substring(0, 15) + '...' : payload.name}
+              {name.length > 15 ? name.substring(0, 15) + '...' : name}
             </text>
             <text
               x={x + width / 2}
               y={y + height / 2 + 8}
               textAnchor="middle"
-              fill={payload.growth_pct > 0 ? '#4ade80' : payload.growth_pct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
+              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
               fontSize={Math.min(width / 14, 10)}
               fontWeight="bold"
               className="pointer-events-none"
             >
-              {formatGrowthPct(payload.growth_pct)}
+              {formatGrowthPct(growthPct)}
             </text>
           </>
         )}
@@ -343,9 +390,9 @@ export function ArcTopProjectsTreemap({
               fontWeight="semibold"
               className="pointer-events-none"
             >
-              {payload.name.length > 20 ? payload.name.substring(0, 20) + '...' : payload.name}
+              {name.length > 20 ? name.substring(0, 20) + '...' : name}
             </text>
-            {payload.twitter_username && (
+            {twitterUsername && (
               <text
                 x={x + width / 2}
                 y={y + height / 2 + 2}
@@ -354,19 +401,19 @@ export function ArcTopProjectsTreemap({
                 fontSize={Math.min(width / 14, 11)}
                 className="pointer-events-none"
               >
-                @{payload.twitter_username.length > 15 ? payload.twitter_username.substring(0, 15) + '...' : payload.twitter_username}
+                @{twitterUsername.length > 15 ? twitterUsername.substring(0, 15) + '...' : twitterUsername}
               </text>
             )}
             <text
               x={x + width / 2}
               y={y + height / 2 + 16}
               textAnchor="middle"
-              fill={payload.growth_pct > 0 ? '#4ade80' : payload.growth_pct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
+              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
               fontSize={Math.min(width / 16, 10)}
               fontWeight="bold"
               className="pointer-events-none"
             >
-              {formatGrowthPct(payload.growth_pct)}
+              {formatGrowthPct(growthPct)}
             </text>
           </>
         )}
@@ -374,10 +421,116 @@ export function ArcTopProjectsTreemap({
     );
   };
 
-  if (items.length === 0) {
+  // Render fallback list if not enough items for treemap (< 2)
+  if (validItems.length < 2) {
     return (
-      <div className="flex items-center justify-center py-12 min-h-[400px] rounded-xl border border-white/10 bg-black/40">
-        <p className="text-sm text-white/60">No projects to display</p>
+      <div className="w-full">
+        {/* Header with Last updated and Controls */}
+        <div className="flex items-center justify-between mb-4">
+          {/* Last updated timestamp */}
+          {lastUpdatedText && (
+            <div className="text-xs text-white/50">
+              Last updated: {lastUpdatedText}
+            </div>
+          )}
+          {!lastUpdatedText && <div />}
+          
+          {/* Controls (optional - if callbacks provided) */}
+          <div className="flex items-center gap-3">
+            {onModeChange && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onModeChange('gainers')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    mode === 'gainers'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/5 text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  Top Gainers
+                </button>
+                <button
+                  onClick={() => onModeChange('losers')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    mode === 'losers'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/5 text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  Top Losers
+                </button>
+              </div>
+            )}
+            {onTimeframeChange && (
+              <div className="flex gap-2">
+                {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
+                  <button
+                    key={tf}
+                    onClick={() => onTimeframeChange(tf)}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      timeframe === tf
+                        ? 'bg-white/10 text-white border border-white/20'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                    }`}
+                  >
+                    {tf}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Fallback list view */}
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 min-h-[400px]">
+          {validItems.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-sm text-white/60">No projects to display</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {validItems.map((item) => {
+                const name = item.name || item.twitter_username || 'Unknown';
+                const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                const twitterUsername = item.twitter_username || '';
+                const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+                
+                return (
+                  <div
+                    key={item.projectId || Math.random()}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      isClickable
+                        ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
+                        : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      if (isClickable && item.slug) {
+                        router.push(`/portal/arc/${item.slug}`);
+                      } else if (isClickable && twitterUsername) {
+                        router.push(`/portal/sentiment/profile/${twitterUsername}`);
+                      }
+                    }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">{name}</div>
+                      {twitterUsername && (
+                        <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                      )}
+                      {!isClickable && (
+                        <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
+                      )}
+                    </div>
+                    <div className={`text-sm font-bold ml-4 ${
+                      growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                    }`}>
+                      {formatGrowthPct(growthPct)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
