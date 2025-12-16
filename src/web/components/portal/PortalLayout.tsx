@@ -10,6 +10,7 @@ import { UserMenu } from './UserMenu';
 import { AnalystPromoModal } from './AnalystPromoModal';
 import { useAnalystPromo } from '@/hooks/useAnalystPromo';
 import { isSuperAdmin } from '@/lib/permissions';
+import { NotificationsIcon } from './NotificationsIcon';
 
 type Props = {
   title?: string;
@@ -237,6 +238,9 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               </button>
             )}
 
+            {/* Notifications Icon */}
+            {isLoggedIn && <NotificationsIcon />}
+            
             {/* User Menu Dropdown - replaces Profile and Admin links */}
             {isLoggedIn && <UserMenu />}
           </nav>

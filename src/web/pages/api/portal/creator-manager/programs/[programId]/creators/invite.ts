@@ -11,6 +11,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { createNotification } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
@@ -232,6 +233,14 @@ export default async function handler(
     if (insertError) {
       console.error('[Invite Creators] Error inserting creators:', insertError);
       return res.status(500).json({ ok: false, error: 'Failed to invite creators' });
+    }
+
+    // Create notifications for invited creators
+    for (const profileId of newProfileIds) {
+      await createNotification(supabase, profileId, 'creator_invited', {
+        programId,
+        projectId: program.project_id,
+      });
     }
 
     return res.status(200).json({

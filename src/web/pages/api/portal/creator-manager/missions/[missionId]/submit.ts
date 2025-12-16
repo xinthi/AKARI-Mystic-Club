@@ -14,6 +14,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { notifyProjectTeamMembers } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
@@ -145,7 +146,7 @@ export default async function handler(
   }
 
   try {
-    // Get mission to find program_id
+    // Get mission to find program_id and program info
     const { data: mission, error: missionError } = await supabase
       .from('creator_manager_missions')
       .select('program_id, is_active')
@@ -158,6 +159,17 @@ export default async function handler(
 
     if (!mission.is_active) {
       return res.status(400).json({ ok: false, error: 'Mission is not active' });
+    }
+
+    // Get program to find project_id
+    const { data: program, error: programError } = await supabase
+      .from('creator_manager_programs')
+      .select('project_id')
+      .eq('id', mission.program_id)
+      .single();
+
+    if (programError || !program) {
+      return res.status(404).json({ ok: false, error: 'Program not found' });
     }
 
     // Check that creator is approved in this program
@@ -230,6 +242,13 @@ export default async function handler(
 
       progressId = newProgress.id;
     }
+
+    // Notify project team members (owners, admins, moderators)
+    await notifyProjectTeamMembers(supabase, program.project_id, 'mission_submitted', {
+      missionId,
+      programId: mission.program_id,
+      creatorProfileId: currentUser.profileId,
+    });
 
     return res.status(200).json({
       ok: true,

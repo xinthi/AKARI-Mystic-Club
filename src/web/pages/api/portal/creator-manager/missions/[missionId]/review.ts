@@ -16,6 +16,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
 import { addArcPointsForCreatorManager } from '@/lib/arc/creator-manager-scoring';
+import { createNotification } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
@@ -243,6 +244,14 @@ export default async function handler(
         };
       }
     }
+
+    // Create notification for creator
+    const notificationType = body.action === 'approve' ? 'mission_approved' : 'mission_rejected';
+    await createNotification(supabase, body.creatorProfileId, notificationType, {
+      missionId,
+      programId: mission.program_id,
+      projectId: program.project_id,
+    });
 
     return res.status(200).json({
       ok: true,

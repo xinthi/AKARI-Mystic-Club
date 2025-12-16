@@ -11,6 +11,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { createNotification } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
@@ -195,19 +196,20 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to update creator status' });
     }
 
+    // Get creator profile ID for notifications
+    const { data: creatorRecord } = await supabase
+      .from('creator_manager_creators')
+      .select('creator_profile_id')
+      .eq('id', creatorId)
+      .single();
+
     // If status is approved, ensure creator has 'creator' role in profiles.real_roles
     if (body.status === 'approved') {
-      const { data: creatorProfile } = await supabase
-        .from('creator_manager_creators')
-        .select('creator_profile_id')
-        .eq('id', creatorId)
-        .single();
-
-      if (creatorProfile) {
+      if (creatorRecord) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('real_roles')
-          .eq('id', creatorProfile.creator_profile_id)
+          .eq('id', creatorRecord.creator_profile_id)
           .single();
 
         if (profile && (!profile.real_roles || !profile.real_roles.includes('creator'))) {
@@ -215,9 +217,18 @@ export default async function handler(
           await supabase
             .from('profiles')
             .update({ real_roles: updatedRoles })
-            .eq('id', creatorProfile.creator_profile_id);
+            .eq('id', creatorRecord.creator_profile_id);
         }
       }
+    }
+
+    // Create notification for creator
+    if (creatorRecord && (body.status === 'approved' || body.status === 'rejected')) {
+      const notificationType = body.status === 'approved' ? 'creator_approved' : 'creator_rejected';
+      await createNotification(supabase, creatorRecord.creator_profile_id, notificationType, {
+        programId,
+        projectId: program.project_id,
+      });
     }
 
     return res.status(200).json({
