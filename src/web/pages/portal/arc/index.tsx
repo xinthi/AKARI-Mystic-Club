@@ -10,11 +10,6 @@ import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { FeaturedCampaigns } from '@/components/arc/FeaturedCampaigns';
-import { MyCampaigns } from '@/components/arc/MyCampaigns';
-import { CampaignGrid } from '@/components/arc/CampaignGrid';
-import { TrendingNarratives } from '@/components/arc/TrendingNarratives';
-import { ArcUniverseMap } from '@/components/arc/ArcUniverseMap';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
 
 // =============================================================================
@@ -85,32 +80,29 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
+  const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
+  const [hasProjectAccess, setHasProjectAccess] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
 
-  // Map projects to ArcUniverseMap format
-  const mappedProjectsForUniverse = useMemo(() => {
-    return projects.map(project => {
-      const status = userCampaignStatuses.get(project.project_id);
-      const userIsParticipant = status?.hasJoined || false;
+  // Sort projects for Top Gainers/Losers
+  const sortedTopProjects = useMemo(() => {
+    const sorted = [...projects].sort((a, b) => {
+      // Use totalPoints as the primary metric, fallback to creatorCount
+      const aMetric = a.stats?.totalPoints ?? a.stats?.creatorCount ?? 0;
+      const bMetric = b.stats?.totalPoints ?? b.stats?.creatorCount ?? 0;
       
-      return {
-        id: project.project_id,
-        name: project.name || 'Unknown',
-        slug: project.slug || '',
-        twitter_username: project.twitter_username,
-        meta: project.meta,
-        stats: {
-          activeCreators: project.stats?.creatorCount || 0,
-          totalPoints: project.stats?.totalPoints || 0,
-          trend: project.stats?.trend || 'stable',
-          userIsParticipant,
-          userRank: null, // Rank can be populated later when we have per-project ranking
-        },
-      };
+      if (topProjectsView === 'gainers') {
+        return bMetric - aMetric; // Highest first
+      } else {
+        return aMetric - bMetric; // Lowest first
+      }
     });
-  }, [projects, userCampaignStatuses]);
+    
+    return sorted.slice(0, 20);
+  }, [projects, topProjectsView]);
 
   // Calculate user stats
   const userStats = useMemo(() => {
@@ -142,6 +134,18 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         }
 
         setProjects(data.projects);
+
+        // Check user permissions (simplified - can be enhanced with API call)
+        // For now, check if user has any project team access or creator role
+        if (akariUser.user) {
+          // Check if user is creator (simplified check)
+          const userRoles = akariUser.user.realRoles || [];
+          setIsCreator(userRoles.includes('creator') || false);
+          
+          // Check project access (simplified - would need API call for full check)
+          // For now, assume SuperAdmin has access
+          setHasProjectAccess(userIsSuperAdmin || isDevMode);
+        }
 
         // Fetch user campaign statuses
         if (data.projects.length > 0) {
@@ -193,7 +197,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     }
 
     fetchData();
-  }, [userTwitterUsername, isDevMode]);
+  }, [userTwitterUsername, isDevMode, userIsSuperAdmin, akariUser.user]);
 
   // Handle join campaign
   const handleJoinCampaign = async (projectId: string) => {
@@ -321,81 +325,143 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         {/* Content */}
         {!loading && !error && projects.length > 0 && (
           <>
-            {/* Hero Section - Two Column Layout */}
-            <section className="mb-10 rounded-2xl bg-gradient-to-b from-[#15192D] to-black/80 border border-white/5 px-6 py-6 lg:px-10 lg:py-8 flex flex-col lg:flex-row gap-8 items-stretch">
-              {/* Left: text + user stats */}
-              <div className="flex-1 flex flex-col justify-between gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-3xl font-bold text-white">ARC Universe</h1>
-                    {userIsSuperAdmin && (
-                      <Link
-                        href="/portal/arc/admin"
-                        className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-                      >
-                        ARC Admin
-                      </Link>
-                    )}
-                  </div>
-                  <p className="text-white/60 mt-2">
-                    Track how narratives move across campaigns. Join projects, earn ARC points, and grow your influence.
-                  </p>
-                </div>
-
-                {/* User stats row */}
-                {userTwitterUsername && (
-                  <div className="flex flex-wrap gap-3 mt-4">
-                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
-                      <div className="text-xs text-white/60">Projects joined</div>
-                      <div className="text-lg font-semibold text-white">{userStats.projectsJoined}</div>
-                    </div>
-                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
-                      <div className="text-xs text-white/60">Total ARC points</div>
-                      <div className="text-lg font-semibold text-white">{userStats.totalArcPoints.toLocaleString()}</div>
-                    </div>
-                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
-                      <div className="text-xs text-white/60">Active campaigns</div>
-                      <div className="text-lg font-semibold text-white">{userStats.activeCampaigns}</div>
-                    </div>
-                  </div>
+            {/* Header Section */}
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-2">
+                <h1 className="text-3xl font-bold text-white">ARC Universe</h1>
+                {userIsSuperAdmin && (
+                  <Link
+                    href="/portal/arc/admin"
+                    className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                  >
+                    ARC Admin
+                  </Link>
                 )}
               </div>
+              <p className="text-white/60 text-sm">
+                InfluenceFi dashboard powered by AKARI Sentiment
+              </p>
+            </section>
 
-              {/* Right: project bubble map */}
-              <div className="flex-1 min-h-[400px]">
-                <ArcUniverseMap projects={mappedProjectsForUniverse} />
+            {/* Top 20 Projects Module */}
+            <section className="mb-8 rounded-xl border border-white/10 bg-black/40 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Top 20 Projects</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTopProjectsView('gainers')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      topProjectsView === 'gainers'
+                        ? 'bg-akari-primary text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    Top Gainers
+                  </button>
+                  <button
+                    onClick={() => setTopProjectsView('losers')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      topProjectsView === 'losers'
+                        ? 'bg-akari-primary text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    Top Losers
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {sortedTopProjects.map((project, index) => {
+                  const metric = project.stats?.totalPoints ?? project.stats?.creatorCount ?? 0;
+                  const trend = project.stats?.trend || 'stable';
+                  
+                  const trendColors = {
+                    rising: 'bg-green-500/20 border-green-500/40 text-green-300',
+                    cooling: 'bg-red-500/20 border-red-500/40 text-red-300',
+                    stable: 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted',
+                  };
+
+                  return (
+                    <Link
+                      key={project.project_id}
+                      href={project.slug ? `/portal/arc/${project.slug}` : '#'}
+                      className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-white/40 w-6">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-white truncate">
+                            {project.name || 'Unnamed Project'}
+                          </div>
+                          {project.twitter_username && (
+                            <div className="text-xs text-white/60">@{project.twitter_username}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="text-xs text-white/60">Points</div>
+                          <div className="text-sm font-semibold text-white">{metric.toLocaleString()}</div>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${trendColors[trend]}`}>
+                          {trend}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
 
-            {/* Featured Campaigns */}
-            <FeaturedCampaigns
-              projects={projects}
-              userTwitterUsername={userTwitterUsername}
-              userCampaignStatuses={userCampaignStatuses}
-              onJoinCampaign={(projectId) => {
-                console.log('[ArcHome] FeaturedCampaigns onJoinCampaign called:', projectId);
-                handleJoinCampaign(projectId);
-              }}
-            />
+            {/* Action Cards */}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              {/* Creator Manager Card */}
+              <Link
+                href={hasProjectAccess ? '/portal/arc/creator-manager' : '#'}
+                className={`rounded-xl border p-6 transition-all ${
+                  hasProjectAccess
+                    ? 'border-white/10 bg-black/40 hover:border-white/20 hover:bg-black/60 cursor-pointer'
+                    : 'border-white/5 bg-black/20 opacity-50 cursor-not-allowed'
+                }`}
+                onClick={(e) => {
+                  if (!hasProjectAccess) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                <h3 className="text-lg font-semibold text-white mb-2">Creator Manager</h3>
+                <p className="text-sm text-white/60 mb-4">
+                  Manage creator programs, missions, and campaigns for your projects.
+                </p>
+                {!hasProjectAccess && (
+                  <p className="text-xs text-white/40 italic">Requires Project Team access</p>
+                )}
+              </Link>
 
-            {/* My Campaigns */}
-            {myCampaigns.length > 0 && (
-              <MyCampaigns campaigns={myCampaigns} />
-            )}
-
-            {/* All Campaigns */}
-            <CampaignGrid
-              projects={projects}
-              userTwitterUsername={userTwitterUsername}
-              userCampaignStatuses={userCampaignStatuses}
-              onJoinCampaign={(projectId) => {
-                console.log('[ArcHome] CampaignGrid onJoinCampaign called:', projectId);
-                handleJoinCampaign(projectId);
-              }}
-            />
-
-            {/* Trending Narratives */}
-            <TrendingNarratives />
+              {/* My Creator Programs Card */}
+              <Link
+                href={isCreator ? '/portal/arc/my-creator-programs' : '#'}
+                className={`rounded-xl border p-6 transition-all ${
+                  isCreator
+                    ? 'border-white/10 bg-black/40 hover:border-white/20 hover:bg-black/60 cursor-pointer'
+                    : 'border-white/5 bg-black/20 opacity-50 cursor-not-allowed'
+                }`}
+                onClick={(e) => {
+                  if (!isCreator) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                <h3 className="text-lg font-semibold text-white mb-2">My Creator Programs</h3>
+                <p className="text-sm text-white/60 mb-4">
+                  View your active creator programs, missions, and progress.
+                </p>
+                {!isCreator && (
+                  <p className="text-xs text-white/40 italic">Requires AKARI Creator status</p>
+                )}
+              </Link>
+            </section>
           </>
         )}
 
