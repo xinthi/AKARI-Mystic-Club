@@ -251,31 +251,41 @@ export default async function handler(
 
       userId = session.user_id;
 
-      // Check if user is SuperAdmin
-      if (userId) {
-        const supabaseAdmin = getSupabaseAdmin();
-        isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
+      // Early guard: userId must be present to proceed
+      if (!userId) {
+        console.error('[API /portal/arc/join-campaign] Missing userId in session');
+        return res.status(401).json({
+          ok: false,
+          error: 'unauthorized_no_user_id',
+        });
       }
+
+      // From this point, userId is guaranteed to be non-null
+      const safeUserId: string = userId;
+
+      // Check if user is SuperAdmin
+      const supabaseAdmin = getSupabaseAdmin();
+      isSuperAdmin = await checkSuperAdmin(supabaseAdmin, safeUserId);
 
       // Get user profile to get Twitter username
       const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
         .select('id, twitter_username')
-        .eq('akari_user_id', userId)
+        .eq('akari_user_id', safeUserId)
         .single();
 
       // SuperAdmin: If no profile found, create one automatically (bypass X account requirement)
       if ((profileError || !userProfile) && isSuperAdmin) {
         console.log('[API /portal/arc/join-campaign] SuperAdmin without profile, creating one automatically');
         
-        const defaultTwitterUsername = `admin_${userId.substring(0, 8)}`;
+        const defaultTwitterUsername = `admin_${safeUserId.substring(0, 8)}`;
         
         const { data: newProfile, error: createError } = await supabaseAdmin
           .from('profiles')
           .insert({
             twitter_username: defaultTwitterUsername,
             name: 'Super Admin',
-            akari_user_id: userId,
+            akari_user_id: safeUserId,
           })
           .select('id, twitter_username')
           .single();
@@ -285,7 +295,7 @@ export default async function handler(
           const { data: retryProfile } = await supabaseAdmin
             .from('profiles')
             .select('id, twitter_username')
-            .eq('akari_user_id', userId)
+            .eq('akari_user_id', safeUserId)
             .limit(1)
             .maybeSingle();
           
@@ -312,7 +322,7 @@ export default async function handler(
         
         // SuperAdmin: If profile exists but no twitter_username, use a default
         if (!profile.twitter_username && isSuperAdmin) {
-          profile.twitter_username = `admin_${userId.substring(0, 8)}`;
+          profile.twitter_username = `admin_${safeUserId.substring(0, 8)}`;
           console.log('[API /portal/arc/join-campaign] SuperAdmin: Using default twitter_username:', profile.twitter_username);
         }
       }
