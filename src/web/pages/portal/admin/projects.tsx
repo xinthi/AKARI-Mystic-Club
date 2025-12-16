@@ -652,27 +652,29 @@ export default function AdminProjectsPage() {
                           </td>
                           <td className="py-4 px-5 text-akari-muted text-xs">{formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}</td>
                           <td className="py-4 px-5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button
-                                onClick={() => handleClassify(project)}
-                                className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium"
-                              >
-                                Classify
-                              </button>
-                              <button
-                                onClick={() => handleEdit(project)}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleRefresh(project.id)}
-                                disabled={refreshingProjectId === project.id}
-                                className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
-                              </button>
-                            </div>
+                            {userIsSuperAdmin && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  onClick={() => handleClassify(project)}
+                                  className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium"
+                                >
+                                  Classify
+                                </button>
+                                <button
+                                  onClick={() => handleEdit(project)}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleRefresh(project.id)}
+                                  disabled={refreshingProjectId === project.id}
+                                  className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );

@@ -251,12 +251,14 @@ export default function AdminLeadInvestorsPage({ userLevel, investors: initialIn
                       {investor.websiteUrl || 'No website'}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleEdit(investor)}
-                    className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
-                  >
-                    Edit
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => handleEdit(investor)}
+                      className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

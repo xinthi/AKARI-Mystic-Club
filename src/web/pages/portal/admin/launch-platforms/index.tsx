@@ -257,12 +257,14 @@ export default function AdminLaunchPlatformsPage({ userLevel, platforms: initial
                       {platform.kind} {platform.website && `• ${platform.website}`}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleEdit(platform)}
-                    className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
-                  >
-                    Edit
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => handleEdit(platform)}
+                      className="px-3 py-1 text-xs text-akari-primary border border-akari-primary/30 rounded-full hover:bg-akari-primary/10 transition"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

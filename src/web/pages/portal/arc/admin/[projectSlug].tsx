@@ -318,24 +318,26 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => {
-                  setFormData({
-                    name: '',
-                    slug: '',
-                    description: '',
-                    starts_at: '',
-                    ends_at: '',
-                    reward_depth: 0,
-                    status: 'draft',
-                  });
-                  setModalError(null);
-                  setShowCreateModal(true);
-                }}
-                className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-              >
-                Create Arena
-              </button>
+              {userIsSuperAdmin && (
+                <button
+                  onClick={() => {
+                    setFormData({
+                      name: '',
+                      slug: '',
+                      description: '',
+                      starts_at: '',
+                      ends_at: '',
+                      reward_depth: 0,
+                      status: 'draft',
+                    });
+                    setModalError(null);
+                    setShowCreateModal(true);
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                >
+                  Create Arena
+                </button>
+              )}
             </div>
 
             {/* Arenas table */}
@@ -393,12 +395,14 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => openEditModal(arena)}
-                                className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
-                              >
-                                Edit
-                              </button>
+                              {userIsSuperAdmin && (
+                                <button
+                                  onClick={() => openEditModal(arena)}
+                                  className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                >
+                                  Edit
+                                </button>
+                              )}
                               <Link
                                 href={`/portal/arc/${projectSlug}/arena/${arena.slug}`}
                                 className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"

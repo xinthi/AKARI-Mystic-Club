@@ -222,21 +222,23 @@ export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
                                 Manage Arenas
                               </Link>
                             )}
-                            <button
-                              onClick={() => {
-                                setEditingProject(project);
-                                setSettingsFormData({
-                                  banner_url: project.meta?.banner_url || '',
-                                  accent_color: project.meta?.accent_color || '',
-                                  tagline: project.meta?.tagline || '',
-                                });
-                                setModalError(null);
-                                setShowSettingsModal(true);
-                              }}
-                              className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 text-akari-text rounded-lg hover:bg-akari-cardSoft/30 transition-colors"
-                            >
-                              Edit Settings
-                            </button>
+                            {userIsSuperAdmin && (
+                              <button
+                                onClick={() => {
+                                  setEditingProject(project);
+                                  setSettingsFormData({
+                                    banner_url: project.meta?.banner_url || '',
+                                    accent_color: project.meta?.accent_color || '',
+                                    tagline: project.meta?.tagline || '',
+                                  });
+                                  setModalError(null);
+                                  setShowSettingsModal(true);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 text-akari-text rounded-lg hover:bg-akari-cardSoft/30 transition-colors"
+                              >
+                                Edit Settings
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
