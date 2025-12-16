@@ -291,7 +291,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         
         // If no projects, log helpful message
         if (items.length === 0) {
-          console.log('[ARC] No projects returned. Projects must have profile_type="project" (set by SuperAdmin in Projects Admin) to appear in ARC Top Projects.');
+          console.log('[ARC] No projects returned. All active projects from Sentiment section should appear here.');
         }
 
         // Safely map projects to treemap items with error handling

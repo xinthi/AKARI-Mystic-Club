@@ -527,7 +527,7 @@ export function ArcTopProjectsTreemap({
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-sm text-white/60 mb-2">No projects to display</p>
               <p className="text-xs text-white/40 text-center max-w-md">
-                Projects must have Ecosystem Type set to &quot;Project&quot; by SuperAdmin in Projects Admin to appear here.
+                No active projects found. Projects tracked in Sentiment section will appear here.
               </p>
             </div>
           ) : (
@@ -642,7 +642,7 @@ export function ArcTopProjectsTreemap({
         <div className="rounded-2xl border border-white/10 bg-black/40 p-6 min-h-[400px] flex flex-col items-center justify-center">
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md">
-            Projects must have Ecosystem Type set to &quot;Project&quot; by SuperAdmin in Projects Admin to appear here.
+            No active projects found. Projects tracked in Sentiment section will appear here.
           </p>
         </div>
       ) : (

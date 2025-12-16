@@ -3,15 +3,11 @@
  * 
  * Returns top projects by growth percentage for a given timeframe.
  * 
- * IMPORTANT: This endpoint ONLY filters by projects.profile_type='project'.
- * It does NOT depend on:
- * - profiles.identity_type or akari_users.persona_type (user identity)
- * - projects.claimed_by (project ownership)
- * 
- * Classification Logic:
- * - Only projects with projects.profile_type='project' appear here
- * - projects.profile_type is controlled by SuperAdmin via Projects Admin
- * - User identity (akari_users.persona_type) does NOT affect visibility
+ * IMPORTANT: This endpoint shows ALL active projects from Sentiment section.
+ * - Shows all projects with is_active=true (same as Sentiment section)
+ * - Does NOT filter by profile_type or arc_active
+ * - ARC leaderboard features (arc_active, arc_access_level) are separate
+ *   and only control leaderboard participation, not visibility in treemap
  * 
  * Query params:
  * - mode: 'gainers' | 'losers' (default: 'gainers')
@@ -196,12 +192,9 @@ export default async function handler(
       });
     }
 
-    // Get all active tracked projects with profile_type='project'
-    // CRITICAL: This is the ONLY filter that determines ARC Top Projects visibility
-    // - Does NOT depend on akari_users.persona_type (user identity)
-    // - Does NOT depend on projects.claimed_by (project ownership)
-    // - Only SuperAdmin can set profile_type='project' via Projects Admin
-    // Include all projects regardless of arc_active status
+    // Get all active tracked projects (same as Sentiment section)
+    // ARC Universe shows ALL projects from Sentiment section
+    // ARC leaderboard features (arc_active, arc_access_level) are separate and controlled by SuperAdmin
     // Match the exclusion logic from Sentiment section
     const EXCLUDED_SLUGS = ['dev_user', 'devuser'];
     
@@ -211,7 +204,8 @@ export default async function handler(
         .from('projects')
         .select('id, slug, name, display_name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, profile_type, is_company')
         .eq('is_active', true)
-        .eq('profile_type', 'project') // ONLY filter: SuperAdmin must classify as 'project' to appear here
+        // Show ALL active projects (same as Sentiment section)
+        // ARC leaderboard features are separate and don't affect visibility here
         .order('name', { ascending: true });
 
       if (projectsError) {
@@ -231,9 +225,8 @@ export default async function handler(
       console.log(`[Top Projects API] Query result: ${projectsData?.length || 0} total, ${projects.length} after filtering exclusions`);
       
       // Return empty result if no projects (not an error)
-      // This happens when no projects have been classified as 'project' by SuperAdmin
       if (projects.length === 0) {
-        console.log('[Top Projects API] No projects found with profile_type="project". SuperAdmin must classify projects as "Project" in Projects Admin for them to appear here.');
+        console.log('[Top Projects API] No active projects found');
         return res.status(200).json({
           ok: true,
           items: [],
@@ -243,7 +236,7 @@ export default async function handler(
         });
       }
       
-      console.log(`[Top Projects API] Found ${projects.length} projects with profile_type="project"`);
+      console.log(`[Top Projects API] Found ${projects.length} active projects`);
     } catch (fetchError: any) {
       console.error('[Top Projects API] Unexpected error fetching projects:', fetchError);
       return res.status(500).json({
