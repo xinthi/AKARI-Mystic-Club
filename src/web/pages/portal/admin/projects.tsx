@@ -379,7 +379,7 @@ export default function AdminProjectsPage() {
 
       // Show toast notification
       setToast({
-        message: 'Updated',
+        message: 'ARC settings updated',
         type: 'success',
       });
     } catch (err: any) {
@@ -428,8 +428,11 @@ export default function AdminProjectsPage() {
       <div className="px-4 py-4 md:px-6 lg:px-10">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-white mb-2">Projects Admin</h1>
-          <p className="text-sm text-slate-400">Manage tracked projects and trigger manual refreshes</p>
+          <h1 className="text-2xl font-semibold text-white mb-2">Projects Admin - ARC Control Plane</h1>
+          <p className="text-sm text-slate-400">Manage tracked projects and ARC settings</p>
+          <p className="text-xs text-slate-500 mt-2">
+            Only projects marked as &apos;Project&apos; appear in ARC.
+          </p>
         </div>
 
         {/* Controls */}
@@ -497,19 +500,25 @@ export default function AdminProjectsPage() {
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Name</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">X Handle</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
-                      <div className="flex items-center gap-1">
-                        Identity
-                        <span className="text-xs text-akari-muted/60" title="Self-declared identity (Individual/Company)">
-                          ℹ️
-                        </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          Identity
+                          <span className="text-xs text-akari-muted/60" title="From profiles: Individual / Company">
+                            ℹ️
+                          </span>
+                        </div>
+                        <span className="text-xs font-normal text-akari-muted/60 lowercase">(from profiles)</span>
                       </div>
                     </th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
-                      <div className="flex items-center gap-1">
-                        Ecosystem Type
-                        <span className="text-xs text-akari-muted/60" title="SuperAdmin controlled. Only 'Project' appears in ARC Top Projects.">
-                          ℹ️
-                        </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          Ecosystem Type
+                          <span className="text-xs text-akari-muted/60" title="From projects: Personal / Project">
+                            ℹ️
+                          </span>
+                        </div>
+                        <span className="text-xs font-normal text-akari-muted/60 lowercase">(from projects)</span>
                       </div>
                     </th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Claimed</th>
@@ -602,7 +611,7 @@ export default function AdminProjectsPage() {
                             </div>
                           </td>
                           <td className="py-4 px-5">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex items-center gap-2 cursor-pointer group">
                               <input
                                 type="checkbox"
                                 checked={project.arc_active || false}
