@@ -138,8 +138,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         // Check user permissions (simplified - can be enhanced with API call)
         // For now, check if user has any project team access or creator role
         if (akariUser.user) {
-          // Check if user is creator (simplified check)
-          const userRoles = akariUser.user.realRoles || [];
+          // Check if user is creator
+          // Note: realRoles from Supabase can include 'creator' even though Role type doesn't include it
+          // We cast to string[] to safely check for 'creator' role
+          const userRoles = (akariUser.user.realRoles || []) as unknown as string[];
           setIsCreator(userRoles.includes('creator') || false);
           
           // Check project access (simplified - would need API call for full check)
