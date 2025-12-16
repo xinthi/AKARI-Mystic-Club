@@ -88,7 +88,15 @@ export default function ArcProjectPage() {
         setLoading(true);
         setError(null);
 
-        const supabase = createPortalClient();
+        let supabase;
+        try {
+          supabase = createPortalClient();
+        } catch (configError: any) {
+          console.error('[ArcProjectPage] Supabase configuration error:', configError);
+          setError('Server configuration error. Please contact support.');
+          setLoading(false);
+          return;
+        }
 
         // Try to find project by ID first, then by slug
         // Support both UUID and slug identifiers

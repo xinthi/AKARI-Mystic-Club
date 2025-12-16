@@ -60,7 +60,16 @@ export default async function handler(
 
   try {
     // Create Supabase client (read-only with anon key)
-    const supabase = createPortalClient();
+    let supabase;
+    try {
+      supabase = createPortalClient();
+    } catch (configError: any) {
+      console.error('[ARC Projects API] Supabase configuration error:', configError);
+      return res.status(503).json({
+        ok: false,
+        error: 'Server configuration error. Please contact support.',
+      });
+    }
 
     // Query project_arc_settings joined with projects
     const { data, error } = await supabase
