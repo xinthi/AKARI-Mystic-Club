@@ -1075,15 +1075,23 @@ export default function CreatorManagerProgramDetail() {
                           <div className="text-xs text-akari-muted">ARC inside this program</div>
                         </td>
                         <td className="p-4">
-                          <button
-                            onClick={() => {
-                              setBadgeForm({ badgeSlug: '', name: '', description: '' });
-                              setShowAwardBadgeModal(creator.id);
-                            }}
-                            className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium"
-                          >
-                            Award Badge
-                          </button>
+                          <div className="flex gap-2">
+                            <Link
+                              href={`/portal/arc/creator-manager/${programId}/creators/${creator.creator_profile_id}`}
+                              className="px-3 py-1.5 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
+                            >
+                              View
+                            </Link>
+                            <button
+                              onClick={() => {
+                                setBadgeForm({ badgeSlug: '', name: '', description: '' });
+                                setShowAwardBadgeModal(creator.id);
+                              }}
+                              className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium"
+                            >
+                              Award Badge
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
