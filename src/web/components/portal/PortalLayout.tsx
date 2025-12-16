@@ -47,20 +47,36 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   const visibleNavItems = useMemo(() => {
     // Check dev mode bypass (same as yellow DEV MODE panel)
     const isDevBypass = process.env.NODE_ENV === 'development';
+    
     // Check Super Admin status using the same helper function as elsewhere
-    const isSuperAdminUser = isSuperAdmin(akariUser.user);
+    // Also check realRoles directly as a fallback
+    let isSuperAdminUser = false;
+    if (!akariUser.isLoading && akariUser.user) {
+      // Primary check: use the helper function
+      isSuperAdminUser = isSuperAdmin(akariUser.user);
+      
+      // Fallback check: also verify realRoles directly
+      // This helps catch cases where the helper might not work as expected
+      if (!isSuperAdminUser && akariUser.user.realRoles) {
+        isSuperAdminUser = akariUser.user.realRoles.includes('super_admin');
+      }
+    }
+    
     // ARC is visible to SuperAdmins in production, everyone in dev
     const canSeeArc = isDevBypass || isSuperAdminUser;
     
-    // Debug logging (only in production to help diagnose)
-    if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined') {
+    // Debug logging (always log to help diagnose)
+    if (typeof window !== 'undefined') {
       console.log('[PortalLayout] ARC visibility check:', {
         isDevBypass,
         isSuperAdminUser,
         canSeeArc,
         hasUser: !!akariUser.user,
-        realRoles: akariUser.user?.realRoles,
         isLoading: akariUser.isLoading,
+        realRoles: akariUser.user?.realRoles || [],
+        effectiveRoles: akariUser.user?.effectiveRoles || [],
+        userId: akariUser.user?.id,
+        userObject: akariUser.user, // Full object for debugging
       });
     }
     
