@@ -197,13 +197,6 @@ export default function CreatorProgramDetail() {
       if (linksData.ok) {
         setLinks(linksData.links || []);
       }
-
-      // Get links for this program
-      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
-      const linksData = await linksRes.json();
-      if (linksData.ok) {
-        setLinks(linksData.links || []);
-      }
     } catch (err: any) {
       console.error('[Program Detail] Error:', err);
       setError(err.message || 'Failed to load program');
