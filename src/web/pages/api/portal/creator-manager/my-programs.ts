@@ -182,7 +182,12 @@ export default async function handler(
     }
 
     // Get public/hybrid programs where creator is NOT a member
-    const programIds = (creatorMemberships || []).map((m: any) => m.creator_manager_programs.id);
+    const programIds = (creatorMemberships || []).map((m: any) => {
+      const program = Array.isArray(m.creator_manager_programs)
+        ? m.creator_manager_programs[0]
+        : m.creator_manager_programs;
+      return program?.id;
+    }).filter((id): id is string => id !== undefined);
     const { data: publicPrograms, error: publicError } = await supabase
       .from('creator_manager_programs')
       .select('*')
@@ -199,8 +204,15 @@ export default async function handler(
     // Add programs where creator is a member
     if (creatorMemberships) {
       for (const membership of creatorMemberships) {
-        const program = membership.creator_manager_programs;
-        const deal = membership.creator_manager_deals;
+        // Handle potential array from join (should be single object due to !inner)
+        const program = Array.isArray(membership.creator_manager_programs)
+          ? membership.creator_manager_programs[0]
+          : membership.creator_manager_programs;
+        const deal = Array.isArray(membership.creator_manager_deals)
+          ? membership.creator_manager_deals[0]
+          : membership.creator_manager_deals;
+
+        if (!program) continue;
 
         // Get project info
         const { data: project } = await supabase
