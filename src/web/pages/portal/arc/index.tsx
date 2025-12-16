@@ -85,6 +85,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
   const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>([]);
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
+  const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
   const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<Date | null>(null);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
@@ -131,9 +132,26 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
         // Fetch projects
         const res = await fetch('/api/portal/arc/projects');
-        const data: ArcProjectsResponse = await res.json();
+        
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('[ARC] projects fetch failed', { status: res.status, body: errorBody });
+          setError(errorBody.error || `Failed to load ARC projects (${res.status})`);
+          return;
+        }
+
+        const data: ArcProjectsResponse = await res.json().catch((parseError) => {
+          console.error('[ARC] projects JSON parse failed', parseError);
+          setError('Invalid response from server');
+          return null;
+        });
+
+        if (!data) {
+          return; // Error already handled
+        }
 
         if (!data.ok || !data.projects) {
+          console.error('[ARC] projects API error', { status: res.status, body: data });
           setError(data.error || 'Failed to load ARC projects');
           return;
         }
@@ -210,27 +228,72 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   useEffect(() => {
     async function loadTopProjects() {
       setTopProjectsLoading(true);
+      setTopProjectsError(null);
       try {
         const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
-        const data = await res.json();
+        
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('[ARC] top-projects fetch failed', { status: res.status, body: errorBody });
+          setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
+          setTopProjectsData([]);
+          return;
+        }
 
-        if (data.ok && data.projects) {
-          const treemapItems: TopProjectItem[] = data.projects.map((p: any) => ({
-            projectId: p.project_id,
-            name: p.name,
-            twitter_username: p.twitter_username,
-            logo_url: p.logo_url,
-            growth_pct: p.growth_pct,
-            heat: p.heat,
-            slug: p.slug,
-            arc_access_level: p.arc_access_level,
-            arc_active: p.arc_active,
-          }));
+        const data = await res.json().catch((parseError) => {
+          console.error('[ARC] top-projects JSON parse failed', parseError);
+          setTopProjectsError('Invalid response from server');
+          setTopProjectsData([]);
+          return null;
+        });
+
+        if (!data) {
+          return; // Error already handled
+        }
+
+        if (!data.ok) {
+          console.error('[ARC] top-projects API error', { status: res.status, body: data });
+          setTopProjectsError(data.error || 'Failed to load top projects');
+          setTopProjectsData([]);
+          return;
+        }
+
+        if (!data.projects || !Array.isArray(data.projects)) {
+          console.error('[ARC] top-projects invalid data format', { data });
+          setTopProjectsError('Invalid data format from server');
+          setTopProjectsData([]);
+          return;
+        }
+
+        // Safely map projects to treemap items with error handling
+        try {
+          const treemapItems: TopProjectItem[] = data.projects.map((p: any) => {
+            if (!p || typeof p !== 'object') {
+              throw new Error('Invalid project item in array');
+            }
+            return {
+              projectId: p.project_id || '',
+              name: p.name || 'Unknown',
+              twitter_username: p.twitter_username || '',
+              logo_url: p.logo_url || null,
+              growth_pct: typeof p.growth_pct === 'number' ? p.growth_pct : 0,
+              heat: typeof p.heat === 'number' ? p.heat : undefined,
+              slug: p.slug || null,
+              arc_access_level: p.arc_access_level || 'none',
+              arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+            };
+          });
           setTopProjectsData(treemapItems);
           setTopProjectsLastUpdated(new Date());
+        } catch (mapError: any) {
+          console.error('[ARC] top-projects mapping failed', mapError);
+          setTopProjectsError('Failed to process project data');
+          setTopProjectsData([]);
         }
       } catch (err: any) {
-        console.error('[ArcHome] Error loading top projects:', err);
+        console.error('[ARC] top-projects fetch error', err);
+        setTopProjectsError(err.message || 'Failed to load top projects');
+        setTopProjectsData([]);
       } finally {
         setTopProjectsLoading(false);
       }
@@ -392,6 +455,16 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
                   <span className="ml-3 text-white/60">Loading projects...</span>
+                </div>
+              ) : topProjectsError ? (
+                <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
+                  <p className="text-sm text-akari-danger mb-2">Failed to load top projects</p>
+                  <p className="text-xs text-akari-muted">{topProjectsError}</p>
+                </div>
+              ) : !topProjectsData || topProjectsData.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                  <p className="text-sm text-white/60">No projects available</p>
+                  <p className="text-xs text-white/40 mt-2">Try changing the timeframe or view mode</p>
                 </div>
               ) : (
                 <ArcTopProjectsTreemap
