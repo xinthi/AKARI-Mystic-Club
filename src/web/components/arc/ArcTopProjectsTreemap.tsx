@@ -736,7 +736,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
       {treemapData.length === 0 ? (
-        <div className="h-[440px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40">
+        <div className="h-[400px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40">
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md mb-2">
             Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
@@ -752,7 +752,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-          <ResponsiveContainer width="100%" height={440}>
+          <ResponsiveContainer width="100%" height={400}>
             <Treemap
               data={treemapData}
               dataKey="value"
