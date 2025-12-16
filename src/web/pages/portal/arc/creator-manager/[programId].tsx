@@ -140,8 +140,11 @@ export default function CreatorManagerProgramDetail() {
     reward_arc_min: 0,
     reward_arc_max: 0,
     reward_xp: 0,
+    is_active: true,
+    order_index: 0,
   });
   const [addingMission, setAddingMission] = useState(false);
+  const [updatingMission, setUpdatingMission] = useState(false);
   
   // Updating states
   const [updatingClass, setUpdatingClass] = useState<string | null>(null);
@@ -249,11 +252,18 @@ export default function CreatorManagerProgramDetail() {
         setDeals(dealsData.deals || []);
       }
 
-      // Load missions
+      // Load missions (already sorted by order_index from API)
       const missionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`);
       const missionsData = await missionsRes.json();
       if (missionsData.ok) {
-        setMissions(missionsData.missions || []);
+        // Ensure missions are sorted by order_index, then by created_at
+        const sortedMissions = (missionsData.missions || []).sort((a: Mission, b: Mission) => {
+          if (a.order_index !== b.order_index) {
+            return a.order_index - b.order_index;
+          }
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        setMissions(sortedMissions);
       }
 
       // Load submissions
@@ -434,7 +444,7 @@ export default function CreatorManagerProgramDetail() {
       const data = await res.json();
       if (data.ok) {
         setShowAddMissionModal(false);
-        setNewMission({ title: '', description: '', reward_arc_min: 0, reward_arc_max: 0, reward_xp: 0 });
+        setNewMission({ title: '', description: '', reward_arc_min: 0, reward_arc_max: 0, reward_xp: 0, is_active: true, order_index: 0 });
         await loadProgram();
       } else {
         alert(data.error || 'Failed to create mission');
@@ -464,6 +474,47 @@ export default function CreatorManagerProgramDetail() {
     } catch (err: any) {
       console.error('[Toggle Mission] Error:', err);
       alert('Failed to update mission');
+    }
+  };
+
+  const handleEditMission = (mission: Mission) => {
+    setEditingMission(mission);
+    setShowEditMissionModal(true);
+  };
+
+  const handleUpdateMission = async () => {
+    if (!editingMission || !editingMission.title.trim()) return;
+
+    setUpdatingMission(true);
+    try {
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          missionId: editingMission.id,
+          title: editingMission.title,
+          description: editingMission.description,
+          reward_arc_min: editingMission.reward_arc_min,
+          reward_arc_max: editingMission.reward_arc_max,
+          reward_xp: editingMission.reward_xp,
+          is_active: editingMission.is_active,
+          order_index: editingMission.order_index,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setShowEditMissionModal(false);
+        setEditingMission(null);
+        await loadProgram();
+      } else {
+        alert(data.error || 'Failed to update mission');
+      }
+    } catch (err: any) {
+      console.error('[Update Mission] Error:', err);
+      alert('Failed to update mission');
+    } finally {
+      setUpdatingMission(false);
     }
   };
 
@@ -977,6 +1028,7 @@ export default function CreatorManagerProgramDetail() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
+                            <span className="text-xs text-akari-muted font-mono">#{mission.order_index}</span>
                             <h3 className="font-medium text-akari-text">{mission.title}</h3>
                             <span
                               className={`px-2 py-1 rounded text-xs ${
@@ -991,24 +1043,38 @@ export default function CreatorManagerProgramDetail() {
                           {mission.description && (
                             <p className="text-sm text-akari-muted mt-1">{mission.description}</p>
                           )}
-                          <div className="flex gap-4 mt-2 text-sm text-akari-muted">
-                            <span>ARC: {mission.reward_arc_min}-{mission.reward_arc_max}</span>
-                            <span>XP: {mission.reward_xp}</span>
+                          <div className="flex flex-wrap gap-3 mt-2 text-xs text-akari-muted">
+                            <span className="px-2 py-0.5 rounded bg-akari-primary/10 text-akari-primary">
+                              ARC: {mission.reward_arc_min}-{mission.reward_arc_max}
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
+                              XP: {mission.reward_xp}
+                            </span>
                             {missionSubmissions.length > 0 && (
                               <>
-                                <span>• Submissions: {missionSubmissions.length}</span>
-                                <span>• Approved: {approvedCount}</span>
+                                <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                                  {missionSubmissions.length} submissions
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400">
+                                  {approvedCount} approved
+                                </span>
                               </>
                             )}
                           </div>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditMission(mission)}
+                            className="px-3 py-1 rounded text-sm bg-akari-cardSoft text-akari-text hover:bg-akari-border transition-colors"
+                          >
+                            Edit
+                          </button>
                           {missionSubmissions.length > 0 && (
                             <button
                               onClick={() => setViewingSubmissions(viewingSubmissions === mission.id ? null : mission.id)}
                               className="px-3 py-1 rounded text-sm bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 transition-colors"
                             >
-                              {viewingSubmissions === mission.id ? 'Hide' : 'View'} Submissions ({missionSubmissions.length})
+                              {viewingSubmissions === mission.id ? 'Hide' : 'View'} ({missionSubmissions.length})
                             </button>
                           )}
                           <button
@@ -1255,12 +1321,35 @@ export default function CreatorManagerProgramDetail() {
                     className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-akari-muted mb-1">Order Index</label>
+                    <input
+                      type="number"
+                      value={newMission.order_index}
+                      onChange={(e) => setNewMission({ ...newMission, order_index: parseInt(e.target.value) || 0 })}
+                      className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                    />
+                    <p className="text-xs text-akari-muted mt-1">Lower numbers appear first</p>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newMission.is_active}
+                        onChange={(e) => setNewMission({ ...newMission, is_active: e.target.checked })}
+                        className="w-4 h-4 rounded border-akari-border bg-akari-cardSoft text-akari-primary focus:ring-akari-primary"
+                      />
+                      <span className="text-sm text-akari-muted">Active</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-2 justify-end mt-6">
                 <button
                   onClick={() => {
                     setShowAddMissionModal(false);
-                    setNewMission({ title: '', description: '', reward_arc_min: 0, reward_arc_max: 0, reward_xp: 0 });
+                    setNewMission({ title: '', description: '', reward_arc_min: 0, reward_arc_max: 0, reward_xp: 0, is_active: true, order_index: 0 });
                   }}
                   className="px-4 py-2 rounded-lg border border-akari-border text-akari-text hover:bg-akari-cardSoft transition-colors"
                 >
@@ -1272,6 +1361,105 @@ export default function CreatorManagerProgramDetail() {
                   className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors disabled:opacity-50"
                 >
                   {addingMission ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Mission Modal */}
+        {showEditMissionModal && editingMission && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-akari-card rounded-xl border border-akari-border p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-semibold text-akari-text mb-4">Edit Mission</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={editingMission.title}
+                    onChange={(e) => setEditingMission({ ...editingMission, title: e.target.value })}
+                    placeholder="Mission title"
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Description (optional)</label>
+                  <textarea
+                    value={editingMission.description || ''}
+                    onChange={(e) => setEditingMission({ ...editingMission, description: e.target.value })}
+                    placeholder="Mission description..."
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text min-h-[80px]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-akari-muted mb-1">ARC Min</label>
+                    <input
+                      type="number"
+                      value={editingMission.reward_arc_min}
+                      onChange={(e) => setEditingMission({ ...editingMission, reward_arc_min: parseInt(e.target.value) || 0 })}
+                      className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-akari-muted mb-1">ARC Max</label>
+                    <input
+                      type="number"
+                      value={editingMission.reward_arc_max}
+                      onChange={(e) => setEditingMission({ ...editingMission, reward_arc_max: parseInt(e.target.value) || 0 })}
+                      className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">XP Reward</label>
+                  <input
+                    type="number"
+                    value={editingMission.reward_xp}
+                    onChange={(e) => setEditingMission({ ...editingMission, reward_xp: parseInt(e.target.value) || 0 })}
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-akari-muted mb-1">Order Index</label>
+                    <input
+                      type="number"
+                      value={editingMission.order_index}
+                      onChange={(e) => setEditingMission({ ...editingMission, order_index: parseInt(e.target.value) || 0 })}
+                      className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingMission.is_active}
+                        onChange={(e) => setEditingMission({ ...editingMission, is_active: e.target.checked })}
+                        className="w-4 h-4 rounded border-akari-border bg-akari-cardSoft text-akari-primary focus:ring-akari-primary"
+                      />
+                      <span className="text-sm text-akari-muted">Active</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-6">
+                <button
+                  onClick={() => {
+                    setShowEditMissionModal(false);
+                    setEditingMission(null);
+                  }}
+                  className="px-4 py-2 rounded-lg border border-akari-border text-akari-text hover:bg-akari-cardSoft transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateMission}
+                  disabled={updatingMission || !editingMission.title.trim()}
+                  className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors disabled:opacity-50"
+                >
+                  {updatingMission ? 'Updating...' : 'Update'}
                 </button>
               </div>
             </div>
