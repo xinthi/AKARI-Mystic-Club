@@ -706,9 +706,18 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         </p>
                       </div>
                     </div>
-                  ) : isSafeMode || !mounted ? (
-                    // Safe mode or not mounted: render simple list fallback
+                  ) : isSafeMode || !mounted || treemapError ? (
+                    // Safe mode, not mounted, or treemap error: render simple list fallback
                     <div className="h-full overflow-y-auto">
+                      {treemapError && (
+                        <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
+                          <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
+                          <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                          <p className="text-xs text-white/40 mt-2">
+                            Showing list view instead.
+                          </p>
+                        </div>
+                      )}
                       <TopProjectsListFallback
                         items={topProjectsData}
                         mode={topProjectsView}
@@ -719,7 +728,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       />
                     </div>
                   ) : (
-                    // Render treemap with error boundary
+                    // Render treemap with error boundary - if it fails, fallback will show
                     <div className="h-full">
                       <SafeTreemapWrapper
                         items={topProjectsData}
@@ -728,17 +737,11 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         onModeChange={setTopProjectsView}
                         onTimeframeChange={setTopProjectsTimeframe}
                         lastUpdated={topProjectsLastUpdated ?? undefined}
-                        onError={setTreemapError}
+                        onError={(error) => {
+                          console.error('[ARC] Treemap error caught:', error);
+                          setTreemapError(error);
+                        }}
                       />
-                    </div>
-                  )}
-                  {treemapError && (
-                    <div className="mt-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
-                      <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
-                      <p className="text-xs text-akari-muted">{treemapError.message}</p>
-                      <p className="text-xs text-white/40 mt-2">
-                        Showing list view instead. <Link href="?safe=1" className="underline">Use safe mode</Link>
-                      </p>
                     </div>
                   )}
                 </div>
