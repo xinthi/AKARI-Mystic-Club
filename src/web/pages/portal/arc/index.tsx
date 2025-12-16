@@ -258,7 +258,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           return;
         }
 
-        if (!data.projects || !Array.isArray(data.projects)) {
+        // Support both 'items' (new) and 'projects' (legacy) for backward compatibility
+        const items = data.items || data.projects;
+        
+        if (!items || !Array.isArray(items)) {
           console.error('[ARC] top-projects invalid data format', { data });
           setTopProjectsError('Invalid data format from server');
           setTopProjectsData([]);
@@ -267,7 +270,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
         // Safely map projects to treemap items with error handling
         try {
-          const treemapItems: TopProjectItem[] = data.projects.map((p: any) => {
+          const treemapItems: TopProjectItem[] = items.map((p: any) => {
             if (!p || typeof p !== 'object') {
               throw new Error('Invalid project item in array');
             }

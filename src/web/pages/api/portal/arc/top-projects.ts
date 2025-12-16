@@ -31,11 +31,12 @@ interface TopProject {
 type TopProjectsResponse =
   | {
       ok: true;
-      projects: TopProject[];
+      items: TopProject[];
+      lastUpdated: string; // ISO string
       mode: 'gainers' | 'losers';
       timeframe: string;
     }
-  | { ok: false; error: string };
+  | { ok: false; error: string; details?: string };
 
 // =============================================================================
 // HELPERS
@@ -50,6 +51,13 @@ function getSupabaseAdmin() {
   }
 
   return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+/**
+ * Get current timestamp as ISO string
+ */
+function getCurrentTimestamp(): string {
+  return new Date().toISOString();
 }
 
 /**
@@ -102,164 +110,318 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<TopProjectsResponse>
 ) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
-  }
-
+  // Wrap entire handler in try/catch to catch any unhandled errors
   try {
-    const supabase = getSupabaseAdmin();
-
-    // Parse and validate query parameters
-    const mode = (req.query.mode as string) || 'gainers';
-    if (mode !== 'gainers' && mode !== 'losers') {
-      return res.status(400).json({ ok: false, error: 'mode must be "gainers" or "losers"' });
+    if (req.method !== 'GET') {
+      return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const timeframe = (req.query.timeframe as string) || '7d';
-    if (!['24h', '7d', '30d', '90d'].includes(timeframe)) {
-      return res.status(400).json({ ok: false, error: 'timeframe must be "24h", "7d", "30d", or "90d"' });
-    }
+    // This is a read-only public endpoint - no auth required
+    // If auth is needed in the future, check session here and return 401 if missing
 
-    const limitParam = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(Math.max(limitParam, 1), 50); // Clamp between 1 and 50
-
-    // Get date range
-    const { startDate, endDate } = getDateRange(timeframe);
-
-    // Get all active tracked projects with profile_type='project'
-    // Optionally filter by is_company=true if needed
-    const { data: projects, error: projectsError } = await supabase
-      .from('projects')
-      .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active')
-      .eq('is_active', true)
-      .eq('profile_type', 'project') // Only show projects classified as 'project'
-      .neq('slug', 'dev_user'); // Exclude dev_user
-
-    if (projectsError) {
-      console.error('[Top Projects API] Error fetching projects:', projectsError);
-      return res.status(500).json({ ok: false, error: 'Failed to fetch projects' });
-    }
-
-    if (!projects || projects.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        projects: [],
-        mode,
-        timeframe,
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (configError: any) {
+      console.error('[Top Projects API] Configuration error:', configError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Server configuration error',
+        details: configError.message,
       });
     }
 
-    const projectIds = projects.map((p: any) => p.id);
+    // Parse and validate query parameters with error handling
+    let mode: 'gainers' | 'losers';
+    try {
+      const modeParam = (req.query.mode as string) || 'gainers';
+      if (modeParam !== 'gainers' && modeParam !== 'losers') {
+        return res.status(400).json({ ok: false, error: 'mode must be "gainers" or "losers"' });
+      }
+      mode = modeParam;
+    } catch (paramError: any) {
+      console.error('[Top Projects API] Error parsing mode:', paramError);
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid mode parameter',
+        details: paramError.message,
+      });
+    }
+
+    let timeframe: '24h' | '7d' | '30d' | '90d';
+    try {
+      const timeframeParam = (req.query.timeframe as string) || '7d';
+      if (!['24h', '7d', '30d', '90d'].includes(timeframeParam)) {
+        return res.status(400).json({ ok: false, error: 'timeframe must be "24h", "7d", "30d", or "90d"' });
+      }
+      timeframe = timeframeParam as '24h' | '7d' | '30d' | '90d';
+    } catch (paramError: any) {
+      console.error('[Top Projects API] Error parsing timeframe:', paramError);
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid timeframe parameter',
+        details: paramError.message,
+      });
+    }
+
+    let limit: number;
+    try {
+      const limitParam = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+      if (isNaN(limitParam)) {
+        return res.status(400).json({ ok: false, error: 'limit must be a number' });
+      }
+      limit = Math.min(Math.max(limitParam, 1), 50); // Clamp between 1 and 50
+    } catch (paramError: any) {
+      console.error('[Top Projects API] Error parsing limit:', paramError);
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid limit parameter',
+        details: paramError.message,
+      });
+    }
+
+    // Get date range with error handling
+    let startDate: string;
+    let endDate: string;
+    try {
+      const dateRange = getDateRange(timeframe);
+      startDate = dateRange.startDate;
+      endDate = dateRange.endDate;
+    } catch (dateError: any) {
+      console.error('[Top Projects API] Error calculating date range:', dateError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to calculate date range',
+        details: dateError.message,
+      });
+    }
+
+    // Get all active tracked projects with profile_type='project'
+    // Optionally filter by is_company=true if needed
+    let projects: any[];
+    try {
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active')
+        .eq('is_active', true)
+        .eq('profile_type', 'project') // Only show projects classified as 'project'
+        .neq('slug', 'dev_user'); // Exclude dev_user
+
+      if (projectsError) {
+        console.error('[Top Projects API] Error fetching projects:', projectsError);
+        return res.status(500).json({
+          ok: false,
+          error: 'Failed to fetch projects',
+          details: projectsError.message,
+        });
+      }
+
+      projects = projectsData || [];
+
+      // Return empty result if no projects (not an error)
+      if (projects.length === 0) {
+        return res.status(200).json({
+          ok: true,
+          items: [],
+          lastUpdated: getCurrentTimestamp(),
+          mode,
+          timeframe,
+        });
+      }
+    } catch (fetchError: any) {
+      console.error('[Top Projects API] Unexpected error fetching projects:', fetchError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch projects',
+        details: fetchError.message,
+      });
+    }
+
+    // Get project IDs with error handling
+    let projectIds: string[];
+    try {
+      projectIds = projects.map((p: any) => {
+        if (!p || !p.id) {
+          throw new Error('Invalid project data: missing id');
+        }
+        return p.id;
+      });
+    } catch (mapError: any) {
+      console.error('[Top Projects API] Error mapping project IDs:', mapError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to process projects',
+        details: mapError.message,
+      });
+    }
 
     // Get metrics for start and end dates
     // We'll get the closest available metrics if exact dates don't exist
     // For start date: get metrics <= startDate, ordered by date DESC (most recent before/on start)
     // For end date: get metrics <= endDate, ordered by date DESC (most recent on/before end)
+    let startMetricsRaw: any[];
+    let endMetricsRaw: any[];
     
-    // Get start metrics (closest to startDate, not after)
-    const { data: startMetricsRaw, error: startError } = await supabase
-      .from('metrics_daily')
-      .select('project_id, date, akari_score, ct_heat_score')
-      .in('project_id', projectIds)
-      .lte('date', startDate)
-      .order('date', { ascending: false });
+    try {
+      // Get start metrics (closest to startDate, not after)
+      const { data: startData, error: startError } = await supabase
+        .from('metrics_daily')
+        .select('project_id, date, akari_score, ct_heat_score')
+        .in('project_id', projectIds)
+        .lte('date', startDate)
+        .order('date', { ascending: false });
 
-    // Get end metrics (closest to endDate, not after)
-    const { data: endMetricsRaw, error: endError } = await supabase
-      .from('metrics_daily')
-      .select('project_id, date, akari_score, ct_heat_score')
-      .in('project_id', projectIds)
-      .lte('date', endDate)
-      .order('date', { ascending: false });
+      if (startError) {
+        console.error('[Top Projects API] Error fetching start metrics:', startError);
+        return res.status(500).json({
+          ok: false,
+          error: 'Failed to fetch start metrics',
+          details: startError.message,
+        });
+      }
 
-    if (startError || endError) {
-      console.error('[Top Projects API] Error fetching metrics:', startError || endError);
-      return res.status(500).json({ ok: false, error: 'Failed to fetch metrics' });
+      startMetricsRaw = startData || [];
+
+      // Get end metrics (closest to endDate, not after)
+      const { data: endData, error: endError } = await supabase
+        .from('metrics_daily')
+        .select('project_id, date, akari_score, ct_heat_score')
+        .in('project_id', projectIds)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (endError) {
+        console.error('[Top Projects API] Error fetching end metrics:', endError);
+        return res.status(500).json({
+          ok: false,
+          error: 'Failed to fetch end metrics',
+          details: endError.message,
+        });
+      }
+
+      endMetricsRaw = endData || [];
+    } catch (metricsError: any) {
+      console.error('[Top Projects API] Unexpected error fetching metrics:', metricsError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch metrics',
+        details: metricsError.message,
+      });
     }
 
     // Create maps for quick lookup (take first entry per project, which is the most recent)
     const startMetricsMap = new Map<string, { akari_score: number | null; ct_heat_score: number | null }>();
-    (startMetricsRaw || []).forEach((m: any) => {
-      if (!startMetricsMap.has(m.project_id)) {
-        startMetricsMap.set(m.project_id, {
-          akari_score: m.akari_score,
-          ct_heat_score: m.ct_heat_score,
-        });
-      }
-    });
-
     const endMetricsMap = new Map<string, { akari_score: number | null; ct_heat_score: number | null }>();
-    (endMetricsRaw || []).forEach((m: any) => {
-      if (!endMetricsMap.has(m.project_id)) {
-        endMetricsMap.set(m.project_id, {
-          akari_score: m.akari_score,
-          ct_heat_score: m.ct_heat_score,
-        });
-      }
-    });
-
-    // Calculate growth for each project
-    const projectsWithGrowth: TopProject[] = projects
-      .map((p: any) => {
-        const startMetric = startMetricsMap.get(p.id);
-        const endMetric = endMetricsMap.get(p.id);
-
-        // Use akari_score for growth calculation (primary metric)
-        const growthPct = calculateGrowthPct(
-          endMetric?.akari_score ?? null,
-          startMetric?.akari_score ?? null
-        );
-
-        // Get heat from end metric (current heat)
-        const heat = endMetric?.ct_heat_score ?? null;
-
-        // Get logo URL (prefer avatar_url, fallback to twitter_profile_image_url)
-        const logoUrl = p.avatar_url || p.twitter_profile_image_url || null;
-
-        return {
-          project_id: p.id,
-          name: p.name || 'Unnamed Project',
-          twitter_username: p.x_handle || '',
-          logo_url: logoUrl,
-          growth_pct: growthPct,
-          heat,
-          slug: p.slug || null,
-          arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
-          arc_active: p.arc_active || false,
-        };
-      })
-      .filter((p) => {
-        // Only include projects that have metrics for both start and end dates
-        const startMetric = startMetricsMap.get(p.project_id);
-        const endMetric = endMetricsMap.get(p.project_id);
-        return (
-          startMetric?.akari_score !== null &&
-          endMetric?.akari_score !== null &&
-          (startMetric?.akari_score ?? 0) > 0
-        );
+    
+    try {
+      (startMetricsRaw || []).forEach((m: any) => {
+        if (m && m.project_id && !startMetricsMap.has(m.project_id)) {
+          startMetricsMap.set(m.project_id, {
+            akari_score: m.akari_score ?? null,
+            ct_heat_score: m.ct_heat_score ?? null,
+          });
+        }
       });
 
-    // Sort by growth_pct
-    projectsWithGrowth.sort((a, b) => {
-      if (mode === 'gainers') {
-        return b.growth_pct - a.growth_pct; // DESC
-      } else {
-        return a.growth_pct - b.growth_pct; // ASC
-      }
-    });
+      (endMetricsRaw || []).forEach((m: any) => {
+        if (m && m.project_id && !endMetricsMap.has(m.project_id)) {
+          endMetricsMap.set(m.project_id, {
+            akari_score: m.akari_score ?? null,
+            ct_heat_score: m.ct_heat_score ?? null,
+          });
+        }
+      });
+    } catch (mapError: any) {
+      console.error('[Top Projects API] Error building metrics maps:', mapError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to process metrics',
+        details: mapError.message,
+      });
+    }
 
-    // Apply limit
-    const limitedProjects = projectsWithGrowth.slice(0, limit);
+    // Calculate growth for each project with error handling
+    let projectsWithGrowth: TopProject[];
+    try {
+      projectsWithGrowth = projects
+        .map((p: any) => {
+          if (!p || !p.id) {
+            throw new Error('Invalid project data in array');
+          }
 
-    return res.status(200).json({
-      ok: true,
-      projects: limitedProjects,
-      mode,
-      timeframe,
-    });
+          const startMetric = startMetricsMap.get(p.id);
+          const endMetric = endMetricsMap.get(p.id);
+
+          // Use akari_score for growth calculation (primary metric)
+          const growthPct = calculateGrowthPct(
+            endMetric?.akari_score ?? null,
+            startMetric?.akari_score ?? null
+          );
+
+          // Get heat from end metric (current heat)
+          const heat = endMetric?.ct_heat_score ?? null;
+
+          // Get logo URL (prefer avatar_url, fallback to twitter_profile_image_url)
+          const logoUrl = p.avatar_url || p.twitter_profile_image_url || null;
+
+          return {
+            project_id: p.id,
+            name: p.name || 'Unnamed Project',
+            twitter_username: p.x_handle || '',
+            logo_url: logoUrl,
+            growth_pct: growthPct,
+            heat,
+            slug: p.slug || null,
+            arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
+            arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+          };
+        })
+        .filter((p) => {
+          // Only include projects that have metrics for both start and end dates
+          const startMetric = startMetricsMap.get(p.project_id);
+          const endMetric = endMetricsMap.get(p.project_id);
+          return (
+            startMetric?.akari_score !== null &&
+            endMetric?.akari_score !== null &&
+            (startMetric?.akari_score ?? 0) > 0
+          );
+        });
+
+      // Sort by growth_pct
+      projectsWithGrowth.sort((a, b) => {
+        if (mode === 'gainers') {
+          return b.growth_pct - a.growth_pct; // DESC
+        } else {
+          return a.growth_pct - b.growth_pct; // ASC
+        }
+      });
+
+      // Apply limit
+      const limitedProjects = projectsWithGrowth.slice(0, limit);
+
+      return res.status(200).json({
+        ok: true,
+        items: limitedProjects,
+        lastUpdated: getCurrentTimestamp(),
+        mode,
+        timeframe,
+      });
+    } catch (calcError: any) {
+      console.error('[Top Projects API] Error calculating growth:', calcError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to calculate project growth',
+        details: calcError.message,
+      });
+    }
   } catch (error: any) {
-    console.error('[Top Projects API] Error:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+    // Catch-all for any unhandled errors
+    console.error('[Top Projects API] Unhandled error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error',
+      details: error.stack || undefined,
+    });
   }
 }
 
