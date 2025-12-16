@@ -9,6 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { calculateLevel } from '@/lib/creator-gamification';
 
 // =============================================================================
 // TYPES
@@ -22,6 +23,7 @@ interface Creator {
   status: 'pending' | 'approved' | 'rejected' | 'removed';
   arc_points: number;
   xp: number;
+  creatorLevel: number; // Computed from XP
   class: string | null;
   joined_at: string;
   updated_at: string;
@@ -192,7 +194,7 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch creators' });
     }
 
-    // Format response
+    // Format response with computed level
     const formattedCreators: Creator[] = (creators || []).map((c: any) => ({
       id: c.id,
       program_id: c.program_id,
@@ -200,7 +202,8 @@ export default async function handler(
       deal_id: c.deal_id,
       status: c.status,
       arc_points: c.arc_points,
-      xp: c.xp,
+      xp: c.xp || 0,
+      creatorLevel: calculateLevel(c.xp || 0), // Compute level from XP
       class: c.class,
       joined_at: c.joined_at,
       updated_at: c.updated_at,

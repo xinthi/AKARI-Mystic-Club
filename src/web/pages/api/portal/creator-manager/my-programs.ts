@@ -10,6 +10,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { calculateLevel } from '@/lib/creator-gamification';
 
 // =============================================================================
 // TYPES
@@ -35,6 +36,8 @@ interface CreatorProgram {
   creatorStatus?: 'pending' | 'approved' | 'rejected' | 'removed' | null;
   arcPoints?: number;
   xp?: number;
+  creatorLevel?: number; // Computed from XP
+  class?: string | null;
   dealLabel?: string | null;
 }
 
@@ -154,6 +157,7 @@ export default async function handler(
         status,
         arc_points,
         xp,
+        class,
         deal_id,
         creator_manager_programs!inner (
           id,
@@ -224,7 +228,9 @@ export default async function handler(
           } : undefined,
           creatorStatus: membership.status,
           arcPoints: membership.arc_points,
-          xp: membership.xp,
+          xp: membership.xp || 0,
+          creatorLevel: calculateLevel(membership.xp || 0), // Compute level from XP
+          class: membership.class,
           dealLabel: deal?.internal_label || null,
         });
       }
