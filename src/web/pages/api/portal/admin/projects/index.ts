@@ -29,7 +29,8 @@ interface AdminProjectSummary {
   followers: number;
   akari_score: number | null;
   last_updated_at: string | null;
-  updated_at: string | null;
+  first_tracked_at: string | null;
+  last_refreshed_at: string | null;
   is_active: boolean;
 }
 
@@ -258,7 +259,7 @@ export default async function handler(
     // Build main query
     let projectsQuery = supabase
       .from('projects')
-      .select('id, name, display_name, slug, x_handle, twitter_username, profile_type, is_company, claimed_by, claimed_at, arc_access_level, arc_active, arc_active_until, is_active, updated_at');
+      .select('id, name, display_name, slug, x_handle, twitter_username, profile_type, is_company, claimed_by, claimed_at, arc_access_level, arc_active, arc_active_until, is_active, first_tracked_at, last_refreshed_at');
 
     // Apply filter
     if (filterParam === 'active') {
@@ -305,9 +306,13 @@ export default async function handler(
     }
 
     // Apply pagination and ordering
+    // Sort by: claimed_at desc (if exists), else first_tracked_at desc, else id desc
+    // Since first_tracked_at has DEFAULT NOW(), it should always exist
     const offset = (page - 1) * pageSize;
     projectsQuery = projectsQuery
-      .order('updated_at', { ascending: false, nullsFirst: false })
+      .order('claimed_at', { ascending: false, nullsLast: true })
+      .order('first_tracked_at', { ascending: false, nullsLast: true })
+      .order('id', { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     console.log('[AdminProjectsAPI] Executing projects query with pagination', { offset, limit: pageSize });
@@ -417,7 +422,8 @@ export default async function handler(
         followers,
         akari_score: latestMetrics?.akari_score ?? null,
         last_updated_at: lastUpdatedAt,
-        updated_at: project.updated_at || null,
+        first_tracked_at: project.first_tracked_at || null,
+        last_refreshed_at: project.last_refreshed_at || null,
         is_active: project.is_active,
       };
     });

@@ -31,7 +31,8 @@ interface AdminProjectSummary {
   followers: number;
   akari_score: number | null;
   last_updated_at: string | null;
-  updated_at: string | null;
+  first_tracked_at: string | null;
+  last_refreshed_at: string | null;
   is_active: boolean;
 }
 
@@ -469,7 +470,7 @@ export default function AdminProjectsPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-4 px-5 text-akari-muted text-xs">{formatDate(project.updated_at || project.last_updated_at)}</td>
+                          <td className="py-4 px-5 text-akari-muted text-xs">{formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}</td>
                           <td className="py-4 px-5">
                             <div className="flex items-center gap-2 flex-wrap">
                               <button
