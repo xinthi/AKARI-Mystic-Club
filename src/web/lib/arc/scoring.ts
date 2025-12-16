@@ -79,17 +79,20 @@ function getSupabaseAdmin(): SupabaseClient {
 
 /**
  * Get base points for a content type
+ * 
+ * These base points match the mission rewardPoints shown in the UI.
+ * Actual points awarded will be: base * sentiment_multiplier * (1 + engagement_bonus)
  */
 function basePoints(contentType: ContentType): number {
   switch (contentType) {
     case 'thread':
-      return 30;
+      return 40; // Matches "Share your first thread" mission (40 pts)
     case 'deep_dive':
-      return 50;
+      return 80; // Matches "Publish a deep dive" mission (80 pts)
     case 'meme':
-      return 20;
+      return 25; // Matches "Post a meme" mission (25 pts)
     case 'quote_rt':
-      return 15;
+      return 20; // Matches "Quote RT an announcement" mission (20 pts)
     case 'retweet':
       return 5;
     case 'reply':
