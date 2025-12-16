@@ -509,6 +509,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               <p className="max-w-2xl text-sm text-akari-muted">
                 InfluenceFi validates who actually moves narratives, not who shouts the loudest. ARC ranks creators by measurable impact across approved projects.
               </p>
+              <p className="mt-2 text-xs text-akari-muted/70">
+                Click any unlocked project to open its ARC hub. Locked projects must enable ARC tier first.
+              </p>
             </section>
 
             {/* Top Projects Treemap */}
