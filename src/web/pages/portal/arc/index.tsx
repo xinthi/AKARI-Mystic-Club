@@ -655,9 +655,22 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </div>
                   ) : !topProjectsData || topProjectsData.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <p className="text-sm text-white/60">No projects available</p>
-                        <p className="text-xs text-white/40 mt-2">Try changing the timeframe or view mode</p>
+                      <div className="text-center max-w-md">
+                        <p className="text-sm text-white/60 mb-2">No projects available in heatmap</p>
+                        <p className="text-xs text-white/40 mb-3">
+                          Only projects with <span className="text-purple-400 font-semibold">profile_type = 'project'</span> appear here.
+                        </p>
+                        <p className="text-xs text-white/40 mb-4">
+                          To show projects in ARC heatmap:
+                        </p>
+                        <ol className="text-xs text-white/40 text-left space-y-1 list-decimal list-inside mb-4">
+                          <li>Go to <span className="text-akari-primary">Projects Admin</span></li>
+                          <li>Click <span className="text-purple-400">"Classify"</span> on a project</li>
+                          <li>Set <span className="text-purple-400">Ecosystem Type</span> to <span className="text-purple-400 font-semibold">"Project"</span></li>
+                        </ol>
+                        <p className="text-xs text-white/40">
+                          Projects default to <span className="text-yellow-400">'personal'</span> until SuperAdmin classifies them.
+                        </p>
                       </div>
                     </div>
                   ) : isSafeMode || !mounted ? (
