@@ -4,7 +4,7 @@
  * Campaign Discovery Hub - Modern dashboard for creators and projects
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -303,13 +303,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               throw new Error('Invalid project item in array');
             }
             return {
-              projectId: p.project_id || '',
-              name: p.name || 'Unknown',
+              projectId: p.id || '',
+              name: p.display_name || 'Unknown',
               twitter_username: p.twitter_username || '',
-              logo_url: p.logo_url || null,
+              logo_url: null, // API no longer returns logo_url
               growth_pct: typeof p.growth_pct === 'number' ? p.growth_pct : 0,
-              heat: typeof p.heat === 'number' ? p.heat : undefined,
-              slug: p.slug || null,
+              heat: undefined, // API no longer returns heat
+              slug: null, // API no longer returns slug
               arc_access_level: p.arc_access_level || 'none',
               arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
             };

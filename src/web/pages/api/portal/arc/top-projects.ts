@@ -3,11 +3,10 @@
  * 
  * Returns top projects by growth percentage for a given timeframe.
  * 
- * IMPORTANT: This endpoint shows ALL active projects from Sentiment section.
- * - Shows all projects with is_active=true (same as Sentiment section)
- * - Does NOT filter by profile_type or arc_active
- * - ARC leaderboard features (arc_active, arc_access_level) are separate
- *   and only control leaderboard participation, not visibility in treemap
+ * IMPORTANT: This endpoint ONLY includes projects where profile_type = 'project'.
+ * - profile_type = 'project' is the ONLY inclusion rule
+ * - Does NOT filter by arc_active or arc_access_level for inclusion
+ * - If metrics are missing, growth_pct = 0 (project is NOT dropped)
  * 
  * Query params:
  * - mode: 'gainers' | 'losers' (default: 'gainers')
@@ -23,17 +22,12 @@ import { createPortalClient } from '@/lib/portal/supabase';
 // =============================================================================
 
 interface TopProject {
-  project_id: string;
-  name: string;
+  id: string;
+  display_name: string;
   twitter_username: string;
-  logo_url: string | null;
   growth_pct: number;
-  heat: number | null; // ct_heat_score
-  slug: string | null; // Project slug for navigation
-  arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active: boolean;
-  profile_type: string;
-  is_company: boolean;
+  arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
 }
 
 type TopProjectsResponse =
@@ -41,8 +35,6 @@ type TopProjectsResponse =
       ok: true;
       items: TopProject[];
       lastUpdated: string; // ISO string
-      mode: 'gainers' | 'losers';
-      timeframe: string;
     }
   | { ok: false; error: string; details?: string };
 
@@ -192,24 +184,19 @@ export default async function handler(
       });
     }
 
-    // Get all active tracked projects (same as Sentiment section)
-    // ARC Universe shows ALL projects from Sentiment section
-    // ARC leaderboard features (arc_active, arc_access_level) are separate and controlled by SuperAdmin
-    // Match the exclusion logic from Sentiment section
-    const EXCLUDED_SLUGS = ['dev_user', 'devuser'];
-    
+    // Get projects where profile_type = 'project' (ONLY inclusion rule)
+    // Do NOT filter by arc_active or arc_access_level for inclusion
     let projects: any[];
     try {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('id, slug, name, display_name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, profile_type, is_company')
+        .select('id, display_name, x_handle, arc_access_level, arc_active, profile_type')
         .eq('is_active', true)
-        // Show ALL active projects (same as Sentiment section)
-        // ARC leaderboard features are separate and don't affect visibility here
+        .eq('profile_type', 'project')
         .order('name', { ascending: true });
 
       if (projectsError) {
-        console.error('[Top Projects API] Error fetching projects:', projectsError);
+        console.error('[ARC top-projects] Error fetching projects:', projectsError);
         return res.status(500).json({
           ok: false,
           error: 'Failed to fetch projects',
@@ -217,16 +204,13 @@ export default async function handler(
         });
       }
 
-      // Filter out excluded projects (same as Sentiment section)
-      projects = (projectsData || []).filter(
-        (p) => !EXCLUDED_SLUGS.includes(p.slug?.toLowerCase())
-      );
+      projects = projectsData || [];
 
-      console.log(`[Top Projects API] Query result: ${projectsData?.length || 0} total, ${projects.length} after filtering exclusions`);
+      console.log(`[ARC top-projects] Found ${projects.length} projects with profile_type='project'`);
       
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
-        console.log('[Top Projects API] No active projects found');
+        console.log('[ARC top-projects] No projects found with profile_type=\'project\'');
         
         // Set cache-control headers to prevent aggressive caching
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -237,14 +221,10 @@ export default async function handler(
           ok: true,
           items: [],
           lastUpdated: getCurrentTimestamp(),
-          mode,
-          timeframe,
         });
       }
-      
-      console.log(`[Top Projects API] Found ${projects.length} active projects`);
     } catch (fetchError: any) {
-      console.error('[Top Projects API] Unexpected error fetching projects:', fetchError);
+      console.error('[ARC top-projects] Unexpected error fetching projects:', fetchError);
       return res.status(500).json({
         ok: false,
         error: 'Failed to fetch projects',
@@ -262,7 +242,7 @@ export default async function handler(
         return p.id;
       });
     } catch (mapError: any) {
-      console.error('[Top Projects API] Error mapping project IDs:', mapError);
+      console.error('[ARC top-projects] Error mapping project IDs:', mapError);
       return res.status(500).json({
         ok: false,
         error: 'Failed to process projects',
@@ -281,13 +261,13 @@ export default async function handler(
       // Get start metrics (closest to startDate, not after)
       const { data: startData, error: startError } = await supabase
         .from('metrics_daily')
-        .select('project_id, date, akari_score, ct_heat_score')
+        .select('project_id, date, akari_score')
         .in('project_id', projectIds)
         .lte('date', startDate)
         .order('date', { ascending: false });
 
       if (startError) {
-        console.error('[Top Projects API] Error fetching start metrics:', startError);
+        console.error('[ARC top-projects] Error fetching start metrics:', startError);
         return res.status(500).json({
           ok: false,
           error: 'Failed to fetch start metrics',
@@ -300,13 +280,13 @@ export default async function handler(
       // Get end metrics (closest to endDate, not after)
       const { data: endData, error: endError } = await supabase
         .from('metrics_daily')
-        .select('project_id, date, akari_score, ct_heat_score')
+        .select('project_id, date, akari_score')
         .in('project_id', projectIds)
         .lte('date', endDate)
         .order('date', { ascending: false });
 
       if (endError) {
-        console.error('[Top Projects API] Error fetching end metrics:', endError);
+        console.error('[ARC top-projects] Error fetching end metrics:', endError);
         return res.status(500).json({
           ok: false,
           error: 'Failed to fetch end metrics',
@@ -316,7 +296,7 @@ export default async function handler(
 
       endMetricsRaw = endData || [];
     } catch (metricsError: any) {
-      console.error('[Top Projects API] Unexpected error fetching metrics:', metricsError);
+      console.error('[ARC top-projects] Unexpected error fetching metrics:', metricsError);
       return res.status(500).json({
         ok: false,
         error: 'Failed to fetch metrics',
@@ -325,29 +305,23 @@ export default async function handler(
     }
 
     // Create maps for quick lookup (take first entry per project, which is the most recent)
-    const startMetricsMap = new Map<string, { akari_score: number | null; ct_heat_score: number | null }>();
-    const endMetricsMap = new Map<string, { akari_score: number | null; ct_heat_score: number | null }>();
+    const startMetricsMap = new Map<string, number | null>();
+    const endMetricsMap = new Map<string, number | null>();
     
     try {
       (startMetricsRaw || []).forEach((m: any) => {
         if (m && m.project_id && !startMetricsMap.has(m.project_id)) {
-          startMetricsMap.set(m.project_id, {
-            akari_score: m.akari_score ?? null,
-            ct_heat_score: m.ct_heat_score ?? null,
-          });
+          startMetricsMap.set(m.project_id, m.akari_score ?? null);
         }
       });
 
       (endMetricsRaw || []).forEach((m: any) => {
         if (m && m.project_id && !endMetricsMap.has(m.project_id)) {
-          endMetricsMap.set(m.project_id, {
-            akari_score: m.akari_score ?? null,
-            ct_heat_score: m.ct_heat_score ?? null,
-          });
+          endMetricsMap.set(m.project_id, m.akari_score ?? null);
         }
       });
     } catch (mapError: any) {
-      console.error('[Top Projects API] Error building metrics maps:', mapError);
+      console.error('[ARC top-projects] Error building metrics maps:', mapError);
       return res.status(500).json({
         ok: false,
         error: 'Failed to process metrics',
@@ -356,6 +330,7 @@ export default async function handler(
     }
 
     // Calculate growth for each project with error handling
+    // If metrics are missing, set growth_pct = 0 (do NOT drop the project)
     let projectsWithGrowth: TopProject[];
     try {
       projectsWithGrowth = projects
@@ -364,38 +339,26 @@ export default async function handler(
             throw new Error('Invalid project data in array');
           }
 
-          const startMetric = startMetricsMap.get(p.id);
-          const endMetric = endMetricsMap.get(p.id);
+          const startAkariScore = startMetricsMap.get(p.id) ?? null;
+          const endAkariScore = endMetricsMap.get(p.id) ?? null;
 
-          // Use akari_score for growth calculation (primary metric)
-          const growthPct = calculateGrowthPct(
-            endMetric?.akari_score ?? null,
-            startMetric?.akari_score ?? null
-          );
-
-          // Get heat from end metric (current heat)
-          const heat = endMetric?.ct_heat_score ?? null;
-
-          // Get logo URL (prefer avatar_url, fallback to twitter_profile_image_url)
-          const logoUrl = p.avatar_url || p.twitter_profile_image_url || null;
+          // Calculate growth_pct (if metrics missing, growth_pct = 0)
+          const growthPct = calculateGrowthPct(endAkariScore, startAkariScore);
 
           return {
-            project_id: p.id,
-            name: p.display_name || p.name || 'Unnamed Project',
+            id: p.id,
+            display_name: p.display_name || 'Unnamed Project',
             twitter_username: p.x_handle || '',
-            logo_url: logoUrl,
             growth_pct: growthPct,
-            heat,
-            slug: p.slug || null,
-            arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
             arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
-            profile_type: p.profile_type || 'project',
-            is_company: typeof p.is_company === 'boolean' ? p.is_company : false,
+            arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
           };
         });
         // Include all projects, even if metrics are missing (growth_pct will be 0)
 
       // Sort by growth_pct
+      // gainers: growth_pct desc
+      // losers: growth_pct asc
       projectsWithGrowth.sort((a, b) => {
         if (mode === 'gainers') {
           return b.growth_pct - a.growth_pct; // DESC
@@ -404,7 +367,7 @@ export default async function handler(
         }
       });
 
-      // Apply limit
+      // Return top 20 (or limit)
       const limitedProjects = projectsWithGrowth.slice(0, limit);
 
       // Set cache-control headers to prevent aggressive caching
@@ -416,11 +379,9 @@ export default async function handler(
         ok: true,
         items: limitedProjects,
         lastUpdated: getCurrentTimestamp(),
-        mode,
-        timeframe,
       });
     } catch (calcError: any) {
-      console.error('[Top Projects API] Error calculating growth:', calcError);
+      console.error('[ARC top-projects] Error calculating growth:', calcError);
       return res.status(500).json({
         ok: false,
         error: 'Failed to calculate project growth',
@@ -429,7 +390,7 @@ export default async function handler(
     }
   } catch (error: any) {
     // Catch-all for any unhandled errors
-    console.error('[Top Projects API] Unhandled error:', error);
+    console.error('[ARC top-projects] Unhandled error:', error);
     return res.status(500).json({
       ok: false,
       error: error.message || 'Internal server error',
