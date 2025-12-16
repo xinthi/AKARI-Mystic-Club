@@ -10,6 +10,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getLevelInfo } from '@/lib/creator-gamification';
 
 // =============================================================================
 // TYPES
@@ -37,10 +38,17 @@ interface Program {
   id: string;
   title: string;
   description: string | null;
+  visibility: 'private' | 'public' | 'hybrid';
+  status: 'active' | 'paused' | 'ended';
   project?: {
     name: string;
     avatar_url: string | null;
   };
+  creatorStatus?: 'pending' | 'approved' | 'rejected' | 'removed' | null;
+  arcPoints?: number;
+  xp?: number;
+  creatorLevel?: number;
+  class?: string | null;
 }
 
 // =============================================================================
@@ -84,7 +92,14 @@ export default function CreatorProgramDetail() {
             id: foundProgram.id,
             title: foundProgram.title,
             description: foundProgram.description,
+            visibility: foundProgram.visibility,
+            status: foundProgram.status,
             project: foundProgram.project,
+            creatorStatus: foundProgram.creatorStatus,
+            arcPoints: foundProgram.arcPoints,
+            xp: foundProgram.xp,
+            creatorLevel: foundProgram.creatorLevel,
+            class: foundProgram.class,
           });
         }
       }
@@ -211,20 +226,104 @@ export default function CreatorProgramDetail() {
             {program.project?.avatar_url && (
               <img src={program.project.avatar_url} alt={program.project.name} className="w-12 h-12 rounded-full" />
             )}
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl font-bold text-akari-text">{program.title}</h1>
               {program.project && (
                 <p className="text-sm text-akari-muted">{program.project.name}</p>
               )}
             </div>
+            {program.creatorStatus && (
+              <span className={`px-3 py-1 rounded text-sm ${
+                program.creatorStatus === 'approved' ? 'bg-green-500/20 text-green-300' :
+                program.creatorStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                program.creatorStatus === 'rejected' ? 'bg-red-500/20 text-red-300' :
+                'bg-gray-500/20 text-gray-300'
+              }`}>
+                {program.creatorStatus === 'approved' ? 'Approved' :
+                 program.creatorStatus === 'pending' ? 'Pending' :
+                 program.creatorStatus === 'rejected' ? 'Rejected' :
+                 'Removed'}
+              </span>
+            )}
           </div>
           {program.description && (
             <p className="text-akari-muted mt-2">{program.description}</p>
           )}
         </div>
 
+        {/* Stats Cards */}
+        {program.creatorStatus === 'approved' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {program.creatorLevel !== undefined && (
+              <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                <div className="text-sm text-akari-muted mb-1">Level</div>
+                <div className="text-2xl font-bold text-akari-text">Level {program.creatorLevel}</div>
+              </div>
+            )}
+            {program.xp !== undefined && (
+              <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                <div className="text-sm text-akari-muted mb-1">XP</div>
+                <div className="text-2xl font-bold text-akari-text">{program.xp.toLocaleString()}</div>
+              </div>
+            )}
+            {program.arcPoints !== undefined && (
+              <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                <div className="text-sm text-akari-muted mb-1">ARC Points</div>
+                <div className="text-2xl font-bold text-akari-text">{program.arcPoints.toLocaleString()}</div>
+              </div>
+            )}
+            {program.class && (
+              <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                <div className="text-sm text-akari-muted mb-1">Class</div>
+                <div className="text-2xl font-bold text-akari-primary">{program.class}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CTA Section */}
+        <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+          {program.creatorStatus === 'pending' && (
+            <div className="text-center">
+              <p className="text-akari-muted mb-2">Application Pending</p>
+              <p className="text-sm text-akari-muted">Your application is under review. You'll be notified once a decision is made.</p>
+            </div>
+          )}
+          {program.creatorStatus === 'rejected' && (
+            <div className="text-center">
+              <p className="text-red-300 mb-2">Application Rejected</p>
+              <p className="text-sm text-akari-muted">Your application to this program was not approved.</p>
+            </div>
+          )}
+          {program.creatorStatus === 'approved' && (
+            <div className="text-center">
+              <p className="text-green-300 mb-4">You're approved! Start completing missions to earn rewards.</p>
+              <button
+                onClick={() => {
+                  const missionsSection = document.getElementById('missions-section');
+                  missionsSection?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-6 py-3 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors font-medium"
+              >
+                Start Missions
+              </button>
+            </div>
+          )}
+          {!program.creatorStatus && program.visibility !== 'private' && (
+            <div className="text-center">
+              <p className="text-akari-muted mb-4">This program is open for applications</p>
+              <Link
+                href={`/api/portal/creator-manager/programs/${programId}/creators/apply`}
+                className="inline-block px-6 py-3 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors font-medium"
+              >
+                Apply to Program
+              </Link>
+            </div>
+          )}
+        </div>
+
         {/* Missions List */}
-        <div>
+        <div id="missions-section">
           <h2 className="text-xl font-semibold text-akari-text mb-4">Missions</h2>
           {missions.length === 0 ? (
             <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">

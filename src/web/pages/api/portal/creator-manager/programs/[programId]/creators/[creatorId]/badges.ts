@@ -98,10 +98,79 @@ function slugToName(slug: string): string {
 // HANDLER
 // =============================================================================
 
+type GetBadgesResponse =
+  | { ok: true; badges: Array<{ id: string; slug: string; name: string; description: string | null; awarded_at: string }> }
+  | { ok: false; error: string };
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<AwardBadgeResponse>
+  res: NextApiResponse<AwardBadgeResponse | GetBadgesResponse>
 ) {
+  // GET: List badges for a creator
+  if (req.method === 'GET') {
+    const supabase = getSupabaseAdmin();
+
+    const programId = req.query.programId as string;
+    const creatorId = req.query.creatorId as string;
+
+    if (!programId || !creatorId) {
+      return res.status(400).json({ ok: false, error: 'programId and creatorId are required' });
+    }
+
+    try {
+      // Get creator record to find profile_id
+      const { data: creator, error: creatorError } = await supabase
+        .from('creator_manager_creators')
+        .select('creator_profile_id')
+        .eq('id', creatorId)
+        .eq('program_id', programId)
+        .single();
+
+      if (creatorError || !creator) {
+        return res.status(404).json({ ok: false, error: 'Creator not found in this program' });
+      }
+
+      // Get badges
+      const { data: badges, error: badgesError } = await supabase
+        .from('creator_manager_creator_badges')
+        .select(`
+          id,
+          awarded_at,
+          creator_manager_badges (
+            id,
+            slug,
+            name,
+            description
+          )
+        `)
+        .eq('program_id', programId)
+        .eq('creator_profile_id', creator.creator_profile_id)
+        .order('awarded_at', { ascending: false });
+
+      if (badgesError) {
+        console.error('[Get Badges] Error:', badgesError);
+        return res.status(500).json({ ok: false, error: 'Failed to fetch badges' });
+      }
+
+      const formattedBadges = (badges || []).map((b: any) => {
+        const badge = Array.isArray(b.creator_manager_badges) ? b.creator_manager_badges[0] : b.creator_manager_badges;
+        return {
+          id: badge.id,
+          slug: badge.slug,
+          name: badge.name,
+          description: badge.description,
+          awarded_at: b.awarded_at,
+        };
+      });
+
+      return res.status(200).json({ ok: true, badges: formattedBadges });
+    } catch (error: any) {
+      console.error('[Get Badges] Error:', error);
+      return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+    }
+  }
+
+  // POST: Award badge
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }

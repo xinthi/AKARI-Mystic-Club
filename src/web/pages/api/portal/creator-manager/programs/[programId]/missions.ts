@@ -205,9 +205,18 @@ export default async function handler(
     }
   }
 
-  // PATCH: Update mission (for is_active toggle)
+  // PATCH: Update mission (full edit support)
   if (req.method === 'PATCH') {
-    const body: { missionId: string; is_active?: boolean } = req.body;
+    const body: {
+      missionId: string;
+      title?: string;
+      description?: string;
+      reward_arc_min?: number;
+      reward_arc_max?: number;
+      reward_xp?: number;
+      is_active?: boolean;
+      order_index?: number;
+    } = req.body;
 
     if (!body.missionId) {
       return res.status(400).json({ ok: false, error: 'missionId is required' });
@@ -256,8 +265,26 @@ export default async function handler(
 
       // Update mission
       const updateData: Record<string, any> = {};
+      if (body.title !== undefined) {
+        updateData.title = body.title;
+      }
+      if (body.description !== undefined) {
+        updateData.description = body.description || null;
+      }
+      if (body.reward_arc_min !== undefined) {
+        updateData.reward_arc_min = body.reward_arc_min;
+      }
+      if (body.reward_arc_max !== undefined) {
+        updateData.reward_arc_max = body.reward_arc_max;
+      }
+      if (body.reward_xp !== undefined) {
+        updateData.reward_xp = body.reward_xp;
+      }
       if (body.is_active !== undefined) {
         updateData.is_active = body.is_active;
+      }
+      if (body.order_index !== undefined) {
+        updateData.order_index = body.order_index;
       }
 
       const { error: updateError } = await supabase

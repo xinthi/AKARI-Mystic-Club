@@ -33,7 +33,9 @@ interface Program {
   stats?: {
     totalCreators: number;
     approvedCreators: number;
+    pendingCreators: number;
     totalArcPoints: number;
+    totalXp: number;
   };
 }
 
@@ -142,6 +144,8 @@ export default function CreatorManagerProgramDetail() {
   const [updatingClass, setUpdatingClass] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [updatingDeal, setUpdatingDeal] = useState<string | null>(null);
+  const [updatingProgramStatus, setUpdatingProgramStatus] = useState(false);
+  const [permissions, setPermissions] = useState<{ isOwner: boolean; isAdmin: boolean; isModerator: boolean } | null>(null);
 
   const loadProgram = useCallback(async () => {
     if (!programId || typeof programId !== 'string' || !akariUser.userId) return;
@@ -174,6 +178,11 @@ export default function CreatorManagerProgramDetail() {
       }
 
       setHasPermission(true);
+      setPermissions({
+        isOwner: permissions.isOwner,
+        isAdmin: permissions.isAdmin,
+        isModerator: permissions.isModerator,
+      });
 
       // Get project info
       const { data: projectData } = await supabase
@@ -198,19 +207,28 @@ export default function CreatorManagerProgramDetail() {
         .eq('program_id', programId)
         .eq('status', 'approved');
 
+      const { count: pendingCreators } = await supabase
+        .from('creator_manager_creators')
+        .select('*', { count: 'exact', head: true })
+        .eq('program_id', programId)
+        .eq('status', 'pending');
+
       const { data: creatorsForStats } = await supabase
         .from('creator_manager_creators')
-        .select('arc_points')
+        .select('arc_points, xp')
         .eq('program_id', programId);
 
       const totalArcPoints = creatorsForStats?.reduce((sum, c) => sum + (c.arc_points || 0), 0) || 0;
+      const totalXp = creatorsForStats?.reduce((sum, c) => sum + (c.xp || 0), 0) || 0;
 
       setProgram({
         ...programData,
         stats: {
           totalCreators: totalCreators || 0,
           approvedCreators: approvedCreators || 0,
+          pendingCreators: pendingCreators || 0,
           totalArcPoints,
+          totalXp,
         },
       });
 
@@ -474,6 +492,32 @@ export default function CreatorManagerProgramDetail() {
     return submissions.filter((s) => s.mission_id === missionId);
   };
 
+  const handleUpdateProgramStatus = async (newStatus: 'active' | 'paused' | 'ended') => {
+    if (!programId || typeof programId !== 'string') return;
+
+    setUpdatingProgramStatus(true);
+    try {
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        await loadProgram();
+        alert(data.message || `Program status updated to ${newStatus}`);
+      } else {
+        alert(data.error || 'Failed to update program status');
+      }
+    } catch (err: any) {
+      console.error('[Update Program Status] Error:', err);
+      alert('Failed to update program status');
+    } finally {
+      setUpdatingProgramStatus(false);
+    }
+  };
+
   if (loading) {
     return (
       <PortalLayout title="Creator Manager Program">
@@ -570,23 +614,6 @@ export default function CreatorManagerProgramDetail() {
           </div>
         </div>
 
-        {/* Stats */}
-        {program.stats && (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-lg border border-akari-border bg-akari-card p-4">
-              <div className="text-sm text-akari-muted">Total Creators</div>
-              <div className="text-2xl font-bold text-akari-text mt-1">{program.stats.totalCreators}</div>
-            </div>
-            <div className="rounded-lg border border-akari-border bg-akari-card p-4">
-              <div className="text-sm text-akari-muted">Approved Creators</div>
-              <div className="text-2xl font-bold text-akari-text mt-1">{program.stats.approvedCreators}</div>
-            </div>
-            <div className="rounded-lg border border-akari-border bg-akari-card p-4">
-              <div className="text-sm text-akari-muted">Total ARC Points</div>
-              <div className="text-2xl font-bold text-akari-text mt-1">{program.stats.totalArcPoints}</div>
-            </div>
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="border-b border-akari-border">
@@ -609,40 +636,143 @@ export default function CreatorManagerProgramDetail() {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
-            <h2 className="text-xl font-semibold text-akari-text mb-4">Program Overview</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm text-akari-muted">Description</div>
-                <div className="text-akari-text mt-1">
-                  {program.description || 'No description provided'}
+          <div className="space-y-6">
+            {/* Program Info */}
+            <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+              <h2 className="text-xl font-semibold text-akari-text mb-4">Program Information</h2>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm text-akari-muted mb-1">Title</div>
+                  <div className="text-akari-text font-medium">{program.title}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-akari-muted mb-1">Description</div>
+                  <div className="text-akari-text">
+                    {program.description || 'No description provided'}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-akari-muted mb-1">Visibility</div>
+                    <div className="text-akari-text capitalize">{program.visibility}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-akari-muted mb-1">Status</div>
+                    <div className="text-akari-text capitalize">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        program.status === 'active' ? 'bg-green-500/20 text-green-300' :
+                        program.status === 'paused' ? 'bg-yellow-500/20 text-yellow-300' :
+                        'bg-gray-500/20 text-gray-300'
+                      }`}>
+                        {program.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {(program.start_at || program.end_at) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {program.start_at && (
+                      <div>
+                        <div className="text-sm text-akari-muted mb-1">Start Date</div>
+                        <div className="text-akari-text">{new Date(program.start_at).toLocaleDateString()}</div>
+                      </div>
+                    )}
+                    {program.end_at && (
+                      <div>
+                        <div className="text-sm text-akari-muted mb-1">End Date</div>
+                        <div className="text-akari-text">{new Date(program.end_at).toLocaleDateString()}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            {program.stats && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                  <div className="text-sm text-akari-muted mb-1">Total Creators</div>
+                  <div className="text-2xl font-bold text-akari-text">{program.stats.totalCreators}</div>
+                </div>
+                <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                  <div className="text-sm text-akari-muted mb-1">Approved</div>
+                  <div className="text-2xl font-bold text-green-400">{program.stats.approvedCreators}</div>
+                </div>
+                <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                  <div className="text-sm text-akari-muted mb-1">Pending</div>
+                  <div className="text-2xl font-bold text-yellow-400">{program.stats.pendingCreators}</div>
+                </div>
+                <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                  <div className="text-sm text-akari-muted mb-1">Total ARC</div>
+                  <div className="text-2xl font-bold text-akari-text">{program.stats.totalArcPoints.toLocaleString()}</div>
+                </div>
+                <div className="rounded-lg border border-akari-border bg-akari-card p-4">
+                  <div className="text-sm text-akari-muted mb-1">Total XP</div>
+                  <div className="text-2xl font-bold text-akari-text">{program.stats.totalXp.toLocaleString()}</div>
                 </div>
               </div>
-              <div>
-                <div className="text-sm text-akari-muted">Visibility</div>
-                <div className="text-akari-text mt-1 capitalize">{program.visibility}</div>
+            )}
+
+            {/* Program Actions */}
+            {permissions && (permissions.isOwner || permissions.isAdmin || permissions.isModerator) && (
+              <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+                <h2 className="text-xl font-semibold text-akari-text mb-4">Program Actions</h2>
+                <div className="flex flex-wrap gap-3">
+                  {program.status === 'active' && (
+                    <>
+                      <button
+                        onClick={() => handleUpdateProgramStatus('paused')}
+                        disabled={updatingProgramStatus}
+                        className="px-4 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg hover:bg-yellow-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingProgramStatus ? 'Updating...' : 'Pause Program'}
+                      </button>
+                      {(permissions.isOwner || permissions.isAdmin) && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to end this program? This action cannot be undone.')) {
+                              handleUpdateProgramStatus('ended');
+                            }
+                          }}
+                          disabled={updatingProgramStatus}
+                          className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {updatingProgramStatus ? 'Updating...' : 'End Program'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {program.status === 'paused' && (
+                    <>
+                      <button
+                        onClick={() => handleUpdateProgramStatus('active')}
+                        disabled={updatingProgramStatus}
+                        className="px-4 py-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingProgramStatus ? 'Updating...' : 'Resume Program'}
+                      </button>
+                      {(permissions.isOwner || permissions.isAdmin) && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to end this program? This action cannot be undone.')) {
+                              handleUpdateProgramStatus('ended');
+                            }
+                          }}
+                          disabled={updatingProgramStatus}
+                          className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {updatingProgramStatus ? 'Updating...' : 'End Program'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {program.status === 'ended' && (
+                    <p className="text-sm text-akari-muted">This program has ended and cannot be modified.</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <div className="text-sm text-akari-muted">Status</div>
-                <div className="text-akari-text mt-1 capitalize">{program.status}</div>
-              </div>
-              {program.stats && (
-                <>
-                  <div>
-                    <div className="text-sm text-akari-muted">Total Creators</div>
-                    <div className="text-akari-text mt-1">{program.stats.totalCreators}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-akari-muted">Approved Creators</div>
-                    <div className="text-akari-text mt-1">{program.stats.approvedCreators}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-akari-muted">Total ARC Points</div>
-                    <div className="text-akari-text mt-1">{program.stats.totalArcPoints}</div>
-                  </div>
-                </>
-              )}
-            </div>
+            )}
           </div>
         )}
 
