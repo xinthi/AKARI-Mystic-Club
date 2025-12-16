@@ -534,7 +534,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
 
         {/* Show second-degree connections (paths through mutual connections) */}
         {isHovered && hoveredConnections
-          .filter(conn => conn.degree === 2 && conn.via)
+          .filter((conn): conn is NetworkConnection & { via: string } => conn.degree === 2 && !!conn.via)
           .map((conn, idx) => {
             const fromKey = conn.from.toLowerCase();
             const toKey = conn.to.toLowerCase();
