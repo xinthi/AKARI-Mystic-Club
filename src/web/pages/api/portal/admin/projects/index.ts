@@ -310,8 +310,8 @@ export default async function handler(
     // Since first_tracked_at has DEFAULT NOW(), it should always exist
     const offset = (page - 1) * pageSize;
     projectsQuery = projectsQuery
-      .order('claimed_at', { ascending: false, nullsLast: true })
-      .order('first_tracked_at', { ascending: false, nullsLast: true })
+      .order('claimed_at', { ascending: false })
+      .order('first_tracked_at', { ascending: false })
       .order('id', { ascending: false })
       .range(offset, offset + pageSize - 1);
 
