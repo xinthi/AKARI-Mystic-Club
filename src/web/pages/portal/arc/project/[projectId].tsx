@@ -4,7 +4,7 @@
  * Project detail page for ARC projects with leaderboard or gamified access levels
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -77,6 +77,16 @@ interface LeaderboardRequest {
   created_at: string;
 }
 
+interface LeaderboardEntry {
+  creator_profile_id: string;
+  twitter_username: string;
+  avatar_url: string | null;
+  total_arc_points: number;
+  xp: number;
+  level: number;
+  class: string | null;
+}
+
 export default function ArcProjectPage() {
   const router = useRouter();
   const { projectId } = router.query;
@@ -89,6 +99,10 @@ export default function ArcProjectPage() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [justification, setJustification] = useState('');
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch project by ID or slug
   useEffect(() => {
@@ -210,6 +224,51 @@ export default function ArcProjectPage() {
 
     fetchExistingRequest();
   }, [project, akariUser.isLoggedIn]);
+
+  // Fetch leaderboard if project has leaderboard/gamified access
+  useEffect(() => {
+    async function fetchLeaderboard() {
+      if (!project) return;
+
+      const arcAccessLevel = project.arc_access_level || 'none';
+      if (arcAccessLevel !== 'leaderboard' && arcAccessLevel !== 'gamified') {
+        return;
+      }
+
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+
+      try {
+        const res = await fetch(`/api/portal/arc/projects/${project.id}/leaderboard`);
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Failed to load leaderboard');
+        }
+
+        setLeaderboardEntries(data.entries || []);
+      } catch (err: any) {
+        console.error('[ArcProjectPage] Leaderboard fetch error:', err);
+        setLeaderboardError(err.message || 'Failed to load leaderboard');
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    }
+
+    fetchLeaderboard();
+  }, [project]);
+
+  // Filter leaderboard by search query
+  const filteredLeaderboard = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return leaderboardEntries;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return leaderboardEntries.filter((entry) =>
+      entry.twitter_username.toLowerCase().includes(query)
+    );
+  }, [leaderboardEntries, searchQuery]);
 
   // Handle request submission
   const handleSubmitRequest = async () => {
@@ -362,13 +421,110 @@ export default function ArcProjectPage() {
             </div>
           ) : arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified' ? (
             <div className="space-y-4">
-              <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
-                <div className="text-4xl mb-4">📊</div>
-                <h3 className="text-lg font-semibold text-white mb-2">Leaderboard Coming Soon</h3>
-                <p className="text-white/60 text-sm">
-                  The leaderboard for this project is currently under development. Check back soon!
-                </p>
+              <h3 className="text-lg font-semibold text-white mb-4">Leaderboard</h3>
+
+              {/* Search */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by handle..."
+                  className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
               </div>
+
+              {/* Leaderboard Table */}
+              {leaderboardLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60">Loading leaderboard...</span>
+                </div>
+              ) : leaderboardError ? (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+                  <p className="text-red-400 text-sm">{leaderboardError}</p>
+                </div>
+              ) : filteredLeaderboard.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
+                  <div className="text-4xl mb-4">📊</div>
+                  <h3 className="text-lg font-semibold text-white mb-2">No creators yet</h3>
+                  <p className="text-white/60 text-sm">
+                    Invite creators or open a public program.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Points</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">XP</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Level</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Class</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLeaderboard.map((entry, index) => (
+                          <tr
+                            key={entry.creator_profile_id}
+                            className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
+                          >
+                            <td className="py-4 px-5 text-akari-text font-semibold">
+                              {index < 3 ? (
+                                <span className="text-lg">{['🥇', '🥈', '🥉'][index]}</span>
+                              ) : (
+                                <span className="text-white/60">#{index + 1}</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-5">
+                              <div className="flex items-center gap-3">
+                                {entry.avatar_url && (
+                                  <img
+                                    src={entry.avatar_url}
+                                    alt={entry.twitter_username}
+                                    className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                                <div>
+                                  <div className="text-sm font-semibold text-white">
+                                    @{entry.twitter_username}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-5 text-akari-text font-semibold">
+                              {entry.total_arc_points.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5 text-akari-muted">
+                              {entry.xp.toLocaleString()}
+                            </td>
+                            <td className="py-4 px-5">
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                L{entry.level}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5">
+                              {entry.class ? (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
+                                  {entry.class}
+                                </span>
+                              ) : (
+                                <span className="text-akari-muted/60 text-xs">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
