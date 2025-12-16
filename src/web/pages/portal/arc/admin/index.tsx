@@ -4,11 +4,11 @@
  * Lists all ARC-enabled projects for admin management
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
-import { createPortalClient } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdmin } from '@/lib/permissions';
 import { useAkariUser } from '@/lib/akari-auth';
 
@@ -43,6 +43,7 @@ interface ArcAdminHomeProps {
 
 export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
   const akariUser = useAkariUser();
+  const [mounted, setMounted] = useState(false);
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -54,6 +55,11 @@ export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
     accent_color: '',
     tagline: '',
   });
+
+  // Set mounted flag on client to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Helper function to get tier badge color
   const getTierColor = (tier: string) => {
@@ -96,7 +102,19 @@ export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
     }
   };
 
-  // Check access
+  // Show loading state until mounted (prevents hydration mismatch)
+  if (!mounted) {
+    return (
+      <PortalLayout title="ARC Admin">
+        <div className="text-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
+          <p className="text-akari-muted">Loading...</p>
+        </div>
+      </PortalLayout>
+    );
+  }
+
+  // Check access (only after mounted to prevent flash)
   if (!userIsSuperAdmin) {
     return (
       <PortalLayout title="ARC Admin">
@@ -436,7 +454,7 @@ function ProjectSettingsModal({
 
 export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async () => {
   try {
-    const supabase = createPortalClient();
+    const supabase = getSupabaseAdmin();
 
     // Query project_arc_settings joined with projects
     const { data: arcSettingsData, error: arcSettingsError } = await supabase
