@@ -5,7 +5,7 @@
  * is proportional to absolute growth percentage.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, memo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Treemap, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 
@@ -197,7 +197,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 // COMPONENT
 // =============================================================================
 
-export function ArcTopProjectsTreemap({
+export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
   items,
   mode,
   timeframe,
@@ -209,6 +209,11 @@ export function ArcTopProjectsTreemap({
   const router = useRouter();
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
+
+  // Debug: Log items on mount/update
+  React.useEffect(() => {
+    console.log('[ArcTopProjectsTreemap] Items received:', items.length, items);
+  }, [items]);
 
   // Format last updated timestamp (safe handling of undefined)
   const lastUpdatedText = useMemo(() => {
@@ -321,7 +326,7 @@ export function ArcTopProjectsTreemap({
   // Handle click on treemap cell
   // arc_active controls clickability (checked via isClickable)
   // arc_access_level controls routing
-  const handleCellClick = (data: TreemapDataPoint, originalItem: TopProjectItem) => {
+  const handleCellClick = useCallback((data: TreemapDataPoint, originalItem: TopProjectItem) => {
     // If locked: do nothing (tooltip shows "No ARC tier enabled")
     if (!data.isClickable || data.isLocked) {
       return; // Do nothing for locked projects
@@ -344,7 +349,7 @@ export function ArcTopProjectsTreemap({
     if (navPath) {
       router.push(navPath);
     }
-  };
+  }, [onProjectClick, router]);
 
   // Custom cell component with hover effects and keyboard accessibility
   const CustomCell = ({ x, y, width, height, payload }: any) => {
@@ -731,7 +736,7 @@ export function ArcTopProjectsTreemap({
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
       {treemapData.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center">
+        <div className="h-[440px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40">
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md mb-2">
             Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
@@ -739,23 +744,47 @@ export function ArcTopProjectsTreemap({
           <p className="text-xs text-white/40 text-center max-w-md">
             SuperAdmin must classify projects as &apos;project&apos; in Projects Admin for them to appear here.
           </p>
+          {items.length > 0 && (
+            <p className="text-xs text-yellow-400 mt-4 text-center max-w-md">
+              Debug: Received {items.length} items but treemap data is empty. Check console for details.
+            </p>
+          )}
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={440}>
-          <Treemap
-            data={treemapData}
-            dataKey="value"
-            stroke="transparent"
-            content={<CustomCell />}
-          >
-            {treemapData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-            <Tooltip content={<CustomTooltip />} />
-          </Treemap>
-        </ResponsiveContainer>
+        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
+          <ResponsiveContainer width="100%" height={440}>
+            <Treemap
+              data={treemapData}
+              dataKey="value"
+              stroke="transparent"
+              content={<CustomCell />}
+              animationDuration={300}
+            >
+              {treemapData.map((entry, index) => (
+                <Cell key={`cell-${entry.projectId}-${index}`} fill={entry.fill} />
+              ))}
+              <Tooltip content={<CustomTooltip />} />
+            </Treemap>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - only re-render if data actually changed
+  return (
+    prevProps.items.length === nextProps.items.length &&
+    prevProps.items.every((item, idx) => {
+      const nextItem = nextProps.items[idx];
+      return (
+        item.projectId === nextItem.projectId &&
+        item.growth_pct === nextItem.growth_pct &&
+        item.arc_active === nextItem.arc_active &&
+        item.arc_access_level === nextItem.arc_access_level
+      );
+    }) &&
+    prevProps.mode === nextProps.mode &&
+    prevProps.timeframe === nextProps.timeframe
+  );
+});
 

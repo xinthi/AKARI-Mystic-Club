@@ -296,11 +296,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           return;
         }
         
-        console.log(`[ARC] Received ${items.length} projects from API`);
+        console.log(`[ARC] Received ${items.length} projects from API`, items);
         
         // If no projects, log helpful message
         if (items.length === 0) {
-          console.log('[ARC] No projects returned. All active projects from Sentiment section should appear here.');
+          console.warn('[ARC] No projects returned. Check:');
+          console.warn('  1. Are there projects with profile_type="project" in database?');
+          console.warn('  2. Are those projects marked as is_active=true?');
+          console.warn('  3. Run: SELECT id, name, profile_type, is_active FROM projects WHERE profile_type=\'project\' AND is_active=true;');
         }
 
         // Safely map projects to treemap items with error handling
@@ -321,6 +324,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
             };
           });
+          console.log(`[ARC] Mapped ${treemapItems.length} items for treemap`, treemapItems);
           setTopProjectsData(treemapItems);
           setTopProjectsLastUpdated(new Date());
         } catch (mapError: any) {

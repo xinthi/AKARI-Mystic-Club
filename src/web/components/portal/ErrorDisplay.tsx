@@ -19,22 +19,22 @@ export function ErrorDisplay({ error, onRetry, title, className = '' }: ErrorDis
                         error.toLowerCase().includes('service configuration');
 
   return (
-    <div className={`rounded-xl border border-akari-danger/30 bg-slate-900/60 p-6 text-center ${className}`}>
+    <div className={`rounded-lg border border-akari-danger/30 bg-slate-900/60 p-3 text-center ${className}`}>
       {title && (
-        <h3 className="text-sm font-semibold text-akari-danger mb-2">{title}</h3>
+        <h3 className="text-xs font-semibold text-akari-danger mb-1.5 leading-tight">{title}</h3>
       )}
-      <p className="text-sm text-akari-danger mb-4">{error}</p>
+      <p className="text-xs text-akari-danger mb-2.5 leading-snug break-words">{error}</p>
       
       {isConfigError && (
-        <p className="text-xs text-akari-muted/70 mb-4">
-          This appears to be a server configuration issue. Please contact support if this persists.
+        <p className="text-[10px] text-akari-muted/70 mb-2.5 leading-tight max-w-md mx-auto">
+          Server configuration issue. Contact support if this persists.
         </p>
       )}
       
       {onRetry && (
         <button
           onClick={onRetry}
-          className="px-4 py-2 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium"
+          className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-md hover:bg-akari-primary/30 transition-colors text-xs font-medium"
         >
           Retry
         </button>
