@@ -389,8 +389,22 @@ export default function AdminProjectsPage() {
                   <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Name</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">X Handle</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">Type</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Company</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
+                      <div className="flex items-center gap-1">
+                        Identity
+                        <span className="text-xs text-akari-muted/60" title="Self-declared identity (Individual/Company)">
+                          ℹ️
+                        </span>
+                      </div>
+                    </th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
+                      <div className="flex items-center gap-1">
+                        Ecosystem Type
+                        <span className="text-xs text-akari-muted/60" title="AKARI-approved entity type (Personal/Project)">
+                          ℹ️
+                        </span>
+                      </div>
+                    </th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Claimed</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Level</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Active</th>
@@ -401,7 +415,7 @@ export default function AdminProjectsPage() {
                 <tbody>
                   {projects.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 px-5 text-center text-akari-muted">
+                      <td colSpan={10} className="py-8 px-5 text-center text-akari-muted">
                         No projects found
                       </td>
                     </tr>
@@ -418,22 +432,22 @@ export default function AdminProjectsPage() {
                           </td>
                           <td className="py-4 px-5 text-akari-muted">@{project.twitter_username || project.x_handle}</td>
                           <td className="py-4 px-5">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              project.profile_type === 'project' 
-                                ? 'bg-blue-500/20 text-blue-400' 
-                                : project.profile_type === 'personal'
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {project.profile_type || 'Unclassified'}
-                            </span>
+                            {project.is_company ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-medium">Company</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 font-medium">Individual</span>
+                            )}
                           </td>
                           <td className="py-4 px-5">
-                            {project.is_company ? (
-                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Yes</span>
-                            ) : (
-                              <span className="text-akari-muted text-xs">No</span>
-                            )}
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              project.profile_type === 'project' 
+                                ? 'bg-purple-500/20 text-purple-400' 
+                                : project.profile_type === 'personal'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {project.profile_type === 'project' ? 'Project' : project.profile_type === 'personal' ? 'Personal' : 'Unclassified'}
+                            </span>
                           </td>
                           <td className="py-4 px-5 text-akari-muted text-xs">
                             {project.claimed_by ? (

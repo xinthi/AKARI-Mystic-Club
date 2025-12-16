@@ -197,8 +197,8 @@ export default async function handler(
       });
     }
 
-    // Get all active tracked projects with profile_type='project'
-    // Optionally filter by is_company=true if needed
+    // Get all active tracked projects with profile_type='project' AND arc_active=true
+    // ARC Universe only shows approved, active projects
     let projects: any[];
     try {
       const { data: projectsData, error: projectsError } = await supabase
@@ -206,6 +206,7 @@ export default async function handler(
         .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, is_company')
         .eq('is_active', true)
         .eq('profile_type', 'project') // Only show projects classified as 'project'
+        .eq('arc_active', true) // Only show ARC-active projects
         .neq('slug', 'dev_user'); // Exclude dev_user
 
       if (projectsError) {

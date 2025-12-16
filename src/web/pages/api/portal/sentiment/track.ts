@@ -596,8 +596,9 @@ export default async function handler(
       // Project is NOT claimed by default - must be explicitly claimed
       claimed_by: null,
       claimed_at: null,
-      profile_type: 'project', // Default to 'project', SuperAdmin can change to 'personal'
+      profile_type: 'personal', // Default to 'personal', SuperAdmin can change to 'project'
       is_company: false, // Default to false, SuperAdmin can set to true
+      arc_active: false, // Default to false, only SuperAdmin can activate
     };
     
     // IMPORTANT: Store the permanent X User ID if available
