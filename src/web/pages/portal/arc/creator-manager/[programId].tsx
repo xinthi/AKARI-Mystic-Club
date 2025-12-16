@@ -84,6 +84,19 @@ interface Mission {
   order_index: number;
 }
 
+interface MissionSubmission {
+  id: string;
+  mission_id: string;
+  mission_title: string;
+  creator_profile_id: string;
+  creator_username: string;
+  creator_name: string | null;
+  status: 'in_progress' | 'submitted' | 'approved' | 'rejected';
+  post_url: string | null;
+  post_tweet_id: string | null;
+  last_update_at: string;
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -99,9 +112,12 @@ export default function CreatorManagerProgramDetail() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [submissions, setSubmissions] = useState<MissionSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [viewingSubmissions, setViewingSubmissions] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
   
   // Modals
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -217,6 +233,13 @@ export default function CreatorManagerProgramDetail() {
       const missionsData = await missionsRes.json();
       if (missionsData.ok) {
         setMissions(missionsData.missions || []);
+      }
+
+      // Load submissions
+      const submissionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions/submissions`);
+      const submissionsData = await submissionsRes.json();
+      if (submissionsData.ok) {
+        setSubmissions(submissionsData.submissions || []);
       }
     } catch (err: any) {
       console.error('[Program Detail] Error:', err);
@@ -421,6 +444,34 @@ export default function CreatorManagerProgramDetail() {
       console.error('[Toggle Mission] Error:', err);
       alert('Failed to update mission');
     }
+  };
+
+  const handleReview = async (missionId: string, creatorProfileId: string, action: 'approve' | 'reject') => {
+    setReviewing(`${missionId}-${creatorProfileId}`);
+    try {
+      const res = await fetch(`/api/portal/creator-manager/missions/${missionId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creatorProfileId, action }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        await loadProgram();
+        alert(data.message || `Mission ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
+      } else {
+        alert(data.error || `Failed to ${action} mission`);
+      }
+    } catch (err: any) {
+      console.error('[Review Mission] Error:', err);
+      alert(`Failed to ${action} mission`);
+    } finally {
+      setReviewing(null);
+    }
+  };
+
+  const getMissionSubmissions = (missionId: string) => {
+    return submissions.filter((s) => s.mission_id === missionId);
   };
 
   if (loading) {
@@ -780,47 +831,140 @@ export default function CreatorManagerProgramDetail() {
               <p className="text-akari-muted">No missions created yet</p>
             ) : (
               <div className="space-y-3">
-                {missions.map((mission) => (
-                  <div
-                    key={mission.id}
-                    className="p-4 rounded-lg border border-akari-border bg-akari-cardSoft"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium text-akari-text">{mission.title}</h3>
-                          <span
-                            className={`px-2 py-1 rounded text-xs ${
-                              mission.is_active
-                                ? 'bg-green-500/20 text-green-300'
-                                : 'bg-akari-cardSoft text-akari-muted'
-                            }`}
-                          >
-                            {mission.is_active ? 'Active' : 'Inactive'}
-                          </span>
+                {missions.map((mission) => {
+                  const missionSubmissions = getMissionSubmissions(mission.id);
+                  const submittedCount = missionSubmissions.filter((s) => s.status === 'submitted').length;
+                  const approvedCount = missionSubmissions.filter((s) => s.status === 'approved').length;
+                  
+                  return (
+                    <div
+                      key={mission.id}
+                      className="p-4 rounded-lg border border-akari-border bg-akari-cardSoft"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-akari-text">{mission.title}</h3>
+                            <span
+                              className={`px-2 py-1 rounded text-xs ${
+                                mission.is_active
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : 'bg-akari-cardSoft text-akari-muted'
+                              }`}
+                            >
+                              {mission.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          {mission.description && (
+                            <p className="text-sm text-akari-muted mt-1">{mission.description}</p>
+                          )}
+                          <div className="flex gap-4 mt-2 text-sm text-akari-muted">
+                            <span>ARC: {mission.reward_arc_min}-{mission.reward_arc_max}</span>
+                            <span>XP: {mission.reward_xp}</span>
+                            {missionSubmissions.length > 0 && (
+                              <>
+                                <span>• Submissions: {missionSubmissions.length}</span>
+                                <span>• Approved: {approvedCount}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {mission.description && (
-                          <p className="text-sm text-akari-muted mt-1">{mission.description}</p>
-                        )}
-                        <div className="flex gap-4 mt-2 text-sm text-akari-muted">
-                          <span>ARC: {mission.reward_arc_min}-{mission.reward_arc_max}</span>
-                          <span>XP: {mission.reward_xp}</span>
+                        <div className="flex gap-2">
+                          {missionSubmissions.length > 0 && (
+                            <button
+                              onClick={() => setViewingSubmissions(viewingSubmissions === mission.id ? null : mission.id)}
+                              className="px-3 py-1 rounded text-sm bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 transition-colors"
+                            >
+                              {viewingSubmissions === mission.id ? 'Hide' : 'View'} Submissions ({missionSubmissions.length})
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleToggleMission(mission.id, mission.is_active)}
+                            className={`px-3 py-1 rounded text-sm ${
+                              mission.is_active
+                                ? 'bg-akari-cardSoft text-akari-muted hover:bg-akari-border'
+                                : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                            } transition-colors`}
+                          >
+                            {mission.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleToggleMission(mission.id, mission.is_active)}
-                        className={`px-3 py-1 rounded text-sm ${
-                          mission.is_active
-                            ? 'bg-akari-cardSoft text-akari-muted hover:bg-akari-border'
-                            : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                        } transition-colors`}
-                      >
-                        {mission.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
+                      
+                      {/* Submissions Panel */}
+                      {viewingSubmissions === mission.id && missionSubmissions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-akari-border">
+                          <h4 className="text-sm font-medium text-akari-text mb-3">Submissions</h4>
+                          <div className="space-y-2">
+                            {missionSubmissions.map((submission) => (
+                              <div
+                                key={submission.id}
+                                className="p-3 rounded border border-akari-border bg-akari-card"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-akari-text">
+                                        @{submission.creator_username}
+                                      </span>
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs ${
+                                          submission.status === 'approved'
+                                            ? 'bg-green-500/20 text-green-300'
+                                            : submission.status === 'rejected'
+                                            ? 'bg-red-500/20 text-red-300'
+                                            : submission.status === 'submitted'
+                                            ? 'bg-yellow-500/20 text-yellow-300'
+                                            : 'bg-akari-cardSoft text-akari-muted'
+                                        }`}
+                                      >
+                                        {submission.status}
+                                      </span>
+                                    </div>
+                                    {submission.post_url && (
+                                      <a
+                                        href={submission.post_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-akari-primary hover:text-akari-neon-teal mt-1 block"
+                                      >
+                                        View Post →
+                                      </a>
+                                    )}
+                                    {submission.post_tweet_id && !submission.post_url && (
+                                      <p className="text-sm text-akari-muted mt-1">Tweet ID: {submission.post_tweet_id}</p>
+                                    )}
+                                    <p className="text-xs text-akari-muted mt-1">
+                                      Submitted: {new Date(submission.last_update_at).toLocaleString()}
+                                    </p>
+                                  </div>
+                                  {submission.status === 'submitted' && (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleReview(mission.id, submission.creator_profile_id, 'approve')}
+                                        disabled={reviewing === `${mission.id}-${submission.creator_profile_id}`}
+                                        className="px-3 py-1 rounded text-sm bg-green-500/20 text-green-300 hover:bg-green-500/30 transition-colors disabled:opacity-50"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() => handleReview(mission.id, submission.creator_profile_id, 'reject')}
+                                        disabled={reviewing === `${mission.id}-${submission.creator_profile_id}`}
+                                        className="px-3 py-1 rounded text-sm bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {/* TODO: Add mission submission management here */}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

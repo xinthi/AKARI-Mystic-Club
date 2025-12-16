@@ -244,6 +244,18 @@ export default function MyCreatorPrograms() {
                         </div>
                       </div>
                     )}
+
+                    {/* View Missions Button */}
+                    {program.creatorStatus === 'approved' && (
+                      <div className="mt-4">
+                        <Link
+                          href={`/portal/arc/my-creator-programs/${program.id}`}
+                          className="inline-block px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
+                        >
+                          View Missions →
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 );
               })}
