@@ -88,9 +88,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
-  
-  // Dev mode: treat user as following all projects
-  const isDevMode = process.env.NODE_ENV === 'development';
 
   // Map projects to ArcUniverseMap format
   const mappedProjectsForUniverse = useMemo(() => {
