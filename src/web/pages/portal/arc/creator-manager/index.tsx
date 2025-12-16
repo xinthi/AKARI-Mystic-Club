@@ -5,7 +5,7 @@
  * Shows Creator Manager programs for each project
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -70,16 +70,7 @@ export default function CreatorManagerHome() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!akariUser.userId) {
-      setLoading(false);
-      return;
-    }
-
-    loadProjects();
-  }, [akariUser.userId]);
-
-  async function loadProjects() {
+  const loadProjects = useCallback(async () => {
     try {
       const supabase = getSupabaseAdmin();
 
@@ -122,7 +113,16 @@ export default function CreatorManagerHome() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [akariUser.userId]);
+
+  useEffect(() => {
+    if (!akariUser.userId) {
+      setLoading(false);
+      return;
+    }
+
+    loadProjects();
+  }, [akariUser.userId, loadProjects]);
 
   if (!akariUser.isLoggedIn) {
     return (
@@ -168,7 +168,7 @@ export default function CreatorManagerHome() {
 
           <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
             <p className="text-akari-muted">
-              You don't have admin/moderator access to any projects yet.
+              You don&apos;t have admin/moderator access to any projects yet.
             </p>
             <p className="text-sm text-akari-muted mt-2">
               Projects must be claimed and you must be assigned as owner, admin, or moderator.
