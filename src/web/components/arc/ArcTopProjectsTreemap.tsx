@@ -32,6 +32,7 @@ interface ArcTopProjectsTreemapProps {
   onModeChange?: (mode: 'gainers' | 'losers') => void;
   onTimeframeChange?: (timeframe: '24h' | '7d' | '30d' | '90d') => void;
   lastUpdated?: Date | string | number; // Timestamp for "Last updated" display
+  onProjectClick?: (project: TopProjectItem) => void; // Called when unlocked project is clicked
 }
 
 interface TreemapDataPoint {
@@ -48,6 +49,7 @@ interface TreemapDataPoint {
   fill: string; // Color based on growth
   isClickable: boolean; // Whether the tile is clickable
   isLocked: boolean; // Whether the tile is locked (should show lock overlay)
+  originalItem: TopProjectItem; // Original item for callback
 }
 
 // =============================================================================
@@ -157,7 +159,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="text-xs text-white/60 mb-2 truncate">@{twitterUsername}</div>
       )}
       {isLocked && (
-        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC leaderboard enabled</div>
+        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC tier enabled</div>
       )}
       <div className="space-y-1.5 text-xs">
         <div className="flex justify-between gap-4">
@@ -202,6 +204,7 @@ export function ArcTopProjectsTreemap({
   onModeChange,
   onTimeframeChange,
   lastUpdated,
+  onProjectClick,
 }: ArcTopProjectsTreemapProps) {
   const router = useRouter();
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
@@ -251,16 +254,13 @@ export function ArcTopProjectsTreemap({
   const treemapData = useMemo((): TreemapDataPoint[] => {
     if (validItems.length === 0) return [];
 
-    // Get absolute growth values for normalization
-    // Use minimum tile value: max(1, abs(growth_pct)*100) to ensure all boxes appear
-    const absGrowthValues = validItems.map(item => {
+    // Convert growth_pct into tile value with minimum size
+    // value = Math.max(1, Math.round(Math.abs(growth_pct) * 100))
+    const tileValues = validItems.map(item => {
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      const absValue = Math.abs(growthPct);
-      // Use minimum value of 1 (from abs(growth_pct)*100 when growth_pct=0)
-      // This ensures boxes with 0% growth still appear with minimum size
-      return Math.max(1, absValue * 100);
+      return Math.max(1, Math.round(Math.abs(growthPct) * 100));
     });
-    const normalizedValues = normalizeForTreemap(absGrowthValues);
+    const normalizedValues = normalizeForTreemap(tileValues);
 
     return validItems.map((item, index) => {
       // Safe field access with fallbacks
@@ -268,11 +268,11 @@ export function ArcTopProjectsTreemap({
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const projectId = item.projectId || '';
       
-      // Determine if clickable: must be arc_active=true and arc_access_level != 'none'
-      const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-      
       // Determine if locked: arc_active=false OR arc_access_level='none'
       const isLocked = !item.arc_active || item.arc_access_level === 'none' || item.arc_access_level === undefined;
+      
+      // Determine if clickable: must NOT be locked (arc_active=true AND arc_access_level != 'none')
+      const isClickable = !isLocked;
       
       return {
         name,
@@ -288,6 +288,7 @@ export function ArcTopProjectsTreemap({
         fill: isClickable ? getGrowthColor(growthPct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
         isClickable,
         isLocked,
+        originalItem: item, // Store original item for onProjectClick callback
       };
     });
   }, [validItems]);
@@ -314,13 +315,19 @@ export function ArcTopProjectsTreemap({
   };
 
   // Handle click on treemap cell
-  const handleCellClick = (data: TreemapDataPoint) => {
-    // If locked: do nothing (tooltip already shows "No ARC leaderboard enabled")
+  const handleCellClick = (data: TreemapDataPoint, originalItem: TopProjectItem) => {
+    // If locked: do nothing (tooltip shows "No ARC tier enabled")
     if (!data.isClickable || data.isLocked) {
       return; // Do nothing for locked projects
     }
 
-    // Route based on arc_access_level
+    // If unlocked: call onProjectClick callback if provided
+    if (onProjectClick) {
+      onProjectClick(originalItem);
+      return;
+    }
+
+    // Fallback: Route based on arc_access_level (if no callback provided)
     const navPath = getProjectNavigationPath(
       data.arc_access_level,
       data.slug || null,
@@ -365,7 +372,7 @@ export function ArcTopProjectsTreemap({
     const handleKeyDown = (e: any) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        handleCellClick(payload);
+        handleCellClick(payload, payload.originalItem);
       }
     };
 
@@ -375,10 +382,10 @@ export function ArcTopProjectsTreemap({
         role={isClickable ? "button" : "img"}
         aria-label={isClickable 
           ? `${name}, growth: ${formatGrowthPct(growthPct)}` 
-          : `${name}, locked: No ARC leaderboard enabled`}
+          : `${name}, locked: No ARC tier enabled`}
         onMouseEnter={() => setHoveredProjectId(projectId)}
         onMouseLeave={() => setHoveredProjectId(null)}
-        onClick={() => handleCellClick(payload)}
+        onClick={() => handleCellClick(payload, payload.originalItem)}
         onFocus={() => isClickable && setFocusedProjectId(projectId)}
         onBlur={() => setFocusedProjectId(null)}
         onKeyDown={isClickable ? handleKeyDown : undefined}
