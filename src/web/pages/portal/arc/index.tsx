@@ -4,7 +4,8 @@
  * Campaign Discovery Hub - Modern dashboard for creators and projects
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -13,6 +14,7 @@ import { FeaturedCampaigns } from '@/components/arc/FeaturedCampaigns';
 import { MyCampaigns } from '@/components/arc/MyCampaigns';
 import { CampaignGrid } from '@/components/arc/CampaignGrid';
 import { TrendingNarratives } from '@/components/arc/TrendingNarratives';
+import { ArcUniverseMap } from '@/components/arc/ArcUniverseMap';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
 
 // =============================================================================
@@ -59,12 +61,24 @@ interface UserCampaign {
 }
 
 // =============================================================================
+// PROPS
+// =============================================================================
+
+interface ArcHomeProps {
+  canManageArc: boolean;
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
-export default function ArcHome() {
+export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomeProps) {
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  
+  // Override canManageArc with client-side check (more accurate)
+  const isDevMode = process.env.NODE_ENV === 'development';
+  const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
   const [projects, setProjects] = useState<ArcProject[]>([]);
   const [myCampaigns, setMyCampaigns] = useState<UserCampaign[]>([]);
   const [userCampaignStatuses, setUserCampaignStatuses] = useState<Map<string, { isFollowing: boolean; hasJoined: boolean }>>(new Map());
@@ -74,9 +88,42 @@ export default function ArcHome() {
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
-  
-  // Dev mode: treat user as following all projects
-  const isDevMode = process.env.NODE_ENV === 'development';
+
+  // Map projects to ArcUniverseMap format
+  const mappedProjectsForUniverse = useMemo(() => {
+    return projects.map(project => {
+      const status = userCampaignStatuses.get(project.project_id);
+      const userIsParticipant = status?.hasJoined || false;
+      
+      return {
+        id: project.project_id,
+        name: project.name || 'Unknown',
+        slug: project.slug || '',
+        twitter_username: project.twitter_username,
+        meta: project.meta,
+        stats: {
+          activeCreators: project.stats?.creatorCount || 0,
+          totalPoints: project.stats?.totalPoints || 0,
+          trend: project.stats?.trend || 'stable',
+          userIsParticipant,
+          userRank: null, // Rank can be populated later when we have per-project ranking
+        },
+      };
+    });
+  }, [projects, userCampaignStatuses]);
+
+  // Calculate user stats
+  const userStats = useMemo(() => {
+    const joinedCount = myCampaigns.length;
+    const totalArcPoints = myCampaigns.reduce((sum, campaign) => sum + campaign.arcPoints, 0);
+    const activeCampaigns = projects.filter(p => p.arc_status === 'active').length;
+    
+    return {
+      projectsJoined: joinedCount,
+      totalArcPoints,
+      activeCampaigns,
+    };
+  }, [myCampaigns, projects]);
 
   // Fetch ARC projects and user campaign statuses
   useEffect(() => {
@@ -106,9 +153,10 @@ export default function ArcHome() {
             
             // Build my campaigns list
             const joinedCampaigns: UserCampaign[] = [];
+            const projects = data?.projects ?? [];
             statuses.forEach((status, projectId) => {
               if (status.hasJoined) {
-                const project = data.projects.find(p => p.project_id === projectId);
+                const project = projects.find(p => p.project_id === projectId);
                 if (project) {
                   joinedCampaigns.push({
                     project_id: project.project_id,
@@ -167,6 +215,22 @@ export default function ArcHome() {
       console.log('[ArcHome] Join campaign response:', result);
 
       if (!res.ok || !result.ok) {
+        // Handle not_following case
+        if (result.reason === 'not_following') {
+          const project = projects.find(p => p.project_id === projectId);
+          const projectName = project?.name || 'this project';
+          const projectHandle = project?.twitter_username;
+          
+          if (projectHandle) {
+            alert(`You must follow @${projectHandle} on X to join this campaign. Please follow the project and try again.`);
+            // Optionally open X profile in new tab
+            window.open(`https://x.com/${projectHandle}`, '_blank');
+          } else {
+            alert(`You must follow ${projectName} on X to join this campaign.`);
+          }
+          return;
+        }
+        
         throw new Error(result.error || 'Failed to join campaign');
       }
 
@@ -221,31 +285,24 @@ export default function ArcHome() {
     }
   };
 
+  // Show restricted view for non-SuperAdmins
+  if (!canManageArc) {
+    return (
+      <PortalLayout title="ARC Universe">
+        <div className="px-6 py-8 text-sm text-white/70">
+          <h1 className="text-2xl font-semibold text-white mb-2">ARC Universe</h1>
+          <p className="max-w-xl">
+            ARC is currently in private beta. You can see it in the navigation,
+            but only administrators have full access at the moment.
+          </p>
+        </div>
+      </PortalLayout>
+    );
+  }
+
   return (
     <PortalLayout title="ARC Universe">
       <div className="space-y-8">
-        {/* Header */}
-        <div className="w-full py-10 bg-gradient-to-b from-[#15192D] to-transparent rounded-xl mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white drop-shadow-sm mb-2">
-                ARC Universe
-              </h1>
-              <p className="text-white/60 mt-1">
-                Explore active campaigns, join narratives, and earn ARC points.
-              </p>
-            </div>
-            {userIsSuperAdmin && (
-              <Link
-                href="/portal/arc/admin"
-                className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-              >
-                ARC Admin
-              </Link>
-            )}
-          </div>
-        </div>
-
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -264,6 +321,52 @@ export default function ArcHome() {
         {/* Content */}
         {!loading && !error && projects.length > 0 && (
           <>
+            {/* Hero Section - Two Column Layout */}
+            <section className="mb-10 rounded-2xl bg-gradient-to-b from-[#15192D] to-black/80 border border-white/5 px-6 py-6 lg:px-10 lg:py-8 flex flex-col lg:flex-row gap-8 items-stretch">
+              {/* Left: text + user stats */}
+              <div className="flex-1 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h1 className="text-3xl font-bold text-white">ARC Universe</h1>
+                    {userIsSuperAdmin && (
+                      <Link
+                        href="/portal/arc/admin"
+                        className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                      >
+                        ARC Admin
+                      </Link>
+                    )}
+                  </div>
+                  <p className="text-white/60 mt-2">
+                    Track how narratives move across campaigns. Join projects, earn ARC points, and grow your influence.
+                  </p>
+                </div>
+
+                {/* User stats row */}
+                {userTwitterUsername && (
+                  <div className="flex flex-wrap gap-3 mt-4">
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Projects joined</div>
+                      <div className="text-lg font-semibold text-white">{userStats.projectsJoined}</div>
+                    </div>
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Total ARC points</div>
+                      <div className="text-lg font-semibold text-white">{userStats.totalArcPoints.toLocaleString()}</div>
+                    </div>
+                    <div className="px-4 py-2 rounded-lg bg-white/5 border border-white/10">
+                      <div className="text-xs text-white/60">Active campaigns</div>
+                      <div className="text-lg font-semibold text-white">{userStats.activeCampaigns}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: project bubble map */}
+              <div className="flex-1 min-h-[400px]">
+                <ArcUniverseMap projects={mappedProjectsForUniverse} />
+              </div>
+            </section>
+
             {/* Featured Campaigns */}
             <FeaturedCampaigns
               projects={projects}
@@ -308,3 +411,44 @@ export default function ArcHome() {
     </PortalLayout>
   );
 }
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (context) => {
+  // Always return props - never return notFound: true
+  // This ensures the route is always valid for logged-in users
+  
+  // Check for authentication via session cookie
+  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
+  
+  // Redirect unauthenticated users to login
+  if (!hasSession) {
+    return {
+      redirect: {
+        destination: '/portal/login',
+        permanent: false,
+      },
+    };
+  }
+  
+  const isDevMode = process.env.NODE_ENV === 'development';
+  
+  // Check if user is SuperAdmin
+  // Note: In production, we'll check this client-side as well,
+  // but for SSR we can't easily access the user session here without
+  // implementing full auth. For now, we'll allow the page to render
+  // and let the client-side handle the permission check.
+  
+  // In dev mode, always allow
+  // In production, we'll check client-side in the component
+  const canManageArc = isDevMode; // Will be overridden client-side for SuperAdmins
+  
+  return {
+    props: {
+      canManageArc,
+    },
+  };
+};

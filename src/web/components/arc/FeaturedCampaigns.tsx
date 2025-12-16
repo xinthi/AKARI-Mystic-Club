@@ -87,7 +87,7 @@ export function FeaturedCampaigns({
           };
 
           if (effectiveIsFollowing && hasJoined) {
-            ctaLabel = 'View campaign';
+            ctaLabel = 'View missions';
             ctaAction = () => {
               if (project.slug) {
                 window.location.href = `/portal/arc/${project.slug}`;
