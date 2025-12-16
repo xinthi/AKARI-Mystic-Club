@@ -17,11 +17,21 @@ import { classifyFreshness, getFreshnessPillClasses } from '@/lib/portal/data-fr
 interface AdminProjectSummary {
   id: string;
   name: string;
+  display_name: string | null;
   slug: string;
   x_handle: string;
+  twitter_username: string | null;
+  profile_type: 'project' | 'personal' | null;
+  is_company: boolean;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
+  arc_active: boolean;
+  arc_active_until: string | null;
   followers: number;
   akari_score: number | null;
   last_updated_at: string | null;
+  updated_at: string | null;
   is_active: boolean;
 }
 
@@ -62,14 +72,22 @@ export default function AdminProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'hidden'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'hidden' | 'unclassified' | 'projects' | 'arc_active'>('all');
   const [editingProject, setEditingProject] = useState<AdminProjectSummary | null>(null);
+  const [classifyingProjectId, setClassifyingProjectId] = useState<string | null>(null);
   const [refreshingProjectId, setRefreshingProjectId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     slug: '',
     x_handle: '',
     is_active: true,
+  });
+  const [classifyForm, setClassifyForm] = useState({
+    profileType: 'project' as 'project' | 'personal',
+    isCompany: false,
+    arcAccessLevel: 'none' as 'none' | 'creator_manager' | 'leaderboard' | 'gamified',
+    arcActive: false,
+    arcActiveUntil: '',
   });
 
   // Check if user is super admin
@@ -98,6 +116,10 @@ export default function AdminProjectsPage() {
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
       }
+      
+      // Add pagination (simple - can be enhanced later)
+      params.append('page', '1');
+      params.append('limit', '100');
 
       const res = await fetch(`/api/portal/admin/projects?${params.toString()}`);
       const data: AdminProjectsResponse = await res.json();
@@ -179,6 +201,49 @@ export default function AdminProjectsPage() {
     }
   };
 
+  // Handle classify
+  const handleClassify = (project: AdminProjectSummary) => {
+    setClassifyingProjectId(project.id);
+    setClassifyForm({
+      profileType: project.profile_type || 'project',
+      isCompany: project.is_company || false,
+      arcAccessLevel: project.arc_access_level || 'none',
+      arcActive: project.arc_active || false,
+      arcActiveUntil: project.arc_active_until ? new Date(project.arc_active_until).toISOString().split('T')[0] : '',
+    });
+  };
+
+  const handleSaveClassify = async () => {
+    if (!classifyingProjectId) return;
+
+    try {
+      const res = await fetch('/api/portal/admin/projects/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: classifyingProjectId,
+          profileType: classifyForm.profileType,
+          isCompany: classifyForm.isCompany,
+          arcAccessLevel: classifyForm.arcAccessLevel,
+          arcActive: classifyForm.arcActive,
+          arcActiveUntil: classifyForm.arcActiveUntil || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to classify project');
+      }
+
+      // Reload projects
+      await loadProjects();
+      setClassifyingProjectId(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to classify project');
+    }
+  };
+
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
@@ -234,12 +299,15 @@ export default function AdminProjectsPage() {
               <label className="block text-xs text-slate-400 mb-1">Filter</label>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'hidden')}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'hidden' | 'unclassified' | 'projects' | 'arc_active')}
                 className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
               >
                 <option value="all">All</option>
                 <option value="active">Active only</option>
                 <option value="hidden">Hidden only</option>
+                <option value="unclassified">Unclassified</option>
+                <option value="projects">Projects only</option>
+                <option value="arc_active">ARC Active</option>
               </select>
             </div>
           </div>
@@ -274,61 +342,107 @@ export default function AdminProjectsPage() {
                 <thead>
                   <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Name</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">Slug</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">X Handle</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-followers">Followers</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-akari">AKARI Score</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Last Updated</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">Type</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Company</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Claimed</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Level</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Active</th>
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Updated</th>
                     <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projects.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 px-5 text-center text-akari-muted">
+                      <td colSpan={9} className="py-8 px-5 text-center text-akari-muted">
                         No projects found
                       </td>
                     </tr>
                   ) : (
                     projects.map((project) => {
-                      const freshness = classifyFreshness(project.last_updated_at);
                       return (
                         <tr
                           key={project.id}
                           className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
                         >
-                          <td className="py-4 px-5 text-akari-text font-semibold">{project.name}</td>
-                          <td className="py-4 px-5 text-akari-muted font-mono text-sm">{project.slug}</td>
-                          <td className="py-4 px-5 text-akari-muted">@{project.x_handle}</td>
-                          <td className="py-4 px-5 text-gradient-followers font-mono font-medium">{formatNumber(project.followers)}</td>
-                          <td className="py-4 px-5 text-gradient-akari font-mono font-bold">
-                            {project.akari_score ?? '–'}
+                          <td className="py-4 px-5 text-akari-text font-semibold">
+                            <div>{project.display_name || project.name}</div>
+                            <div className="text-xs text-akari-muted font-mono">{project.slug}</div>
                           </td>
-                          <td className="py-4 px-5 text-akari-muted text-sm">{formatDate(project.last_updated_at)}</td>
+                          <td className="py-4 px-5 text-akari-muted">@{project.twitter_username || project.x_handle}</td>
                           <td className="py-4 px-5">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                                project.is_active
-                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                                  : 'bg-akari-cardSoft text-akari-muted border-akari-neon-teal/30'
-                              }`}
-                            >
-                              {project.is_active ? 'Active' : 'Hidden'}
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              project.profile_type === 'project' 
+                                ? 'bg-blue-500/20 text-blue-400' 
+                                : project.profile_type === 'personal'
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {project.profile_type || 'Unclassified'}
                             </span>
                           </td>
                           <td className="py-4 px-5">
-                            <div className="flex items-center gap-2">
+                            {project.is_company ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Yes</span>
+                            ) : (
+                              <span className="text-akari-muted text-xs">No</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-akari-muted text-xs">
+                            {project.claimed_by ? (
+                              <div>
+                                <div>By: {project.claimed_by.substring(0, 8)}...</div>
+                                <div>{formatDate(project.claimed_at)}</div>
+                              </div>
+                            ) : (
+                              '–'
+                            )}
+                          </td>
+                          <td className="py-4 px-5">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              project.arc_access_level === 'gamified' 
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : project.arc_access_level === 'leaderboard'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : project.arc_access_level === 'creator_manager'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {project.arc_access_level || 'none'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-5">
+                            {project.arc_active ? (
+                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Active</span>
+                            ) : (
+                              <span className="text-akari-muted text-xs">Inactive</span>
+                            )}
+                            {project.arc_active_until && (
+                              <div className="text-xs text-akari-muted mt-1">
+                                Until: {formatDate(project.arc_active_until)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-5 text-akari-muted text-xs">{formatDate(project.updated_at || project.last_updated_at)}</td>
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => handleClassify(project)}
+                                className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium"
+                              >
+                                Classify
+                              </button>
                               <button
                                 onClick={() => handleEdit(project)}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium hover:shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => handleRefresh(project.id)}
                                 disabled={refreshingProjectId === project.id}
-                                className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]"
+                                className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
                               </button>
@@ -340,6 +454,96 @@ export default function AdminProjectsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Classify Modal */}
+        {classifyingProjectId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-semibold text-white mb-4">Classify Project</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Profile Type</label>
+                  <select
+                    value={classifyForm.profileType}
+                    onChange={(e) => setClassifyForm({ ...classifyForm, profileType: e.target.value as 'project' | 'personal' })}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  >
+                    <option value="project">Project</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </div>
+
+                {classifyForm.profileType === 'project' && (
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={classifyForm.isCompany}
+                        onChange={(e) => setClassifyForm({ ...classifyForm, isCompany: e.target.checked })}
+                        className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-akari-primary focus:ring-akari-primary"
+                      />
+                      <span className="text-sm text-slate-400">Is Company</span>
+                    </label>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">ARC Access Level</label>
+                  <select
+                    value={classifyForm.arcAccessLevel}
+                    onChange={(e) => setClassifyForm({ ...classifyForm, arcAccessLevel: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  >
+                    <option value="none">None</option>
+                    <option value="creator_manager">Creator Manager</option>
+                    <option value="leaderboard">Leaderboard</option>
+                    <option value="gamified">Gamified</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={classifyForm.arcActive}
+                      onChange={(e) => setClassifyForm({ ...classifyForm, arcActive: e.target.checked })}
+                      className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-akari-primary focus:ring-akari-primary"
+                    />
+                    <span className="text-sm text-slate-400">ARC Active</span>
+                  </label>
+                </div>
+
+                {classifyForm.arcActive && (
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">ARC Active Until (optional)</label>
+                    <input
+                      type="date"
+                      value={classifyForm.arcActiveUntil}
+                      onChange={(e) => setClassifyForm({ ...classifyForm, arcActiveUntil: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={handleSaveClassify}
+                  className="flex-1 px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setClassifyingProjectId(null)}
+                  className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}

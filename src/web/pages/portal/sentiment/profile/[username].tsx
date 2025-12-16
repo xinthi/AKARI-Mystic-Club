@@ -13,6 +13,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
 
 // =============================================================================
 // TYPES
@@ -28,6 +30,12 @@ interface ProfileData {
   tweetCount: number;
   verified: boolean;
   createdAt: string | null;
+}
+
+interface ProjectData {
+  id: string;
+  profile_type: 'project' | 'personal' | null;
+  is_company: boolean;
 }
 
 interface Tweet {
@@ -118,11 +126,15 @@ function ProfileAvatar({ url, name, size = 'lg' }: {
 export default function ProfileDetailPage() {
   const router = useRouter();
   const { username } = router.query;
+  const akariUser = useAkariUser();
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [project, setProject] = useState<ProjectData | null>(null);
   const [tweets, setTweets] = useState<Tweet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [classifying, setClassifying] = useState(false);
 
   useEffect(() => {
     if (!username || typeof username !== 'string') return;
@@ -142,6 +154,7 @@ export default function ProfileDetailPage() {
         }
 
         setProfile(data.profile);
+        setProject(data.project || null);
         setTweets(data.tweets || []);
       } catch (err) {
         console.error('[Profile] Error:', err);
@@ -153,6 +166,72 @@ export default function ProfileDetailPage() {
 
     fetchProfile();
   }, [username]);
+
+  const handlePromoteToProject = async () => {
+    if (!project || !username || typeof username !== 'string') return;
+    
+    setClassifying(true);
+    try {
+      const res = await fetch('/api/portal/admin/projects/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          profileType: 'project',
+          isCompany: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to classify project');
+      }
+
+      // Reload profile to get updated project data
+      const profileRes = await fetch(`/api/portal/sentiment/profile/${username}`);
+      const profileData = await profileRes.json();
+      if (profileData.ok) {
+        setProject(profileData.project || null);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to promote to project');
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const handleRevertToPersonal = async () => {
+    if (!project || !username || typeof username !== 'string') return;
+    
+    setClassifying(true);
+    try {
+      const res = await fetch('/api/portal/admin/projects/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          profileType: 'personal',
+          isCompany: false,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to revert to personal');
+      }
+
+      // Reload profile to get updated project data
+      const profileRes = await fetch(`/api/portal/sentiment/profile/${username}`);
+      const profileData = await profileRes.json();
+      if (profileData.ok) {
+        setProject(profileData.project || null);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to revert to personal');
+    } finally {
+      setClassifying(false);
+    }
+  };
 
   const title = profile ? `${profile.name} (@${profile.username})` : 'Loading...';
 

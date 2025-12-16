@@ -26,6 +26,7 @@ interface TopProject {
   slug: string | null; // Project slug for navigation
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active: boolean;
+  is_company: boolean;
 }
 
 type TopProjectsResponse =
@@ -202,7 +203,7 @@ export default async function handler(
     try {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active')
+        .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, is_company')
         .eq('is_active', true)
         .eq('profile_type', 'project') // Only show projects classified as 'project'
         .neq('slug', 'dev_user'); // Exclude dev_user
@@ -374,6 +375,7 @@ export default async function handler(
             slug: p.slug || null,
             arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
             arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+            is_company: typeof p.is_company === 'boolean' ? p.is_company : false,
           };
         })
         .filter((p) => {

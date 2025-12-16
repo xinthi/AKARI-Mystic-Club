@@ -15,11 +15,21 @@ import { createPortalClient } from '@/lib/portal/supabase';
 interface AdminProjectSummary {
   id: string;
   name: string;
+  display_name: string | null;
   slug: string;
   x_handle: string;
+  twitter_username: string | null;
+  profile_type: 'project' | 'personal' | null;
+  is_company: boolean;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
+  arc_active: boolean;
+  arc_active_until: string | null;
   followers: number;
   akari_score: number | null;
   last_updated_at: string | null;
+  updated_at: string | null;
   is_active: boolean;
 }
 
@@ -133,7 +143,7 @@ export default async function handler(
     // Build projects query
     let projectsQuery = supabase
       .from('projects')
-      .select('id, name, slug, x_handle, is_active')
+      .select('id, name, display_name, slug, x_handle, twitter_username, profile_type, is_company, claimed_by, claimed_at, arc_access_level, arc_active, arc_active_until, is_active, updated_at')
       .order('name', { ascending: true });
 
     // Apply status filter
@@ -231,11 +241,21 @@ export default async function handler(
       return {
         id: project.id,
         name: project.name,
+        display_name: project.display_name || null,
         slug: project.slug,
         x_handle: project.x_handle,
+        twitter_username: project.twitter_username || null,
+        profile_type: project.profile_type || null,
+        is_company: project.is_company || false,
+        claimed_by: project.claimed_by || null,
+        claimed_at: project.claimed_at || null,
+        arc_access_level: project.arc_access_level || null,
+        arc_active: project.arc_active || false,
+        arc_active_until: project.arc_active_until || null,
         followers,
         akari_score: latestMetrics?.akari_score ?? null,
         last_updated_at: lastUpdatedAt,
+        updated_at: project.updated_at || null,
         is_active: project.is_active,
       };
     });

@@ -135,7 +135,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         <div className="text-xs text-white/60 mb-2 truncate">@{twitterUsername}</div>
       )}
       {!isClickable && (
-        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC leaderboard active</div>
+        <div className="text-xs text-yellow-400 mb-2">🔒 This project has no active ARC program</div>
       )}
       <div className="space-y-1.5 text-xs">
         <div className="flex justify-between gap-4">
@@ -310,7 +310,7 @@ export function ArcTopProjectsTreemap({
         role={isClickable ? "button" : "img"}
         aria-label={isClickable 
           ? `${name}, growth: ${formatGrowthPct(growthPct)}` 
-          : `${name}, locked: No ARC leaderboard active`}
+          : `${name}, locked: This project has no active ARC program`}
         onMouseEnter={() => setHoveredProjectId(projectId)}
         onMouseLeave={() => setHoveredProjectId(null)}
         onClick={() => handleCellClick(payload)}
@@ -516,9 +516,9 @@ export function ArcTopProjectsTreemap({
                       {twitterUsername && (
                         <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
                       )}
-                      {!isClickable && (
-                        <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
-                      )}
+                  {!isClickable && (
+                    <div className="text-xs text-yellow-400 mt-1">🔒 This project has no active ARC program</div>
+                  )}
                     </div>
                     <div className={`text-sm font-bold ml-4 ${
                       growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
