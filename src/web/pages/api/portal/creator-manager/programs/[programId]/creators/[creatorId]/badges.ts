@@ -186,12 +186,17 @@ export default async function handler(
         .select()
         .single();
 
-      if (createError) {
+      if (createError || !newBadge) {
         console.error('[Award Badge] Error creating badge:', createError);
         return res.status(500).json({ ok: false, error: 'Failed to create badge' });
       }
 
       badge = newBadge;
+    }
+
+    // Ensure badge is not null (TypeScript guard)
+    if (!badge) {
+      return res.status(500).json({ ok: false, error: 'Badge not found or could not be created' });
     }
 
     // Check if creator already has this badge
