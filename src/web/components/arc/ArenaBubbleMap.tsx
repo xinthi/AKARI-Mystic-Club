@@ -39,40 +39,36 @@ interface NetworkConnection {
 // =============================================================================
 
 export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
+  // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL RETURNS
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Map<string, BubblePosition>>(new Map());
   const [isHovered, setIsHovered] = useState<string | null>(null);
   const animationFrameRef = useRef<number>();
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Validate creators prop
-  if (!creators || !Array.isArray(creators)) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-akari-muted">
-          Invalid creators data.
-        </p>
-      </div>
-    );
-  }
+  // Normalize creators array (handle null/undefined)
+  const validCreators = React.useMemo(() => {
+    if (!creators || !Array.isArray(creators)) return [];
+    return creators.filter(c => c && c.twitter_username);
+  }, [creators]);
 
   // Helper to get Twitter profile image URL
-  const getProfileImageUrl = (username: string | null | undefined): string | null => {
+  const getProfileImageUrl = React.useCallback((username: string | null | undefined): string | null => {
     if (!username) return null;
     // Use unavatar.io service for Twitter profile images
     return `https://unavatar.io/twitter/${encodeURIComponent(username)}?fallback=false`;
-  };
+  }, []);
 
   // Compute network connections (infer from same ring and similar points for now)
   // In production, this would come from actual connection data
   const computeNetworkConnections = React.useMemo((): NetworkConnection[] => {
+    if (!validCreators || validCreators.length === 0) return [];
     const connections: NetworkConnection[] = [];
-    const usernames = creators.map(c => c.twitter_username.toLowerCase());
     
     // First degree: Same ring creators (direct connections)
-    creators.forEach((creator, i) => {
+    validCreators.forEach((creator, i) => {
       if (!creator.ring) return;
-      creators.forEach((other, j) => {
+      validCreators.forEach((other, j) => {
         if (i === j || !other.ring) return;
         if (creator.ring.toLowerCase() === other.ring.toLowerCase()) {
           connections.push({
@@ -115,7 +111,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     });
 
     return connections;
-  }, [creators]);
+  }, [validCreators]);
 
   // Helper to get ring color
   const getRingColor = (ring: string | null | undefined) => {
@@ -151,10 +147,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
 
   // Compute normalized sizes
   const computeBubbleSizes = React.useMemo(() => {
-    if (!creators || creators.length === 0) return [];
-
-    const validCreators = creators.filter(c => c && c.twitter_username);
-    if (validCreators.length === 0) return [];
+    if (!validCreators || validCreators.length === 0) return [];
 
     const points = validCreators.map(c => (c.arc_points ?? 0));
     if (points.length === 0) return [];
@@ -186,7 +179,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         size: Math.round(size),
       };
     }).filter((c): c is NonNullable<typeof c> => c !== null);
-  }, [creators]);
+  }, [validCreators]);
 
   // Initialize random positions and velocities
   useEffect(() => {
@@ -232,6 +225,15 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
       setPositions(newPositions);
     }
   }, [computeBubbleSizes]);
+
+  // Get connections for hovered creator
+  const hoveredConnections = React.useMemo(() => {
+    if (!isHovered) return [];
+    const hoveredKey = isHovered.toLowerCase();
+    return computeNetworkConnections.filter(
+      conn => conn.from === hoveredKey || conn.to === hoveredKey
+    );
+  }, [isHovered, computeNetworkConnections]);
 
   // Calculate radial positions for connected bubbles around hovered bubble
   const calculateRadialPositions = React.useCallback((
@@ -444,16 +446,18 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
     };
   }, [positions.size, computeBubbleSizes, isHovered, hoveredConnections, calculateRadialPositions]);
 
-  // Get connections for hovered creator (must be before early return)
-  const hoveredConnections = React.useMemo(() => {
-    if (!isHovered) return [];
-    const hoveredKey = isHovered.toLowerCase();
-    return computeNetworkConnections.filter(
-      conn => conn.from === hoveredKey || conn.to === hoveredKey
+  // NOW WE CAN DO VALIDATION CHECKS AND EARLY RETURNS
+  if (!creators || !Array.isArray(creators)) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-akari-muted">
+          Invalid creators data.
+        </p>
+      </div>
     );
-  }, [isHovered, computeNetworkConnections]);
+  }
 
-  if (creators.length === 0) {
+  if (validCreators.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-sm text-akari-muted">
@@ -705,7 +709,7 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                         ? conn.to 
                         : conn.from;
                       if (!otherKey) return null;
-                      const otherCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
+                      const otherCreator = validCreators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
                       return (
                         <div key={`direct-${idx}`} className="text-[9px] opacity-75">
                           → @{otherCreator?.twitter_username || otherKey}
@@ -719,8 +723,8 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
                         ? conn.to 
                         : conn.from;
                       if (!otherKey || !conn.via) return null;
-                      const viaCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === conn.via?.toLowerCase());
-                      const otherCreator = creators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
+                      const viaCreator = validCreators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === conn.via?.toLowerCase());
+                      const otherCreator = validCreators.find(c => c && c.twitter_username && c.twitter_username.toLowerCase() === otherKey);
                       return (
                         <div key={`second-${idx}`} className="text-[9px] opacity-60">
                           → @{viaCreator?.twitter_username || conn.via} → @{otherCreator?.twitter_username || otherKey}
