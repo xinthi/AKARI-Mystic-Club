@@ -567,7 +567,7 @@ export default function ArcProjectPage() {
                   </p>
                   {existingRequest.justification && (
                     <p className="text-xs text-white/40 mt-2 italic">
-                      "{existingRequest.justification}"
+                      &quot;{existingRequest.justification}&quot;
                     </p>
                   )}
                 </div>
