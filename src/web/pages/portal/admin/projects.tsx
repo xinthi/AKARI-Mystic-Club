@@ -25,6 +25,7 @@ interface AdminProjectSummary {
   is_company: boolean;
   claimed_by: string | null;
   claimed_at: string | null;
+  identityType: 'individual' | 'company' | 'unknown' | null; // From owner's persona_type
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
   arc_active: boolean;
   arc_active_until: string | null;
@@ -432,10 +433,12 @@ export default function AdminProjectsPage() {
                           </td>
                           <td className="py-4 px-5 text-akari-muted">@{project.twitter_username || project.x_handle}</td>
                           <td className="py-4 px-5">
-                            {project.is_company ? (
+                            {project.identityType === 'company' ? (
                               <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-medium">Company</span>
-                            ) : (
+                            ) : project.identityType === 'individual' ? (
                               <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 font-medium">Individual</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-xs bg-gray-500/20 text-gray-400 font-medium">Unknown</span>
                             )}
                           </td>
                           <td className="py-4 px-5">

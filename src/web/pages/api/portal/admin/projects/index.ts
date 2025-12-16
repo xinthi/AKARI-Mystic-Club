@@ -23,6 +23,7 @@ interface AdminProjectSummary {
   is_company: boolean;
   claimed_by: string | null;
   claimed_at: string | null;
+  identityType: 'individual' | 'company' | 'unknown' | null; // From owner's persona_type
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
   arc_active: boolean;
   arc_active_until: string | null;
@@ -331,6 +332,30 @@ export default async function handler(
 
     const projectIds = projects.map((p) => p.id);
 
+    // Get unique claimed_by user IDs
+    const claimedByUserIds = [...new Set(projects.map((p: any) => p.claimed_by).filter(Boolean))] as string[];
+
+    // Get persona_type for all claimed users
+    let personaTypeByUserId = new Map<string, 'individual' | 'company'>();
+    if (claimedByUserIds.length > 0) {
+      console.log('[AdminProjectsAPI] Fetching persona_type for', claimedByUserIds.length, 'users');
+      const { data: users, error: usersError } = await supabase
+        .from('akari_users')
+        .select('id, persona_type')
+        .in('id', claimedByUserIds);
+
+      if (usersError) {
+        console.error('[AdminProjectsAPI] supabase error (users):', usersError);
+        // Continue without persona_type - will default to 'unknown'
+      } else if (users) {
+        for (const user of users) {
+          if (user.persona_type && (user.persona_type === 'individual' || user.persona_type === 'company')) {
+            personaTypeByUserId.set(user.id, user.persona_type);
+          }
+        }
+      }
+    }
+
     // Get latest metrics for each project
     console.log('[AdminProjectsAPI] Fetching metrics for', projectIds.length, 'projects');
     const { data: metrics, error: metricsError } = await supabase
@@ -390,7 +415,7 @@ export default async function handler(
     }
 
     // Build response
-    const projectsWithMetrics: AdminProjectSummary[] = projects.map((project) => {
+    const projectsWithMetrics: AdminProjectSummary[] = projects.map((project: any) => {
       const latestMetrics = latestMetricsByProject.get(project.id);
       
       // Compute followers with fallback
@@ -405,6 +430,17 @@ export default async function handler(
 
       const lastUpdatedAt = latestMetrics?.updated_at ?? latestMetrics?.created_at ?? latestMetrics?.date ?? null;
 
+      // Get identityType from owner's persona_type
+      // If claimed_by exists, get persona_type from akari_users
+      // If claimed_by is null, identityType is 'unknown'
+      let identityType: 'individual' | 'company' | 'unknown' | null = 'unknown';
+      if (project.claimed_by) {
+        const personaType = personaTypeByUserId.get(project.claimed_by);
+        if (personaType === 'individual' || personaType === 'company') {
+          identityType = personaType;
+        }
+      }
+
       return {
         id: project.id,
         name: project.name,
@@ -416,6 +452,7 @@ export default async function handler(
         is_company: project.is_company || false,
         claimed_by: project.claimed_by || null,
         claimed_at: project.claimed_at || null,
+        identityType,
         arc_access_level: project.arc_access_level || null,
         arc_active: project.arc_active || false,
         arc_active_until: project.arc_active_until || null,
