@@ -400,7 +400,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   timeframe={topProjectsTimeframe}
                   onModeChange={setTopProjectsView}
                   onTimeframeChange={setTopProjectsTimeframe}
-                  lastUpdated={topProjectsLastUpdated}
+                  lastUpdated={topProjectsLastUpdated ?? undefined}
                 />
               )}
             </section>
