@@ -252,8 +252,10 @@ export default async function handler(
       userId = session.user_id;
 
       // Check if user is SuperAdmin
-      const supabaseAdmin = getSupabaseAdmin();
-      isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
+      if (userId) {
+        const supabaseAdmin = getSupabaseAdmin();
+        isSuperAdmin = await checkSuperAdmin(supabaseAdmin, userId);
+      }
 
       // Get user profile to get Twitter username
       const { data: userProfile, error: profileError } = await supabase
