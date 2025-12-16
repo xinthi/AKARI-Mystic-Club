@@ -102,15 +102,19 @@ export default async function handler(
   // Handle GET - fetch user's request for a project
   if (req.method === 'GET') {
     const sessionToken = getSessionToken(req);
+    
+    // If not authenticated, return null request (not an error)
     if (!sessionToken) {
-      return res.status(401).json({ ok: false, error: 'Not authenticated' });
+      return res.status(200).json({ ok: true, request: null });
     }
 
     try {
       const supabase = getSupabaseAdmin();
       const userProfile = await getCurrentUserProfile(supabase, sessionToken);
+      
+      // If profile not found, return null request (not an error)
       if (!userProfile) {
-        return res.status(401).json({ ok: false, error: 'User profile not found' });
+        return res.status(200).json({ ok: true, request: null });
       }
 
       const { projectId } = req.query;

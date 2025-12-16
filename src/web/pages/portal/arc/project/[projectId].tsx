@@ -195,6 +195,7 @@ export default function ArcProjectPage() {
   // Fetch existing request if project is not enabled
   useEffect(() => {
     async function fetchExistingRequest() {
+      // Only fetch if user is logged in
       if (!project || !akariUser.isLoggedIn) {
         return;
       }
@@ -206,6 +207,12 @@ export default function ArcProjectPage() {
       if (arcAccessLevel === 'none' || !arcActive) {
         try {
           const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+          
+          // If not authenticated, silently return (user just isn't logged in)
+          if (res.status === 401) {
+            return;
+          }
+
           const data = await res.json();
 
           if (data.ok && data.request) {
@@ -218,6 +225,7 @@ export default function ArcProjectPage() {
           }
         } catch (err) {
           // Silently fail - not critical
+          console.debug('[ArcProjectPage] Could not fetch existing request:', err);
         }
       }
     }
