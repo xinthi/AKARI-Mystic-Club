@@ -729,6 +729,8 @@ function TopProjectsListFallback({
             const name = item.name || item.twitter_username || 'Unknown';
             const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
             const twitterUsername = item.twitter_username || '';
+            // arc_active ONLY controls clickability (visual/UX)
+            // arc_access_level controls routing (and also locks if 'none')
             const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
             
             return (
@@ -741,6 +743,7 @@ function TopProjectsListFallback({
                 }`}
                 onClick={() => {
                   if (isClickable) {
+                    // Route based on arc_access_level (matches backend logic)
                     const arcAccessLevel = item.arc_access_level || 'none';
                     const projectIdentifier = item.slug || item.projectId;
                     
@@ -749,6 +752,7 @@ function TopProjectsListFallback({
                     } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
                       router.push(`/portal/arc/project/${projectIdentifier}`);
                     }
+                    // 'none' → locked (handled by isClickable check above)
                   }
                 }}
               >
@@ -812,16 +816,16 @@ function SafeTreemapWrapper({
         onTimeframeChange={onTimeframeChange}
         lastUpdated={lastUpdated}
         onProjectClick={(project) => {
+          // Route based on arc_access_level (matches backend logic)
           const arcAccessLevel = project.arc_access_level || 'none';
-          const projectId = project.projectId;
+          const projectIdentifier = project.slug || project.projectId;
           
-          // Route based on arc_access_level
           if (arcAccessLevel === 'creator_manager') {
-            router.push(`/portal/arc/creator-manager?projectId=${projectId}`);
+            router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
           } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-            router.push(`/portal/arc/project/${projectId}`);
+            router.push(`/portal/arc/project/${projectIdentifier}`);
           }
-          // Else locked - do nothing
+          // 'none' → locked (should not reach here if isClickable logic is correct)
         }}
       />
     );

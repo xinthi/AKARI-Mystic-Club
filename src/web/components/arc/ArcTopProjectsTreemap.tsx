@@ -268,10 +268,10 @@ export function ArcTopProjectsTreemap({
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const projectId = item.projectId || '';
       
-      // Determine if locked: arc_active=false OR arc_access_level='none'
+      // arc_active ONLY controls clickability (visual/UX)
+      // arc_access_level controls routing (and also locks if 'none')
+      // isClickable = arc_active=true AND arc_access_level != 'none'
       const isLocked = !item.arc_active || item.arc_access_level === 'none' || item.arc_access_level === undefined;
-      
-      // Determine if clickable: must NOT be locked (arc_active=true AND arc_access_level != 'none')
       const isClickable = !isLocked;
       
       return {
@@ -293,7 +293,11 @@ export function ArcTopProjectsTreemap({
     });
   }, [validItems]);
 
-  // Helper function to get navigation path based on arc_access_level
+  // Helper function to get navigation path based on arc_access_level (matches backend logic)
+  // Routing rules:
+  // - 'creator_manager' → Creator Manager
+  // - 'leaderboard' or 'gamified' → Project ARC page
+  // - 'none' → locked (returns null)
   const getProjectNavigationPath = (
     arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | undefined | null,
     slug: string | null,
@@ -315,6 +319,8 @@ export function ArcTopProjectsTreemap({
   };
 
   // Handle click on treemap cell
+  // arc_active controls clickability (checked via isClickable)
+  // arc_access_level controls routing
   const handleCellClick = (data: TreemapDataPoint, originalItem: TopProjectItem) => {
     // If locked: do nothing (tooltip shows "No ARC tier enabled")
     if (!data.isClickable || data.isLocked) {
@@ -328,6 +334,7 @@ export function ArcTopProjectsTreemap({
     }
 
     // Fallback: Route based on arc_access_level (if no callback provided)
+    // This matches the routing logic in the frontend index.tsx
     const navPath = getProjectNavigationPath(
       data.arc_access_level,
       data.slug || null,
