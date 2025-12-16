@@ -223,7 +223,10 @@ export default async function handler(
         // Continue without awarding rewards
       } else {
         const rewardXp = mission.reward_xp || 0;
-        const rewardArc = mission.reward_arc_min || 0; // Use min as base, can be enhanced later
+        // Calculate average of reward_arc_min and reward_arc_max (rounded)
+        const rewardArcMin = mission.reward_arc_min || 0;
+        const rewardArcMax = mission.reward_arc_max || 0;
+        const rewardArc = Math.round((rewardArcMin + rewardArcMax) / 2);
 
         const newXp = (creator.xp || 0) + rewardXp;
 

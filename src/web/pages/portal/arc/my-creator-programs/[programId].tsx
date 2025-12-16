@@ -67,7 +67,7 @@ export default function CreatorProgramDetail() {
   const [error, setError] = useState<string | null>(null);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState<string | null>(null);
-  const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '' });
+  const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '', notes: '' });
 
   const loadData = useCallback(async () => {
     if (!programId || typeof programId !== 'string') return;
@@ -144,13 +144,14 @@ export default function CreatorProgramDetail() {
         body: JSON.stringify({
           postUrl: submitForm.postUrl || undefined,
           postTweetId: submitForm.postTweetId || undefined,
+          notes: submitForm.notes || undefined,
         }),
       });
 
       const data = await res.json();
       if (data.ok) {
         setShowSubmitModal(null);
-        setSubmitForm({ postUrl: '', postTweetId: '' });
+        setSubmitForm({ postUrl: '', postTweetId: '', notes: '' });
         // Update progress map
         const newProgress: MissionProgress = {
           mission_id: missionId,
@@ -417,6 +418,16 @@ export default function CreatorProgramDetail() {
                     className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Notes (optional)</label>
+                  <textarea
+                    value={submitForm.notes}
+                    onChange={(e) => setSubmitForm({ ...submitForm, notes: e.target.value })}
+                    placeholder="Add any additional notes about your submission..."
+                    rows={3}
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text resize-none"
+                  />
+                </div>
                 <p className="text-xs text-akari-muted">
                   Provide either a post URL or tweet ID to link your submission
                 </p>
@@ -425,7 +436,7 @@ export default function CreatorProgramDetail() {
                 <button
                   onClick={() => {
                     setShowSubmitModal(null);
-                    setSubmitForm({ postUrl: '', postTweetId: '' });
+                    setSubmitForm({ postUrl: '', postTweetId: '', notes: '' });
                   }}
                   className="px-4 py-2 rounded-lg border border-akari-border text-akari-text hover:bg-akari-cardSoft transition-colors"
                 >

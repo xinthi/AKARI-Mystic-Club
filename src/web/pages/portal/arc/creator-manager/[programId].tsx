@@ -96,6 +96,7 @@ interface MissionSubmission {
   status: 'in_progress' | 'submitted' | 'approved' | 'rejected';
   post_url: string | null;
   post_tweet_id: string | null;
+  notes: string | null;
   last_update_at: string;
 }
 
@@ -125,6 +126,8 @@ export default function CreatorManagerProgramDetail() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showAddDealModal, setShowAddDealModal] = useState(false);
   const [showAddMissionModal, setShowAddMissionModal] = useState(false);
+  const [showEditMissionModal, setShowEditMissionModal] = useState(false);
+  const [editingMission, setEditingMission] = useState<Mission | null>(null);
   
   // Forms
   const [inviteUsernames, setInviteUsernames] = useState('');
@@ -1063,6 +1066,9 @@ export default function CreatorManagerProgramDetail() {
                                     )}
                                     {submission.post_tweet_id && !submission.post_url && (
                                       <p className="text-sm text-akari-muted mt-1">Tweet ID: {submission.post_tweet_id}</p>
+                                    )}
+                                    {submission.notes && (
+                                      <p className="text-sm text-akari-muted mt-2 italic">&quot;{submission.notes}&quot;</p>
                                     )}
                                     <p className="text-xs text-akari-muted mt-1">
                                       Submitted: {new Date(submission.last_update_at).toLocaleString()}

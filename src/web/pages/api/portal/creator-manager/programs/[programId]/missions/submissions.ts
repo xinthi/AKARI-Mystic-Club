@@ -26,6 +26,7 @@ interface MissionSubmission {
   status: 'in_progress' | 'submitted' | 'approved' | 'rejected';
   post_url: string | null;
   post_tweet_id: string | null;
+  notes: string | null;
   last_update_at: string;
 }
 
@@ -140,6 +141,7 @@ export default async function handler(
         status,
         post_url,
         post_tweet_id,
+        notes,
         last_update_at,
         creator_manager_missions!inner (
           title
@@ -176,6 +178,7 @@ export default async function handler(
         status: p.status,
         post_url: p.post_url,
         post_tweet_id: p.post_tweet_id,
+        notes: p.notes,
         last_update_at: p.last_update_at,
       };
     });

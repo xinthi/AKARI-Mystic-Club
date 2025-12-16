@@ -207,6 +207,7 @@ export default async function handler(
           status: 'submitted',
           post_url: body.postUrl || null,
           post_tweet_id: body.postTweetId || null,
+          notes: body.notes || null,
           last_update_at: new Date().toISOString(),
         })
         .eq('id', existingProgress.id)
@@ -230,6 +231,7 @@ export default async function handler(
           status: 'submitted',
           post_url: body.postUrl || null,
           post_tweet_id: body.postTweetId || null,
+          notes: body.notes || null,
           last_update_at: new Date().toISOString(),
         })
         .select('id')
