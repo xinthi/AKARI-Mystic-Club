@@ -179,7 +179,6 @@ export function ArenaBubbleMap({ creators }: ArenaBubbleMapProps) {
         size: Math.round(size),
       };
     }).filter((c): c is NonNullable<typeof c> => c !== null);
-  }, [creators]);
   }, [validCreators]);
 
   // Initialize random positions and velocities
