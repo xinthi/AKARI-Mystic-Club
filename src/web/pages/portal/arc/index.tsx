@@ -715,10 +715,15 @@ function TopProjectsListFallback({
                     : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
                 }`}
                 onClick={() => {
-                  if (isClickable && item.slug) {
-                    router.push(`/portal/arc/${item.slug}`);
-                  } else if (isClickable && twitterUsername) {
-                    router.push(`/portal/sentiment/profile/${twitterUsername}`);
+                  if (isClickable) {
+                    const arcAccessLevel = item.arc_access_level || 'none';
+                    const projectIdentifier = item.slug || item.projectId;
+                    
+                    if (arcAccessLevel === 'creator_manager') {
+                      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+                    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+                      router.push(`/portal/arc/project/${projectIdentifier}`);
+                    }
                   }
                 }}
               >

@@ -17,6 +17,9 @@ interface UpdateProjectBody {
   x_handle?: string;
   twitter_username?: string;
   is_active?: boolean;
+  arc_active?: boolean;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  profile_type?: 'personal' | 'project';
 }
 
 interface AdminProject {
@@ -25,6 +28,9 @@ interface AdminProject {
   slug: string;
   x_handle: string;
   is_active: boolean;
+  arc_active?: boolean;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  profile_type?: 'personal' | 'project';
 }
 
 type UpdateProjectResponse =
@@ -144,6 +150,9 @@ export default async function handler(
       x_handle?: string;
       twitter_username?: string;
       is_active?: boolean;
+      arc_active?: boolean;
+      arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+      profile_type?: 'personal' | 'project';
     } = {};
 
     if (body.name !== undefined) {
@@ -165,6 +174,23 @@ export default async function handler(
     if (body.is_active !== undefined) {
       updateData.is_active = body.is_active;
     }
+    if (body.arc_active !== undefined) {
+      updateData.arc_active = body.arc_active;
+    }
+    if (body.arc_access_level !== undefined) {
+      // Validate arc_access_level
+      if (!['none', 'creator_manager', 'leaderboard', 'gamified'].includes(body.arc_access_level)) {
+        return res.status(400).json({ ok: false, error: 'Invalid arc_access_level value' });
+      }
+      updateData.arc_access_level = body.arc_access_level;
+    }
+    if (body.profile_type !== undefined) {
+      // Validate profile_type
+      if (!['personal', 'project'].includes(body.profile_type)) {
+        return res.status(400).json({ ok: false, error: 'Invalid profile_type value' });
+      }
+      updateData.profile_type = body.profile_type;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ ok: false, error: 'No fields to update' });
@@ -175,7 +201,7 @@ export default async function handler(
       .from('projects')
       .update(updateData)
       .eq('id', id)
-      .select('id, name, slug, x_handle, is_active')
+      .select('id, name, slug, x_handle, is_active, arc_active, arc_access_level, profile_type')
       .single();
 
     if (updateError) {
@@ -195,6 +221,9 @@ export default async function handler(
         slug: updatedProject.slug,
         x_handle: updatedProject.x_handle,
         is_active: updatedProject.is_active,
+        arc_active: updatedProject.arc_active,
+        arc_access_level: updatedProject.arc_access_level,
+        profile_type: updatedProject.profile_type,
       },
     });
   } catch (error: any) {

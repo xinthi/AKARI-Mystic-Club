@@ -84,6 +84,23 @@ function formatGrowthPct(growthPct: number): string {
 }
 
 /**
+ * Get tier label from arc_access_level
+ */
+function getTierLabel(arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | undefined | null): string {
+  switch (arcAccessLevel) {
+    case 'gamified':
+      return 'Gamified';
+    case 'leaderboard':
+      return 'Leaderboard';
+    case 'creator_manager':
+      return 'Creator Manager';
+    case 'none':
+    default:
+      return 'None';
+  }
+}
+
+/**
  * Normalize values for treemap sizing
  * Uses square root to prevent very large values from dominating
  */
@@ -126,8 +143,12 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   const name = data.name || data.twitter_username || 'Unknown';
   const growthPct = typeof data.growth_pct === 'number' ? data.growth_pct : 0;
   const isClickable = data.isClickable === true;
+  const isLocked = data.isLocked === true;
   const twitterUsername = data.twitter_username || '';
   const heat = (typeof data.heat === 'number' && Number.isFinite(data.heat)) ? data.heat : null;
+  const arcAccessLevel = data.arc_access_level || 'none';
+  const arcActive = typeof data.arc_active === 'boolean' ? data.arc_active : false;
+  const tierLabel = getTierLabel(arcAccessLevel);
 
   return (
     <div className="bg-black/95 border border-white/20 rounded-lg p-3 shadow-2xl max-w-[240px]">
@@ -135,8 +156,8 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
       {twitterUsername && (
         <div className="text-xs text-white/60 mb-2 truncate">@{twitterUsername}</div>
       )}
-      {!isClickable && (
-        <div className="text-xs text-yellow-400 mb-2">🔒 This project has no active ARC program</div>
+      {isLocked && (
+        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC leaderboard enabled</div>
       )}
       <div className="space-y-1.5 text-xs">
         <div className="flex justify-between gap-4">
@@ -145,6 +166,18 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
             growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
           }`}>
             {formatGrowthPct(growthPct)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-white/60 flex-shrink-0">Tier:</span>
+          <span className="text-white font-medium flex-shrink-0">{tierLabel}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-white/60 flex-shrink-0">Status:</span>
+          <span className={`font-medium flex-shrink-0 ${
+            arcActive ? 'text-green-400' : 'text-gray-400'
+          }`}>
+            {arcActive ? 'Active' : 'Inactive'}
           </span>
         </div>
         {heat !== null && (
@@ -219,12 +252,13 @@ export function ArcTopProjectsTreemap({
     if (validItems.length === 0) return [];
 
     // Get absolute growth values for normalization
-    // Use minimum value of 0.1 for items with growth_pct = 0 to ensure they appear
+    // Use minimum tile value: max(1, abs(growth_pct)*100) to ensure all boxes appear
     const absGrowthValues = validItems.map(item => {
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const absValue = Math.abs(growthPct);
-      // Use minimum size of 0.1 for zero growth to ensure visibility
-      return absValue === 0 ? 0.1 : absValue;
+      // Use minimum value of 1 (from abs(growth_pct)*100 when growth_pct=0)
+      // This ensures boxes with 0% growth still appear with minimum size
+      return Math.max(1, absValue * 100);
     });
     const normalizedValues = normalizeForTreemap(absGrowthValues);
 
@@ -258,21 +292,43 @@ export function ArcTopProjectsTreemap({
     });
   }, [validItems]);
 
+  // Helper function to get navigation path based on arc_access_level
+  const getProjectNavigationPath = (
+    arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | undefined | null,
+    slug: string | null,
+    projectId: string
+  ): string | null => {
+    if (!arcAccessLevel || arcAccessLevel === 'none') {
+      return null; // Locked
+    }
+
+    const projectIdentifier = slug || projectId;
+
+    if (arcAccessLevel === 'creator_manager') {
+      return `/portal/arc/creator-manager?projectId=${projectIdentifier}`;
+    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+      return `/portal/arc/project/${projectIdentifier}`;
+    }
+
+    return null; // Locked
+  };
+
   // Handle click on treemap cell
   const handleCellClick = (data: TreemapDataPoint) => {
-    // Only allow clicks if project is active and has access level
-    if (!data.isClickable) {
+    // If locked: do nothing (tooltip already shows "No ARC leaderboard enabled")
+    if (!data.isClickable || data.isLocked) {
       return; // Do nothing for locked projects
     }
 
-    if (data.slug) {
-      // Navigate to ARC page if slug is available
-      router.push(`/portal/arc/${data.slug}`);
-    } else {
-      // Fallback to sentiment page using twitter username
-      if (data.twitter_username) {
-        router.push(`/portal/sentiment/profile/${data.twitter_username}`);
-      }
+    // Route based on arc_access_level
+    const navPath = getProjectNavigationPath(
+      data.arc_access_level,
+      data.slug || null,
+      data.projectId
+    );
+
+    if (navPath) {
+      router.push(navPath);
     }
   };
 
@@ -319,7 +375,7 @@ export function ArcTopProjectsTreemap({
         role={isClickable ? "button" : "img"}
         aria-label={isClickable 
           ? `${name}, growth: ${formatGrowthPct(growthPct)}` 
-          : `${name}, locked: This project has no active ARC program`}
+          : `${name}, locked: No ARC leaderboard enabled`}
         onMouseEnter={() => setHoveredProjectId(projectId)}
         onMouseLeave={() => setHoveredProjectId(null)}
         onClick={() => handleCellClick(payload)}
@@ -353,22 +409,36 @@ export function ArcTopProjectsTreemap({
               height={height - 2}
               rx={cornerRadius}
               ry={cornerRadius}
-              fill="rgba(0, 0, 0, 0.4)"
+              fill="rgba(0, 0, 0, 0.5)"
               style={{ transition: 'all 0.2s' }}
             />
-            {/* Lock icon (only show on larger boxes) */}
+            {/* Lock icon and text (only show on larger boxes) */}
             {!isSmall && (
-              <text
-                x={x + width / 2}
-                y={y + height / 2}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="rgba(255, 255, 255, 0.8)"
-                fontSize={Math.min(width / 6, 24)}
-                className="pointer-events-none"
-              >
-                🔒
-              </text>
+              <>
+                <text
+                  x={x + width / 2}
+                  y={y + height / 2 - 8}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="rgba(255, 255, 255, 0.9)"
+                  fontSize={Math.min(width / 8, 20)}
+                  fontWeight="bold"
+                  className="pointer-events-none"
+                >
+                  🔒
+                </text>
+                <text
+                  x={x + width / 2}
+                  y={y + height / 2 + 12}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="rgba(255, 255, 255, 0.7)"
+                  fontSize={Math.min(width / 12, 10)}
+                  className="pointer-events-none"
+                >
+                  Locked
+                </text>
+              </>
             )}
           </>
         )}
@@ -547,10 +617,15 @@ export function ArcTopProjectsTreemap({
                         : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
                     }`}
                     onClick={() => {
-                      if (isClickable && item.slug) {
-                        router.push(`/portal/arc/${item.slug}`);
-                      } else if (isClickable && twitterUsername) {
-                        router.push(`/portal/sentiment/profile/${twitterUsername}`);
+                      if (isClickable) {
+                        const navPath = getProjectNavigationPath(
+                          item.arc_access_level,
+                          item.slug || null,
+                          item.projectId
+                        );
+                        if (navPath) {
+                          router.push(navPath);
+                        }
                       }
                     }}
                   >

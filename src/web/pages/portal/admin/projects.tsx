@@ -78,6 +78,7 @@ export default function AdminProjectsPage() {
   const [editingProject, setEditingProject] = useState<AdminProjectSummary | null>(null);
   const [classifyingProjectId, setClassifyingProjectId] = useState<string | null>(null);
   const [refreshingProjectId, setRefreshingProjectId] = useState<string | null>(null);
+  const [updatingProjectId, setUpdatingProjectId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
     slug: '',
@@ -291,6 +292,56 @@ export default function AdminProjectsPage() {
     }
   };
 
+  // Handle inline ARC field updates
+  const handleUpdateArcField = async (
+    projectId: string,
+    field: 'arc_active' | 'arc_access_level',
+    value: boolean | 'none' | 'creator_manager' | 'leaderboard' | 'gamified'
+  ) => {
+    setUpdatingProjectId(projectId);
+
+    try {
+      const updateBody: { arc_active?: boolean; arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' } = {};
+      if (field === 'arc_active') {
+        updateBody.arc_active = value as boolean;
+      } else {
+        updateBody.arc_access_level = value as 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+      }
+
+      const res = await fetch(`/api/portal/admin/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updateBody),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to update project');
+      }
+
+      // Update local state immediately for better UX
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                arc_active: field === 'arc_active' ? (value as boolean) : p.arc_active,
+                arc_access_level: field === 'arc_access_level' ? (value as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') : p.arc_access_level,
+              }
+            : p
+        )
+      );
+    } catch (err: any) {
+      alert(err.message || 'Failed to update project');
+      // Reload projects on error to sync state
+      await loadProjects();
+    } finally {
+      setUpdatingProjectId(null);
+    }
+  };
+
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
@@ -463,24 +514,63 @@ export default function AdminProjectsPage() {
                             )}
                           </td>
                           <td className="py-4 px-5">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              project.arc_access_level === 'gamified' 
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : project.arc_access_level === 'leaderboard'
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : project.arc_access_level === 'creator_manager'
-                                ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {project.arc_access_level || 'none'}
-                            </span>
+                            <div className="relative">
+                              <select
+                                value={project.arc_access_level || 'none'}
+                                onChange={(e) => {
+                                  const newValue = e.target.value as 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+                                  handleUpdateArcField(project.id, 'arc_access_level', newValue);
+                                }}
+                                disabled={updatingProjectId === project.id || !userIsSuperAdmin}
+                                className={`px-2 py-1 rounded text-xs font-medium border transition-colors appearance-none bg-akari-bg ${
+                                  updatingProjectId === project.id
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'cursor-pointer hover:opacity-80'
+                                } ${
+                                  project.arc_access_level === 'gamified' 
+                                    ? 'text-purple-400 border-purple-500/50'
+                                    : project.arc_access_level === 'leaderboard'
+                                    ? 'text-blue-400 border-blue-500/50'
+                                    : project.arc_access_level === 'creator_manager'
+                                    ? 'text-yellow-400 border-yellow-500/50'
+                                    : 'text-gray-400 border-gray-500/50'
+                                }`}
+                              >
+                                <option value="none">none</option>
+                                <option value="creator_manager">creator_manager</option>
+                                <option value="leaderboard">leaderboard</option>
+                                <option value="gamified">gamified</option>
+                              </select>
+                              {updatingProjectId === project.id && (
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">⏳</span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-5">
-                            {project.arc_active ? (
-                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Active</span>
-                            ) : (
-                              <span className="text-akari-muted text-xs">Inactive</span>
-                            )}
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={project.arc_active || false}
+                                onChange={(e) => {
+                                  handleUpdateArcField(project.id, 'arc_active', e.target.checked);
+                                }}
+                                disabled={updatingProjectId === project.id || !userIsSuperAdmin}
+                                className={`w-4 h-4 rounded border-2 transition-colors ${
+                                  updatingProjectId === project.id
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'cursor-pointer'
+                                } ${
+                                  project.arc_active
+                                    ? 'bg-green-500 border-green-500'
+                                    : 'bg-transparent border-gray-500'
+                                }`}
+                              />
+                              <span className={`text-xs ${
+                                project.arc_active ? 'text-green-400' : 'text-akari-muted'
+                              }`}>
+                                {project.arc_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </label>
                             {project.arc_active_until && (
                               <div className="text-xs text-akari-muted mt-1">
                                 Until: {formatDate(project.arc_active_until)}
