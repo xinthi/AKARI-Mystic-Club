@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { useAkariUser } from '@/lib/akari-auth';
 
 // =============================================================================
 // TYPES
@@ -69,12 +70,25 @@ function getStatusBadgeColor(arcActive: boolean | undefined | null): string {
 // COMPONENT
 // =============================================================================
 
+interface LeaderboardRequest {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  justification: string | null;
+  created_at: string;
+}
+
 export default function ArcProjectPage() {
   const router = useRouter();
   const { projectId } = router.query;
+  const akariUser = useAkariUser();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [existingRequest, setExistingRequest] = useState<LeaderboardRequest | null>(null);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [justification, setJustification] = useState('');
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   // Fetch project by ID or slug
   useEffect(() => {
@@ -163,6 +177,78 @@ export default function ArcProjectPage() {
 
     fetchProject();
   }, [projectId]);
+
+  // Fetch existing request if project is not enabled
+  useEffect(() => {
+    async function fetchExistingRequest() {
+      if (!project || !akariUser.isLoggedIn) {
+        return;
+      }
+
+      const arcAccessLevel = project.arc_access_level || 'none';
+      const arcActive = project.arc_active ?? false;
+
+      // Only check for requests if project is not enabled
+      if (arcAccessLevel === 'none' || !arcActive) {
+        try {
+          const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+          const data = await res.json();
+
+          if (data.ok && data.request) {
+            setExistingRequest({
+              id: data.request.id,
+              status: data.request.status,
+              justification: data.request.justification,
+              created_at: data.request.created_at,
+            });
+          }
+        } catch (err) {
+          // Silently fail - not critical
+        }
+      }
+    }
+
+    fetchExistingRequest();
+  }, [project, akariUser.isLoggedIn]);
+
+  // Handle request submission
+  const handleSubmitRequest = async () => {
+    if (!project || requestLoading) return;
+
+    setRequestLoading(true);
+    setRequestError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/leaderboard-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          justification: justification.trim() || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to submit request');
+      }
+
+      // Update state to show request was submitted
+      setExistingRequest({
+        id: data.requestId,
+        status: data.status === 'existing' ? 'pending' : 'pending',
+        justification: justification.trim() || null,
+        created_at: new Date().toISOString(),
+      });
+      setShowRequestForm(false);
+      setJustification('');
+    } catch (err: any) {
+      setRequestError(err.message || 'Failed to submit request');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -286,9 +372,100 @@ export default function ArcProjectPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-white/60">
+              <p className="text-white/60 mb-4">
                 This project does not have ARC access enabled.
               </p>
+
+              {/* Show existing request status */}
+              {existingRequest && (
+                <div className={`rounded-lg border p-4 ${
+                  existingRequest.status === 'approved'
+                    ? 'border-green-500/50 bg-green-500/10'
+                    : existingRequest.status === 'rejected'
+                    ? 'border-red-500/50 bg-red-500/10'
+                    : 'border-yellow-500/50 bg-yellow-500/10'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-semibold text-white">
+                      {existingRequest.status === 'approved'
+                        ? '✅ Request Approved'
+                        : existingRequest.status === 'rejected'
+                        ? '❌ Request Rejected'
+                        : '⏳ Request Pending'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/60">
+                    {existingRequest.status === 'pending'
+                      ? 'Your request is being reviewed by administrators.'
+                      : existingRequest.status === 'approved'
+                      ? 'ARC leaderboard access has been enabled for this project.'
+                      : 'Your request was not approved.'}
+                  </p>
+                  {existingRequest.justification && (
+                    <p className="text-xs text-white/40 mt-2 italic">
+                      "{existingRequest.justification}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Request form */}
+              {!existingRequest && akariUser.isLoggedIn && (
+                <>
+                  {!showRequestForm ? (
+                    <button
+                      onClick={() => setShowRequestForm(true)}
+                      className="inline-flex items-center px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors font-medium"
+                    >
+                      Request ARC Leaderboard
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-white/70 mb-2">
+                          Justification (optional)
+                        </label>
+                        <textarea
+                          value={justification}
+                          onChange={(e) => setJustification(e.target.value)}
+                          placeholder="Explain why you'd like to enable ARC leaderboard for this project..."
+                          className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary resize-none"
+                          rows={4}
+                        />
+                      </div>
+                      {requestError && (
+                        <p className="text-sm text-red-400">{requestError}</p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSubmitRequest}
+                          disabled={requestLoading}
+                          className="px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {requestLoading ? 'Submitting...' : 'Submit Request'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowRequestForm(false);
+                            setJustification('');
+                            setRequestError(null);
+                          }}
+                          disabled={requestLoading}
+                          className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-medium disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!akariUser.isLoggedIn && (
+                <p className="text-sm text-white/40">
+                  Please log in to request ARC leaderboard access.
+                </p>
+              )}
             </div>
           )}
         </div>
