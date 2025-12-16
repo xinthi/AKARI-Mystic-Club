@@ -37,6 +37,7 @@ interface CreatorProgram {
   arcPoints?: number;
   xp?: number;
   creatorLevel?: number; // Computed from XP
+  creatorRank?: number; // Rank in this program (1-based)
   class?: string | null;
   dealLabel?: string | null;
 }
@@ -221,6 +222,35 @@ export default async function handler(
           .eq('id', program.project_id)
           .single();
 
+        // Calculate creator rank in this program
+        // Get all approved creators for this program, sorted by ranking criteria
+        const { data: allCreators } = await supabase
+          .from('creator_manager_creators')
+          .select('creator_profile_id, arc_points, xp, joined_at')
+          .eq('program_id', program.id)
+          .eq('status', 'approved')
+          .order('arc_points', { ascending: false });
+
+        let creatorRank: number | undefined;
+        if (allCreators && allCreators.length > 0) {
+          // Sort by ranking criteria: arc_points desc, xp desc, joined_at asc
+          const sorted = [...allCreators].sort((a, b) => {
+            if (a.arc_points !== b.arc_points) {
+              return b.arc_points - a.arc_points;
+            }
+            if (a.xp !== b.xp) {
+              return b.xp - a.xp;
+            }
+            return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+          });
+
+          // Find current creator's rank (1-based)
+          const rankIndex = sorted.findIndex(c => c.creator_profile_id === currentUser.profileId);
+          if (rankIndex !== -1) {
+            creatorRank = rankIndex + 1;
+          }
+        }
+
         programs.push({
           id: program.id,
           project_id: program.project_id,
@@ -242,6 +272,7 @@ export default async function handler(
           arcPoints: membership.arc_points,
           xp: membership.xp || 0,
           creatorLevel: calculateLevel(membership.xp || 0), // Compute level from XP
+          creatorRank, // Rank in this program
           class: membership.class,
           dealLabel: deal?.internal_label || null,
         });

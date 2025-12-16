@@ -56,6 +56,7 @@ interface Program {
   arcPoints?: number;
   xp?: number;
   creatorLevel?: number;
+  creatorRank?: number;
   class?: string | null;
 }
 
@@ -108,8 +109,37 @@ export default function CreatorProgramDetail() {
             arcPoints: foundProgram.arcPoints,
             xp: foundProgram.xp,
             creatorLevel: foundProgram.creatorLevel,
+            creatorRank: foundProgram.creatorRank,
             class: foundProgram.class,
           });
+        }
+      }
+
+      // Get leaderboard (top 10) for approved creators
+      if (programsData.ok) {
+        const foundProgram = programsData.programs.find((p: any) => p.id === programId);
+        if (foundProgram && foundProgram.creatorStatus === 'approved') {
+          try {
+            const leaderboardRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+            const leaderboardData = await leaderboardRes.json();
+            if (leaderboardData.ok) {
+              const approvedCreators = leaderboardData.creators
+                .filter((c: any) => c.status === 'approved')
+                .slice(0, 10);
+              setLeaderboard(approvedCreators.map((c: any) => ({
+                rank: c.rank || 0,
+                username: c.profile?.username || 'unknown',
+                arc_points: c.arc_points || 0,
+                xp: c.xp || 0,
+                level: c.creatorLevel || 1,
+              })));
+              // Get total count of approved creators
+              const allApproved = leaderboardData.creators.filter((c: any) => c.status === 'approved');
+              setTotalCreators(allApproved.length);
+            }
+          } catch (err) {
+            console.error('[Leaderboard] Error:', err);
+          }
         }
       }
 
@@ -268,6 +298,28 @@ export default function CreatorProgramDetail() {
           )}
         </div>
 
+        {/* Your Rank Card */}
+        {program.creatorStatus === 'approved' && program.creatorRank !== undefined && totalCreators > 0 && (
+          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+            <h2 className="text-xl font-semibold text-akari-text mb-4">Your Rank</h2>
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-akari-primary">#{program.creatorRank}</div>
+                <div className="text-sm text-akari-muted mt-1">Rank</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm text-akari-muted mb-1">Percentile</div>
+                <div className="text-2xl font-bold text-akari-text">
+                  {Math.round(((totalCreators - program.creatorRank + 1) / totalCreators) * 100)}%
+                </div>
+                <div className="text-xs text-akari-muted mt-1">
+                  Out of {totalCreators} approved creator{totalCreators !== 1 ? 's' : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         {program.creatorStatus === 'approved' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -295,6 +347,48 @@ export default function CreatorProgramDetail() {
                 <div className="text-2xl font-bold text-akari-primary">{program.class}</div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Mini Leaderboard */}
+        {program.creatorStatus === 'approved' && leaderboard.length > 0 && (
+          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+            <h2 className="text-xl font-semibold text-akari-text mb-4">Leaderboard (Top 10)</h2>
+            <div className="space-y-2">
+              {leaderboard.map((entry) => (
+                <div
+                  key={entry.rank}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    entry.username === akariUser.user?.username?.replace('@', '')
+                      ? 'border-akari-primary bg-akari-primary/10'
+                      : 'border-akari-border bg-akari-cardSoft'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
+                      entry.rank === 1 ? 'bg-yellow-500/20 text-yellow-400' :
+                      entry.rank === 2 ? 'bg-gray-400/20 text-gray-300' :
+                      entry.rank === 3 ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-akari-card text-akari-muted'
+                    }`}>
+                      {entry.rank}
+                    </div>
+                    <div>
+                      <div className="font-medium text-akari-text">@{entry.username}</div>
+                      <div className="text-xs text-akari-muted">Level {entry.level}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-akari-text">
+                      {entry.arc_points.toLocaleString()} ARC
+                    </div>
+                    <div className="text-xs text-akari-muted">
+                      {entry.xp.toLocaleString()} XP
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

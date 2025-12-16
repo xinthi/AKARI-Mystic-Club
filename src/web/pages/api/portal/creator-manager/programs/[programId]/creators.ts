@@ -25,6 +25,7 @@ interface Creator {
   xp: number;
   creatorLevel: number; // Computed from XP
   class: string | null;
+  rank: number; // Rank based on arc_points desc, xp desc, joined_at asc
   joined_at: string;
   updated_at: string;
   profile?: {
@@ -219,7 +220,29 @@ export default async function handler(
       } : null,
     }));
 
-    return res.status(200).json({ ok: true, creators: formattedCreators });
+    // Calculate ranks: sort by arc_points desc, then xp desc, then joined_at asc
+    const sortedForRanking = [...formattedCreators].sort((a, b) => {
+      // Primary: arc_points descending
+      if (a.arc_points !== b.arc_points) {
+        return b.arc_points - a.arc_points;
+      }
+      // Tie-breaker 1: xp descending
+      if (a.xp !== b.xp) {
+        return b.xp - a.xp;
+      }
+      // Tie-breaker 2: joined_at ascending (earlier join = better rank)
+      return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+    });
+
+    // Assign ranks (1-based)
+    const creatorsWithRank = sortedForRanking.map((creator, index) => ({
+      ...creator,
+      rank: index + 1,
+    }));
+
+    // Map back to original order if needed, or return sorted
+    // For now, return sorted by rank
+    return res.status(200).json({ ok: true, creators: creatorsWithRank });
   } catch (error: any) {
     console.error('[Creator Manager Creators] Error:', error);
     return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
