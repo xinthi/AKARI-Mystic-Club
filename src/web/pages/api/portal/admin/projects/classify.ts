@@ -26,6 +26,9 @@ interface ClassifyRequest {
   projectId: string;
   profileType: 'project' | 'personal';
   isCompany?: boolean;
+  arcAccessLevel?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  arcActive?: boolean;
+  arcActiveUntil?: string | null; // ISO date string
 }
 
 type ClassifyResponse =
@@ -144,6 +147,22 @@ export default async function handler(
     } else {
       // Personal profiles are never companies
       updateData.is_company = false;
+    }
+
+    // Set ARC access level fields if provided
+    if (body.arcAccessLevel !== undefined) {
+      if (!['none', 'creator_manager', 'leaderboard', 'gamified'].includes(body.arcAccessLevel)) {
+        return res.status(400).json({ ok: false, error: 'arcAccessLevel must be "none", "creator_manager", "leaderboard", or "gamified"' });
+      }
+      updateData.arc_access_level = body.arcAccessLevel;
+    }
+
+    if (body.arcActive !== undefined) {
+      updateData.arc_active = body.arcActive;
+    }
+
+    if (body.arcActiveUntil !== undefined) {
+      updateData.arc_active_until = body.arcActiveUntil || null;
     }
 
     const { error: updateError } = await supabase

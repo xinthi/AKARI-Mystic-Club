@@ -24,6 +24,8 @@ interface TopProject {
   growth_pct: number;
   heat: number | null; // ct_heat_score
   slug: string | null; // Project slug for navigation
+  arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  arc_active: boolean;
 }
 
 type TopProjectsResponse =
@@ -124,11 +126,13 @@ export default async function handler(
     // Get date range
     const { startDate, endDate } = getDateRange(timeframe);
 
-    // Get all active tracked projects
+    // Get all active tracked projects with profile_type='project'
+    // Optionally filter by is_company=true if needed
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
-      .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url')
+      .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active')
       .eq('is_active', true)
+      .eq('profile_type', 'project') // Only show projects classified as 'project'
       .neq('slug', 'dev_user'); // Exclude dev_user
 
     if (projectsError) {
@@ -220,6 +224,8 @@ export default async function handler(
           growth_pct: growthPct,
           heat,
           slug: p.slug || null,
+          arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
+          arc_active: p.arc_active || false,
         };
       })
       .filter((p) => {

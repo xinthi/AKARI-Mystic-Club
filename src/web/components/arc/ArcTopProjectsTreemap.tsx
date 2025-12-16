@@ -21,6 +21,8 @@ export interface TopProjectItem {
   growth_pct: number;
   heat?: number | null;
   slug?: string | null; // Optional slug for navigation
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  arc_active?: boolean;
 }
 
 interface ArcTopProjectsTreemapProps {
@@ -41,7 +43,10 @@ interface TreemapDataPoint {
   logo_url?: string | null;
   heat?: number | null;
   slug?: string | null;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  arc_active?: boolean;
   fill: string; // Color based on growth
+  isClickable: boolean; // Whether the tile is clickable
 }
 
 // =============================================================================
@@ -114,12 +119,16 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   }
 
   const data = payload[0].payload;
+  const isClickable = data.isClickable;
 
   return (
     <div className="bg-black/95 border border-white/20 rounded-lg p-3 shadow-2xl max-w-[240px]">
       <div className="text-sm font-semibold text-white mb-1 truncate">{data.name}</div>
       {data.twitter_username && (
         <div className="text-xs text-white/60 mb-2 truncate">@{data.twitter_username}</div>
+      )}
+      {!isClickable && (
+        <div className="text-xs text-yellow-400 mb-2">🔒 No ARC leaderboard active</div>
       )}
       <div className="space-y-1.5 text-xs">
         <div className="flex justify-between gap-4">
@@ -180,21 +189,34 @@ export function ArcTopProjectsTreemap({
     const absGrowthValues = items.map(item => Math.abs(item.growth_pct));
     const normalizedValues = normalizeForTreemap(absGrowthValues);
 
-    return items.map((item, index) => ({
-      name: item.name,
-      value: normalizedValues[index],
-      growth_pct: item.growth_pct,
-      projectId: item.projectId,
-      twitter_username: item.twitter_username,
-      logo_url: item.logo_url,
-      heat: item.heat,
-      slug: item.slug,
-      fill: getGrowthColor(item.growth_pct),
-    }));
+    return items.map((item, index) => {
+      // Determine if clickable: must be arc_active=true and arc_access_level != 'none'
+      const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+      
+      return {
+        name: item.name,
+        value: normalizedValues[index],
+        growth_pct: item.growth_pct,
+        projectId: item.projectId,
+        twitter_username: item.twitter_username,
+        logo_url: item.logo_url,
+        heat: item.heat,
+        slug: item.slug,
+        arc_access_level: item.arc_access_level,
+        arc_active: item.arc_active,
+        fill: isClickable ? getGrowthColor(item.growth_pct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
+        isClickable,
+      };
+    });
   }, [items]);
 
   // Handle click on treemap cell
   const handleCellClick = (data: TreemapDataPoint) => {
+    // Only allow clicks if project is active and has access level
+    if (!data.isClickable) {
+      return; // Do nothing for locked projects
+    }
+
     if (data.slug) {
       // Navigate to ARC page if slug is available
       router.push(`/portal/arc/${data.slug}`);
@@ -211,11 +233,14 @@ export function ArcTopProjectsTreemap({
     const isHovered = hoveredProjectId === payload.projectId;
     const isFocused = focusedProjectId === payload.projectId;
     const isPositive = payload.growth_pct > 0;
-    const borderColor = isPositive 
-      ? 'rgba(34, 197, 94, 0.6)' 
-      : payload.growth_pct < 0 
-      ? 'rgba(239, 68, 68, 0.6)' 
-      : 'rgba(156, 163, 175, 0.4)';
+    const isClickable = payload.isClickable;
+    const borderColor = isClickable
+      ? (isPositive 
+          ? 'rgba(34, 197, 94, 0.6)' 
+          : payload.growth_pct < 0 
+          ? 'rgba(239, 68, 68, 0.6)' 
+          : 'rgba(156, 163, 175, 0.4)')
+      : 'rgba(107, 114, 128, 0.4)'; // Gray border for locked
     
     // Determine box size category for text display
     const isSmall = width < 100 || height < 50;
@@ -234,16 +259,18 @@ export function ArcTopProjectsTreemap({
 
     return (
       <g
-        tabIndex={0}
-        role="button"
-        aria-label={`${payload.name}, growth: ${formatGrowthPct(payload.growth_pct)}`}
+        tabIndex={isClickable ? 0 : -1}
+        role={isClickable ? "button" : "img"}
+        aria-label={isClickable 
+          ? `${payload.name}, growth: ${formatGrowthPct(payload.growth_pct)}` 
+          : `${payload.name}, locked: No ARC leaderboard active`}
         onMouseEnter={() => setHoveredProjectId(payload.projectId)}
         onMouseLeave={() => setHoveredProjectId(null)}
         onClick={() => handleCellClick(payload)}
-        onFocus={() => setFocusedProjectId(payload.projectId)}
+        onFocus={() => isClickable && setFocusedProjectId(payload.projectId)}
         onBlur={() => setFocusedProjectId(null)}
-        onKeyDown={handleKeyDown}
-        style={{ cursor: 'pointer', outline: 'none' }}
+        onKeyDown={isClickable ? handleKeyDown : undefined}
+        style={{ cursor: isClickable ? 'pointer' : 'not-allowed', outline: 'none' }}
       >
         {/* Rounded rectangle with proper spacing */}
         <rect

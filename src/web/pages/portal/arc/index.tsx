@@ -11,6 +11,7 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
+import { ArcTopProjectsTreemap, TopProjectItem } from '@/components/arc/ArcTopProjectsTreemap';
 
 // =============================================================================
 // TYPES
@@ -81,6 +82,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [error, setError] = useState<string | null>(null);
   const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
   const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
+  const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
+  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>([]);
+  const [topProjectsLoading, setTopProjectsLoading] = useState(false);
+  const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<Date | null>(null);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
 
@@ -200,6 +205,41 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
     fetchData();
   }, [userTwitterUsername, isDevMode, userIsSuperAdmin, akariUser.user]);
+
+  // Load top projects data
+  useEffect(() => {
+    async function loadTopProjects() {
+      setTopProjectsLoading(true);
+      try {
+        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
+        const data = await res.json();
+
+        if (data.ok && data.projects) {
+          const treemapItems: TopProjectItem[] = data.projects.map((p: any) => ({
+            projectId: p.project_id,
+            name: p.name,
+            twitter_username: p.twitter_username,
+            logo_url: p.logo_url,
+            growth_pct: p.growth_pct,
+            heat: p.heat,
+            slug: p.slug,
+            arc_access_level: p.arc_access_level,
+            arc_active: p.arc_active,
+          }));
+          setTopProjectsData(treemapItems);
+          setTopProjectsLastUpdated(new Date());
+        }
+      } catch (err: any) {
+        console.error('[ArcHome] Error loading top projects:', err);
+      } finally {
+        setTopProjectsLoading(false);
+      }
+    }
+
+    if (canManageArc) {
+      loadTopProjects();
+    }
+  }, [topProjectsView, topProjectsTimeframe, canManageArc]);
 
   // Handle join campaign
   const handleJoinCampaign = async (projectId: string) => {
@@ -345,75 +385,24 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </p>
             </section>
 
-            {/* Top 20 Projects Module */}
-            <section className="mb-8 rounded-xl border border-white/10 bg-black/40 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-white">Top 20 Projects</h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTopProjectsView('gainers')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      topProjectsView === 'gainers'
-                        ? 'bg-akari-primary text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    }`}
-                  >
-                    Top Gainers
-                  </button>
-                  <button
-                    onClick={() => setTopProjectsView('losers')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      topProjectsView === 'losers'
-                        ? 'bg-akari-primary text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    }`}
-                  >
-                    Top Losers
-                  </button>
+            {/* Top Projects Treemap */}
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold text-white mb-4">Top Projects</h2>
+              {topProjectsLoading ? (
+                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60">Loading projects...</span>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                {sortedTopProjects.map((project, index) => {
-                  const metric = project.stats?.totalPoints ?? project.stats?.creatorCount ?? 0;
-                  const trend = project.stats?.trend || 'stable';
-                  
-                  const trendColors = {
-                    rising: 'bg-green-500/20 border-green-500/40 text-green-300',
-                    cooling: 'bg-red-500/20 border-red-500/40 text-red-300',
-                    stable: 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted',
-                  };
-
-                  return (
-                    <Link
-                      key={project.project_id}
-                      href={project.slug ? `/portal/arc/${project.slug}` : '#'}
-                      className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-sm font-semibold text-white/40 w-6">{index + 1}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-white truncate">
-                            {project.name || 'Unnamed Project'}
-                          </div>
-                          {project.twitter_username && (
-                            <div className="text-xs text-white/60">@{project.twitter_username}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <div className="text-xs text-white/60">Points</div>
-                          <div className="text-sm font-semibold text-white">{metric.toLocaleString()}</div>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${trendColors[trend]}`}>
-                          {trend}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
+              ) : (
+                <ArcTopProjectsTreemap
+                  items={topProjectsData}
+                  mode={topProjectsView}
+                  timeframe={topProjectsTimeframe}
+                  onModeChange={setTopProjectsView}
+                  onTimeframeChange={setTopProjectsTimeframe}
+                  lastUpdated={topProjectsLastUpdated}
+                />
+              )}
             </section>
 
             {/* Action Cards */}
