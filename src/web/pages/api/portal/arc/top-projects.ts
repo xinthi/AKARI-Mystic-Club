@@ -188,6 +188,9 @@ export default async function handler(
 
     // Get all active tracked projects with profile_type='project'
     // Include all projects regardless of arc_active status
+    // Match the exclusion logic from Sentiment section
+    const EXCLUDED_SLUGS = ['dev_user', 'devuser'];
+    
     let projects: any[];
     try {
       const { data: projectsData, error: projectsError } = await supabase
@@ -195,7 +198,7 @@ export default async function handler(
         .select('id, slug, name, display_name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, profile_type, is_company')
         .eq('is_active', true)
         .eq('profile_type', 'project') // Only show projects classified as 'project'
-        .neq('slug', 'dev_user'); // Exclude dev_user
+        .order('name', { ascending: true });
 
       if (projectsError) {
         console.error('[Top Projects API] Error fetching projects:', projectsError);
@@ -206,10 +209,14 @@ export default async function handler(
         });
       }
 
-      projects = projectsData || [];
+      // Filter out excluded projects (same as Sentiment section)
+      projects = (projectsData || []).filter(
+        (p) => !EXCLUDED_SLUGS.includes(p.slug?.toLowerCase())
+      );
 
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
+        console.log('[Top Projects API] No projects found with profile_type="project"');
         return res.status(200).json({
           ok: true,
           items: [],
@@ -218,6 +225,8 @@ export default async function handler(
           timeframe,
         });
       }
+      
+      console.log(`[Top Projects API] Found ${projects.length} projects with profile_type="project"`);
     } catch (fetchError: any) {
       console.error('[Top Projects API] Unexpected error fetching projects:', fetchError);
       return res.status(500).json({
