@@ -62,11 +62,37 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
     }
     
     // ARC is usable by SuperAdmins in production, everyone in dev
-    return isDevBypass || isSuperAdminUser;
+    const result = isDevBypass || isSuperAdminUser;
+    
+    // Debug logging for production troubleshooting
+    if (typeof window !== 'undefined') {
+      console.log('[PortalLayout] ARC visibility check:', {
+        isDevBypass,
+        isSuperAdminUser,
+        canUseArc: result,
+        isLoading: akariUser.isLoading,
+        hasUser: !!akariUser.user,
+        realRoles: akariUser.user?.realRoles,
+        effectiveRoles: akariUser.user?.effectiveRoles,
+      });
+    }
+    
+    return result;
   }, [akariUser.user, akariUser.isLoading]);
   
   // Always show all nav items - ARC is always visible but may be disabled
   const visibleNavItems = navItems;
+  
+  // Debug: Verify ARC item is in navItems
+  if (typeof window !== 'undefined') {
+    const arcItem = navItems.find(item => item.href === '/portal/arc');
+    console.log('[PortalLayout] ARC nav item check:', {
+      arcItemExists: !!arcItem,
+      arcItem,
+      totalNavItems: navItems.length,
+      allNavItems: navItems.map(i => i.href),
+    });
+  }
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
@@ -133,8 +159,17 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 router.pathname === item.href ||
                 (item.href !== '/portal' && router.pathname.startsWith(item.href));
               
-              // Special handling for ARC: show to everyone but disable for non-SuperAdmins
+              // Special handling for ARC: ALWAYS show, but disable for non-SuperAdmins
               if (item.href === '/portal/arc') {
+                // Debug: Log when rendering ARC nav item
+                if (typeof window !== 'undefined') {
+                  console.log('[PortalLayout] Rendering ARC nav item:', {
+                    canUseArc,
+                    href: item.href,
+                    label: item.label,
+                  });
+                }
+                
                 if (canUseArc) {
                   // SuperAdmin or dev: render as normal link
                   return (
@@ -151,7 +186,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                     </Link>
                   );
                 } else {
-                  // Normal user: render as disabled button
+                  // Normal user: render as disabled button (BUT STILL VISIBLE)
                   return (
                     <button
                       key={item.href}
@@ -159,6 +194,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                       className="pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
                       title="ARC is currently in private beta"
                       aria-disabled="true"
+                      style={{ display: 'flex' }} // Force display to ensure visibility
                     >
                       <span className="text-xs whitespace-nowrap">{item.label}</span>
                     </button>
@@ -274,8 +310,17 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
                   
-                  // Special handling for ARC: show to everyone but disable for non-SuperAdmins
+                  // Special handling for ARC: ALWAYS show, but disable for non-SuperAdmins
                   if (item.href === '/portal/arc') {
+                    // Debug: Log when rendering ARC nav item (mobile)
+                    if (typeof window !== 'undefined') {
+                      console.log('[PortalLayout] Rendering ARC nav item (mobile):', {
+                        canUseArc,
+                        href: item.href,
+                        label: item.label,
+                      });
+                    }
+                    
                     if (canUseArc) {
                       // SuperAdmin or dev: render as normal link
                       return (
@@ -293,7 +338,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                         </Link>
                       );
                     } else {
-                      // Normal user: render as disabled button
+                      // Normal user: render as disabled button (BUT STILL VISIBLE)
                       return (
                         <button
                           key={item.href}
@@ -301,6 +346,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                           className="pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
                           title="ARC is currently in private beta"
                           aria-disabled="true"
+                          style={{ display: 'flex' }} // Force display to ensure visibility
                         >
                           <span>{item.label}</span>
                         </button>
