@@ -259,7 +259,7 @@ export default function CreatorManagerProgramDetail() {
             // Load badges count for each creator
             try {
               const badgesRes = await fetch(
-                `/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/badges`
+                `/api/portal/creator-manager/programs/${programId}/creators/${creator.creator_profile_id}/badges`
               );
               const badgesData = await badgesRes.json();
               return {
@@ -361,11 +361,11 @@ export default function CreatorManagerProgramDetail() {
     }
   };
 
-  const handleUpdateStatus = async (creatorId: string, newStatus: 'pending' | 'approved' | 'rejected' | 'removed') => {
-    setUpdatingStatus(creatorId);
+  const handleUpdateStatus = async (creatorProfileId: string, newStatus: 'pending' | 'approved' | 'rejected' | 'removed') => {
+    setUpdatingStatus(creatorProfileId);
     try {
       const res = await fetch(
-        `/api/portal/creator-manager/programs/${programId}/creators/${creatorId}/status`,
+        `/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/status`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -387,11 +387,11 @@ export default function CreatorManagerProgramDetail() {
     }
   };
 
-  const handleAssignDeal = async (creatorId: string, dealId: string | null) => {
-    setUpdatingDeal(creatorId);
+  const handleAssignDeal = async (creatorProfileId: string, dealId: string | null) => {
+    setUpdatingDeal(creatorProfileId);
     try {
       const res = await fetch(
-        `/api/portal/creator-manager/programs/${programId}/creators/${creatorId}/status`,
+        `/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/deal`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -413,11 +413,11 @@ export default function CreatorManagerProgramDetail() {
     }
   };
 
-  const handleUpdateClass = async (creatorId: string, newClass: string | null) => {
-    setUpdatingClass(creatorId);
+  const handleUpdateClass = async (creatorProfileId: string, newClass: string | null) => {
+    setUpdatingClass(creatorProfileId);
     try {
       const res = await fetch(
-        `/api/portal/creator-manager/programs/${programId}/creators/${creatorId}/class`,
+        `/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/class`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -439,16 +439,16 @@ export default function CreatorManagerProgramDetail() {
     }
   };
 
-  const handleAwardBadge = async (creatorId: string) => {
+  const handleAwardBadge = async (creatorProfileId: string) => {
     if (!badgeForm.badgeSlug.trim()) {
       alert('Badge slug is required');
       return;
     }
 
-    setAwardingBadge(creatorId);
+    setAwardingBadge(creatorProfileId);
     try {
       const res = await fetch(
-        `/api/portal/creator-manager/programs/${programId}/creators/${creatorId}/badges`,
+        `/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/badges`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1020,7 +1020,7 @@ export default function CreatorManagerProgramDetail() {
                           <select
                             value={creator.status}
                             onChange={(e) =>
-                              handleUpdateStatus(creator.id, e.target.value as any)
+                              handleUpdateStatus(creator.creator_profile_id, e.target.value as any)
                             }
                             disabled={updatingStatus === creator.id}
                             className="px-2 py-1 rounded bg-akari-cardSoft border border-akari-border text-akari-text text-sm"
@@ -1041,7 +1041,7 @@ export default function CreatorManagerProgramDetail() {
                           <select
                             value={creator.class || ''}
                             onChange={(e) =>
-                              handleUpdateClass(creator.id, e.target.value || null)
+                              handleUpdateClass(creator.creator_profile_id, e.target.value || null)
                             }
                             disabled={updatingClass === creator.id}
                             className="px-2 py-1 rounded bg-akari-cardSoft border border-akari-border text-akari-text text-sm"
@@ -1068,7 +1068,7 @@ export default function CreatorManagerProgramDetail() {
                           <select
                             value={creator.deal_id || ''}
                             onChange={(e) =>
-                              handleAssignDeal(creator.id, e.target.value || null)
+                              handleAssignDeal(creator.creator_profile_id, e.target.value || null)
                             }
                             disabled={updatingDeal === creator.id}
                             className="px-2 py-1 rounded bg-akari-cardSoft border border-akari-border text-akari-text text-sm"
@@ -1096,7 +1096,7 @@ export default function CreatorManagerProgramDetail() {
                             <button
                               onClick={() => {
                                 setBadgeForm({ badgeSlug: '', name: '', description: '' });
-                                setShowAwardBadgeModal(creator.id);
+                                setShowAwardBadgeModal(creator.creator_profile_id);
                               }}
                               className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium"
                             >

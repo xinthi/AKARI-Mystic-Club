@@ -1,9 +1,9 @@
 /**
- * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorId]/class
+ * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorProfileId]/class
  * 
  * Update creator class in a Creator Manager program.
  * 
- * Input: { class: "Vanguard" | "Analyst" | "Amplifier" | "Explorer" }
+ * Input: { class: "Vanguard" | "Analyst" | "Amplifier" | "Explorer" | null }
  * 
  * Permissions: Only project owner/admin/moderator can update class
  */
@@ -100,10 +100,10 @@ export default async function handler(
   }
 
   const programId = req.query.programId as string;
-  const creatorId = req.query.creatorId as string;
+  const creatorProfileId = req.query.creatorProfileId as string;
 
-  if (!programId || !creatorId) {
-    return res.status(400).json({ ok: false, error: 'programId and creatorId are required' });
+  if (!programId || !creatorProfileId) {
+    return res.status(400).json({ ok: false, error: 'programId and creatorProfileId are required' });
   }
 
   const body: UpdateClassRequest = req.body;
@@ -117,11 +117,11 @@ export default async function handler(
   }
 
   try {
-    // Get creator record to find program
+    // Verify creator exists in this program
     const { data: creator, error: creatorError } = await supabase
       .from('creator_manager_creators')
       .select('program_id')
-      .eq('id', creatorId)
+      .eq('creator_profile_id', creatorProfileId)
       .eq('program_id', programId)
       .single();
 
@@ -149,11 +149,12 @@ export default async function handler(
       });
     }
 
-    // Update creator class
+    // Update creator class using creator_profile_id and program_id
     const { error: updateError } = await supabase
       .from('creator_manager_creators')
       .update({ class: body.class })
-      .eq('id', creatorId);
+      .eq('creator_profile_id', creatorProfileId)
+      .eq('program_id', programId);
 
     if (updateError) {
       console.error('[Update Creator Class] Error:', updateError);

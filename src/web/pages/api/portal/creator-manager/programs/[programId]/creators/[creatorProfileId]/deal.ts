@@ -1,28 +1,26 @@
 /**
- * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorId]/status
+ * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorProfileId]/deal
  * 
- * Admin/moderator endpoint: Change creator status and optionally assign a deal.
+ * Assign a deal to a creator in a Creator Manager program.
  * 
- * Input: { status: 'pending' | 'approved' | 'rejected' | 'removed', dealId?: string }
+ * Input: { dealId: string | null }
  * 
- * Permissions: Only project admins and moderators can change status
+ * Permissions: Only project admins and moderators can assign deals
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
-import { createNotification } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-interface UpdateStatusRequest {
-  status: 'pending' | 'approved' | 'rejected' | 'removed';
-  dealId?: string;
+interface AssignDealRequest {
+  dealId: string | null;
 }
 
-type UpdateStatusResponse =
+type AssignDealResponse =
   | { ok: true; message: string }
   | { ok: false; error: string };
 
@@ -51,7 +49,7 @@ function getSessionToken(req: NextApiRequest): string | null {
   return null;
 }
 
-async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ userId: string; profileId: string | null } | null> {
+async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ userId: string } | null> {
   const { data: session, error: sessionError } = await supabase
     .from('akari_user_sessions')
     .select('user_id, expires_at')
@@ -70,26 +68,8 @@ async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, ses
     return null;
   }
 
-  const { data: xIdentity } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
-
-  let profileId: string | null = null;
-  if (xIdentity?.username) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-      .single();
-    profileId = profile?.id || null;
-  }
-
   return {
     userId: session.user_id,
-    profileId,
   };
 }
 
@@ -99,7 +79,7 @@ async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, ses
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<UpdateStatusResponse>
+  res: NextApiResponse<AssignDealResponse>
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -119,23 +99,20 @@ export default async function handler(
   }
 
   const programId = req.query.programId as string;
-  const creatorId = req.query.creatorId as string;
+  const creatorProfileId = req.query.creatorProfileId as string;
 
-  if (!programId || !creatorId) {
-    return res.status(400).json({ ok: false, error: 'programId and creatorId are required' });
+  if (!programId || !creatorProfileId) {
+    return res.status(400).json({ ok: false, error: 'programId and creatorProfileId are required' });
   }
 
-  const body: UpdateStatusRequest = req.body;
-  if (!body.status || !['pending', 'approved', 'rejected', 'removed'].includes(body.status)) {
-    return res.status(400).json({ ok: false, error: 'Invalid status' });
-  }
+  const body: AssignDealRequest = req.body;
 
   try {
-    // Get creator record to find program
+    // Verify creator exists in this program
     const { data: creator, error: creatorError } = await supabase
       .from('creator_manager_creators')
       .select('program_id')
-      .eq('id', creatorId)
+      .eq('creator_profile_id', creatorProfileId)
       .eq('program_id', programId)
       .single();
 
@@ -157,7 +134,7 @@ export default async function handler(
     // Check permissions - must be admin or moderator
     const permissions = await checkProjectPermissions(supabase, currentUser.userId, program.project_id);
     if (!permissions.isAdmin && !permissions.isModerator && !permissions.isOwner && !permissions.isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'Only project admins and moderators can change creator status' });
+      return res.status(403).json({ ok: false, error: 'Only project admins and moderators can assign deals' });
     }
 
     // If dealId is provided, verify it belongs to this program
@@ -174,69 +151,24 @@ export default async function handler(
       }
     }
 
-    // Update creator status
-    const updateData: Record<string, any> = {
-      status: body.status,
-    };
-
-    if (body.dealId) {
-      updateData.deal_id = body.dealId;
-    } else if (body.status === 'rejected' || body.status === 'removed') {
-      // Clear deal if rejected or removed
-      updateData.deal_id = null;
-    }
-
+    // Update creator deal using creator_profile_id and program_id
     const { error: updateError } = await supabase
       .from('creator_manager_creators')
-      .update(updateData)
-      .eq('id', creatorId);
+      .update({ deal_id: body.dealId })
+      .eq('creator_profile_id', creatorProfileId)
+      .eq('program_id', programId);
 
     if (updateError) {
-      console.error('[Update Creator Status] Error:', updateError);
-      return res.status(500).json({ ok: false, error: 'Failed to update creator status' });
-    }
-
-    // Get creator profile ID for notifications
-    const { data: creatorRecord } = await supabase
-      .from('creator_manager_creators')
-      .select('creator_profile_id')
-      .eq('id', creatorId)
-      .single();
-
-    // If status is approved, ensure creator has 'creator' role in profiles.real_roles
-    if (body.status === 'approved') {
-      if (creatorRecord) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('real_roles')
-          .eq('id', creatorRecord.creator_profile_id)
-          .single();
-
-        if (profile && (!profile.real_roles || !profile.real_roles.includes('creator'))) {
-          const updatedRoles = profile.real_roles ? [...profile.real_roles, 'creator'] : ['creator'];
-          await supabase
-            .from('profiles')
-            .update({ real_roles: updatedRoles })
-            .eq('id', creatorRecord.creator_profile_id);
-        }
-      }
-    }
-
-    // Create notification for creator
-    if (creatorRecord && (body.status === 'approved' || body.status === 'rejected')) {
-      const notificationType = body.status === 'approved' ? 'creator_approved' : 'creator_rejected';
-      await createNotification(supabase, creatorRecord.creator_profile_id, notificationType, {
-        programId,
-        projectId: program.project_id,
-      });
+      console.error('[Assign Deal] Error:', updateError);
+      return res.status(500).json({ ok: false, error: 'Failed to assign deal' });
     }
 
     return res.status(200).json({
       ok: true,
-      message: `Creator status updated to ${body.status}`,
+      message: body.dealId ? 'Deal assigned successfully' : 'Deal removed successfully',
     });
   } catch (error: any) {
-    console.error('[Update Creator Status] Error:', error);
+    console.error('[Assign Deal] Error:', error);
     return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
   }
 }

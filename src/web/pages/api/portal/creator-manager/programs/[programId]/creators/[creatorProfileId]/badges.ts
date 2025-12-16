@@ -1,21 +1,15 @@
 /**
- * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorId]/badges
+ * API Route: POST /api/portal/creator-manager/programs/[programId]/creators/[creatorProfileId]/badges
  * 
  * Award a badge to a creator in a Creator Manager program.
  * 
- * Input: { badgeSlug: string }
+ * Input: { badgeSlug: string, name?: string, description?: string }
  * 
  * Behavior:
  * - If badgeSlug does not exist, create it with a default name
  * - Link badge to creator in creator_manager_creator_badges
  * 
  * Permissions: Only project admin/moderator can award badges
- * 
- * TODO: Add auto-badge rules based on:
- * - ARC points milestones
- * - Mission completion streaks
- * - Engagement metrics
- * - Content quality scores
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -124,25 +118,13 @@ export default async function handler(
     }
 
     const programId = req.query.programId as string;
-    const creatorId = req.query.creatorId as string;
+    const creatorProfileId = req.query.creatorProfileId as string;
 
-    if (!programId || !creatorId) {
-      return res.status(400).json({ ok: false, error: 'programId and creatorId are required' });
+    if (!programId || !creatorProfileId) {
+      return res.status(400).json({ ok: false, error: 'programId and creatorProfileId are required' });
     }
 
     try {
-      // Get creator record to find profile_id and program
-      const { data: creator, error: creatorError } = await supabase
-        .from('creator_manager_creators')
-        .select('creator_profile_id, program_id')
-        .eq('id', creatorId)
-        .eq('program_id', programId)
-        .single();
-
-      if (creatorError || !creator) {
-        return res.status(404).json({ ok: false, error: 'Creator not found in this program' });
-      }
-
       // Get program to find project_id
       const { data: program, error: programError } = await supabase
         .from('creator_manager_programs')
@@ -176,7 +158,7 @@ export default async function handler(
         currentUserProfileId = profile?.id || null;
       }
 
-      const isViewingOwnBadges = currentUserProfileId === creator.creator_profile_id;
+      const isViewingOwnBadges = currentUserProfileId === creatorProfileId;
 
       if (!canViewAll && !isViewingOwnBadges) {
         return res.status(403).json({
@@ -199,7 +181,7 @@ export default async function handler(
           )
         `)
         .eq('program_id', programId)
-        .eq('creator_profile_id', creator.creator_profile_id)
+        .eq('creator_profile_id', creatorProfileId)
         .order('awarded_at', { ascending: false });
 
       if (badgesError) {
@@ -244,10 +226,10 @@ export default async function handler(
   }
 
   const programId = req.query.programId as string;
-  const creatorId = req.query.creatorId as string;
+  const creatorProfileId = req.query.creatorProfileId as string;
 
-  if (!programId || !creatorId) {
-    return res.status(400).json({ ok: false, error: 'programId and creatorId are required' });
+  if (!programId || !creatorProfileId) {
+    return res.status(400).json({ ok: false, error: 'programId and creatorProfileId are required' });
   }
 
   const body: AwardBadgeRequest = req.body;
@@ -256,11 +238,11 @@ export default async function handler(
   }
 
   try {
-    // Get creator record to find program and profile_id
+    // Verify creator exists in this program
     const { data: creator, error: creatorError } = await supabase
       .from('creator_manager_creators')
-      .select('program_id, creator_profile_id')
-      .eq('id', creatorId)
+      .select('program_id')
+      .eq('creator_profile_id', creatorProfileId)
       .eq('program_id', programId)
       .single();
 
@@ -347,7 +329,7 @@ export default async function handler(
       .from('creator_manager_creator_badges')
       .select('id')
       .eq('program_id', programId)
-      .eq('creator_profile_id', creator.creator_profile_id)
+      .eq('creator_profile_id', creatorProfileId)
       .eq('badge_id', badge.id)
       .single();
 
@@ -364,7 +346,7 @@ export default async function handler(
       .from('creator_manager_creator_badges')
       .insert({
         program_id: programId,
-        creator_profile_id: creator.creator_profile_id,
+        creator_profile_id: creatorProfileId,
         badge_id: badge.id,
       });
 

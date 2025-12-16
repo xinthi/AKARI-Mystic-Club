@@ -130,8 +130,8 @@ export default function CreatorDetailPage() {
         return;
       }
 
-      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/status`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/status`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -167,7 +167,7 @@ export default function CreatorDetailPage() {
         return;
       }
 
-      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/deal`, {
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/deal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dealId }),
@@ -204,7 +204,7 @@ export default function CreatorDetailPage() {
         return;
       }
 
-      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/class`, {
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/class`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ class: newClass }),
@@ -246,7 +246,7 @@ export default function CreatorDetailPage() {
         return;
       }
 
-      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/badges`, {
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/badges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
