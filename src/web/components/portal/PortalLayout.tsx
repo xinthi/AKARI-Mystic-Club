@@ -159,7 +159,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                 router.pathname === item.href ||
                 (item.href !== '/portal' && router.pathname.startsWith(item.href));
               
-              // Special handling for ARC: ALWAYS show, but disable for non-SuperAdmins
+              // ARC: Always render as a normal clickable Link, just like sentiment
               if (item.href === '/portal/arc') {
                 // Debug: Log when rendering ARC nav item
                 if (typeof window !== 'undefined') {
@@ -170,36 +170,20 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                   });
                 }
                 
-                if (canUseArc) {
-                  // SuperAdmin or dev: render as normal link
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 ${
-                        active
-                          ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
-                          : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
-                      }`}
-                    >
-                      <span className="text-xs whitespace-nowrap">{item.label}</span>
-                    </Link>
-                  );
-                } else {
-                  // Normal user: render as disabled button (BUT STILL VISIBLE)
-                  return (
-                    <button
-                      key={item.href}
-                      type="button"
-                      className="pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
-                      title="ARC is currently in private beta"
-                      aria-disabled="true"
-                      style={{ display: 'flex' }} // Force display to ensure visibility
-                    >
-                      <span className="text-xs whitespace-nowrap">{item.label}</span>
-                    </button>
-                  );
-                }
+                // Always render as a normal Link, ignoring canUseArc
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 ${
+                      active
+                        ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                        : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                    }`}
+                  >
+                    <span className="text-xs whitespace-nowrap">{item.label}</span>
+                  </Link>
+                );
               }
               
               // Render disabled items as non-clickable spans
@@ -310,7 +294,7 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
                   
-                  // Special handling for ARC: ALWAYS show, but disable for non-SuperAdmins
+                  // ARC: Always render as a normal clickable Link, just like sentiment
                   if (item.href === '/portal/arc') {
                     // Debug: Log when rendering ARC nav item (mobile)
                     if (typeof window !== 'undefined') {
@@ -321,37 +305,21 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                       });
                     }
                     
-                    if (canUseArc) {
-                      // SuperAdmin or dev: render as normal link
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setIsMobileNavOpen(false)}
-                          className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col ${
-                            active
-                              ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
-                              : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                        </Link>
-                      );
-                    } else {
-                      // Normal user: render as disabled button (BUT STILL VISIBLE)
-                      return (
-                        <button
-                          key={item.href}
-                          type="button"
-                          className="pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
-                          title="ARC is currently in private beta"
-                          aria-disabled="true"
-                          style={{ display: 'flex' }} // Force display to ensure visibility
-                        >
-                          <span>{item.label}</span>
-                        </button>
-                      );
-                    }
+                    // Always render as a normal Link, ignoring canUseArc
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsMobileNavOpen(false)}
+                        className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col ${
+                          active
+                            ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                            : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                      </Link>
+                    );
                   }
                   
                   // Render disabled items as non-clickable spans

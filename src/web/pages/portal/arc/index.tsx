@@ -420,6 +420,20 @@ export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (conte
   // Always return props - never return notFound: true
   // This ensures the route is always valid for logged-in users
   
+  // Check for authentication via session cookie
+  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
+  
+  // Redirect unauthenticated users to login
+  if (!hasSession) {
+    return {
+      redirect: {
+        destination: '/portal/login',
+        permanent: false,
+      },
+    };
+  }
+  
   const isDevMode = process.env.NODE_ENV === 'development';
   
   // Check if user is SuperAdmin
