@@ -250,14 +250,33 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     fetchData();
   }, [userTwitterUsername, isDevMode, userIsSuperAdmin, akariUser.user]);
 
-    // Load top projects data
-    const loadTopProjects = useCallback(async () => {
+    // Load top projects data with lightweight caching
+    const loadTopProjects = useCallback(async (forceRefresh = false) => {
+      // Check cache first (unless force refresh)
+      const cacheKey = `arc-top-projects-${topProjectsView}-${topProjectsTimeframe}`;
+      if (!forceRefresh && typeof window !== 'undefined') {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const { data, timestamp } = JSON.parse(cached);
+            // Use cache if less than 30 seconds old
+            if (Date.now() - timestamp < 30000) {
+              console.log('[ARC] Using cached top projects data');
+              setTopProjectsData(data);
+              setTopProjectsLastUpdated(new Date(timestamp));
+              return;
+            }
+          } catch (e) {
+            // Invalid cache, continue to fetch
+          }
+        }
+      }
+
       setTopProjectsLoading(true);
       setTopProjectsError(null);
       try {
-        // Add timestamp to prevent caching
-        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20&_t=${Date.now()}`, {
-          cache: 'no-store',
+        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`, {
+          cache: forceRefresh ? 'no-store' : 'default',
         });
         
         if (!res.ok) {
@@ -296,7 +315,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           return;
         }
         
-        console.log(`[ARC] Received ${items.length} projects from API`, items);
+        console.log(`[ARC] Received ${items.length} projects from API`);
         
         // If no projects, log helpful message
         if (items.length === 0) {
@@ -314,8 +333,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
             }
             return {
               projectId: p.id || '',
-              name: p.display_name || 'Unknown',
-              twitter_username: p.twitter_username || '',
+              name: p.display_name || p.name || 'Unknown',
+              twitter_username: p.twitter_username || p.x_handle || '',
               logo_url: null, // API no longer returns logo_url
               growth_pct: typeof p.growth_pct === 'number' ? p.growth_pct : 0,
               heat: undefined, // API no longer returns heat
@@ -324,9 +343,18 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
             };
           });
-          console.log(`[ARC] Mapped ${treemapItems.length} items for treemap`, treemapItems);
+          console.log(`[ARC] Mapped ${treemapItems.length} items for treemap`);
           setTopProjectsData(treemapItems);
           setTopProjectsLastUpdated(new Date());
+          
+          // Cache in sessionStorage
+          if (typeof window !== 'undefined') {
+            const cacheKey = `arc-top-projects-${topProjectsView}-${topProjectsTimeframe}`;
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+              data: treemapItems,
+              timestamp: Date.now(),
+            }));
+          }
         } catch (mapError: any) {
           console.error('[ARC] top-projects mapping failed', mapError);
           setTopProjectsError('Failed to process project data');
@@ -347,6 +375,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         loadTopProjects();
       }
     }, [canManageArc, loadTopProjects]);
+
 
   // Load ARC summary
   useEffect(() => {
@@ -535,7 +564,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </Link>
                   )}
                   <button
-                    onClick={() => loadTopProjects()}
+                    onClick={() => loadTopProjects(true)}
                     disabled={topProjectsLoading}
                     className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
@@ -712,6 +741,26 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       </p>
                     </div>
                   )}
+                </div>
+              </div>
+            </section>
+
+            {/* Founder CTA */}
+            <section className="mb-8">
+              <div className="rounded-xl border border-akari-neon-teal/30 bg-gradient-to-br from-akari-neon-teal/10 to-akari-neon-blue/10 p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Are you a project founder?</h3>
+                    <p className="text-sm text-white/70">
+                      Request ARC leaderboard access to track creator influence and gamify your community.
+                    </p>
+                  </div>
+                  <Link
+                    href="/portal/arc"
+                    className="inline-flex items-center px-4 py-2 bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/30 transition-colors font-medium whitespace-nowrap"
+                  >
+                    Request Access
+                  </Link>
                 </div>
               </div>
             </section>

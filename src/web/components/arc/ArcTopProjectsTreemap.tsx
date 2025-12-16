@@ -210,9 +210,11 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
 
-  // Debug: Log items on mount/update
+  // Log items on mount/update (dev only)
   React.useEffect(() => {
-    console.log('[ArcTopProjectsTreemap] Items received:', items.length, items);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[ArcTopProjectsTreemap] Items received:', items.length);
+    }
   }, [items]);
 
   // Format last updated timestamp (safe handling of undefined)
@@ -751,7 +753,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
+        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: '400px', height: '400px' }}>
           <ResponsiveContainer width="100%" height={400}>
             <Treemap
               data={treemapData}
