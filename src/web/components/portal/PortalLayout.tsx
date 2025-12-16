@@ -41,10 +41,9 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
   // Analyst Social Boost Promo
   const promo = useAnalystPromo();
 
-  // Filter nav items based on environment and user permissions
+  // Determine if user can use ARC (SuperAdmin or dev bypass)
   // Use useMemo to recalculate when user loads/changes
-  // Reuse the same Super Admin check used for ARC Admin button
-  const visibleNavItems = useMemo(() => {
+  const canUseArc = useMemo(() => {
     // Check dev mode bypass (same as yellow DEV MODE panel)
     const isDevBypass = process.env.NODE_ENV === 'development';
     
@@ -62,32 +61,12 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
       }
     }
     
-    // ARC is visible to SuperAdmins in production, everyone in dev
-    const canSeeArc = isDevBypass || isSuperAdminUser;
-    
-    // Debug logging (always log to help diagnose)
-    if (typeof window !== 'undefined') {
-      console.log('[PortalLayout] ARC visibility check:', {
-        isDevBypass,
-        isSuperAdminUser,
-        canSeeArc,
-        hasUser: !!akariUser.user,
-        isLoading: akariUser.isLoading,
-        realRoles: akariUser.user?.realRoles || [],
-        effectiveRoles: akariUser.user?.effectiveRoles || [],
-        userId: akariUser.user?.id,
-        userObject: akariUser.user, // Full object for debugging
-      });
-    }
-    
-    return navItems.filter((item) => {
-      // ARC link: show to SuperAdmins in production, everyone in dev
-      if (item.href === '/portal/arc') {
-        return canSeeArc;
-      }
-      return true;
-    });
+    // ARC is usable by SuperAdmins in production, everyone in dev
+    return isDevBypass || isSuperAdminUser;
   }, [akariUser.user, akariUser.isLoading]);
+  
+  // Always show all nav items - ARC is always visible but may be disabled
+  const visibleNavItems = navItems;
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
@@ -153,6 +132,39 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
               const active =
                 router.pathname === item.href ||
                 (item.href !== '/portal' && router.pathname.startsWith(item.href));
+              
+              // Special handling for ARC: show to everyone but disable for non-SuperAdmins
+              if (item.href === '/portal/arc') {
+                if (canUseArc) {
+                  // SuperAdmin or dev: render as normal link
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 ${
+                        active
+                          ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                          : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                      }`}
+                    >
+                      <span className="text-xs whitespace-nowrap">{item.label}</span>
+                    </Link>
+                  );
+                } else {
+                  // Normal user: render as disabled button
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      className="pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
+                      title="ARC is currently in private beta"
+                      aria-disabled="true"
+                    >
+                      <span className="text-xs whitespace-nowrap">{item.label}</span>
+                    </button>
+                  );
+                }
+              }
               
               // Render disabled items as non-clickable spans
               if (item.isTesting) {
@@ -261,6 +273,40 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
                   const active =
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
+                  
+                  // Special handling for ARC: show to everyone but disable for non-SuperAdmins
+                  if (item.href === '/portal/arc') {
+                    if (canUseArc) {
+                      // SuperAdmin or dev: render as normal link
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMobileNavOpen(false)}
+                          className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col ${
+                            active
+                              ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                              : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    } else {
+                      // Normal user: render as disabled button
+                      return (
+                        <button
+                          key={item.href}
+                          type="button"
+                          className="pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col opacity-60 cursor-not-allowed pointer-events-none text-akari-muted/40 border-akari-muted/20 bg-akari-muted/5"
+                          title="ARC is currently in private beta"
+                          aria-disabled="true"
+                        >
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    }
+                  }
                   
                   // Render disabled items as non-clickable spans
                   if (item.isTesting) {
