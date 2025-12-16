@@ -5,10 +5,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { GetServerSideProps } from 'next';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { classifyFreshness, getFreshnessPillClasses } from '@/lib/portal/data-freshness';
+import { requireSuperAdmin } from '@/lib/server-auth';
 
 // =============================================================================
 // TYPES
@@ -425,7 +427,7 @@ export default function AdminProjectsPage() {
   return (
     <>
       <PortalLayout title="Projects Admin">
-      <div className="px-4 py-4 md:px-6 lg:px-10">
+      <div className="px-4 py-4 md:px-6 lg:px-10 max-w-full">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-white mb-2">Projects Admin - ARC Control Plane</h1>
@@ -492,14 +494,14 @@ export default function AdminProjectsPage() {
 
         {/* Projects table */}
         {!loading && !error && (
-          <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+          <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)] max-w-full">
+            <div className="overflow-x-auto max-w-full">
+              <table className="w-full min-w-[1100px]">
                 <thead>
-                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Name</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">X Handle</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
+                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 sticky top-0 z-10">
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-gradient-teal whitespace-nowrap">Name</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">X Handle</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1">
                           Identity
@@ -510,7 +512,7 @@ export default function AdminProjectsPage() {
                         <span className="text-xs font-normal text-akari-muted/60 lowercase">(from profiles)</span>
                       </div>
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-gradient-blue whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1">
                           Ecosystem Type
@@ -521,11 +523,11 @@ export default function AdminProjectsPage() {
                         <span className="text-xs font-normal text-akari-muted/60 lowercase">(from projects)</span>
                       </div>
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Claimed</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Level</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Active</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Updated</th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Actions</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Claimed</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">ARC Level</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">ARC Active</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Updated</th>
+                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -540,24 +542,26 @@ export default function AdminProjectsPage() {
                       return (
                         <tr
                           key={project.id}
-                          className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] hover:scale-[1.01] hover:-translate-y-0.5"
+                          className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
                         >
-                          <td className="py-4 px-5 text-akari-text font-semibold">
-                            <div>{project.display_name || project.name}</div>
-                            <div className="text-xs text-akari-muted font-mono">{project.slug}</div>
+                          <td className="py-3 px-4 text-akari-text font-semibold">
+                            <div className="truncate max-w-[220px]" title={project.display_name || project.name || ''}>
+                              {project.display_name || project.name}
+                            </div>
+                            <div className="text-xs text-akari-muted font-mono truncate max-w-[220px]">{project.slug}</div>
                           </td>
-                          <td className="py-4 px-5 text-akari-muted">@{project.twitter_username || project.x_handle}</td>
-                          <td className="py-4 px-5">
+                          <td className="py-3 px-4 text-akari-muted whitespace-nowrap">@{project.twitter_username || project.x_handle}</td>
+                          <td className="py-3 px-4">
                             {project.identityType === 'company' ? (
-                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-medium">Company</span>
+                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-medium whitespace-nowrap">Company</span>
                             ) : project.identityType === 'individual' ? (
-                              <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 font-medium">Individual</span>
+                              <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 font-medium whitespace-nowrap">Individual</span>
                             ) : (
-                              <span className="px-2 py-1 rounded text-xs bg-gray-500/20 text-gray-400 font-medium">Unknown</span>
+                              <span className="px-2 py-1 rounded text-xs bg-gray-500/20 text-gray-400 font-medium whitespace-nowrap">Unknown</span>
                             )}
                           </td>
-                          <td className="py-4 px-5">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                               project.profile_type === 'project' 
                                 ? 'bg-purple-500/20 text-purple-400' 
                                 : project.profile_type === 'personal'
@@ -571,23 +575,25 @@ export default function AdminProjectsPage() {
                                 : 'Unclassified'}
                             </span>
                             {!project.profile_type && (
-                              <p className="text-xs text-orange-400/70 mt-1">
-                                User must claim, then SuperAdmin classifies
+                              <p className="text-xs text-orange-400/70 mt-1 whitespace-nowrap">
+                                Needs classification
                               </p>
                             )}
                           </td>
-                          <td className="py-4 px-5 text-akari-muted text-xs">
+                          <td className="py-3 px-4 text-akari-muted text-xs whitespace-nowrap">
                             {project.claimed_by ? (
                               <div>
-                                <div>By: {project.claimed_by.substring(0, 8)}...</div>
+                                <div className="truncate max-w-[100px]" title={project.claimed_by}>
+                                  {project.claimed_by.substring(0, 8)}...
+                                </div>
                                 <div>{formatDate(project.claimed_at)}</div>
                               </div>
                             ) : (
                               '–'
                             )}
                           </td>
-                          <td className="py-4 px-5">
-                            <div className="relative">
+                          <td className="py-3 px-4">
+                            <div className="relative flex items-center">
                               <select
                                 value={project.arc_access_level || 'none'}
                                 onChange={(e) => {
@@ -595,7 +601,7 @@ export default function AdminProjectsPage() {
                                   handleUpdateArcField(project.id, 'arc_access_level', newValue);
                                 }}
                                 disabled={updatingProjectId === project.id || !userIsSuperAdmin}
-                                className={`px-2 py-1 rounded text-xs font-medium border transition-colors appearance-none bg-akari-bg ${
+                                className={`px-2 py-1.5 rounded text-xs font-medium border transition-colors appearance-none bg-akari-bg h-8 ${
                                   updatingProjectId === project.id
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'cursor-pointer hover:opacity-80'
@@ -619,7 +625,7 @@ export default function AdminProjectsPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-4 px-5">
+                          <td className="py-3 px-4">
                             <label className="flex items-center gap-2 cursor-pointer group">
                               <input
                                 type="checkbox"
@@ -638,38 +644,38 @@ export default function AdminProjectsPage() {
                                     : 'bg-transparent border-gray-500'
                                 }`}
                               />
-                              <span className={`text-xs ${
+                              <span className={`text-xs whitespace-nowrap ${
                                 project.arc_active ? 'text-green-400' : 'text-akari-muted'
                               }`}>
                                 {project.arc_active ? 'Active' : 'Inactive'}
                               </span>
                             </label>
                             {project.arc_active_until && (
-                              <div className="text-xs text-akari-muted mt-1">
+                              <div className="text-xs text-akari-muted mt-1 whitespace-nowrap">
                                 Until: {formatDate(project.arc_active_until)}
                               </div>
                             )}
                           </td>
-                          <td className="py-4 px-5 text-akari-muted text-xs">{formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}</td>
-                          <td className="py-4 px-5">
+                          <td className="py-3 px-4 text-akari-muted text-xs whitespace-nowrap">{formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}</td>
+                          <td className="py-3 px-4">
                             {userIsSuperAdmin && (
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => handleClassify(project)}
-                                  className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium"
+                                  className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium h-8"
                                 >
                                   Classify
                                 </button>
                                 <button
                                   onClick={() => handleEdit(project)}
-                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium"
+                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium h-8"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   onClick={() => handleRefresh(project.id)}
                                   disabled={refreshingProjectId === project.id}
-                                  className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed h-8"
                                 >
                                   {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
                                 </button>
@@ -886,4 +892,21 @@ export default function AdminProjectsPage() {
     </>
   );
 }
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  // Require Super Admin access
+  const redirect = await requireSuperAdmin(context);
+  if (redirect) {
+    return redirect;
+  }
+
+  // User is authenticated and is Super Admin
+  return {
+    props: {},
+  };
+};
 
