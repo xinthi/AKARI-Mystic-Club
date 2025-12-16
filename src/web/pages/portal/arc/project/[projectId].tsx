@@ -1,8 +1,7 @@
 /**
- * ARC Project Page
+ * ARC Project Page (Placeholder)
  * 
- * Page for projects with leaderboard or gamified ARC access levels
- * Shows project overview, leaderboard, and campaigns
+ * Placeholder page for projects with leaderboard or gamified ARC access levels
  */
 
 import React, { useEffect, useState } from 'react';
@@ -19,14 +18,10 @@ interface Project {
   id: string;
   name: string;
   display_name: string | null;
-  slug: string;
   twitter_username: string | null;
   avatar_url: string | null;
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
-  arc_active: boolean;
 }
-
-type TabType = 'overview' | 'leaderboard' | 'campaigns';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -46,6 +41,20 @@ function getTierLabel(arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard'
   }
 }
 
+function getTierBadgeColor(arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | undefined | null): string {
+  switch (arcAccessLevel) {
+    case 'gamified':
+      return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
+    case 'leaderboard':
+      return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
+    case 'creator_manager':
+      return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+    case 'none':
+    default:
+      return 'bg-gray-500/20 text-gray-400 border-gray-500/50';
+  }
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -56,9 +65,8 @@ export default function ArcProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
 
-  // Fetch project by slug or ID
+  // Fetch project by ID
   useEffect(() => {
     async function fetchProject() {
       if (!projectId || typeof projectId !== 'string') {
@@ -72,24 +80,15 @@ export default function ArcProjectPage() {
 
         const supabase = createPortalClient();
 
-        // Try to find project by slug first, then by ID
-        let query = supabase
+        // Find project by ID
+        const { data: projectData, error: projectError } = await supabase
           .from('projects')
-          .select('id, name, display_name, slug, twitter_username, avatar_url, arc_access_level, arc_active')
-          .or(`slug.eq.${projectId},id.eq.${projectId}`)
+          .select('id, name, display_name, twitter_username, avatar_url, arc_access_level')
+          .eq('id', projectId)
           .single();
-
-        const { data: projectData, error: projectError } = await query;
 
         if (projectError || !projectData) {
           setError('Project not found');
-          setLoading(false);
-          return;
-        }
-
-        // Verify project has appropriate access level
-        if (projectData.arc_access_level !== 'leaderboard' && projectData.arc_access_level !== 'gamified') {
-          setError('This project does not have leaderboard or gamified ARC access');
           setLoading(false);
           return;
         }
@@ -141,6 +140,7 @@ export default function ArcProjectPage() {
 
   const displayName = project.display_name || project.name;
   const tierLabel = getTierLabel(project.arc_access_level);
+  const tierBadgeColor = getTierBadgeColor(project.arc_access_level);
 
   return (
     <PortalLayout title={displayName}>
@@ -165,73 +165,25 @@ export default function ArcProjectPage() {
               className="w-16 h-16 rounded-full border-2 border-akari-border"
             />
           )}
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-akari-text">{displayName}</h1>
             {project.twitter_username && (
               <p className="text-akari-muted">@{project.twitter_username}</p>
             )}
           </div>
+          {/* Tier Badge */}
+          <span className={`px-3 py-1 rounded-lg text-sm font-medium border ${tierBadgeColor}`}>
+            {tierLabel}
+          </span>
         </div>
 
-        {/* ARC Tier Info */}
-        <div className="rounded-xl border border-akari-border bg-akari-card p-4">
-          <p className="text-sm text-akari-muted">
-            This project has ARC tier: <span className="font-semibold text-akari-text">{tierLabel}</span>
-            {project.arc_active ? (
-              <span className="ml-2 px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">Active</span>
-            ) : (
-              <span className="ml-2 px-2 py-1 rounded text-xs bg-gray-500/20 text-gray-400">Inactive</span>
-            )}
+        {/* Leaderboard Coming Soon */}
+        <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center min-h-[400px] flex flex-col items-center justify-center">
+          <div className="text-4xl mb-4">📊</div>
+          <h2 className="text-2xl font-semibold text-akari-text mb-2">Leaderboard Coming Soon</h2>
+          <p className="text-akari-muted max-w-md">
+            The leaderboard for this project is currently under development. Check back soon!
           </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b border-akari-border">
-          <div className="flex gap-4">
-            {(['overview', 'leaderboard', 'campaigns'] as TabType[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab
-                    ? 'border-akari-primary text-akari-primary'
-                    : 'border-transparent text-akari-muted hover:text-akari-text hover:border-akari-border'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className="rounded-xl border border-akari-border bg-akari-card p-6 min-h-[400px]">
-          {activeTab === 'overview' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-akari-text">Overview</h2>
-              <p className="text-akari-muted">
-                Project overview content coming soon...
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'leaderboard' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-akari-text">Leaderboard</h2>
-              <p className="text-akari-muted">
-                Leaderboard content coming soon...
-              </p>
-            </div>
-          )}
-
-          {activeTab === 'campaigns' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-akari-text">Campaigns</h2>
-              <p className="text-akari-muted">
-                Campaigns content coming soon...
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </PortalLayout>

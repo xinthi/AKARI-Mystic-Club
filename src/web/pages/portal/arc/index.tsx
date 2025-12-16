@@ -795,6 +795,8 @@ function SafeTreemapWrapper({
   lastUpdated?: Date | string | number;
   onError: (error: Error | null) => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     // Reset error when props change
     onError(null);
@@ -809,6 +811,18 @@ function SafeTreemapWrapper({
         onModeChange={onModeChange}
         onTimeframeChange={onTimeframeChange}
         lastUpdated={lastUpdated}
+        onProjectClick={(project) => {
+          const arcAccessLevel = project.arc_access_level || 'none';
+          const projectId = project.projectId;
+          
+          // Route based on arc_access_level
+          if (arcAccessLevel === 'creator_manager') {
+            router.push(`/portal/arc/creator-manager?projectId=${projectId}`);
+          } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+            router.push(`/portal/arc/project/${projectId}`);
+          }
+          // Else locked - do nothing
+        }}
       />
     );
   } catch (error: any) {
