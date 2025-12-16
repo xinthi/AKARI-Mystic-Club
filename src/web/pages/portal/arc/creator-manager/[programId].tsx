@@ -112,7 +112,7 @@ export default function CreatorManagerProgramDetail() {
   const { programId } = router.query;
   const akariUser = useAkariUser();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'creators' | 'deals' | 'missions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'creators' | 'deals' | 'missions' | 'links'>('overview');
   const [program, setProgram] = useState<Program | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [creators, setCreators] = useState<Creator[]>([]);
@@ -148,6 +148,10 @@ export default function CreatorManagerProgramDetail() {
   });
   const [addingMission, setAddingMission] = useState(false);
   const [updatingMission, setUpdatingMission] = useState(false);
+  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string; created_at: string }>>([]);
+  const [newLink, setNewLink] = useState({ label: '', url: '' });
+  const [addingLink, setAddingLink] = useState(false);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   
   // Updating states
   const [updatingClass, setUpdatingClass] = useState<string | null>(null);
@@ -296,6 +300,13 @@ export default function CreatorManagerProgramDetail() {
       const submissionsData = await submissionsRes.json();
       if (submissionsData.ok) {
         setSubmissions(submissionsData.submissions || []);
+      }
+
+      // Load links
+      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
+      const linksData = await linksRes.json();
+      if (linksData.ok) {
+        setLinks(linksData.links || []);
       }
     } catch (err: any) {
       console.error('[Program Detail] Error:', err);
@@ -735,7 +746,7 @@ export default function CreatorManagerProgramDetail() {
         {/* Tabs */}
         <div className="border-b border-akari-border">
           <div className="flex gap-4">
-            {(['overview', 'creators', 'deals', 'missions'] as const).map((tab) => (
+            {(['overview', 'creators', 'deals', 'missions', 'links'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -1672,6 +1683,117 @@ export default function CreatorManagerProgramDetail() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Links Tab */}
+        {activeTab === 'links' && (
+          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-akari-text">Campaign Links</h2>
+            </div>
+
+            {/* Create Link Form */}
+            <div className="mb-6 p-4 rounded-lg border border-akari-border bg-akari-cardSoft">
+              <h3 className="text-lg font-semibold text-akari-text mb-3">Create New Link</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Label</label>
+                  <input
+                    type="text"
+                    value={newLink.label}
+                    onChange={(e) => setNewLink({ ...newLink, label: e.target.value })}
+                    placeholder="e.g., Landing Page"
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-card text-akari-text"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">URL</label>
+                  <input
+                    type="url"
+                    value={newLink.url}
+                    onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                    placeholder="https://example.com"
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-card text-akari-text"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!newLink.label.trim() || !newLink.url.trim()) {
+                      alert('Label and URL are required');
+                      return;
+                    }
+                    setAddingLink(true);
+                    try {
+                      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/links`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newLink),
+                      });
+                      const data = await res.json();
+                      if (data.ok) {
+                        setNewLink({ label: '', url: '' });
+                        await loadProgram();
+                        alert('Link created successfully');
+                      } else {
+                        alert(data.error || 'Failed to create link');
+                      }
+                    } catch (err: any) {
+                      console.error('[Create Link] Error:', err);
+                      alert('Failed to create link');
+                    } finally {
+                      setAddingLink(false);
+                    }
+                  }}
+                  disabled={addingLink || !newLink.label.trim() || !newLink.url.trim()}
+                  className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {addingLink ? 'Creating...' : 'Create Link'}
+                </button>
+              </div>
+            </div>
+
+            {/* Links List */}
+            {links.length === 0 ? (
+              <p className="text-akari-muted">No links created yet</p>
+            ) : (
+              <div className="space-y-3">
+                {links.map((link) => {
+                  const redirectUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/r/cm/${link.id}`;
+                  return (
+                    <div
+                      key={link.id}
+                      className="p-4 rounded-lg border border-akari-border bg-akari-cardSoft"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="font-medium text-akari-text mb-1">{link.label}</div>
+                          <div className="text-sm text-akari-muted mb-2">Original: {link.url}</div>
+                          <div className="text-sm text-akari-primary mb-2">Redirect: {redirectUrl}</div>
+                          <div className="text-xs text-akari-muted">
+                            Created: {new Date(link.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(redirectUrl);
+                              setCopiedLinkId(link.id);
+                              setTimeout(() => setCopiedLinkId(null), 2000);
+                            } catch (err) {
+                              alert('Failed to copy link');
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium ml-4"
+                        >
+                          {copiedLinkId === link.id ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

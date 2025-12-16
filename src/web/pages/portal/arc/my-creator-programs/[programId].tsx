@@ -73,6 +73,10 @@ export default function CreatorProgramDetail() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [progressMap, setProgressMap] = useState<Map<string, MissionProgress>>(new Map());
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; username: string; arc_points: number; xp: number; level: number }>>([]);
+  const [totalCreators, setTotalCreators] = useState(0);
+  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string }>>([]);
+  const [creatorProfileId, setCreatorProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
@@ -112,6 +116,26 @@ export default function CreatorProgramDetail() {
             creatorRank: foundProgram.creatorRank,
             class: foundProgram.class,
           });
+          // Get creator profile ID from the membership
+          if (foundProgram.creatorStatus) {
+            // Fetch creator profile ID from my-programs endpoint response
+            // We'll get it from the creators list
+            try {
+              const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+              const creatorsData = await creatorsRes.json();
+              if (creatorsData.ok) {
+                // Find current user's creator record
+                const currentCreator = creatorsData.creators.find((c: any) => 
+                  c.profile?.username === akariUser.user?.username?.replace('@', '')
+                );
+                if (currentCreator) {
+                  setCreatorProfileId(currentCreator.creator_profile_id);
+                }
+              }
+            } catch (err) {
+              console.error('[Get Creator Profile ID] Error:', err);
+            }
+          }
         }
       }
 
@@ -159,6 +183,20 @@ export default function CreatorProgramDetail() {
       const badgesData = await badgesRes.json();
       if (badgesData.ok) {
         setBadges(badgesData.badges || []);
+      }
+
+      // Get links for this program
+      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
+      const linksData = await linksRes.json();
+      if (linksData.ok) {
+        setLinks(linksData.links || []);
+      }
+
+      // Get links for this program
+      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
+      const linksData = await linksRes.json();
+      if (linksData.ok) {
+        setLinks(linksData.links || []);
       }
     } catch (err: any) {
       console.error('[Program Detail] Error:', err);
@@ -388,6 +426,32 @@ export default function CreatorProgramDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Campaign Links */}
+        {program.creatorStatus === 'approved' && links.length > 0 && (
+          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+            <h2 className="text-xl font-semibold text-akari-text mb-4">Campaign Links</h2>
+            <div className="space-y-3">
+              {links.map((link) => {
+                const redirectUrl = creatorProfileId
+                  ? `/r/cm/${link.id}?creator=${creatorProfileId}`
+                  : `/r/cm/${link.id}`;
+                return (
+                  <a
+                    key={link.id}
+                    href={redirectUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-4 rounded-lg border border-akari-border bg-akari-cardSoft hover:bg-akari-card hover:border-akari-primary transition-colors"
+                  >
+                    <div className="font-medium text-akari-text mb-1">{link.label}</div>
+                    <div className="text-sm text-akari-muted">{link.url}</div>
+                  </a>
+                );
+              })}
             </div>
           </div>
         )}

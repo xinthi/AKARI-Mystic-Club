@@ -86,14 +86,14 @@ function buildUtmUrl(baseUrl: string, programId: string, projectId: string): str
   try {
     const url = new URL(baseUrl);
     url.searchParams.set('utm_source', 'akari');
-    url.searchParams.set('utm_medium', 'arc_creator_manager');
+    url.searchParams.set('utm_medium', 'creator_manager');
     url.searchParams.set('utm_campaign', programId);
     url.searchParams.set('utm_project', projectId);
     return url.toString();
   } catch {
     // If URL parsing fails, append as query string
     const separator = baseUrl.includes('?') ? '&' : '?';
-    return `${baseUrl}${separator}utm_source=akari&utm_medium=arc_creator_manager&utm_campaign=${programId}&utm_project=${projectId}`;
+    return `${baseUrl}${separator}utm_source=akari&utm_medium=creator_manager&utm_campaign=${programId}&utm_project=${projectId}`;
   }
 }
 
