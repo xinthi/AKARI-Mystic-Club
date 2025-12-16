@@ -420,21 +420,30 @@ export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (conte
   // Always return props - never return notFound: true
   // This ensures the route is always valid for logged-in users
   
-  // Check for authentication via session cookie
-  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
+  const isDevMode = process.env.NODE_ENV === 'development';
   
-  // Redirect unauthenticated users to login
-  if (!hasSession) {
+  // In dev mode, bypass authentication check
+  if (isDevMode) {
     return {
-      redirect: {
-        destination: '/portal/login',
-        permanent: false,
+      props: {
+        canManageArc: true,
       },
     };
   }
   
-  const isDevMode = process.env.NODE_ENV === 'development';
+  // Check for authentication via session cookie (production only)
+  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
+  
+  // Redirect unauthenticated users to portal home (not login, since login page doesn't exist)
+  if (!hasSession) {
+    return {
+      redirect: {
+        destination: '/portal',
+        permanent: false,
+      },
+    };
+  }
   
   // Check if user is SuperAdmin
   // Note: In production, we'll check this client-side as well,
@@ -442,9 +451,8 @@ export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (conte
   // implementing full auth. For now, we'll allow the page to render
   // and let the client-side handle the permission check.
   
-  // In dev mode, always allow
-  // In production, we'll check client-side in the component
-  const canManageArc = isDevMode; // Will be overridden client-side for SuperAdmins
+  // In production, allow page to render and let client-side handle permission check
+  const canManageArc = false; // Will be overridden client-side for SuperAdmins
   
   return {
     props: {
