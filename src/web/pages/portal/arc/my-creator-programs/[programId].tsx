@@ -34,6 +34,14 @@ interface MissionProgress {
   last_update_at: string;
 }
 
+interface Badge {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  awarded_at: string;
+}
+
 interface Program {
   id: string;
   title: string;
@@ -63,6 +71,7 @@ export default function CreatorProgramDetail() {
   const [program, setProgram] = useState<Program | null>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [progressMap, setProgressMap] = useState<Map<string, MissionProgress>>(new Map());
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
@@ -113,6 +122,13 @@ export default function CreatorProgramDetail() {
           progressMap.set(p.mission_id, p);
         });
         setProgressMap(progressMap);
+      }
+
+      // Get badges for current creator
+      const badgesRes = await fetch(`/api/portal/creator-manager/programs/${programId}/my-badges`);
+      const badgesData = await badgesRes.json();
+      if (badgesData.ok) {
+        setBadges(badgesData.badges || []);
       }
     } catch (err: any) {
       console.error('[Program Detail] Error:', err);
@@ -279,6 +295,34 @@ export default function CreatorProgramDetail() {
                 <div className="text-2xl font-bold text-akari-primary">{program.class}</div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Badges Section */}
+        {program.creatorStatus === 'approved' && badges.length > 0 && (
+          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+            <h2 className="text-xl font-semibold text-akari-text mb-4">Badges Earned</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {badges.map((badge) => (
+                <div
+                  key={badge.id}
+                  className="rounded-lg border border-akari-border bg-akari-cardSoft p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">🏆</span>
+                    <div className="flex-1">
+                      <div className="font-semibold text-akari-text">{badge.name}</div>
+                      {badge.description && (
+                        <div className="text-sm text-akari-muted mt-1">{badge.description}</div>
+                      )}
+                      <div className="text-xs text-akari-muted mt-2">
+                        Awarded: {new Date(badge.awarded_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

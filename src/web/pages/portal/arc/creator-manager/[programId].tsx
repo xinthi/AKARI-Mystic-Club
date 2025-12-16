@@ -56,6 +56,7 @@ interface Creator {
   creatorLevel: number;
   class: string | null;
   deal_id: string | null;
+  badgesCount?: number;
   profile?: {
     username: string;
     name: string | null;
@@ -152,6 +153,11 @@ export default function CreatorManagerProgramDetail() {
   const [updatingDeal, setUpdatingDeal] = useState<string | null>(null);
   const [updatingProgramStatus, setUpdatingProgramStatus] = useState(false);
   const [permissions, setPermissions] = useState<{ isOwner: boolean; isAdmin: boolean; isModerator: boolean } | null>(null);
+  
+  // Badges
+  const [awardingBadge, setAwardingBadge] = useState<string | null>(null);
+  const [showAwardBadgeModal, setShowAwardBadgeModal] = useState<string | null>(null);
+  const [badgeForm, setBadgeForm] = useState({ badgeSlug: '', name: '', description: '' });
 
   const loadProgram = useCallback(async () => {
     if (!programId || typeof programId !== 'string' || !akariUser.userId) return;
@@ -242,7 +248,24 @@ export default function CreatorManagerProgramDetail() {
       const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
       const creatorsData = await creatorsRes.json();
       if (creatorsData.ok) {
-        setCreators(creatorsData.creators || []);
+        const creatorsWithBadges = await Promise.all(
+          (creatorsData.creators || []).map(async (creator: Creator) => {
+            // Load badges count for each creator
+            try {
+              const badgesRes = await fetch(
+                `/api/portal/creator-manager/programs/${programId}/creators/${creator.id}/badges`
+              );
+              const badgesData = await badgesRes.json();
+              return {
+                ...creator,
+                badgesCount: badgesData.ok ? badgesData.badges?.length || 0 : 0,
+              };
+            } catch {
+              return { ...creator, badgesCount: 0 };
+            }
+          })
+        );
+        setCreators(creatorsWithBadges);
       }
 
       // Load deals
@@ -400,6 +423,44 @@ export default function CreatorManagerProgramDetail() {
       alert('Failed to update class');
     } finally {
       setUpdatingClass(null);
+    }
+  };
+
+  const handleAwardBadge = async (creatorId: string) => {
+    if (!badgeForm.badgeSlug.trim()) {
+      alert('Badge slug is required');
+      return;
+    }
+
+    setAwardingBadge(creatorId);
+    try {
+      const res = await fetch(
+        `/api/portal/creator-manager/programs/${programId}/creators/${creatorId}/badges`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            badgeSlug: badgeForm.badgeSlug.trim(),
+            name: badgeForm.name.trim() || undefined,
+            description: badgeForm.description.trim() || undefined,
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (data.ok) {
+        setShowAwardBadgeModal(null);
+        setBadgeForm({ badgeSlug: '', name: '', description: '' });
+        await loadProgram();
+        alert(data.message || 'Badge awarded successfully');
+      } else {
+        alert(data.error || 'Failed to award badge');
+      }
+    } catch (err: any) {
+      console.error('[Award Badge] Error:', err);
+      alert('Failed to award badge');
+    } finally {
+      setAwardingBadge(null);
     }
   };
 
@@ -856,6 +917,7 @@ export default function CreatorManagerProgramDetail() {
                       <th className="text-left p-4 text-sm font-medium text-akari-text">XP</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Level</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Class</th>
+                      <th className="text-left p-4 text-sm font-medium text-akari-text">Badges</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Deal</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">
                         ARC Points
@@ -927,6 +989,16 @@ export default function CreatorManagerProgramDetail() {
                           </select>
                         </td>
                         <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-akari-text font-medium">
+                              {creator.badgesCount || 0}
+                            </span>
+                            {(creator.badgesCount || 0) > 0 && (
+                              <span className="text-yellow-400">🏆</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
                           <select
                             value={creator.deal_id || ''}
                             onChange={(e) =>
@@ -948,7 +1020,15 @@ export default function CreatorManagerProgramDetail() {
                           <div className="text-xs text-akari-muted">ARC inside this program</div>
                         </td>
                         <td className="p-4">
-                          {/* TODO: Add mission submission management here */}
+                          <button
+                            onClick={() => {
+                              setBadgeForm({ badgeSlug: '', name: '', description: '' });
+                              setShowAwardBadgeModal(creator.id);
+                            }}
+                            className="px-3 py-1.5 bg-akari-primary/20 text-akari-primary rounded-lg hover:bg-akari-primary/30 transition-colors text-sm font-medium"
+                          >
+                            Award Badge
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1261,6 +1341,72 @@ export default function CreatorManagerProgramDetail() {
                   className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors disabled:opacity-50"
                 >
                   {addingDeal ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Award Badge Modal */}
+        {showAwardBadgeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-akari-card rounded-xl border border-akari-border p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-semibold text-akari-text mb-4">Award Badge</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">
+                    Badge Slug <span className="text-akari-danger">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={badgeForm.badgeSlug}
+                    onChange={(e) => setBadgeForm({ ...badgeForm, badgeSlug: e.target.value })}
+                    placeholder="narrative_master"
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                  />
+                  <p className="text-xs text-akari-muted mt-1">
+                    Use lowercase with underscores (e.g., &quot;narrative_master&quot;)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Name (optional)</label>
+                  <input
+                    type="text"
+                    value={badgeForm.name}
+                    onChange={(e) => setBadgeForm({ ...badgeForm, name: e.target.value })}
+                    placeholder="Narrative Master"
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text"
+                  />
+                  <p className="text-xs text-akari-muted mt-1">
+                    Display name (auto-generated from slug if not provided)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm text-akari-muted mb-1">Description (optional)</label>
+                  <textarea
+                    value={badgeForm.description}
+                    onChange={(e) => setBadgeForm({ ...badgeForm, description: e.target.value })}
+                    placeholder="Awarded for exceptional narrative content..."
+                    className="w-full p-2 rounded-lg border border-akari-border bg-akari-cardSoft text-akari-text min-h-[80px]"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end mt-6">
+                <button
+                  onClick={() => {
+                    setShowAwardBadgeModal(null);
+                    setBadgeForm({ badgeSlug: '', name: '', description: '' });
+                  }}
+                  className="px-4 py-2 rounded-lg border border-akari-border text-akari-text hover:bg-akari-cardSoft transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => showAwardBadgeModal && handleAwardBadge(showAwardBadgeModal)}
+                  disabled={awardingBadge !== null || !badgeForm.badgeSlug.trim()}
+                  className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors disabled:opacity-50"
+                >
+                  {awardingBadge ? 'Awarding...' : 'Award Badge'}
                 </button>
               </div>
             </div>

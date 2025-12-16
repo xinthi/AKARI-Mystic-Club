@@ -28,6 +28,8 @@ import { checkProjectPermissions } from '@/lib/project-permissions';
 
 interface AwardBadgeRequest {
   badgeSlug: string;
+  name?: string;
+  description?: string;
 }
 
 type AwardBadgeResponse =
@@ -110,6 +112,17 @@ export default async function handler(
   if (req.method === 'GET') {
     const supabase = getSupabaseAdmin();
 
+    // Get current user for permission check
+    const sessionToken = getSessionToken(req);
+    if (!sessionToken) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
+
+    const currentUser = await getCurrentUser(supabase, sessionToken);
+    if (!currentUser) {
+      return res.status(401).json({ ok: false, error: 'Invalid session' });
+    }
+
     const programId = req.query.programId as string;
     const creatorId = req.query.creatorId as string;
 
@@ -118,16 +131,58 @@ export default async function handler(
     }
 
     try {
-      // Get creator record to find profile_id
+      // Get creator record to find profile_id and program
       const { data: creator, error: creatorError } = await supabase
         .from('creator_manager_creators')
-        .select('creator_profile_id')
+        .select('creator_profile_id, program_id')
         .eq('id', creatorId)
         .eq('program_id', programId)
         .single();
 
       if (creatorError || !creator) {
         return res.status(404).json({ ok: false, error: 'Creator not found in this program' });
+      }
+
+      // Get program to find project_id
+      const { data: program, error: programError } = await supabase
+        .from('creator_manager_programs')
+        .select('project_id')
+        .eq('id', programId)
+        .single();
+
+      if (programError || !program) {
+        return res.status(404).json({ ok: false, error: 'Program not found' });
+      }
+
+      // Check permissions: admin/moderator can view, or creator can view their own
+      const permissions = await checkProjectPermissions(supabase, currentUser.userId, program.project_id);
+      const canViewAll = permissions.isAdmin || permissions.isModerator || permissions.isOwner || permissions.isSuperAdmin;
+
+      // Get creator's profile_id from session
+      const { data: xIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', currentUser.userId)
+        .eq('provider', 'x')
+        .single();
+
+      let currentUserProfileId: string | null = null;
+      if (xIdentity?.username) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+          .single();
+        currentUserProfileId = profile?.id || null;
+      }
+
+      const isViewingOwnBadges = currentUserProfileId === creator.creator_profile_id;
+
+      if (!canViewAll && !isViewingOwnBadges) {
+        return res.status(403).json({
+          ok: false,
+          error: 'You can only view your own badges or must be an admin/moderator',
+        });
       }
 
       // Get badges
@@ -244,13 +299,13 @@ export default async function handler(
       .single();
 
     if (!badge) {
-      // Create badge with default name
+      // Create badge with provided name/description or defaults
       const { data: newBadge, error: createError } = await supabase
         .from('creator_manager_badges')
         .insert({
           slug: normalizedSlug,
-          name: slugToName(normalizedSlug),
-          description: null,
+          name: body.name || slugToName(normalizedSlug),
+          description: body.description || null,
         })
         .select()
         .single();
@@ -261,6 +316,25 @@ export default async function handler(
       }
 
       badge = newBadge;
+    } else if (body.name || body.description) {
+      // Update existing badge if name/description provided
+      const updateData: { name?: string; description?: string | null } = {};
+      if (body.name) updateData.name = body.name;
+      if (body.description !== undefined) updateData.description = body.description || null;
+
+      const { data: updatedBadge, error: updateError } = await supabase
+        .from('creator_manager_badges')
+        .update(updateData)
+        .eq('id', badge.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('[Award Badge] Error updating badge:', updateError);
+        // Continue anyway, badge exists
+      } else if (updatedBadge) {
+        badge = updatedBadge;
+      }
     }
 
     // Ensure badge is not null (TypeScript guard)
