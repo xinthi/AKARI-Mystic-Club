@@ -287,7 +287,12 @@ export default function CreatorManagerProgramDetail() {
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Level</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Class</th>
                       <th className="text-left p-4 text-sm font-medium text-akari-text">Deal</th>
-                      <th className="text-left p-4 text-sm font-medium text-akari-text">ARC Points</th>
+                      <th className="text-left p-4 text-sm font-medium text-akari-text">
+                        ARC Points
+                        <span className="block text-xs font-normal text-akari-muted mt-1">
+                          (inside this program)
+                        </span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -351,7 +356,10 @@ export default function CreatorManagerProgramDetail() {
                         <td className="p-4 text-akari-muted text-sm">
                           {creator.deal?.internal_label || '-'}
                         </td>
-                        <td className="p-4 text-akari-text">{creator.arc_points || 0}</td>
+                        <td className="p-4">
+                          <div className="text-akari-text font-medium">{creator.arc_points || 0}</div>
+                          <div className="text-xs text-akari-muted">ARC inside this program</div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -225,6 +225,7 @@ export default function MyCreatorPrograms() {
                         <div className="text-lg font-semibold text-akari-text">
                           {program.arcPoints || 0}
                         </div>
+                        <div className="text-xs text-akari-muted mt-1">in this program</div>
                       </div>
                     </div>
 
