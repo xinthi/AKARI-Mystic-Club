@@ -728,28 +728,26 @@ export function ArcTopProjectsTreemap({
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
       {treemapData.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 min-h-[400px] flex flex-col items-center justify-center">
+        <div className="h-full flex flex-col items-center justify-center">
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md">
             No active projects found. Projects tracked in Sentiment section will appear here.
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6">
-          <ResponsiveContainer width="100%" height={600}>
-            <Treemap
-              data={treemapData}
-              dataKey="value"
-              stroke="transparent"
-              content={<CustomCell />}
-            >
-              {treemapData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-              <Tooltip content={<CustomTooltip />} />
-            </Treemap>
-          </ResponsiveContainer>
-        </div>
+        <ResponsiveContainer width="100%" height={440}>
+          <Treemap
+            data={treemapData}
+            dataKey="value"
+            stroke="transparent"
+            content={<CustomCell />}
+          >
+            {treemapData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+            <Tooltip content={<CustomTooltip />} />
+          </Treemap>
+        </ResponsiveContainer>
       )}
     </div>
   );

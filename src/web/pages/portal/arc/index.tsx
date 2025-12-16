@@ -100,6 +100,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [isCreator, setIsCreator] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [treemapError, setTreemapError] = useState<Error | null>(null);
+  const [summary, setSummary] = useState<{
+    approvedProjects: number;
+    arcEnabled: number;
+    activePrograms: number;
+    creatorsParticipating: number;
+  } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   // Check for safe-mode query param
   const isSafeMode = router.query.safe === '1';
@@ -337,6 +344,44 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       }
     }, [canManageArc, loadTopProjects]);
 
+  // Load ARC summary
+  useEffect(() => {
+    async function loadSummary() {
+      try {
+        setSummaryLoading(true);
+        const res = await fetch('/api/portal/arc/summary');
+        const data = await res.json();
+        
+        if (data.ok && data.summary) {
+          setSummary(data.summary);
+        } else {
+          // Safe fallback - set zeros
+          setSummary({
+            approvedProjects: 0,
+            arcEnabled: 0,
+            activePrograms: 0,
+            creatorsParticipating: 0,
+          });
+        }
+      } catch (err) {
+        console.error('[ARC] Error loading summary:', err);
+        // Safe fallback
+        setSummary({
+          approvedProjects: 0,
+          arcEnabled: 0,
+          activePrograms: 0,
+          creatorsParticipating: 0,
+        });
+      } finally {
+        setSummaryLoading(false);
+      }
+    }
+
+    if (canManageArc) {
+      loadSummary();
+    }
+  }, [canManageArc]);
+
   // Handle join campaign
   const handleJoinCampaign = async (projectId: string) => {
     if (joiningProjectId) return; // Prevent double-clicks
@@ -514,57 +559,144 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </p>
             </section>
 
+            {/* ARC Summary Strip */}
+            <section className="mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Approved Projects */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                  <div className="text-xs text-white/60 mb-1">Approved Projects</div>
+                  <div className="text-2xl font-bold text-white">
+                    {summaryLoading ? (
+                      <div className="h-7 w-12 bg-white/10 rounded animate-pulse" />
+                    ) : (
+                      summary?.approvedProjects ?? 0
+                    )}
+                  </div>
+                </div>
+
+                {/* ARC Enabled */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                  <div className="text-xs text-white/60 mb-1">ARC Enabled</div>
+                  <div className="text-2xl font-bold text-white">
+                    {summaryLoading ? (
+                      <div className="h-7 w-12 bg-white/10 rounded animate-pulse" />
+                    ) : (
+                      summary?.arcEnabled ?? 0
+                    )}
+                  </div>
+                </div>
+
+                {/* Active Programs */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                  <div className="text-xs text-white/60 mb-1">Active Programs</div>
+                  <div className="text-2xl font-bold text-white">
+                    {summaryLoading ? (
+                      <div className="h-7 w-12 bg-white/10 rounded animate-pulse" />
+                    ) : (
+                      summary?.activePrograms ?? 0
+                    )}
+                  </div>
+                </div>
+
+                {/* Creators Participating */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                  <div className="text-xs text-white/60 mb-1">Creators Participating</div>
+                  <div className="text-2xl font-bold text-white">
+                    {summaryLoading ? (
+                      <div className="h-7 w-12 bg-white/10 rounded animate-pulse" />
+                    ) : (
+                      summary?.creatorsParticipating ?? 0
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Top Projects Treemap */}
             <section className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-white">Top Projects</h2>
+              <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
+                {/* Frame Header */}
+                <div className="px-4 py-3 border-b border-white/10 bg-black/60 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">Top Projects</h2>
+                  <div className="flex items-center gap-4">
+                    {/* Legend */}
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/50" />
+                        <span className="text-white/60">Gainers</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-red-500/50 border border-red-400/50" />
+                        <span className="text-white/60">Losers</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-gray-500/30 border border-gray-400/30" />
+                        <span className="text-white/60">Locked</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Treemap Container with Fixed Height */}
+                <div className="p-4" style={{ minHeight: '480px', height: '480px' }}>
+                  {topProjectsLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-3" />
+                        <span className="text-white/60 text-sm">Loading projects...</span>
+                      </div>
+                    </div>
+                  ) : topProjectsError ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <p className="text-sm text-akari-danger mb-2">Failed to load top projects</p>
+                        <p className="text-xs text-akari-muted">{topProjectsError}</p>
+                      </div>
+                    </div>
+                  ) : !topProjectsData || topProjectsData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <p className="text-sm text-white/60">No projects available</p>
+                        <p className="text-xs text-white/40 mt-2">Try changing the timeframe or view mode</p>
+                      </div>
+                    </div>
+                  ) : isSafeMode || !mounted ? (
+                    // Safe mode or not mounted: render simple list fallback
+                    <div className="h-full overflow-y-auto">
+                      <TopProjectsListFallback
+                        items={topProjectsData}
+                        mode={topProjectsView}
+                        timeframe={topProjectsTimeframe}
+                        onModeChange={setTopProjectsView}
+                        onTimeframeChange={setTopProjectsTimeframe}
+                        lastUpdated={topProjectsLastUpdated ?? undefined}
+                      />
+                    </div>
+                  ) : (
+                    // Render treemap with error boundary
+                    <div className="h-full">
+                      <SafeTreemapWrapper
+                        items={topProjectsData}
+                        mode={topProjectsView}
+                        timeframe={topProjectsTimeframe}
+                        onModeChange={setTopProjectsView}
+                        onTimeframeChange={setTopProjectsTimeframe}
+                        lastUpdated={topProjectsLastUpdated ?? undefined}
+                        onError={setTreemapError}
+                      />
+                    </div>
+                  )}
+                  {treemapError && (
+                    <div className="mt-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
+                      <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
+                      <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                      <p className="text-xs text-white/40 mt-2">
+                        Showing list view instead. <Link href="?safe=1" className="underline">Use safe mode</Link>
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-              {topProjectsLoading ? (
-                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                  <span className="ml-3 text-white/60">Loading projects...</span>
-                </div>
-              ) : topProjectsError ? (
-                <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-                  <p className="text-sm text-akari-danger mb-2">Failed to load top projects</p>
-                  <p className="text-xs text-akari-muted">{topProjectsError}</p>
-                </div>
-              ) : !topProjectsData || topProjectsData.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                  <p className="text-sm text-white/60">No projects available</p>
-                  <p className="text-xs text-white/40 mt-2">Try changing the timeframe or view mode</p>
-                </div>
-              ) : isSafeMode || !mounted ? (
-                // Safe mode or not mounted: render simple list fallback
-                <TopProjectsListFallback
-                  items={topProjectsData}
-                  mode={topProjectsView}
-                  timeframe={topProjectsTimeframe}
-                  onModeChange={setTopProjectsView}
-                  onTimeframeChange={setTopProjectsTimeframe}
-                  lastUpdated={topProjectsLastUpdated ?? undefined}
-                />
-              ) : (
-                // Render treemap with error boundary
-                <SafeTreemapWrapper
-                  items={topProjectsData}
-                  mode={topProjectsView}
-                  timeframe={topProjectsTimeframe}
-                  onModeChange={setTopProjectsView}
-                  onTimeframeChange={setTopProjectsTimeframe}
-                  lastUpdated={topProjectsLastUpdated ?? undefined}
-                  onError={setTreemapError}
-                />
-              )}
-              {treemapError && (
-                <div className="mt-4 rounded-xl border border-akari-danger/30 bg-akari-card p-4 text-center">
-                  <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
-                  <p className="text-xs text-akari-muted">{treemapError.message}</p>
-                  <p className="text-xs text-white/40 mt-2">
-                    Showing list view instead. <Link href="?safe=1" className="underline">Use safe mode</Link>
-                  </p>
-                </div>
-              )}
             </section>
 
             {/* Action Cards */}
@@ -737,7 +869,7 @@ function TopProjectsListFallback({
       </div>
 
       {/* List view */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-6">
+      <div className="h-full overflow-y-auto">
         <div className="space-y-3">
           {items.map((item) => {
             const name = item.name || item.twitter_username || 'Unknown';
