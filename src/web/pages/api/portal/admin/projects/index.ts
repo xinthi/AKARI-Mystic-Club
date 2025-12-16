@@ -39,7 +39,12 @@ type AdminProjectsResponse =
       projects: AdminProjectSummary[];
       total: number;
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      details?: any;
+      stack?: string;
+    };
 
 // =============================================================================
 // DEV MODE BYPASS
@@ -73,38 +78,56 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
-  // Check akari_user_roles table
-  const { data: userRoles } = await supabase
-    .from('akari_user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'super_admin');
+  try {
+    // Check akari_user_roles table
+    const { data: userRoles, error: rolesError } = await supabase
+      .from('akari_user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin');
 
-  if (userRoles && userRoles.length > 0) {
-    return true;
-  }
-
-  // Also check profiles.real_roles via Twitter username
-  const { data: xIdentity } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', userId)
-    .eq('provider', 'x')
-    .single();
-
-  if (xIdentity?.username) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('real_roles')
-      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-      .single();
-
-    if (profile?.real_roles?.includes('super_admin')) {
+    if (rolesError) {
+      console.error('[AdminProjectsAPI] Error checking akari_user_roles:', rolesError);
+      // Continue to check profiles.real_roles as fallback
+    } else if (userRoles && userRoles.length > 0) {
       return true;
     }
-  }
 
-  return false;
+    // Also check profiles.real_roles via Twitter username
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (identityError) {
+      console.error('[AdminProjectsAPI] Error checking akari_user_identities:', identityError);
+      return false;
+    }
+
+    if (xIdentity?.username) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('real_roles')
+        .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+        .single();
+
+      if (profileError) {
+        console.error('[AdminProjectsAPI] Error checking profiles:', profileError);
+        return false;
+      }
+
+      if (profile?.real_roles?.includes('super_admin')) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (err: any) {
+    console.error('[AdminProjectsAPI] Error in checkSuperAdmin:', err);
+    return false;
+  }
 }
 
 // =============================================================================
@@ -130,7 +153,7 @@ export default async function handler(
     const pageSizeParam = parseInt((req.query.pageSize as string) || (req.query.limit as string) || '50', 10);
     const pageSize = Math.min(Math.max(1, pageSizeParam), 200); // Clamp between 1 and 200
 
-    console.log('[AdminProjectsAPI] Request query params:', {
+    console.log('[AdminProjectsAPI] q/filter/page/pageSize', {
       q: searchQuery,
       filter: filterParam,
       page,
@@ -155,17 +178,28 @@ export default async function handler(
         .eq('session_token', sessionToken)
         .single();
 
-      if (sessionError || !session) {
-        console.log('[AdminProjectsAPI] Invalid session:', sessionError?.message);
+      if (sessionError) {
+        console.error('[AdminProjectsAPI] supabase error (session):', sessionError);
+        return res.status(500).json({ ok: false, error: sessionError.message, details: sessionError });
+      }
+
+      if (!session) {
+        console.log('[AdminProjectsAPI] Invalid session: no session data');
         return res.status(401).json({ ok: false, error: 'Invalid session' });
       }
 
       // Check if session is expired
       if (new Date(session.expires_at) < new Date()) {
-        await supabase
+        const { error: deleteError } = await supabase
           .from('akari_user_sessions')
           .delete()
           .eq('session_token', sessionToken);
+        
+        if (deleteError) {
+          console.error('[AdminProjectsAPI] supabase error (delete expired session):', deleteError);
+          // Continue anyway - session is expired
+        }
+        
         return res.status(401).json({ ok: false, error: 'Session expired' });
       }
 
@@ -173,31 +207,35 @@ export default async function handler(
       console.log('[AdminProjectsAPI] User ID:', userId);
 
       // Get user's profile to check real_roles
-      const { data: xIdentity } = await supabase
+      const { data: xIdentity, error: identityError } = await supabase
         .from('akari_user_identities')
         .select('username')
         .eq('user_id', userId)
         .eq('provider', 'x')
         .single();
 
+      if (identityError) {
+        console.error('[AdminProjectsAPI] supabase error (xIdentity):', identityError);
+        // Continue - identity might not exist, but checkSuperAdmin will handle it
+      }
+
       let profileId: string | null = null;
       let realRoles: string[] | null = null;
 
       if (xIdentity?.username) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('id, real_roles')
           .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
           .single();
         
-        profileId = profile?.id || null;
-        realRoles = profile?.real_roles || null;
-        console.log('[AdminProjectsAPI] Profile ID:', profileId, 'real_roles:', realRoles);
-        
-        // Primary check: profiles.real_roles must contain 'super_admin'
-        if (!realRoles || !realRoles.includes('super_admin')) {
-          console.log('[AdminProjectsAPI] User does not have super_admin in profiles.real_roles');
-          // Fall through to checkSuperAdmin which also checks akari_user_roles
+        if (profileError) {
+          console.error('[AdminProjectsAPI] supabase error (profile):', profileError);
+          // Continue - profile might not exist
+        } else {
+          profileId = profile?.id || null;
+          realRoles = profile?.real_roles || null;
+          console.log('[AdminProjectsAPI] Profile ID:', profileId, 'real_roles:', realRoles);
         }
       }
 
@@ -258,11 +296,12 @@ export default async function handler(
     }
 
     // Get total count
+    console.log('[AdminProjectsAPI] Executing count query');
     const { count: total, error: countError } = await countQuery;
     
     if (countError) {
-      console.error('[AdminProjectsAPI] Error counting projects:', countError);
-      return res.status(500).json({ ok: false, error: 'Failed to count projects' });
+      console.error('[AdminProjectsAPI] supabase error (count):', countError);
+      return res.status(500).json({ ok: false, error: countError.message, details: countError });
     }
 
     // Apply pagination and ordering
@@ -271,11 +310,12 @@ export default async function handler(
       .order('updated_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + pageSize - 1);
 
+    console.log('[AdminProjectsAPI] Executing projects query with pagination', { offset, limit: pageSize });
     const { data: projects, error: projectsError } = await projectsQuery;
 
     if (projectsError) {
-      console.error('[AdminProjectsAPI] Error fetching projects:', projectsError);
-      return res.status(500).json({ ok: false, error: 'Failed to fetch projects' });
+      console.error('[AdminProjectsAPI] supabase error (projects):', projectsError);
+      return res.status(500).json({ ok: false, error: projectsError.message, details: projectsError });
     }
 
     console.log('[AdminProjectsAPI] Query returned', projects?.length || 0, 'projects out of', total || 0, 'total');
@@ -287,19 +327,30 @@ export default async function handler(
     const projectIds = projects.map((p) => p.id);
 
     // Get latest metrics for each project
-    const { data: metrics } = await supabase
+    console.log('[AdminProjectsAPI] Fetching metrics for', projectIds.length, 'projects');
+    const { data: metrics, error: metricsError } = await supabase
       .from('metrics_daily')
       .select('project_id, akari_score, followers, updated_at, created_at, date')
       .in('project_id', projectIds)
       .order('date', { ascending: false });
 
+    if (metricsError) {
+      console.error('[AdminProjectsAPI] supabase error (metrics):', metricsError);
+      // Continue without metrics - will use fallback
+    }
+
     // Get most recent non-zero followers for fallback
-    const { data: followersFallback } = await supabase
+    const { data: followersFallback, error: followersError } = await supabase
       .from('metrics_daily')
       .select('project_id, followers')
       .in('project_id', projectIds)
       .gt('followers', 0)
       .order('date', { ascending: false });
+
+    if (followersError) {
+      console.error('[AdminProjectsAPI] supabase error (followers fallback):', followersError);
+      // Continue without fallback - will default to 0
+    }
 
     // Build maps for quick lookup
     const latestMetricsByProject = new Map<string, {
@@ -373,8 +424,12 @@ export default async function handler(
 
     return res.status(200).json({ ok: true, projects: projectsWithMetrics, total: total || 0 });
   } catch (error: any) {
-    console.error('[AdminProjectsAPI] Error:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+    console.error('[AdminProjectsAPI] Unhandled error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error?.message ?? 'Unknown error',
+      stack: process.env.NODE_ENV === 'production' ? undefined : error?.stack,
+    });
   }
 }
 
