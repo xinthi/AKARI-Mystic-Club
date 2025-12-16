@@ -13,6 +13,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { scorePost, type ContentType, type ScoredPost } from './scoring';
 
+// Re-export ContentType for use in other modules
+export type { ContentType };
+
 // =============================================================================
 // TYPES
 // =============================================================================
