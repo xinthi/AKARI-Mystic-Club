@@ -47,6 +47,7 @@ interface TreemapDataPoint {
   arc_active?: boolean;
   fill: string; // Color based on growth
   isClickable: boolean; // Whether the tile is clickable
+  isLocked: boolean; // Whether the tile is locked (should show lock overlay)
 }
 
 // =============================================================================
@@ -199,7 +200,7 @@ export function ArcTopProjectsTreemap({
     }
   }, [lastUpdated]);
 
-  // Filter items to only those with finite numeric size before rendering
+  // Include all items, even those with growth_pct = 0 (will use minimum size)
   const validItems = useMemo(() => {
     if (!items || items.length === 0) return [];
     
@@ -208,8 +209,8 @@ export function ArcTopProjectsTreemap({
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const size = Math.abs(growthPct);
       
-      // Keep only if finite and > 0
-      return Number.isFinite(size) && size > 0;
+      // Keep all items with finite values (including 0)
+      return Number.isFinite(size);
     });
   }, [items]);
 
@@ -218,9 +219,12 @@ export function ArcTopProjectsTreemap({
     if (validItems.length === 0) return [];
 
     // Get absolute growth values for normalization
+    // Use minimum value of 0.1 for items with growth_pct = 0 to ensure they appear
     const absGrowthValues = validItems.map(item => {
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      return Math.abs(growthPct);
+      const absValue = Math.abs(growthPct);
+      // Use minimum size of 0.1 for zero growth to ensure visibility
+      return absValue === 0 ? 0.1 : absValue;
     });
     const normalizedValues = normalizeForTreemap(absGrowthValues);
 
@@ -232,6 +236,9 @@ export function ArcTopProjectsTreemap({
       
       // Determine if clickable: must be arc_active=true and arc_access_level != 'none'
       const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+      
+      // Determine if locked: arc_active=false OR arc_access_level='none'
+      const isLocked = !item.arc_active || item.arc_access_level === 'none' || item.arc_access_level === undefined;
       
       return {
         name,
@@ -246,6 +253,7 @@ export function ArcTopProjectsTreemap({
         arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
         fill: isClickable ? getGrowthColor(growthPct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
         isClickable,
+        isLocked,
       };
     });
   }, [validItems]);
@@ -278,6 +286,7 @@ export function ArcTopProjectsTreemap({
     const growthPct = typeof payload.growth_pct === 'number' ? payload.growth_pct : 0;
     const twitterUsername = payload.twitter_username || '';
     const isClickable = payload.isClickable === true;
+    const isLocked = payload.isLocked === true;
     const isHovered = hoveredProjectId === projectId;
     const isFocused = focusedProjectId === projectId;
     const isPositive = growthPct > 0;
@@ -332,6 +341,37 @@ export function ArcTopProjectsTreemap({
           strokeWidth={isHovered || isFocused ? 2 : 1}
           style={{ transition: 'all 0.2s' }}
         />
+        
+        {/* Lock overlay when project is locked */}
+        {isLocked && (
+          <>
+            {/* Semi-transparent overlay */}
+            <rect
+              x={x + 1}
+              y={y + 1}
+              width={width - 2}
+              height={height - 2}
+              rx={cornerRadius}
+              ry={cornerRadius}
+              fill="rgba(0, 0, 0, 0.4)"
+              style={{ transition: 'all 0.2s' }}
+            />
+            {/* Lock icon (only show on larger boxes) */}
+            {!isSmall && (
+              <text
+                x={x + width / 2}
+                y={y + height / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="rgba(255, 255, 255, 0.8)"
+                fontSize={Math.min(width / 6, 24)}
+                className="pointer-events-none"
+              >
+                🔒
+              </text>
+            )}
+          </>
+        )}
         
         {/* Text labels based on box size */}
         {isSmall && (

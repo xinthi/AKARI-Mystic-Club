@@ -26,6 +26,7 @@ interface TopProject {
   slug: string | null; // Project slug for navigation
   arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active: boolean;
+  profile_type: string;
   is_company: boolean;
 }
 
@@ -197,16 +198,15 @@ export default async function handler(
       });
     }
 
-    // Get all active tracked projects with profile_type='project' AND arc_active=true
-    // ARC Universe only shows approved, active projects
+    // Get all active tracked projects with profile_type='project'
+    // Include all projects regardless of arc_active status
     let projects: any[];
     try {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('id, slug, name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, is_company')
+        .select('id, slug, name, display_name, x_handle, avatar_url, twitter_profile_image_url, arc_access_level, arc_active, profile_type, is_company')
         .eq('is_active', true)
         .eq('profile_type', 'project') // Only show projects classified as 'project'
-        .eq('arc_active', true) // Only show ARC-active projects
         .neq('slug', 'dev_user'); // Exclude dev_user
 
       if (projectsError) {
@@ -368,7 +368,7 @@ export default async function handler(
 
           return {
             project_id: p.id,
-            name: p.name || 'Unnamed Project',
+            name: p.display_name || p.name || 'Unnamed Project',
             twitter_username: p.x_handle || '',
             logo_url: logoUrl,
             growth_pct: growthPct,
@@ -376,19 +376,11 @@ export default async function handler(
             slug: p.slug || null,
             arc_access_level: (p.arc_access_level as 'none' | 'creator_manager' | 'leaderboard' | 'gamified') || 'none',
             arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+            profile_type: p.profile_type || 'project',
             is_company: typeof p.is_company === 'boolean' ? p.is_company : false,
           };
-        })
-        .filter((p) => {
-          // Only include projects that have metrics for both start and end dates
-          const startMetric = startMetricsMap.get(p.project_id);
-          const endMetric = endMetricsMap.get(p.project_id);
-          return (
-            startMetric?.akari_score !== null &&
-            endMetric?.akari_score !== null &&
-            (startMetric?.akari_score ?? 0) > 0
-          );
         });
+        // Include all projects, even if metrics are missing (growth_pct will be 0)
 
       // Sort by growth_pct
       projectsWithGrowth.sort((a, b) => {
