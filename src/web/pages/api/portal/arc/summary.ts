@@ -62,13 +62,13 @@ export default async function handler(
       });
     }
 
-    // Get tracked projects (profile_type = 'project' AND is_active = true)
+    // Get tracked projects (profile_type = 'project')
     // These are all projects tracked in AKARI Sentiment that are classified as projects
+    // Note: We don't filter by is_active because that only controls daily updates, not tracking status
     const { count: trackedProjectsCount, error: projectsError } = await supabase
       .from('projects')
       .select('*', { count: 'exact', head: true })
-      .eq('profile_type', 'project')
-      .eq('is_active', true);
+      .eq('profile_type', 'project');
 
     if (projectsError) {
       console.error('[ARC Summary API] Error counting tracked projects:', projectsError);
