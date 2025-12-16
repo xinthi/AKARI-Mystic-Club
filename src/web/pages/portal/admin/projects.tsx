@@ -544,7 +544,7 @@ export default function AdminProjectsPage() {
                     <option value="project">Project</option>
                   </select>
                   <p className="text-xs text-slate-500 mt-1">
-                    Only projects with type "Project" appear in ARC Top Projects treemap.
+                    Only projects with type &quot;Project&quot; appear in ARC Top Projects treemap.
                   </p>
                 </div>
 
