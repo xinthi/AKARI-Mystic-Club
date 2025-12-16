@@ -562,10 +562,19 @@ export default function AdminProjectsPage() {
                                 ? 'bg-purple-500/20 text-purple-400' 
                                 : project.profile_type === 'personal'
                                 ? 'bg-yellow-500/20 text-yellow-400'
-                                : 'bg-gray-500/20 text-gray-400'
+                                : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                             }`}>
-                              {project.profile_type === 'project' ? 'Project' : project.profile_type === 'personal' ? 'Personal' : 'Unclassified'}
+                              {project.profile_type === 'project' 
+                                ? 'Project' 
+                                : project.profile_type === 'personal' 
+                                ? 'Personal' 
+                                : 'Unclassified'}
                             </span>
+                            {!project.profile_type && (
+                              <p className="text-xs text-orange-400/70 mt-1">
+                                User must claim, then SuperAdmin classifies
+                              </p>
+                            )}
                           </td>
                           <td className="py-4 px-5 text-akari-muted text-xs">
                             {project.claimed_by ? (
@@ -694,11 +703,14 @@ export default function AdminProjectsPage() {
                     onChange={(e) => setClassifyForm({ ...classifyForm, profileType: e.target.value as 'project' | 'personal' })}
                     className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                   >
-                    <option value="personal">Personal</option>
-                    <option value="project">Project</option>
+                    <option value="personal">Personal (Individual)</option>
+                    <option value="project">Project (Company/Organization)</option>
                   </select>
                   <p className="text-xs text-slate-500 mt-1">
                     Only projects with type &quot;Project&quot; appear in ARC Top Projects treemap.
+                  </p>
+                  <p className="text-xs text-orange-400 mt-1">
+                    ⚠️ User should claim their profile first and set identity (individual/company) before classification.
                   </p>
                 </div>
 

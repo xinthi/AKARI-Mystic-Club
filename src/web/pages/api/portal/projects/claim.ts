@@ -166,12 +166,15 @@ export default async function handler(
     }
 
     // Claim the project
+    // NOTE: profile_type remains NULL - user sets identity (persona_type), SuperAdmin sets profile_type
     const now = new Date().toISOString();
     const { error: updateError } = await supabase
       .from('projects')
       .update({
         claimed_by: currentUser.userId,
         claimed_at: now,
+        // profile_type stays NULL - SuperAdmin will classify it later
+        // User can set their identity (individual/company) via /api/portal/profile/persona
       })
       .eq('id', body.projectId);
 

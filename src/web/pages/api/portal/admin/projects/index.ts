@@ -270,9 +270,9 @@ export default async function handler(
       projectsQuery = projectsQuery.eq('is_active', false);
       countQuery = countQuery.eq('is_active', false);
     } else if (filterParam === 'unclassified') {
-      // Unclassified: profile_type is null OR profile_type is 'personal'
-      projectsQuery = projectsQuery.or('profile_type.is.null,profile_type.eq.personal');
-      countQuery = countQuery.or('profile_type.is.null,profile_type.eq.personal');
+      // Unclassified: profile_type is NULL (not yet classified by SuperAdmin)
+      projectsQuery = projectsQuery.is('profile_type', null);
+      countQuery = countQuery.is('profile_type', null);
     } else if (filterParam === 'projects') {
       projectsQuery = projectsQuery.eq('profile_type', 'project');
       countQuery = countQuery.eq('profile_type', 'project');

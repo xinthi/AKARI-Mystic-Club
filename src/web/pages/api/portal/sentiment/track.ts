@@ -596,9 +596,12 @@ export default async function handler(
       // Project is NOT claimed by default - must be explicitly claimed
       claimed_by: null,
       claimed_at: null,
-      profile_type: 'personal', // Default to 'personal', SuperAdmin can change to 'project'
+      profile_type: null, // NULL = unclassified. User claims and sets identity, SuperAdmin sets profile_type for ARC visibility
       // IMPORTANT: profile_type='project' is required for ARC Top Projects visibility
-      // Users cannot set this - only SuperAdmin via Projects Admin
+      // - NULL = unclassified (newly tracked, not yet claimed)
+      // - 'personal' = individual profile (set by SuperAdmin after user claims)
+      // - 'project' = company/project profile (set by SuperAdmin after user claims, appears in ARC)
+      // Users claim and set identity (individual/company), SuperAdmin sets profile_type via Projects Admin
       is_company: false, // Default to false, SuperAdmin can set to true
       arc_active: false, // Default to false, only SuperAdmin can activate
     };
