@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -60,12 +61,24 @@ interface UserCampaign {
 }
 
 // =============================================================================
+// PROPS
+// =============================================================================
+
+interface ArcHomeProps {
+  canManageArc: boolean;
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
-export default function ArcHome() {
+export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomeProps) {
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  
+  // Override canManageArc with client-side check (more accurate)
+  const isDevMode = process.env.NODE_ENV === 'development';
+  const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
   const [projects, setProjects] = useState<ArcProject[]>([]);
   const [myCampaigns, setMyCampaigns] = useState<UserCampaign[]>([]);
   const [userCampaignStatuses, setUserCampaignStatuses] = useState<Map<string, { isFollowing: boolean; hasJoined: boolean }>>(new Map());
@@ -75,9 +88,6 @@ export default function ArcHome() {
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
-  
-  // Dev mode: treat user as following all projects
-  const isDevMode = process.env.NODE_ENV === 'development';
 
   // Map projects to ArcUniverseMap format
   const mappedProjectsForUniverse = useMemo(() => {
@@ -96,7 +106,7 @@ export default function ArcHome() {
           totalPoints: project.stats?.totalPoints || 0,
           trend: project.stats?.trend || 'stable',
           userIsParticipant,
-          userRank: status?.arcPoints ? undefined : null, // Rank would need to be computed separately
+          userRank: null, // Rank can be populated later when we have per-project ranking
         },
       };
     });
@@ -143,9 +153,10 @@ export default function ArcHome() {
             
             // Build my campaigns list
             const joinedCampaigns: UserCampaign[] = [];
+            const projects = data?.projects ?? [];
             statuses.forEach((status, projectId) => {
               if (status.hasJoined) {
-                const project = data.projects.find(p => p.project_id === projectId);
+                const project = projects.find(p => p.project_id === projectId);
                 if (project) {
                   joinedCampaigns.push({
                     project_id: project.project_id,
@@ -204,6 +215,22 @@ export default function ArcHome() {
       console.log('[ArcHome] Join campaign response:', result);
 
       if (!res.ok || !result.ok) {
+        // Handle not_following case
+        if (result.reason === 'not_following') {
+          const project = projects.find(p => p.project_id === projectId);
+          const projectName = project?.name || 'this project';
+          const projectHandle = project?.twitter_username;
+          
+          if (projectHandle) {
+            alert(`You must follow @${projectHandle} on X to join this campaign. Please follow the project and try again.`);
+            // Optionally open X profile in new tab
+            window.open(`https://x.com/${projectHandle}`, '_blank');
+          } else {
+            alert(`You must follow ${projectName} on X to join this campaign.`);
+          }
+          return;
+        }
+        
         throw new Error(result.error || 'Failed to join campaign');
       }
 
@@ -257,6 +284,21 @@ export default function ArcHome() {
       setJoiningProjectId(null);
     }
   };
+
+  // Show restricted view for non-SuperAdmins
+  if (!canManageArc) {
+    return (
+      <PortalLayout title="ARC Universe">
+        <div className="px-6 py-8 text-sm text-white/70">
+          <h1 className="text-2xl font-semibold text-white mb-2">ARC Universe</h1>
+          <p className="max-w-xl">
+            ARC is currently in private beta. You can see it in the navigation,
+            but only administrators have full access at the moment.
+          </p>
+        </div>
+      </PortalLayout>
+    );
+  }
 
   return (
     <PortalLayout title="ARC Universe">
@@ -369,3 +411,44 @@ export default function ArcHome() {
     </PortalLayout>
   );
 }
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (context) => {
+  // Always return props - never return notFound: true
+  // This ensures the route is always valid for logged-in users
+  
+  // Check for authentication via session cookie
+  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
+  
+  // Redirect unauthenticated users to login
+  if (!hasSession) {
+    return {
+      redirect: {
+        destination: '/portal/login',
+        permanent: false,
+      },
+    };
+  }
+  
+  const isDevMode = process.env.NODE_ENV === 'development';
+  
+  // Check if user is SuperAdmin
+  // Note: In production, we'll check this client-side as well,
+  // but for SSR we can't easily access the user session here without
+  // implementing full auth. For now, we'll allow the page to render
+  // and let the client-side handle the permission check.
+  
+  // In dev mode, always allow
+  // In production, we'll check client-side in the component
+  const canManageArc = isDevMode; // Will be overridden client-side for SuperAdmins
+  
+  return {
+    props: {
+      canManageArc,
+    },
+  };
+};

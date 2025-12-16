@@ -503,7 +503,13 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     // Process the data (same logic as API route)
     const arenas: CreatorArenaEntry[] = [];
     let totalPoints = 0;
-    const ringPoints = { core: 0, momentum: 0, discovery: 0 };
+    type RingKey = 'core' | 'momentum' | 'discovery';
+
+    const ringPoints: Record<RingKey, number> = {
+      core: 0,
+      momentum: 0,
+      discovery: 0,
+    };
     let primaryRing: string | null = null;
     let primaryStyle: string | null = null;
     let maxPoints = -1;
@@ -518,10 +524,14 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       totalPoints += points;
 
       // Track ring points
-      if (row.ring) {
-        const ring = row.ring.toLowerCase();
-        if (ring === 'core' || ring === 'momentum' || ring === 'discovery') {
-          ringPoints[ring] += points;
+      const rawRing = row.ring;
+
+      if (typeof rawRing === 'string') {
+        const lower = rawRing.toLowerCase();
+
+        if (lower === 'core' || lower === 'momentum' || lower === 'discovery') {
+          const key = lower as RingKey;
+          ringPoints[key] += points;
         }
       }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -40,6 +40,59 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
   // Analyst Social Boost Promo
   const promo = useAnalystPromo();
+
+  // Determine if user can use ARC (SuperAdmin or dev bypass)
+  // Use useMemo to recalculate when user loads/changes
+  const canUseArc = useMemo(() => {
+    // Check dev mode bypass (same as yellow DEV MODE panel)
+    const isDevBypass = process.env.NODE_ENV === 'development';
+    
+    // Check Super Admin status using the same helper function as elsewhere
+    // Also check realRoles directly as a fallback
+    let isSuperAdminUser = false;
+    if (!akariUser.isLoading && akariUser.user) {
+      // Primary check: use the helper function
+      isSuperAdminUser = isSuperAdmin(akariUser.user);
+      
+      // Fallback check: also verify realRoles directly
+      // This helps catch cases where the helper might not work as expected
+      if (!isSuperAdminUser && akariUser.user.realRoles) {
+        isSuperAdminUser = akariUser.user.realRoles.includes('super_admin');
+      }
+    }
+    
+    // ARC is usable by SuperAdmins in production, everyone in dev
+    const result = isDevBypass || isSuperAdminUser;
+    
+    // Debug logging for production troubleshooting
+    if (typeof window !== 'undefined') {
+      console.log('[PortalLayout] ARC visibility check:', {
+        isDevBypass,
+        isSuperAdminUser,
+        canUseArc: result,
+        isLoading: akariUser.isLoading,
+        hasUser: !!akariUser.user,
+        realRoles: akariUser.user?.realRoles,
+        effectiveRoles: akariUser.user?.effectiveRoles,
+      });
+    }
+    
+    return result;
+  }, [akariUser.user, akariUser.isLoading]);
+  
+  // Always show all nav items - ARC is always visible but may be disabled
+  const visibleNavItems = navItems;
+  
+  // Debug: Verify ARC item is in navItems
+  if (typeof window !== 'undefined') {
+    const arcItem = navItems.find(item => item.href === '/portal/arc');
+    console.log('[PortalLayout] ARC nav item check:', {
+      arcItemExists: !!arcItem,
+      arcItem,
+      totalNavItems: navItems.length,
+      allNavItems: navItems.map(i => i.href),
+    });
+  }
 
   // Lock body scroll when mobile nav is open
   useEffect(() => {
@@ -101,10 +154,37 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
 
           {/* Nav links - hidden on mobile, shown on desktop */}
           <nav className="hidden sm:flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active =
                 router.pathname === item.href ||
                 (item.href !== '/portal' && router.pathname.startsWith(item.href));
+              
+              // ARC: Always render as a normal clickable Link, just like sentiment
+              if (item.href === '/portal/arc') {
+                // Debug: Log when rendering ARC nav item
+                if (typeof window !== 'undefined') {
+                  console.log('[PortalLayout] Rendering ARC nav item:', {
+                    canUseArc,
+                    href: item.href,
+                    label: item.label,
+                  });
+                }
+                
+                // Always render as a normal Link, ignoring canUseArc
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`pill-neon font-medium border transition-all duration-300 ease-out flex flex-col items-center justify-center px-3 py-1.5 ${
+                      active
+                        ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                        : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                    }`}
+                  >
+                    <span className="text-xs whitespace-nowrap">{item.label}</span>
+                  </Link>
+                );
+              }
               
               // Render disabled items as non-clickable spans
               if (item.isTesting) {
@@ -209,10 +289,38 @@ export function PortalLayout({ title = 'Akari Mystic Club', children }: Props) {
             <div className="flex flex-col p-4 space-y-4">
               {/* Navigation Items */}
               <nav className="flex flex-col space-y-2">
-                {navItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const active =
                     router.pathname === item.href ||
                     (item.href !== '/portal' && router.pathname.startsWith(item.href));
+                  
+                  // ARC: Always render as a normal clickable Link, just like sentiment
+                  if (item.href === '/portal/arc') {
+                    // Debug: Log when rendering ARC nav item (mobile)
+                    if (typeof window !== 'undefined') {
+                      console.log('[PortalLayout] Rendering ARC nav item (mobile):', {
+                        canUseArc,
+                        href: item.href,
+                        label: item.label,
+                      });
+                    }
+                    
+                    // Always render as a normal Link, ignoring canUseArc
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsMobileNavOpen(false)}
+                        className={`pill-neon w-full text-left px-4 py-3 font-medium border transition-all duration-300 ease-out flex flex-col ${
+                          active
+                            ? 'text-black bg-gradient-neon-teal border-akari-neon-teal/50 shadow-neon-teal'
+                            : 'text-akari-muted border-akari-neon-teal/30 hover:text-akari-neon-teal hover:border-akari-neon-teal/60 hover:bg-akari-neon-teal/5 hover:shadow-[0_0_12px_rgba(0,246,162,0.2)]'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  }
                   
                   // Render disabled items as non-clickable spans
                   if (item.isTesting) {
