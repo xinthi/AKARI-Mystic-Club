@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Treemap, Tooltip, Cell } from 'recharts';
+import { Treemap } from 'recharts';
 
 // =============================================================================
 // TYPES
@@ -179,9 +179,19 @@ export function ArcProjectsTreemapV3({
     const normalizedValues = normalizeForTreemap(values);
     
     // Apply normalized values back to data (guaranteed to be >= 1)
+    // Create flat array with just name and value for Recharts
     treemapData = mappedData.map((item, index) => ({
-      ...item,
+      name: item.name,
       value: Math.max(1, normalizedValues[index] || 1),
+      // Keep extra data for tooltip/click handling
+      growth_pct: item.growth_pct,
+      projectId: item.projectId,
+      twitter_username: item.twitter_username,
+      slug: item.slug,
+      arc_access_level: item.arc_access_level,
+      arc_active: item.arc_active,
+      fill: item.fill,
+      originalItem: item.originalItem,
     }));
   } catch (error: any) {
     console.error('[ArcProjectsTreemapV3] Error preparing data:', error);
@@ -191,9 +201,9 @@ export function ArcProjectsTreemapV3({
     return null;
   }
 
-  // Custom cell component
-  const CustomCell = ({ x, y, width: cellWidth, height: cellHeight, payload }: any) => {
-    if (!payload) return null;
+  // Simple label component for inline text
+  const SimpleLabel = ({ x, y, width, height, name }: any) => {
+    if (!name || width < 50 || height < 30) return null;
     
     // Track that we've rendered a node
     if (nodeCountRef.current === 0) {
@@ -201,95 +211,18 @@ export function ArcProjectsTreemapV3({
       setRenderedNodeCount(1);
     }
     
-    const name = payload.name || 'Unknown';
-    const growthPct = typeof payload.growth_pct === 'number' ? payload.growth_pct : 0;
-    const isSmall = cellWidth < 100 || cellHeight < 50;
-    const isClickable = payload.arc_active && payload.arc_access_level !== 'none';
-
     return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={cellWidth}
-          height={cellHeight}
-          fill={payload.fill}
-          stroke={isClickable ? 'rgba(255, 255, 255, 0.2)' : 'rgba(107, 114, 128, 0.3)'}
-          strokeWidth={1}
-          rx={2}
-          onClick={() => {
-            if (isClickable && onProjectClick && payload.originalItem) {
-              onProjectClick(payload.originalItem);
-            }
-          }}
-          style={{ cursor: isClickable ? 'pointer' : 'not-allowed' }}
-        />
-        {!isSmall && (
-          <text
-            x={x + cellWidth / 2}
-            y={y + cellHeight / 2 - 8}
-            textAnchor="middle"
-            fill="white"
-            fontSize={12}
-            fontWeight="bold"
-            className="pointer-events-none"
-          >
-            {name.length > 15 ? name.substring(0, 15) + '...' : name}
-          </text>
-        )}
-        {!isSmall && (
-          <text
-            x={x + cellWidth / 2}
-            y={y + cellHeight / 2 + 8}
-            textAnchor="middle"
-            fill={growthPct > 0 ? '#22c55e' : growthPct < 0 ? '#ef4444' : '#9ca3af'}
-            fontSize={10}
-            className="pointer-events-none"
-          >
-            {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(1)}%
-          </text>
-        )}
-        {!isClickable && !isSmall && (
-          <text
-            x={x + cellWidth / 2}
-            y={y + cellHeight / 2 + 20}
-            textAnchor="middle"
-            fill="rgba(255, 255, 0, 0.7)"
-            fontSize={8}
-            className="pointer-events-none"
-          >
-            🔒 Locked
-          </text>
-        )}
-      </g>
-    );
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload[0]) return null;
-    
-    const data = payload[0].payload;
-    const name = data.name || 'Unknown';
-    const growthPct = typeof data.growth_pct === 'number' ? data.growth_pct : 0;
-    const twitterUsername = data.twitter_username || '';
-    const isClickable = data.arc_active && data.arc_access_level !== 'none';
-    
-    return (
-      <div className="bg-black/90 border border-white/20 rounded-lg p-3 shadow-lg">
-        <div className="text-white font-semibold text-sm mb-1">{name}</div>
-        {twitterUsername && (
-          <div className="text-white/60 text-xs mb-1">@{twitterUsername}</div>
-        )}
-        <div className={`text-sm font-bold ${
-          growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-        }`}>
-          {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-        </div>
-        {!isClickable && (
-          <div className="text-yellow-400 text-xs mt-1">🔒 No ARC access</div>
-        )}
-      </div>
+      <text
+        x={x + width / 2}
+        y={y + height / 2}
+        textAnchor="middle"
+        fill="white"
+        fontSize={12}
+        fontWeight="bold"
+        className="pointer-events-none"
+      >
+        {name.length > 20 ? name.substring(0, 20) + '...' : name}
+      </text>
     );
   };
 
@@ -302,6 +235,12 @@ export function ArcProjectsTreemapV3({
       return null;
     }
 
+    // Track that we're rendering
+    if (treemapData.length > 0 && nodeCountRef.current === 0) {
+      nodeCountRef.current = 1;
+      setRenderedNodeCount(1);
+    }
+
     return (
       <div style={{ width, height, position: 'relative' }}>
         <Treemap
@@ -309,15 +248,12 @@ export function ArcProjectsTreemapV3({
           height={height}
           data={treemapData}
           dataKey="value"
-          stroke="transparent"
-          content={<CustomCell />}
+          nameKey="name"
+          stroke="rgba(255, 255, 255, 0.1)"
+          fill="#8884d8"
           animationDuration={300}
-        >
-          {treemapData.map((entry, index) => (
-            <Cell key={`cell-${entry.projectId}-${index}`} fill={entry.fill} />
-          ))}
-          <Tooltip content={<CustomTooltip />} />
-        </Treemap>
+          label={(props: any) => <SimpleLabel {...props} name={props.name} />}
+        />
       </div>
     );
   } catch (error: any) {
