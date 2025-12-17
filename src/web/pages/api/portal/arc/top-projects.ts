@@ -296,6 +296,8 @@ export default async function handler(
       }
 
       endMetricsRaw = endData || [];
+      
+      console.log(`[ARC top-projects] Fetched ${startMetricsRaw.length} start metrics, ${endMetricsRaw.length} end metrics for ${projectIds.length} projects`);
     } catch (metricsError: any) {
       console.error('[ARC top-projects] Unexpected error fetching metrics:', metricsError);
       return res.status(500).json({
@@ -321,6 +323,8 @@ export default async function handler(
           endMetricsMap.set(m.project_id, m.akari_score ?? null);
         }
       });
+      
+      console.log(`[ARC top-projects] Mapped metrics: ${startMetricsMap.size} projects have start metrics, ${endMetricsMap.size} projects have end metrics`);
     } catch (mapError: any) {
       console.error('[ARC top-projects] Error building metrics maps:', mapError);
       return res.status(500).json({
@@ -369,8 +373,12 @@ export default async function handler(
         }
       });
 
+      console.log(`[ARC top-projects] Calculated growth for ${projectsWithGrowth.length} projects. Growth range: ${Math.min(...projectsWithGrowth.map(p => p.growth_pct))}% to ${Math.max(...projectsWithGrowth.map(p => p.growth_pct))}%`);
+
       // Return top 20 (or limit)
       const limitedProjects = projectsWithGrowth.slice(0, limit);
+      
+      console.log(`[ARC top-projects] Returning ${limitedProjects.length} projects (limit: ${limit}, mode: ${mode})`);
 
       // Set cache-control headers to prevent aggressive caching
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
