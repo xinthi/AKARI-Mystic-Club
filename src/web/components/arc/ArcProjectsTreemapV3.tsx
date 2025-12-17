@@ -6,7 +6,7 @@
  * No memoization optimizations yet.
  */
 
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Treemap, ResponsiveContainer } from 'recharts';
 
@@ -94,52 +94,51 @@ export function ArcProjectsTreemapV3({
   onStatsUpdate,
 }: ArcProjectsTreemapV3Props) {
   const router = useRouter();
-  const showDebug = router.query.debug === '1';
 
-  // Prepare nodes: preserve growth_pct for labels
-  const nodes = data.map((item) => {
-    const name = item.display_name || item.name || item.twitter_username || item.slug || 'Unknown';
-    let value = 1;
-    if (typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct)) {
-      value = Math.max(1, Math.abs(item.growth_pct));
-    }
-    return { 
-      name, 
-      value,
-      growth_pct: typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct) 
-        ? item.growth_pct 
-        : null 
-    };
-  });
+  // Build nodes with value and growth_pct
+  const nodes = useMemo(() => {
+    return data.map((item) => {
+      const validGrowthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
+      return {
+        ...item,
+        value: Math.max(1, Math.abs(validGrowthPct)),
+        growth_pct: validGrowthPct,
+      };
+    });
+  }, [data]);
 
-  // Only early return if no nodes
-  if (nodes.length === 0) {
-    return null;
-  }
-
-  // Format growth percentage: +x.x% or -x.x% or "N/A"
-  const formatGrowthPct = (growthPct: number | null | undefined): string => {
-    if (growthPct === null || growthPct === undefined || typeof growthPct !== 'number' || isNaN(growthPct)) {
-      return 'N/A';
-    }
-    const sign = growthPct >= 0 ? '+' : '';
-    return `${sign}${growthPct.toFixed(1)}%`;
-  };
-
-  // Minimal custom content renderer: draws rect with color, stroke, and labels
-  const CustomCell = (props: any) => {
+  // CustomNode component: draws rect, labels, and handles clicks
+  const CustomNode = (props: any) => {
     const { x, y, width: cellWidth, height: cellHeight, payload } = props;
     if (!payload) return null;
 
-    const name = payload.name || 'Unknown';
-    const growthPct = payload.growth_pct;
-    const fill = getGrowthColor(growthPct);
-    const growthText = formatGrowthPct(growthPct);
+    const displayName = payload.display_name || payload.name || 'Unknown';
+    const growthPct = payload.growth_pct || 0;
     
-    // Truncate name if needed
-    const maxNameLength = Math.floor(cellWidth / 6);
-    const displayName = name.length > maxNameLength ? name.substring(0, maxNameLength) + '...' : name;
+    // Get fill color based on growth_pct
+    let fill: string;
+    if (growthPct > 0.5) {
+      fill = 'rgba(34, 197, 94, 0.6)'; // green
+    } else if (growthPct < -0.5) {
+      fill = 'rgba(239, 68, 68, 0.6)'; // red
+    } else {
+      fill = 'rgba(234, 179, 8, 0.6)'; // yellow
+    }
+
+    // Format growth percentage
+    const growthText = growthPct >= 0 ? `+${growthPct.toFixed(1)}%` : `${growthPct.toFixed(1)}%`;
+    
     const showLabels = cellWidth >= 60 && cellHeight >= 40;
+    const maxNameLength = Math.floor(cellWidth / 6);
+    const displayNameTruncated = displayName.length > maxNameLength 
+      ? displayName.substring(0, maxNameLength) + '...' 
+      : displayName;
+
+    const handleClick = () => {
+      if (onProjectClick && payload) {
+        onProjectClick(payload);
+      }
+    };
 
     return (
       <g>
@@ -150,23 +149,25 @@ export function ArcProjectsTreemapV3({
           width={cellWidth}
           height={cellHeight}
           fill={fill}
-          stroke="rgba(255, 255, 255, 0.2)"
+          stroke="#0b0f14"
           strokeWidth={1}
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
         />
-        {/* Labels: name + growth % */}
+        {/* Labels: display_name and growth % */}
         {showLabels && (
           <g>
-            {/* Background rectangle for readability on dark UI */}
+            {/* Background rectangle for readability */}
             <rect
-              x={x + cellWidth / 2 - (Math.max(displayName.length, growthText.length) * 4)}
+              x={x + cellWidth / 2 - (Math.max(displayNameTruncated.length, growthText.length) * 4)}
               y={y + cellHeight / 2 - 16}
-              width={Math.max(displayName.length, growthText.length) * 8}
+              width={Math.max(displayNameTruncated.length, growthText.length) * 8}
               height={32}
               fill="rgba(0, 0, 0, 0.7)"
               rx={4}
               style={{ pointerEvents: 'none' }}
             />
-            {/* Project name */}
+            {/* Display name */}
             <text
               x={x + cellWidth / 2}
               y={y + cellHeight / 2 - 4}
@@ -176,7 +177,7 @@ export function ArcProjectsTreemapV3({
               fontWeight="bold"
               style={{ pointerEvents: 'none' }}
             >
-              {displayName}
+              {displayNameTruncated}
             </text>
             {/* Growth percentage */}
             <text
@@ -196,23 +197,44 @@ export function ArcProjectsTreemapV3({
     );
   };
 
-  return (
-    <div style={{ width, height: '100%', position: 'relative' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <Treemap
-          data={nodes}
-          dataKey="value"
-          nameKey="name"
-          isAnimationActive={false}
-          content={<CustomCell />}
-        />
-      </ResponsiveContainer>
-      {showDebug && (
-        <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '8px', fontSize: '12px', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
-          Treemap mounted: {nodes.length}
-        </div>
-      )}
-    </div>
-  );
+  // Error tracking ref (no state updates during render)
+  const errorRef = useRef<Error | null>(null);
+  const errorReportedRef = useRef(false);
+
+  // Error handling via useEffect - check for errors on each render
+  useEffect(() => {
+    if (errorRef.current && !errorReportedRef.current && onError) {
+      onError(errorRef.current);
+      errorReportedRef.current = true; // Mark as reported
+    }
+  });
+
+  // Early return if no nodes
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  // Render treemap with error boundary
+  try {
+    return (
+      <div style={{ width: '100%', height: '100%' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <Treemap
+            data={nodes}
+            dataKey="value"
+            nameKey="display_name"
+            stroke="#0b0f14"
+            content={<CustomNode />}
+          />
+        </ResponsiveContainer>
+      </div>
+    );
+  } catch (error: any) {
+    // Store error in ref (no state update during render)
+    errorRef.current = error instanceof Error ? error : new Error(String(error));
+    errorReportedRef.current = false; // Reset report flag
+    // Error will be reported via useEffect on next render
+    return null;
+  }
 }
 

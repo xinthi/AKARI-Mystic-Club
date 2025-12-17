@@ -811,118 +811,103 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     }
                     // 'all' segment: show all items (no filtering)
                     
-                    const shouldShowFallback = treemapError || !showTreemap || filteredData.length === 0;
+                    // Calculate width: containerDimensions.width - 32 (min 400)
+                    const treemapWidth = containerDimensions.width > 0 
+                      ? Math.max(containerDimensions.width - 32, 400)
+                      : 400; // Fallback to 400 if width not measured yet
+                    const treemapHeight = 400;
+                    
+                    const treemapData: any[] = filteredData.map((item: any) => {
+                      const gp = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
+                      return {
+                        id: item.id,
+                        display_name: item.display_name,
+                        name: item.name,
+                        twitter_username: item.twitter_username,
+                        growth_pct: gp,
+                        // ✅ This is the important part:
+                        value: Math.max(1, Math.abs(gp)),
+                        slug: item.slug,
+                        arc_access_level: item.arc_access_level,
+                        arc_active: item.arc_active,
+                      };
+                    });
                     
                     return (
                       <>
-                        {/* Treemap Container - Always rendered */}
-                        <div style={{ width: '100%', height: '400px', position: 'relative' }}>
-                          {(() => {
-                            try {
-                              // Check if we have data to render
-                              if (filteredData.length === 0) {
-                                setTreemapError(new Error('No data to display'));
-                                setShowTreemap(false);
-                                return null;
-                              }
-                              
-                              const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
-                              const treemapHeight = 400;
-                              
-                              const treemapData: TreemapProjectItem[] = filteredData.map((item: any) => ({
-                                id: item.id,
-                                display_name: item.display_name,
-                                name: item.name,
-                                twitter_username: item.twitter_username, // Use twitter_username consistently
-                                growth_pct: item.growth_pct,
-                                slug: item.slug,
-                                arc_access_level: item.arc_access_level,
-                                arc_active: item.arc_active,
-                              }));
-                              
-                              // Only render treemap if no error and showTreemap is true
-                              if (!treemapError && showTreemap) {
-                                const treemapResult = (
-                                  <ArcProjectsTreemapV3
-                                    data={treemapData}
-                                    width={treemapWidth}
-                                    height={treemapHeight}
-                                    onError={(error) => {
-                                      console.error('[ARC] Treemap error:', error);
-                                      setTreemapError(error);
-                                      setShowTreemap(false);
-                                    }}
-                                    onStatsUpdate={(stats) => {
-                                      setTreemapStats(stats);
-                                    }}
-                                    onProjectClick={(item) => {
-                                      // Handle project click navigation
-                                      const arcAccessLevel = item.arc_access_level || 'none';
-                                      const projectIdentifier = item.slug || item.id;
-                                      
-                                      if (arcAccessLevel === 'creator_manager') {
-                                        router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-                                      } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-                                        router.push(`/portal/arc/project/${projectIdentifier}`);
-                                      }
-                                    }}
-                                  />
-                                );
-                                
-                                // If treemap returns null, mark as error
-                                if (!treemapResult) {
-                                  setTreemapError(new Error('Treemap returned null'));
+                        {/* Treemap Container - Always rendered when we have data */}
+                        {filteredData.length > 0 && (
+                          <div style={{ width: '100%', height: '400px', position: 'relative' }}>
+                            {containerDimensions.width === 0 ? (
+                              // Show placeholder while measuring container
+                              <div className="flex items-center justify-center h-full">
+                                <p className="text-sm text-white/60">Measuring container...</p>
+                              </div>
+                            ) : (
+                              // Render treemap once width is measured
+                              <ArcProjectsTreemapV3
+                                data={treemapData}
+                                width={treemapWidth}
+                                height={treemapHeight}
+                                onError={(error) => {
+                                  console.error('[ARC] Treemap error:', error);
+                                  setTreemapError(error);
                                   setShowTreemap(false);
-                                  return null;
-                                }
-                                
-                                return treemapResult;
-                              }
-                              
-                              return null;
-                            } catch (error: any) {
-                              console.error('[ARC] Treemap render error:', error);
-                              setTreemapError(error instanceof Error ? error : new Error(String(error)));
-                              setShowTreemap(false);
-                              return null;
-                            }
-                          })()}
-                        </div>
-                        
-                        {/* List Fallback - Always shown below treemap container */}
-                        {shouldShowFallback && (
-                    <div className="mt-4">
-                          <div className="mb-4 rounded-lg border border-akari-warning/30 bg-akari-card/50 p-3">
-                            <p className="text-sm text-akari-warning font-medium mb-1">Treemap unavailable, showing list fallback</p>
-                            {treemapError && (
-                              <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                                }}
+                                onStatsUpdate={(stats) => {
+                                  setTreemapStats(stats);
+                                }}
+                                onProjectClick={(item) => {
+                                  // Handle project click navigation
+                                  const arcAccessLevel = item.arc_access_level || 'none';
+                                  const projectIdentifier = item.slug || item.id;
+                                  
+                                  if (arcAccessLevel === 'creator_manager') {
+                                    router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+                                  } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+                                    router.push(`/portal/arc/project/${projectIdentifier}`);
+                                  }
+                                }}
+                              />
                             )}
                           </div>
-                          <div className="space-y-3">
-                            {filteredData.map((item: any, index: number) => {
-                            const name = item.display_name || item.name || 'Unknown';
-                            const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                            const twitterUsername = item.twitter_username || '';
-                            
-                            return (
-                              <div
-                                key={item.id || index}
-                                className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-semibold text-white truncate">{name}</div>
-                                  {twitterUsername && (
-                                    <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                                  )}
-                                </div>
-                                <div className={`text-sm font-bold ml-4 ${
-                                  growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                                }`}>
-                                  {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-                                </div>
-                              </div>
-                            );
-                            })}
+                        )}
+                        
+                        {/* List Fallback - Shown when treemap error exists or no data */}
+                        {(treemapError || filteredData.length === 0) && (
+                          <div className="mt-4">
+                            <div className="mb-4 rounded-lg border border-akari-warning/30 bg-akari-card/50 p-3">
+                              <p className="text-sm text-akari-warning font-medium mb-1">Treemap unavailable, showing list fallback</p>
+                              {treemapError && (
+                                <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                              )}
+                            </div>
+                            <div className="space-y-3">
+                              {filteredData.map((item: any, index: number) => {
+                                const name = item.display_name || item.name || 'Unknown';
+                                const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                                const twitterUsername = item.twitter_username || '';
+                                
+                                return (
+                                  <div
+                                    key={item.id || index}
+                                    className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-semibold text-white truncate">{name}</div>
+                                      {twitterUsername && (
+                                        <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                                      )}
+                                    </div>
+                                    <div className={`text-sm font-bold ml-4 ${
+                                      growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                                    }`}>
+                                      {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </>
