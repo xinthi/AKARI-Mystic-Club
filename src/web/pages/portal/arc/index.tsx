@@ -373,7 +373,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 // =============================================================================
 
 /**
- * Simple list fallback for top projects
+ * Weighted card grid for top projects (soft treemap)
+ * 
+ * Tiers are calculated by sorting projects by absolute growth_pct,
+ * then dividing into 3 equal groups:
+ * - Tier 1 (largest): Top 33% by absolute growth
+ * - Tier 2 (medium): Middle 33%
+ * - Tier 3 (smallest): Bottom 33%
  */
 function TopProjectsListFallback({
   items,
@@ -387,22 +393,48 @@ function TopProjectsListFallback({
     return `${sign}${growthPct.toFixed(2)}%`;
   };
 
+  // Calculate tiers: sort by absolute growth, divide into 3 groups
+  const sortedItems = [...items].sort((a, b) => {
+    const absA = Math.abs(typeof a.growth_pct === 'number' ? a.growth_pct : 0);
+    const absB = Math.abs(typeof b.growth_pct === 'number' ? b.growth_pct : 0);
+    return absB - absA; // Descending order
+  });
+
+  const tier1Threshold = Math.ceil(sortedItems.length / 3);
+  const tier2Threshold = Math.ceil((sortedItems.length * 2) / 3);
+
+  const itemsWithTiers = sortedItems.map((item, index) => {
+    let tier: 1 | 2 | 3;
+    if (index < tier1Threshold) {
+      tier = 1;
+    } else if (index < tier2Threshold) {
+      tier = 2;
+    } else {
+      tier = 3;
+    }
+    return { ...item, tier };
+  });
+
   return (
     <div className="w-full">
-      {/* List view */}
-      <div className="space-y-3">
-        {items.map((item) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+        {itemsWithTiers.map((item) => {
           const name = item.display_name || item.name || 'Unknown';
           const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
           const twitterUsername = item.twitter_username || '';
           const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+          const tier = item.tier;
+          
+          // Grid span based on tier (larger = higher growth)
+          const gridSpan = tier === 1 ? 'md:col-span-2 lg:col-span-2' : 'md:col-span-1';
+          const minHeight = tier === 1 ? 'min-h-[160px]' : tier === 2 ? 'min-h-[140px]' : 'min-h-[120px]';
           
           return (
             <div
               key={item.id || item.projectId || Math.random()}
-              className={`flex items-center justify-between p-4 rounded-lg border ${
+              className={`${gridSpan} ${minHeight} rounded-lg border p-4 flex flex-col justify-between ${
                 isClickable
-                  ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
+                  ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-colors'
                   : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
               }`}
               onClick={() => {
@@ -419,15 +451,15 @@ function TopProjectsListFallback({
               }}
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white truncate">{name}</div>
+                <div className="text-sm font-semibold text-white truncate mb-1">{name}</div>
                 {twitterUsername && (
-                  <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                  <div className="text-xs text-white/60 truncate mb-2">@{twitterUsername}</div>
                 )}
                 {!isClickable && (
                   <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
                 )}
               </div>
-              <div className={`text-sm font-bold ml-4 ${
+              <div className={`text-base font-bold mt-2 ${
                 growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
               }`}>
                 {formatGrowthPct(growthPct)}
