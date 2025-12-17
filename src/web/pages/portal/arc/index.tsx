@@ -100,6 +100,16 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [isCreator, setIsCreator] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [treemapError, setTreemapError] = useState<Error | null>(null);
+  const [myProjects, setMyProjects] = useState<Array<{
+    id: string;
+    name: string;
+    display_name: string | null;
+    slug: string | null;
+    twitter_username: string | null;
+    arc_access_level: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
+    arc_active: boolean;
+  }>>([]);
+  const [myProjectsLoading, setMyProjectsLoading] = useState(false);
   const [summary, setSummary] = useState<{
     trackedProjects: number;
     arcEnabled: number;
@@ -249,6 +259,37 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
     fetchData();
   }, [userTwitterUsername, isDevMode, userIsSuperAdmin, akariUser.user]);
+
+  // Fetch projects user can manage (for ARC access requests)
+  useEffect(() => {
+    async function fetchMyProjects() {
+      if (!akariUser.isLoggedIn) {
+        setMyProjects([]);
+        return;
+      }
+
+      try {
+        setMyProjectsLoading(true);
+        const res = await fetch('/api/portal/arc/my-projects');
+        
+        if (!res.ok) {
+          console.error('[ARC] Failed to fetch my projects');
+          return;
+        }
+
+        const data = await res.json();
+        if (data.ok && data.projects) {
+          setMyProjects(data.projects);
+        }
+      } catch (err) {
+        console.error('[ARC] Error fetching my projects:', err);
+      } finally {
+        setMyProjectsLoading(false);
+      }
+    }
+
+    fetchMyProjects();
+  }, [akariUser.isLoggedIn]);
 
     // Load top projects data with lightweight caching
     const loadTopProjects = useCallback(async (forceRefresh = false) => {
@@ -748,25 +789,100 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
             </section>
 
-            {/* Founder CTA */}
-            <section className="mb-8">
-              <div className="rounded-xl border border-akari-neon-teal/30 bg-gradient-to-br from-akari-neon-teal/10 to-akari-neon-blue/10 p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Are you a project founder?</h3>
-                    <p className="text-sm text-white/70">
-                      Request ARC leaderboard access to track creator influence and gamify your community.
-                    </p>
-                  </div>
-                  <Link
-                    href="/portal/arc"
-                    className="inline-flex items-center px-4 py-2 bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/30 transition-colors font-medium whitespace-nowrap"
-                  >
-                    Request Access
-                  </Link>
+            {/* My Projects - Request ARC Access */}
+            {akariUser.isLoggedIn && myProjects.length > 0 && (
+              <section className="mb-8">
+                <div className="rounded-xl border border-akari-neon-teal/30 bg-gradient-to-br from-akari-neon-teal/10 to-akari-neon-blue/10 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">My Projects - Request ARC Access</h3>
+                  <p className="text-sm text-white/70 mb-4">
+                    You have admin/moderator access to these projects. Request ARC access to enable leaderboards and gamification.
+                  </p>
+                  
+                  {myProjectsLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {myProjects.map((project) => {
+                        const needsAccess = !project.arc_active || project.arc_access_level === 'none';
+                        const projectName = project.display_name || project.name || 'Unknown Project';
+                        const projectSlug = project.slug || project.id;
+                        
+                        return (
+                          <div
+                            key={project.id}
+                            className="rounded-lg border border-white/10 bg-black/40 p-4 hover:border-white/20 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-semibold text-white truncate">{projectName}</h4>
+                                {project.twitter_username && (
+                                  <p className="text-xs text-white/60">@{project.twitter_username}</p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 mb-3">
+                              {project.arc_active && project.arc_access_level !== 'none' ? (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                  ARC Active
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/50">
+                                  No ARC Access
+                                </span>
+                              )}
+                            </div>
+                            
+                            {needsAccess ? (
+                              <Link
+                                href={`/portal/arc/project/${projectSlug}`}
+                                className="block w-full text-center px-3 py-2 bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/30 transition-colors text-sm font-medium"
+                              >
+                                Request ARC Access
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/portal/arc/project/${projectSlug}`}
+                                className="block w-full text-center px-3 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium"
+                              >
+                                View Project
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
+
+            {/* Founder CTA - Only show if user doesn't have projects */}
+            {akariUser.isLoggedIn && myProjects.length === 0 && !myProjectsLoading && (
+              <section className="mb-8">
+                <div className="rounded-xl border border-akari-neon-teal/30 bg-gradient-to-br from-akari-neon-teal/10 to-akari-neon-blue/10 p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Are you a project founder?</h3>
+                      <p className="text-sm text-white/70">
+                        Request ARC leaderboard access to track creator influence and gamify your community.
+                      </p>
+                      <p className="text-xs text-white/50 mt-2">
+                        You need to be assigned as owner, admin, or moderator to request access.
+                      </p>
+                    </div>
+                    <Link
+                      href="/portal/admin/projects"
+                      className="inline-flex items-center px-4 py-2 bg-akari-neon-teal/20 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/30 transition-colors font-medium whitespace-nowrap"
+                    >
+                      Go to Projects Admin
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* Action Cards */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

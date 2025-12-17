@@ -187,30 +187,35 @@ export default async function handler(
       });
     }
 
-    // Get projects where profile_type = 'project' (Treemap inclusion rule)
-    // All Sentiment-tracked projects should have profile_type='project' (set automatically via migration)
-    // Rule: profile_type='project' AND is_active=true are included in Treemap universe
+    // Get projects for Treemap inclusion
+    // Rule: is_active=true AND (profile_type='project' OR profile_type IS NULL)
+    // Include NULL to handle projects that haven't been classified yet (they should still appear)
+    // Exclude profile_type='personal' explicitly
     let projects: any[];
     try {
-      const { data: projectsData, error: projectsError } = await supabase
+      // First get all active projects
+      const { data: allProjects, error: allProjectsError } = await supabase
         .from('projects')
         .select('id, display_name, x_handle, arc_access_level, arc_active, profile_type, slug')
         .eq('is_active', true)
-        .eq('profile_type', 'project')
         .order('name', { ascending: true });
 
-      if (projectsError) {
-        console.error('[ARC top-projects] Error fetching projects:', projectsError);
+      if (allProjectsError) {
+        console.error('[ARC top-projects] Error fetching projects:', allProjectsError);
         return res.status(500).json({
           ok: false,
           error: 'Failed to fetch projects',
-          details: projectsError.message,
+          details: allProjectsError.message,
         });
       }
 
-      projects = projectsData || [];
+      // Filter: include 'project' or NULL, exclude 'personal'
+      projects = (allProjects || []).filter((p: any) => {
+        const profileType = p.profile_type;
+        return profileType === 'project' || profileType === null || profileType === undefined;
+      });
 
-      console.log(`[ARC top-projects] Found ${projects.length} projects with profile_type='project'`);
+      console.log(`[ARC top-projects] Found ${projects.length} projects (profile_type='project' or NULL, excluding 'personal')`);
       
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
