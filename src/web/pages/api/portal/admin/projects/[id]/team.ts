@@ -180,8 +180,8 @@ export default async function handler(
       console.log('[Admin Team Members API] DEV MODE - skipping auth');
     }
 
-  // Get project ID from URL
-  const { id: projectId } = req.query;
+    // Get project ID from URL
+    const { id: projectId } = req.query;
   if (!projectId || typeof projectId !== 'string') {
     return res.status(400).json({ ok: false, error: 'Project ID is required' });
   }
@@ -385,6 +385,13 @@ export default async function handler(
     });
   }
 
-  return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  } catch (error: any) {
+    console.error('[Admin Team Members API] Error:', error);
+    if (error.message?.includes('Missing Supabase')) {
+      return res.status(500).json({ ok: false, error: 'Missing Supabase configuration' });
+    }
+    return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+  }
 }
 

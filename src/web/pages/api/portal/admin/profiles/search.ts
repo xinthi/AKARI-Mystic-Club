@@ -24,6 +24,12 @@ type SearchResponse =
   | { ok: false; error: string };
 
 // =============================================================================
+// DEV MODE BYPASS
+// =============================================================================
+
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
+// =============================================================================
 // HELPERS
 // =============================================================================
 
@@ -110,25 +116,32 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Check authentication and SuperAdmin
-    const sessionToken = getSessionToken(req);
-    if (!sessionToken) {
-      return res.status(401).json({ ok: false, error: 'Not authenticated' });
-    }
+    // ==========================================================================
+    // DEV MODE: Skip authentication in development
+    // ==========================================================================
+    if (!DEV_MODE) {
+      // Check authentication and SuperAdmin
+      const sessionToken = getSessionToken(req);
+      if (!sessionToken) {
+        return res.status(401).json({ ok: false, error: 'Not authenticated' });
+      }
 
-    const { data: session } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
+      const { data: session } = await supabase
+        .from('akari_user_sessions')
+        .select('user_id, expires_at')
+        .eq('session_token', sessionToken)
+        .single();
 
-    if (!session || new Date(session.expires_at) < new Date()) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
+      if (!session || new Date(session.expires_at) < new Date()) {
+        return res.status(401).json({ ok: false, error: 'Invalid session' });
+      }
 
-    const isSuperAdmin = await checkSuperAdmin(supabase, session.user_id);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
+      const isSuperAdmin = await checkSuperAdmin(supabase, session.user_id);
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
+      }
+    } else {
+      console.log('[Admin Profile Search API] DEV MODE - skipping auth');
     }
 
     // Search profiles by username
