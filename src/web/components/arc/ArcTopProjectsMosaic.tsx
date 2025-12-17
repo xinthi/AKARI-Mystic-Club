@@ -41,21 +41,32 @@ function formatGrowthPct(growthPct: number): string {
 }
 
 /**
- * Get grid column span class based on rank (1-indexed)
+ * Get grid column span class based on index (0-indexed)
+ * Mobile: all same size (col-span-1)
+ * Medium: index 0-1: col-span-1 (side by side), index 2-4: col-span-1, rest: col-span-1
+ * Desktop (lg): index 0-1: col-span-3 (large), index 2-4: col-span-2 (medium), rest: col-span-1 (small)
  */
-function getColSpanClass(rank: number): string {
-  if (rank === 1) return 'lg:col-span-7';
-  if (rank === 2) return 'lg:col-span-5';
-  if (rank >= 3 && rank <= 4) return 'lg:col-span-4';
-  if (rank >= 5 && rank <= 8) return 'lg:col-span-3';
-  return 'lg:col-span-2';
+function getColSpanClass(index: number): string {
+  if (index === 0 || index === 1) {
+    // Large cards: 1 column on medium (side by side), 3 columns on desktop (half the 6-column grid)
+    return 'col-span-1 md:col-span-1 lg:col-span-3';
+  } else if (index >= 2 && index <= 4) {
+    // Medium cards: 1 column on medium, 2 columns on desktop (1/3 of the 6-column grid)
+    return 'col-span-1 md:col-span-1 lg:col-span-2';
+  }
+  // Small cards: take 1 column
+  return 'col-span-1';
 }
 
 /**
- * Get grid row span class based on rank (1-indexed)
+ * Get grid row span class based on index (0-indexed)
+ * Mobile: no row-span (all same size)
+ * Desktop: index 0-1: row-span-2, rest: row-span-1
  */
-function getRowSpanClass(rank: number): string {
-  if (rank === 1 || rank === 2) return 'lg:row-span-2';
+function getRowSpanClass(index: number): string {
+  if (index === 0 || index === 1) {
+    return 'lg:row-span-2';
+  }
   return 'lg:row-span-1';
 }
 
@@ -106,7 +117,7 @@ export function ArcTopProjectsMosaic({
   items,
   onClickItem,
 }: ArcTopProjectsMosaicProps) {
-  // Sort by absolute growth_pct descending, limit to 20 items
+  // Sort by absolute growth_pct descending, limit to 17 items (2 large + 3 medium + 12 small)
   const sortedItems = useMemo(() => {
     return [...items]
       .sort((a, b) => {
@@ -114,7 +125,7 @@ export function ArcTopProjectsMosaic({
         const growthB = Math.abs(typeof b.growth_pct === 'number' ? b.growth_pct : 0);
         return growthB - growthA;
       })
-      .slice(0, 20);
+      .slice(0, 17);
   }, [items]);
 
   // Empty state
@@ -137,17 +148,19 @@ export function ArcTopProjectsMosaic({
 
   return (
     <div className="w-full">
-      {/* CSS Grid: 12 columns on desktop, 1 column on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 auto-rows-min">
+      {/* CSS Grid: 1 col mobile, 2 cols md, 6 cols lg */}
+      <div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3"
+        style={{ gridAutoRows: '110px' }}
+      >
         {sortedItems.map((item, index) => {
-          const rank = index + 1;
           const name = item.display_name || item.name || 'Unknown';
           const twitterUsername = item.twitter_username || '';
           const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
           const locked = isLocked(item);
           const colors = getGrowthColorClasses(growthPct);
-          const colSpan = getColSpanClass(rank);
-          const rowSpan = getRowSpanClass(rank);
+          const colSpan = getColSpanClass(index);
+          const rowSpan = getRowSpanClass(index);
 
           return (
             <div
@@ -159,13 +172,11 @@ export function ArcTopProjectsMosaic({
                 border
                 ${colors.border}
                 ${colors.bg}
-                p-4
-                lg:p-6
+                p-3
+                lg:p-4
                 flex
                 flex-col
                 justify-between
-                min-h-[120px]
-                lg:min-h-[140px]
                 transition-all
                 ${locked
                   ? 'opacity-50 cursor-not-allowed'
@@ -176,23 +187,23 @@ export function ArcTopProjectsMosaic({
             >
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <div className="text-base lg:text-lg font-semibold text-white truncate mb-1">
+                <div className="text-sm lg:text-base font-semibold text-white truncate mb-1">
                   {name}
                 </div>
                 {twitterUsername && (
-                  <div className="text-xs lg:text-sm text-white/60 truncate mb-2">
+                  <div className="text-xs text-white/60 truncate mb-1">
                     @{twitterUsername}
                   </div>
                 )}
                 {locked && (
-                  <div className="text-xs text-yellow-400 mt-2">
+                  <div className="text-xs text-yellow-400 mt-1">
                     🔒 Locked
                   </div>
                 )}
               </div>
 
               {/* Growth percentage */}
-              <div className={`text-xl lg:text-2xl font-bold ${colors.text}`}>
+              <div className={`text-base lg:text-lg font-bold ${colors.text}`}>
                 {formatGrowthPct(growthPct)}
               </div>
             </div>

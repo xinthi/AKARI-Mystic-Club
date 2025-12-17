@@ -208,7 +208,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   return (
     <PortalLayout title="ARC Universe">
-      <div className="space-y-12 px-6 py-8">
+      <div className="space-y-8 px-6 py-8">
         {/* Header */}
         <section className="mb-6">
           <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
@@ -224,10 +224,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
         {/* Top Projects Hero Section */}
         {canManageArc && (
-          <section className="w-full">
+          <section className="w-full max-w-6xl mx-auto">
             {/* Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3 flex-wrap">
                 {userIsSuperAdmin && (
                   <>
                     <Link
@@ -303,26 +303,28 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
             </div>
 
-            {/* Content */}
-            {topProjectsLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                <span className="ml-3 text-white/60">Loading top projects...</span>
-              </div>
-            ) : topProjectsError ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                <p className="text-sm text-red-400">{topProjectsError}</p>
-              </div>
-            ) : topProjectsData.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                <p className="text-sm text-white/60">No top projects available</p>
-              </div>
-            ) : (
-              <ArcTopProjectsMosaic
-                items={topProjectsData}
-                onClickItem={handleTopProjectClick}
-              />
-            )}
+            {/* Panel without scrolling - fixed content */}
+            <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-4">
+              {topProjectsLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60">Loading top projects...</span>
+                </div>
+              ) : topProjectsError ? (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+                  <p className="text-sm text-red-400">{topProjectsError}</p>
+                </div>
+              ) : topProjectsData.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                  <p className="text-sm text-white/60">No top projects available</p>
+                </div>
+              ) : (
+                <ArcTopProjectsMosaic
+                  items={topProjectsData}
+                  onClickItem={handleTopProjectClick}
+                />
+              )}
+            </div>
           </section>
         )}
 
