@@ -25,8 +25,10 @@ interface UpdateProjectBody {
 interface AdminProject {
   id: string;
   name: string;
+  display_name: string | null;
   slug: string;
   x_handle: string;
+  twitter_username: string | null;
   is_active: boolean;
   arc_active?: boolean;
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';

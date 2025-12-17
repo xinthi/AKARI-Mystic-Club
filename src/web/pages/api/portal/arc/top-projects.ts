@@ -381,12 +381,34 @@ export default async function handler(
         }
       });
 
-      console.log(`[ARC top-projects] Calculated growth for ${projectsWithGrowth.length} projects. Growth range: ${Math.min(...projectsWithGrowth.map(p => p.growth_pct))}% to ${Math.max(...projectsWithGrowth.map(p => p.growth_pct))}%`);
+      if (projectsWithGrowth.length > 0) {
+        const growthValues = projectsWithGrowth.map(p => p.growth_pct);
+        const minGrowth = Math.min(...growthValues);
+        const maxGrowth = Math.max(...growthValues);
+        console.log(`[ARC top-projects] Calculated growth for ${projectsWithGrowth.length} projects. Growth range: ${minGrowth}% to ${maxGrowth}%`);
+      } else {
+        console.warn(`[ARC top-projects] No projects with growth calculated!`);
+      }
 
       // Return top 20 (or limit)
       const limitedProjects = projectsWithGrowth.slice(0, limit);
       
       console.log(`[ARC top-projects] Returning ${limitedProjects.length} projects (limit: ${limit}, mode: ${mode})`);
+      
+      // Log sample of returned data for debugging
+      if (limitedProjects.length > 0) {
+        console.log(`[ARC top-projects] Sample project:`, {
+          id: limitedProjects[0].id,
+          display_name: limitedProjects[0].display_name,
+          growth_pct: limitedProjects[0].growth_pct,
+          arc_active: limitedProjects[0].arc_active,
+        });
+      } else {
+        console.warn(`[ARC top-projects] WARNING: Returning empty array! Check:`);
+        console.warn(`  - Are there projects with profile_type='project' or NULL?`);
+        console.warn(`  - Are those projects marked as is_active=true?`);
+        console.warn(`  - Total projects found: ${projects.length}`);
+      }
 
       // Set cache-control headers to prevent aggressive caching
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

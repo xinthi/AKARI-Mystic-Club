@@ -259,7 +259,12 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
 
   // Prepare data for treemap (only use valid items)
   const treemapData = useMemo((): TreemapDataPoint[] => {
-    if (validItems.length === 0) return [];
+    if (validItems.length === 0) {
+      console.warn('[Treemap] No valid items to render. Items received:', items?.length || 0);
+      return [];
+    }
+
+    console.log(`[Treemap] Preparing ${validItems.length} items for treemap rendering`);
 
     // Convert growth_pct into tile value with minimum size
     // For zero growth, use a base value so items are still visible
@@ -272,6 +277,8 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
       return Math.max(10, Math.round(absGrowth * 100));
     });
     const normalizedValues = normalizeForTreemap(tileValues);
+    
+    console.log(`[Treemap] Normalized ${normalizedValues.length} values. Range: ${Math.min(...normalizedValues)} to ${Math.max(...normalizedValues)}`);
 
     return validItems.map((item, index) => {
       // Safe field access with fallbacks
@@ -738,6 +745,17 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           )}
         </div>
       </div>
+
+      {/* Debug logging */}
+      {(() => {
+        console.log('[Treemap Render]', {
+          itemsCount: items?.length || 0,
+          validItemsCount: validItems.length,
+          treemapDataCount: treemapData.length,
+          sampleItem: treemapData[0] || null,
+        });
+        return null;
+      })()}
 
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
