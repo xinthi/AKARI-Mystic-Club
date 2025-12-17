@@ -206,6 +206,17 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Request ID is required' });
     }
 
+    // Fetch the request to get project_id and current status (check status before validating body)
+    const { data: request, error: requestError } = await supabase
+      .from('arc_leaderboard_requests')
+      .select('id, project_id, status')
+      .eq('id', id)
+      .single();
+
+    if (requestError || !request) {
+      return res.status(404).json({ ok: false, error: 'Request not found' });
+    }
+
     // Parse and validate request body
     const { status, arc_access_level } = req.body as Partial<UpdateRequestPayload>;
 
@@ -213,6 +224,14 @@ export default async function handler(
       return res.status(400).json({
         ok: false,
         error: 'status must be "approved" or "rejected"',
+      });
+    }
+
+    // Defensive check: ensure request is in pending status before updating
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        ok: false,
+        error: `Cannot update request that is already ${request.status}`,
       });
     }
 
@@ -224,22 +243,12 @@ export default async function handler(
       });
     }
 
+    // Defensive check: ensure arc_access_level is valid if provided
     if (status === 'approved' && arc_access_level && !['leaderboard', 'gamified'].includes(arc_access_level)) {
       return res.status(400).json({
         ok: false,
         error: 'arc_access_level must be "leaderboard" or "gamified"',
       });
-    }
-
-    // Fetch the request to get project_id
-    const { data: request, error: requestError } = await supabase
-      .from('arc_leaderboard_requests')
-      .select('id, project_id, status')
-      .eq('id', id)
-      .single();
-
-    if (requestError || !request) {
-      return res.status(404).json({ ok: false, error: 'Request not found' });
     }
 
     // Update request status
