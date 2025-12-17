@@ -117,16 +117,15 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   // Fetch top projects (only when canManageArc is true)
   useEffect(() => {
     if (!canManageArc) {
-      setLoading(false);
       return;
     }
 
-    async function fetchData() {
+    async function loadTopProjects() {
       try {
-        setLoading(true);
-        setError(null);
+        setTopProjectsLoading(true);
+        setTopProjectsError(null);
         
-        const res = await fetch(`/api/portal/arc/top-projects?limit=20`);
+        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
         
         if (!res.ok) {
           const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -164,7 +163,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         setTopProjectsError(err.message || 'Failed to load top projects');
         setTopProjectsData([]);
       } finally {
-        setLoading(false);
+        setTopProjectsLoading(false);
       }
     }
 
