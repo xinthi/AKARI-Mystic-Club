@@ -7,6 +7,7 @@
  */
 
 import React from 'react';
+import { useRouter } from 'next/router';
 import { Treemap, ResponsiveContainer } from 'recharts';
 
 // =============================================================================
@@ -50,17 +51,17 @@ interface ArcProjectsTreemapV3Props {
 // HELPER FUNCTIONS
 // =============================================================================
 
-function getGrowthColor(growthPct: number): string {
-  if (growthPct > 0) {
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1);
-    const opacity = 0.3 + intensity * 0.4;
-    return `rgba(34, 197, 94, ${opacity})`; // green
-  } else if (growthPct < 0) {
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1);
-    const opacity = 0.3 + intensity * 0.4;
-    return `rgba(239, 68, 68, ${opacity})`; // red
+// Get color based on growth_pct: Green (Up > +0.5), Red (Down < -0.5), Yellow (Stable -0.5 to +0.5)
+function getGrowthColor(growthPct: number | null | undefined): string {
+  if (growthPct === null || growthPct === undefined || typeof growthPct !== 'number' || isNaN(growthPct)) {
+    return 'rgba(234, 179, 8, 0.6)'; // yellow for N/A
+  }
+  if (growthPct > 0.5) {
+    return 'rgba(34, 197, 94, 0.6)'; // green for Up
+  } else if (growthPct < -0.5) {
+    return 'rgba(239, 68, 68, 0.6)'; // red for Down
   } else {
-    return 'rgba(156, 163, 175, 0.3)'; // gray
+    return 'rgba(234, 179, 8, 0.6)'; // yellow for Stable
   }
 }
 
@@ -92,20 +93,108 @@ export function ArcProjectsTreemapV3({
   onProjectClick,
   onStatsUpdate,
 }: ArcProjectsTreemapV3Props) {
-  // Prepare nodes: simple flat array with name and value
+  const router = useRouter();
+  const showDebug = router.query.debug === '1';
+
+  // Prepare nodes: preserve growth_pct for labels
   const nodes = data.map((item) => {
     const name = item.display_name || item.name || item.twitter_username || item.slug || 'Unknown';
     let value = 1;
     if (typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct)) {
       value = Math.max(1, Math.abs(item.growth_pct));
     }
-    return { name, value };
+    return { 
+      name, 
+      value,
+      growth_pct: typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct) 
+        ? item.growth_pct 
+        : null 
+    };
   });
 
   // Only early return if no nodes
   if (nodes.length === 0) {
     return null;
   }
+
+  // Format growth percentage: +x.x% or -x.x% or "N/A"
+  const formatGrowthPct = (growthPct: number | null | undefined): string => {
+    if (growthPct === null || growthPct === undefined || typeof growthPct !== 'number' || isNaN(growthPct)) {
+      return 'N/A';
+    }
+    const sign = growthPct >= 0 ? '+' : '';
+    return `${sign}${growthPct.toFixed(1)}%`;
+  };
+
+  // Minimal custom content renderer: draws rect with color, stroke, and labels
+  const CustomCell = (props: any) => {
+    const { x, y, width: cellWidth, height: cellHeight, payload } = props;
+    if (!payload) return null;
+
+    const name = payload.name || 'Unknown';
+    const growthPct = payload.growth_pct;
+    const fill = getGrowthColor(growthPct);
+    const growthText = formatGrowthPct(growthPct);
+    
+    // Truncate name if needed
+    const maxNameLength = Math.floor(cellWidth / 6);
+    const displayName = name.length > maxNameLength ? name.substring(0, maxNameLength) + '...' : name;
+    const showLabels = cellWidth >= 60 && cellHeight >= 40;
+
+    return (
+      <g>
+        {/* Rectangle with color based on growth_pct */}
+        <rect
+          x={x}
+          y={y}
+          width={cellWidth}
+          height={cellHeight}
+          fill={fill}
+          stroke="rgba(255, 255, 255, 0.2)"
+          strokeWidth={1}
+        />
+        {/* Labels: name + growth % */}
+        {showLabels && (
+          <g>
+            {/* Background rectangle for readability on dark UI */}
+            <rect
+              x={x + cellWidth / 2 - (Math.max(displayName.length, growthText.length) * 4)}
+              y={y + cellHeight / 2 - 16}
+              width={Math.max(displayName.length, growthText.length) * 8}
+              height={32}
+              fill="rgba(0, 0, 0, 0.7)"
+              rx={4}
+              style={{ pointerEvents: 'none' }}
+            />
+            {/* Project name */}
+            <text
+              x={x + cellWidth / 2}
+              y={y + cellHeight / 2 - 4}
+              textAnchor="middle"
+              fill="white"
+              fontSize={11}
+              fontWeight="bold"
+              style={{ pointerEvents: 'none' }}
+            >
+              {displayName}
+            </text>
+            {/* Growth percentage */}
+            <text
+              x={x + cellWidth / 2}
+              y={y + cellHeight / 2 + 10}
+              textAnchor="middle"
+              fill="white"
+              fontSize={10}
+              fontWeight="600"
+              style={{ pointerEvents: 'none' }}
+            >
+              {growthText}
+            </text>
+          </g>
+        )}
+      </g>
+    );
+  };
 
   return (
     <div style={{ width, height: '100%', position: 'relative' }}>
@@ -115,11 +204,14 @@ export function ArcProjectsTreemapV3({
           dataKey="value"
           nameKey="name"
           isAnimationActive={false}
+          content={<CustomCell />}
         />
       </ResponsiveContainer>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '8px', fontSize: '12px', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
-        Treemap mounted: {nodes.length}
-      </div>
+      {showDebug && (
+        <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '8px', fontSize: '12px', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
+          Treemap mounted: {nodes.length}
+        </div>
+      )}
     </div>
   );
 }

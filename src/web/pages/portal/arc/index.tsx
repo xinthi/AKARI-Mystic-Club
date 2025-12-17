@@ -86,6 +86,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
   const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
   const [topProjectsData, setTopProjectsData] = useState<any[]>([]);
+  const [treemapSegment, setTreemapSegment] = useState<'all' | 'gainers' | 'losers' | 'stable'>('all');
+  const [treemapDateRange, setTreemapDateRange] = useState<'24h' | '7d' | '30d'>('7d');
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
   const [rawApiItems, setRawApiItems] = useState<any[]>([]); // For debug display
@@ -656,7 +658,68 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               <h2 className="text-lg font-semibold text-white">Top Projects</h2>
             </div>
 
-            {/* Debug Panel - ARC UI v1.1: Always visible at top */}
+            {/* Treemap Controls */}
+            <div className="px-4 py-3 border-b border-white/10 bg-black/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              {/* Segment Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTreemapSegment('all')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    treemapSegment === 'all'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setTreemapSegment('gainers')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    treemapSegment === 'gainers'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  Top Gainers
+                </button>
+                <button
+                  onClick={() => setTreemapSegment('losers')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    treemapSegment === 'losers'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  Top Losers
+                </button>
+                <button
+                  onClick={() => setTreemapSegment('stable')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    treemapSegment === 'stable'
+                      ? 'bg-akari-primary text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  Stable
+                </button>
+              </div>
+              {/* Date Range Dropdown */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-white/70">Timeframe:</label>
+                <select
+                  value={treemapDateRange}
+                  onChange={(e) => setTreemapDateRange(e.target.value as '24h' | '7d' | '30d')}
+                  className="px-3 py-1.5 text-xs bg-white/10 text-white border border-white/20 rounded-md hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                >
+                  <option value="24h">24h</option>
+                  <option value="7d">7d</option>
+                  <option value="30d">30d</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Debug Panel - ARC UI v1.1: Only visible when ?debug=1 */}
+            {router.query.debug === '1' && (
             <div className="px-4 py-3 border-b border-white/10 bg-blue-500/10">
               <div className="text-blue-400 font-semibold mb-2 text-xs">🔍 ARC Debug Panel (v1.1)</div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-blue-200/80 text-xs">
@@ -698,6 +761,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 </div>
               )}
             </div>
+            )}
 
             {/* Content Container - ARC UI v1.1: Treemap with list fallback */}
             <div className="p-4" style={{ minHeight: '400px' }} ref={listContainerRef}>
@@ -727,30 +791,54 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </div>
                   )}
                   <div className="space-y-3">
-                    {topProjectsData.map((item: any, index: number) => {
-                      const name = item.display_name || item.name || 'Unknown';
-                      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                      const twitterUsername = item.twitter_username || '';
+                    {(() => {
+                      // Apply same filtering logic as treemap
+                      let filteredData = [...topProjectsData];
                       
-                      return (
-                        <div
-                          key={item.id || index}
-                          className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white truncate">{name}</div>
-                            {twitterUsername && (
-                              <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                            )}
+                      if (treemapSegment === 'gainers') {
+                        filteredData = topProjectsData
+                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                          .sort((a: any, b: any) => (b.growth_pct || 0) - (a.growth_pct || 0))
+                          .slice(0, 20);
+                      } else if (treemapSegment === 'losers') {
+                        filteredData = topProjectsData
+                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                          .sort((a: any, b: any) => (a.growth_pct || 0) - (b.growth_pct || 0))
+                          .slice(0, 20);
+                      } else if (treemapSegment === 'stable') {
+                        filteredData = topProjectsData
+                          .filter((item: any) => {
+                            const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : null;
+                            return growthPct !== null && Math.abs(growthPct) <= 0.5;
+                          })
+                          .slice(0, 20);
+                      }
+                      
+                      return filteredData.map((item: any, index: number) => {
+                        const name = item.display_name || item.name || 'Unknown';
+                        const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                        const twitterUsername = item.twitter_username || '';
+                        
+                        return (
+                          <div
+                            key={item.id || index}
+                            className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-white truncate">{name}</div>
+                              {twitterUsername && (
+                                <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                              )}
+                            </div>
+                            <div className={`text-sm font-bold ml-4 ${
+                              growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                            }`}>
+                              {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                            </div>
                           </div>
-                          <div className={`text-sm font-bold ml-4 ${
-                            growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                          }`}>
-                            {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -761,7 +849,33 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
                       const treemapHeight = 400;
                       
-                      const treemapData: TreemapProjectItem[] = topProjectsData.map((item: any) => ({
+                      // Filter and sort data based on selected segment
+                      let filteredData = [...topProjectsData];
+                      
+                      if (treemapSegment === 'gainers') {
+                        // Sort desc by growth_pct and show top 20
+                        filteredData = topProjectsData
+                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                          .sort((a: any, b: any) => (b.growth_pct || 0) - (a.growth_pct || 0))
+                          .slice(0, 20);
+                      } else if (treemapSegment === 'losers') {
+                        // Sort asc by growth_pct and show top 20
+                        filteredData = topProjectsData
+                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                          .sort((a: any, b: any) => (a.growth_pct || 0) - (b.growth_pct || 0))
+                          .slice(0, 20);
+                      } else if (treemapSegment === 'stable') {
+                        // abs(growth_pct) <= 0.5, show up to 20
+                        filteredData = topProjectsData
+                          .filter((item: any) => {
+                            const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : null;
+                            return growthPct !== null && Math.abs(growthPct) <= 0.5;
+                          })
+                          .slice(0, 20);
+                      }
+                      // 'all' segment: show all items (no filtering)
+                      
+                      const treemapData: TreemapProjectItem[] = filteredData.map((item: any) => ({
                         id: item.id,
                         display_name: item.display_name,
                         name: item.name,
