@@ -373,12 +373,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 // =============================================================================
 
 /**
- * Soft Treemap: Weighted card grid for top projects
+ * Weighted grid layout for top projects
  * 
- * Tiers are calculated based on growth_pct thresholds:
- * - Tier A: growth_pct >= 300 (large cards, span 6 columns)
- * - Tier B: growth_pct >= 100 and < 300 (medium cards, span 4 columns)
- * - Tier C: growth_pct < 100 (small cards, span 3 columns)
+ * Card sizing based on ranking by growth_pct:
+ * - Top 3: Large cards (col-span-2, row-span-2)
+ * - Next 6: Medium cards (col-span-1, row-span-1)
+ * - Remaining: Small cards (col-span-1, row-span-1)
  */
 function TopProjectsListFallback({
   items,
@@ -392,46 +392,71 @@ function TopProjectsListFallback({
     return `${sign}${growthPct.toFixed(2)}%`;
   };
 
-  // Calculate tiers based on growth_pct thresholds
-  const itemsWithTiers = items.map((item) => {
-    const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-    let tier: 'A' | 'B' | 'C';
-    let gridSpan: string;
-    let minHeight: string;
+  // Sort by growth_pct descending and assign card sizes based on ranking
+  const sortedItems = [...items].sort((a, b) => {
+    const growthA = typeof a.growth_pct === 'number' ? a.growth_pct : 0;
+    const growthB = typeof b.growth_pct === 'number' ? b.growth_pct : 0;
+    return growthB - growthA;
+  });
 
-    if (growthPct >= 300) {
-      tier = 'A';
-      gridSpan = 'col-span-full md:col-span-6 lg:col-span-6';
-      minHeight = 'min-h-[180px]';
-    } else if (growthPct >= 100) {
-      tier = 'B';
-      gridSpan = 'col-span-full md:col-span-3 lg:col-span-4';
-      minHeight = 'min-h-[150px]';
+  const itemsWithSizes = sortedItems.map((item, index) => {
+    let gridSpan: string;
+    let rowSpan: string;
+    let padding: string;
+    let fontSize: string;
+
+    if (index < 3) {
+      // Top 3: Large cards
+      gridSpan = 'col-span-full md:col-span-2';
+      rowSpan = 'md:row-span-2';
+      padding = 'p-6';
+      fontSize = 'text-lg';
+    } else if (index < 9) {
+      // Next 6: Medium cards
+      gridSpan = 'col-span-full md:col-span-1';
+      rowSpan = 'md:row-span-1';
+      padding = 'p-4';
+      fontSize = 'text-base';
     } else {
-      tier = 'C';
-      gridSpan = 'col-span-full md:col-span-3 lg:col-span-3';
-      minHeight = 'min-h-[130px]';
+      // Remaining: Small cards
+      gridSpan = 'col-span-full md:col-span-1';
+      rowSpan = 'md:row-span-1';
+      padding = 'p-3';
+      fontSize = 'text-sm';
     }
 
-    return { ...item, tier, gridSpan, minHeight };
+    return { ...item, gridSpan, rowSpan, padding, fontSize };
   });
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 auto-rows-fr">
-        {itemsWithTiers.map((item) => {
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-min">
+        {itemsWithSizes.map((item) => {
           const name = item.display_name || item.name || 'Unknown';
           const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
           const twitterUsername = item.twitter_username || '';
           const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
           
+          // Color accent based on growth
+          const borderColor = growthPct > 0 
+            ? 'border-green-500/30' 
+            : growthPct < 0 
+            ? 'border-red-500/30' 
+            : 'border-white/10';
+          
+          const bgColor = growthPct > 0
+            ? 'bg-green-500/5'
+            : growthPct < 0
+            ? 'bg-red-500/5'
+            : 'bg-white/5';
+          
           return (
             <div
               key={item.id || item.projectId || Math.random()}
-              className={`${item.gridSpan} ${item.minHeight} rounded-lg border p-4 flex flex-col justify-between ${
+              className={`${item.gridSpan} ${item.rowSpan} ${item.padding} rounded-lg border ${borderColor} ${bgColor} flex flex-col justify-between min-h-[120px] ${
                 isClickable
-                  ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-colors'
-                  : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
+                  ? 'hover:bg-white/10 cursor-pointer transition-colors'
+                  : 'opacity-50 cursor-not-allowed'
               }`}
               onClick={() => {
                 if (isClickable) {
@@ -447,15 +472,21 @@ function TopProjectsListFallback({
               }}
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white truncate mb-1">{name}</div>
+                <div className={`${item.fontSize} font-semibold text-white truncate mb-1`}>
+                  {name}
+                </div>
                 {twitterUsername && (
-                  <div className="text-xs text-white/60 truncate mb-2">@{twitterUsername}</div>
+                  <div className="text-xs text-white/60 truncate mb-2">
+                    @{twitterUsername}
+                  </div>
                 )}
                 {!isClickable && (
-                  <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
+                  <div className="text-xs text-yellow-400 mt-1">
+                    🔒 No ARC leaderboard active
+                  </div>
                 )}
               </div>
-              <div className={`text-base font-bold mt-2 ${
+              <div className={`${item.fontSize === 'text-lg' ? 'text-xl' : item.fontSize} font-bold mt-2 ${
                 growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
               }`}>
                 {formatGrowthPct(growthPct)}
