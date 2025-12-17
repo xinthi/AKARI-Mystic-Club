@@ -86,8 +86,10 @@ export function ArcProjectsTreemapV2({
 
   // Check if nodes were rendered after render
   useEffect(() => {
+    if (!hasRendered) return;
+    
     const timer = setTimeout(() => {
-      if (hasRendered && renderedNodeCount === 0 && data.length > 0) {
+      if (renderedNodeCount === 0 && data.length > 0) {
         if (onError) {
           onError(new Error('Treemap rendered but produced no visible nodes'));
         }

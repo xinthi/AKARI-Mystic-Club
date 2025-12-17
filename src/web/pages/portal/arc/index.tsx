@@ -687,7 +687,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               )}
             </div>
 
-            {/* List Container - ARC UI v1.1: Simple list */}
+            {/* Content Container - ARC UI v1.1: Treemap with list fallback */}
             <div className="p-4" style={{ minHeight: '400px' }} ref={listContainerRef}>
               {topProjectsLoading ? (
                 <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -705,32 +705,135 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <div className="text-center py-8">
                   <p className="text-sm text-white/60">0 projects returned</p>
                 </div>
+              ) : treemapError || !showTreemap ? (
+                // Show fallback list if treemap failed
+                <div>
+                  {treemapError && (
+                    <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3">
+                      <p className="text-xs text-akari-danger mb-1">Treemap error, showing list fallback</p>
+                      <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {topProjectsData.map((item: any, index: number) => {
+                      const name = item.display_name || item.name || 'Unknown';
+                      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                      const twitterUsername = item.twitter_username || '';
+                      
+                      return (
+                        <div
+                          key={item.id || index}
+                          className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-white truncate">{name}</div>
+                            {twitterUsername && (
+                              <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                            )}
+                          </div>
+                          <div className={`text-sm font-bold ml-4 ${
+                            growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                          }`}>
+                            {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {topProjectsData.map((item: any, index: number) => {
-                    const name = item.display_name || item.name || 'Unknown';
-                    const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                    const twitterUsername = item.twitter_username || '';
-                    
-                    return (
-                      <div
-                        key={item.id || index}
-                        className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-white truncate">{name}</div>
-                          {twitterUsername && (
-                            <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                          )}
-                        </div>
-                        <div className={`text-sm font-bold ml-4 ${
-                          growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                        }`}>
-                          {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-                        </div>
+                // Try to render treemap, fallback to list on error
+                <div style={{ width: '100%', height: '400px', position: 'relative' }}>
+                  {(() => {
+                    try {
+                      const treemapData: TreemapProjectItem[] = topProjectsData.map((item: any) => ({
+                        id: item.id,
+                        display_name: item.display_name,
+                        name: item.name,
+                        twitter_username: item.twitter_username,
+                        growth_pct: item.growth_pct,
+                        slug: item.slug,
+                        arc_access_level: item.arc_access_level,
+                        arc_active: item.arc_active,
+                      }));
+                      
+                      const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
+                      const treemapHeight = 400;
+                      
+                      const treemapResult = (
+                        <ArcProjectsTreemapV2
+                          data={treemapData}
+                          width={treemapWidth}
+                          height={treemapHeight}
+                          onError={(error) => {
+                            console.error('[ARC] Treemap error:', error);
+                            setTreemapError(error);
+                            setShowTreemap(false);
+                          }}
+                          onProjectClick={(item) => {
+                            // Handle project click navigation
+                            const arcAccessLevel = item.arc_access_level || 'none';
+                            const projectIdentifier = item.slug || item.id;
+                            
+                            if (arcAccessLevel === 'creator_manager') {
+                              router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+                            } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+                              router.push(`/portal/arc/project/${projectIdentifier}`);
+                            }
+                          }}
+                        />
+                      );
+                      
+                      // If treemap returns null, show fallback
+                      if (!treemapResult) {
+                        setTreemapError(new Error('Treemap returned null'));
+                        setShowTreemap(false);
+                        return null;
+                      }
+                      
+                      return treemapResult;
+                    } catch (error: any) {
+                      console.error('[ARC] Treemap render error:', error);
+                      setTreemapError(error instanceof Error ? error : new Error(String(error)));
+                      setShowTreemap(false);
+                      return null;
+                    }
+                  })()}
+                  {/* If treemap returns null or fails, show list fallback */}
+                  {(treemapError || !showTreemap) && (
+                    <div className="mt-4">
+                      <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3">
+                        <p className="text-xs text-akari-danger mb-1">Treemap error, showing list fallback</p>
+                        <p className="text-xs text-akari-muted">{treemapError?.message || 'Treemap unavailable'}</p>
                       </div>
-                    );
-                  })}
+                      <div className="space-y-3">
+                        {topProjectsData.map((item: any, index: number) => {
+                          const name = item.display_name || item.name || 'Unknown';
+                          const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                          const twitterUsername = item.twitter_username || '';
+                          
+                          return (
+                            <div
+                              key={item.id || index}
+                              className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold text-white truncate">{name}</div>
+                                {twitterUsername && (
+                                  <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                                )}
+                              </div>
+                              <div className={`text-sm font-bold ml-4 ${
+                                growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                              }`}>
+                                {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
