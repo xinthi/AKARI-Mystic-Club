@@ -12,6 +12,7 @@ import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
+import { ArcTopProjectsMosaic } from '@/components/arc/ArcTopProjectsMosaic';
 
 // =============================================================================
 // TYPES
@@ -175,6 +176,21 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     setRefreshNonce(prev => prev + 1);
   };
 
+  // Handle top project click navigation
+  const handleTopProjectClick = (item: TopProjectItem) => {
+    const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+    if (!isClickable) return;
+
+    const arcAccessLevel = item.arc_access_level || 'none';
+    const projectIdentifier = item.slug || item.projectId || item.id;
+    
+    if (arcAccessLevel === 'creator_manager') {
+      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+      router.push(`/portal/arc/project/${projectIdentifier}`);
+    }
+  };
+
   // Show restricted view for non-SuperAdmins
   if (!canManageArc) {
     return (
@@ -302,8 +318,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <p className="text-sm text-white/60">No top projects available</p>
               </div>
             ) : (
-              <TopProjectsListFallback
+              <ArcTopProjectsMosaic
                 items={topProjectsData}
+                onClickItem={handleTopProjectClick}
               />
             )}
           </section>
@@ -361,163 +378,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         </section>
       </div>
     </PortalLayout>
-  );
-}
-
-// =============================================================================
-// FALLBACK COMPONENTS
-// =============================================================================
-
-/**
- * Hero + Mini Grid layout for top projects
- * 
- * - Row 1: 2 large cards (top 2 items) side by side on desktop, stacked on mobile
- * - Row 2: up to 8 small cards (items 3-10) in compact grid
- * - Limited to 10 items total
- */
-function TopProjectsListFallback({
-  items,
-}: {
-  items: TopProjectItem[];
-}) {
-  const router = useRouter();
-
-  const formatGrowthPct = (growthPct: number): string => {
-    const sign = growthPct >= 0 ? '+' : '';
-    return `${sign}${growthPct.toFixed(2)}%`;
-  };
-
-  // Sort by growth_pct descending and limit to 10 items
-  const sortedItems = [...items]
-    .sort((a, b) => {
-      const growthA = typeof a.growth_pct === 'number' ? a.growth_pct : 0;
-      const growthB = typeof b.growth_pct === 'number' ? b.growth_pct : 0;
-      return growthB - growthA;
-    })
-    .slice(0, 10);
-
-  const top2Items = sortedItems.slice(0, 2);
-  const remainingItems = sortedItems.slice(2, 10);
-
-  // Helper function to handle click behavior
-  const handleCardClick = (item: TopProjectItem) => {
-    const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-    if (!isClickable) return;
-
-    const arcAccessLevel = item.arc_access_level || 'none';
-    const projectIdentifier = item.slug || item.projectId || item.id;
-    
-    if (arcAccessLevel === 'creator_manager') {
-      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-      router.push(`/portal/arc/project/${projectIdentifier}`);
-    }
-  };
-
-  return (
-    <div className="w-full space-y-6">
-      {/* Row 1: Top 2 Large Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {top2Items.map((item) => {
-          const name = item.display_name || item.name || 'Unknown';
-          const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-          const twitterUsername = item.twitter_username || '';
-          const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-          
-          // Color accent based on growth
-          const borderColor = growthPct > 0 
-            ? 'border-green-500/30' 
-            : growthPct < 0 
-            ? 'border-red-500/30' 
-            : 'border-white/10';
-          
-          const bgColor = growthPct > 0
-            ? 'bg-green-500/5'
-            : growthPct < 0
-            ? 'bg-red-500/5'
-            : 'bg-white/5';
-          
-          return (
-            <div
-              key={item.id || item.projectId || Math.random()}
-              className={`rounded-xl border ${borderColor} ${bgColor} p-8 min-h-[220px] flex flex-col justify-between ${
-                isClickable
-                  ? 'hover:bg-white/10 cursor-pointer transition-colors'
-                  : 'opacity-50 cursor-not-allowed'
-              }`}
-              onClick={() => handleCardClick(item)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-xl font-semibold text-white truncate mb-2">{name}</div>
-                {twitterUsername && (
-                  <div className="text-sm text-white/60 truncate mb-3">@{twitterUsername}</div>
-                )}
-                {!isClickable && (
-                  <div className="text-sm text-yellow-400 mt-2">🔒 No ARC leaderboard active</div>
-                )}
-              </div>
-              <div className={`text-3xl font-bold ${
-                growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-              }`}>
-                {formatGrowthPct(growthPct)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Row 2: Small Cards Grid (items 3-10) */}
-      {remainingItems.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {remainingItems.map((item) => {
-            const name = item.display_name || item.name || 'Unknown';
-            const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-            const twitterUsername = item.twitter_username || '';
-            const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-            
-            // Color accent based on growth
-            const borderColor = growthPct > 0 
-              ? 'border-green-500/30' 
-              : growthPct < 0 
-              ? 'border-red-500/30' 
-              : 'border-white/10';
-            
-            const bgColor = growthPct > 0
-              ? 'bg-green-500/5'
-              : growthPct < 0
-              ? 'bg-red-500/5'
-              : 'bg-white/5';
-            
-            return (
-              <div
-                key={item.id || item.projectId || Math.random()}
-                className={`rounded-lg border ${borderColor} ${bgColor} p-4 min-h-[120px] flex flex-col justify-between ${
-                  isClickable
-                    ? 'hover:bg-white/10 cursor-pointer transition-colors'
-                    : 'opacity-50 cursor-not-allowed'
-                }`}
-                onClick={() => handleCardClick(item)}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white truncate mb-1">{name}</div>
-                  {twitterUsername && (
-                    <div className="text-xs text-white/60 truncate mb-1">@{twitterUsername}</div>
-                  )}
-                  {!isClickable && (
-                    <div className="text-xs text-yellow-400 mt-1">🔒</div>
-                  )}
-                </div>
-                <div className={`text-lg font-bold ${
-                  growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                }`}>
-                  {formatGrowthPct(growthPct)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
