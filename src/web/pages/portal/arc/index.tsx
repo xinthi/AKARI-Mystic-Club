@@ -11,7 +11,8 @@ import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { ArcProjectsTreemapV2, TreemapProjectItem } from '@/components/arc/ArcProjectsTreemapV2';
+import { getUserCampaignStatuses } from '@/lib/arc/helpers';
+import { ArcProjectsTreemapV3, TreemapProjectItem } from '@/components/arc/ArcProjectsTreemapV3';
 
 // =============================================================================
 // TYPES
@@ -677,7 +678,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
               {topProjectsError && (
                 <div className="mt-2 text-red-400 text-xs break-words">
-                  Error: {topProjectsError}
+                  API Error: {topProjectsError}
+                </div>
+              )}
+              {treemapError && (
+                <div className="mt-2 text-red-400 text-xs break-words">
+                  Treemap Error: {treemapError.message}
                 </div>
               )}
               {topProjectsData.length > 0 && (
@@ -742,26 +748,26 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   </div>
                 </div>
               ) : (
-                // Try to render treemap, fallback to list on error
+                // Try to render treemap with error handling
                 <div style={{ width: '100%', height: '400px', position: 'relative' }}>
                   {(() => {
                     try {
+                      const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
+                      const treemapHeight = 400;
+                      
                       const treemapData: TreemapProjectItem[] = topProjectsData.map((item: any) => ({
                         id: item.id,
                         display_name: item.display_name,
                         name: item.name,
-                        twitter_username: item.twitter_username,
+                        twitter_username: item.twitter_username, // Use twitter_username consistently
                         growth_pct: item.growth_pct,
                         slug: item.slug,
                         arc_access_level: item.arc_access_level,
                         arc_active: item.arc_active,
                       }));
                       
-                      const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
-                      const treemapHeight = 400;
-                      
                       const treemapResult = (
-                        <ArcProjectsTreemapV2
+                        <ArcProjectsTreemapV3
                           data={treemapData}
                           width={treemapWidth}
                           height={treemapHeight}
