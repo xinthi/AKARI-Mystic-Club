@@ -236,7 +236,7 @@ export default async function handler(
       .from('projects')
       .update(updateData)
       .eq('id', id)
-      .select('id, name, slug, x_handle, is_active, arc_active, arc_access_level, profile_type')
+      .select('id, name, display_name, slug, x_handle, twitter_username, is_active, arc_active, arc_access_level, profile_type')
       .single();
 
     if (updateError) {
@@ -253,8 +253,10 @@ export default async function handler(
       project: {
         id: updatedProject.id,
         name: updatedProject.name,
+        display_name: updatedProject.display_name,
         slug: updatedProject.slug,
         x_handle: updatedProject.x_handle,
+        twitter_username: updatedProject.twitter_username,
         is_active: updatedProject.is_active,
         arc_active: updatedProject.arc_active,
         arc_access_level: updatedProject.arc_access_level,

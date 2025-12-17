@@ -3,10 +3,10 @@
  * 
  * Returns top projects by growth percentage for a given timeframe.
  * 
- * INCLUSION RULE: All active Sentiment-tracked projects are included in Treemap.
- * - profile_type = 'project' AND is_active = true are the inclusion requirements
- * - Personal profiles (profile_type = 'personal') are EXCLUDED from Treemap
- * - All Sentiment-tracked projects should have profile_type = 'project' (set automatically via migration)
+ * INCLUSION RULE: Universe = Sentiment-tracked projects matching Treemap criteria.
+ * - Universe = is_active=true AND (profile_type='project' OR profile_type IS NULL)
+ * - Exclude profile_type='personal' (personal profiles are NOT in Treemap)
+ * - This matches the same universe as Sentiment tracking (all tracked projects)
  * - Does NOT filter by arc_active or arc_access_level for inclusion
  * - If metrics are missing, growth_pct = 0 (project is NOT dropped)
  * 

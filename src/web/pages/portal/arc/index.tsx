@@ -14,6 +14,7 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { getUserCampaignStatuses } from '@/lib/arc/helpers';
 import { TopProjectItem } from '@/components/arc/ArcTopProjectsTreemap';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Dynamic import with SSR disabled - recharts requires browser APIs
 const ArcTopProjectsTreemap = dynamic(
@@ -96,6 +97,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
   const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<Date | null>(null);
+  const [rawApiItems, setRawApiItems] = useState<any[]>([]); // For debug display
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -353,10 +355,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           console.error('[ARC] top-projects invalid data format', { data });
           setTopProjectsError('Invalid data format from server');
           setTopProjectsData([]);
+          setRawApiItems([]);
           return;
         }
         
         console.log(`[ARC] Received ${items.length} projects from API`);
+        
+        // Store raw API items for debug display
+        setRawApiItems(items);
         
         // If no projects, log helpful message
         if (items.length === 0) {
@@ -400,11 +406,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           console.error('[ARC] top-projects mapping failed', mapError);
           setTopProjectsError('Failed to process project data');
           setTopProjectsData([]);
+          setRawApiItems([]);
         }
       } catch (err: any) {
         console.error('[ARC] top-projects fetch error', err);
         setTopProjectsError(err.message || 'Failed to load top projects');
         setTopProjectsData([]);
+        setRawApiItems([]);
       } finally {
         setTopProjectsLoading(false);
       }
@@ -747,42 +755,90 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         )}
                       </div>
                     </div>
-                  ) : isSafeMode || !mounted || treemapError ? (
-                    // Safe mode, not mounted, or treemap error: render simple list fallback
-                    <div className="h-full overflow-y-auto">
-                      {treemapError && (
-                        <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
-                          <p className="text-xs text-akari-danger mb-1">Treemap rendering error</p>
-                          <p className="text-xs text-akari-muted">{treemapError.message}</p>
-                          <p className="text-xs text-white/40 mt-2">
-                            Showing list view instead.
-                          </p>
+                  ) : (
+                    // Always show debug block in dev mode, and fallback if treemap fails
+                    <div className="h-full w-full flex flex-col">
+                      {/* Debug Block (dev-only) */}
+                      {isDevMode && (
+                        <div className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-xs font-mono">
+                          <div className="text-yellow-400 font-semibold mb-2">🔍 Debug Info (Dev Only)</div>
+                          <div className="space-y-1 text-yellow-200/80">
+                            <div>Mode: <span className="text-white">{topProjectsView}</span></div>
+                            <div>Timeframe: <span className="text-white">{topProjectsTimeframe}</span></div>
+                            <div>Raw API items.length: <span className="text-white">{rawApiItems.length}</span></div>
+                            <div>Mapped treemapItems.length: <span className="text-white">{topProjectsData.length}</span></div>
+                            {topProjectsData.length > 0 && (
+                              <div className="mt-2">
+                                <div className="text-yellow-400 mb-1">First 3 mapped objects:</div>
+                                <pre className="text-[10px] overflow-auto max-h-32 bg-black/30 p-2 rounded">
+                                  {JSON.stringify(topProjectsData.slice(0, 3), null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
-                      <TopProjectsListFallback
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                      />
-                    </div>
-                  ) : (
-                    // Render treemap with error boundary - if it fails, fallback will show
-                    <div className="h-full">
-                      <SafeTreemapWrapper
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                        onError={(error) => {
-                          console.error('[ARC] Treemap error caught:', error);
-                          setTreemapError(error);
-                        }}
-                      />
+                      
+                      {/* Treemap with ErrorBoundary - if it fails, show fallback */}
+                      {isSafeMode || !mounted || treemapError ? (
+                        // Safe mode, not mounted, or treemap error: render simple list fallback
+                        <div className="flex-1 overflow-y-auto">
+                          {treemapError && (
+                            <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
+                              <p className="text-xs text-akari-danger mb-1">Treemap failed, showing list fallback</p>
+                              <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                            </div>
+                          )}
+                          <TopProjectsListFallback
+                            items={topProjectsData}
+                            mode={topProjectsView}
+                            timeframe={topProjectsTimeframe}
+                            onModeChange={setTopProjectsView}
+                            onTimeframeChange={setTopProjectsTimeframe}
+                            lastUpdated={topProjectsLastUpdated ?? undefined}
+                          />
+                        </div>
+                      ) : (
+                        // Render treemap with ErrorBoundary - if it fails, fallback will show
+                        <div className="flex-1 w-full" style={{ minHeight: '400px' }}>
+                          <ErrorBoundary
+                            onError={(error) => {
+                              console.error('[ARC] Treemap ErrorBoundary caught error:', error);
+                              setTreemapError(error);
+                            }}
+                            fallback={
+                              <div className="h-full flex flex-col items-center justify-center">
+                                <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
+                                  <p className="text-xs text-akari-danger mb-1">Treemap failed, showing list fallback</p>
+                                </div>
+                                <div className="flex-1 w-full overflow-y-auto">
+                                  <TopProjectsListFallback
+                                    items={topProjectsData}
+                                    mode={topProjectsView}
+                                    timeframe={topProjectsTimeframe}
+                                    onModeChange={setTopProjectsView}
+                                    onTimeframeChange={setTopProjectsTimeframe}
+                                    lastUpdated={topProjectsLastUpdated ?? undefined}
+                                  />
+                                </div>
+                              </div>
+                            }
+                          >
+                            <SafeTreemapWrapper
+                              items={topProjectsData}
+                              mode={topProjectsView}
+                              timeframe={topProjectsTimeframe}
+                              onModeChange={setTopProjectsView}
+                              onTimeframeChange={setTopProjectsTimeframe}
+                              lastUpdated={topProjectsLastUpdated ?? undefined}
+                              onError={(error) => {
+                                console.error('[ARC] Treemap error caught:', error);
+                                setTreemapError(error);
+                              }}
+                            />
+                          </ErrorBoundary>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
