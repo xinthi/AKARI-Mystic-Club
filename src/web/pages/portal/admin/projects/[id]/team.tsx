@@ -4,7 +4,7 @@
  * Allows SuperAdmin to add/remove team members (admin, moderator roles) for a project.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -66,14 +66,7 @@ export default function ProjectTeamPage() {
 
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
-  useEffect(() => {
-    if (projectId && typeof projectId === 'string' && userIsSuperAdmin) {
-      loadProject();
-      loadMembers();
-    }
-  }, [projectId, userIsSuperAdmin]);
-
-  const loadProject = async () => {
+  const loadProject = useCallback(async () => {
     if (!projectId || typeof projectId !== 'string') return;
 
     try {
@@ -105,9 +98,9 @@ export default function ProjectTeamPage() {
       console.error('[Project Team] Error loading project:', err);
       setError(err.message || 'Failed to load project details');
     }
-  };
+  }, [projectId]);
 
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     if (!projectId || typeof projectId !== 'string') return;
 
     setLoading(true);
@@ -138,7 +131,14 @@ export default function ProjectTeamPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId && typeof projectId === 'string' && userIsSuperAdmin) {
+      loadProject();
+      loadMembers();
+    }
+  }, [projectId, userIsSuperAdmin, loadProject, loadMembers]);
 
   const searchProfiles = async (query: string) => {
     if (!query || query.length < 2) {
