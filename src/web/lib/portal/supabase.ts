@@ -279,11 +279,14 @@ const EXCLUDED_PROJECT_SLUGS = [
 export async function getProjectsWithLatestMetrics(
   client: SupabaseClient
 ): Promise<ProjectWithMetrics[]> {
-  // First get all active projects, excluding test/dev accounts
+  // First get all active projects with profile_type='project' OR is_company=true
+  // This ensures only projects/companies are shown, not personal profiles
+  // Note: Supabase PostgREST OR syntax: 'field1.eq.value1,field2.eq.value2'
   const { data: projects, error: projectsError } = await client
     .from('projects')
     .select('*')
     .eq('is_active', true)
+    .or('profile_type.eq.project,is_company.eq.true')
     .order('name', { ascending: true });
 
   if (projectsError) {
