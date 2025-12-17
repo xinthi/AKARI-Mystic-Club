@@ -11,6 +11,7 @@ import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
+import { ArcProjectsTreemapV2, TreemapProjectItem } from '@/components/arc/ArcProjectsTreemapV2';
 
 // =============================================================================
 // TYPES
@@ -89,6 +90,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [rawApiItems, setRawApiItems] = useState<any[]>([]); // For debug display
   const [containerDimensions, setContainerDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const [treemapError, setTreemapError] = useState<Error | null>(null);
+  const [showTreemap, setShowTreemap] = useState(true);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [myProjects, setMyProjects] = useState<Array<{
@@ -333,7 +336,24 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         
         // Store raw API items for debug display
         setRawApiItems(items);
-        setTopProjectsData(items);
+        
+        // Map to consistent format - use twitter_username from API
+        const mappedItems = items.map((item: any) => ({
+          id: item.id || '',
+          display_name: item.display_name || item.name || 'Unknown',
+          name: item.display_name || item.name || 'Unknown',
+          twitter_username: item.twitter_username || '', // Use twitter_username from API
+          growth_pct: typeof item.growth_pct === 'number' ? item.growth_pct : 0,
+          slug: item.slug || null,
+          arc_access_level: item.arc_access_level || 'none',
+          arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
+        }));
+        
+        setTopProjectsData(mappedItems);
+        
+        // Reset treemap error when new data loads
+        setTreemapError(null);
+        setShowTreemap(true);
         
         if (items.length === 0) {
           console.warn('[ARC] No projects returned');
@@ -690,7 +710,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   {topProjectsData.map((item: any, index: number) => {
                     const name = item.display_name || item.name || 'Unknown';
                     const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                    const twitterUsername = item.twitter_username || item.x_handle || '';
+                    const twitterUsername = item.twitter_username || '';
                     
                     return (
                       <div
