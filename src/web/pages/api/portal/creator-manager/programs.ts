@@ -199,14 +199,22 @@ export default async function handler(
     }
 
     const currentUser = await getCurrentUser(supabase, sessionToken);
-    if (!currentUser || !currentUser.profileId) {
-      return res.status(401).json({ ok: false, error: 'Invalid session or no profile linked' });
+    if (!currentUser) {
+      return res.status(401).json({ ok: false, error: 'Invalid or expired session. Please log in again.' });
     }
 
     // Check permissions - must be project owner/admin/moderator
+    // Note: checkProjectPermissions will find profileId via Twitter username if needed
     const permissions = await checkProjectPermissions(supabase, currentUser.userId, body.projectId);
+    
     if (!permissions.canManage) {
-      return res.status(403).json({ ok: false, error: 'You do not have permission to create programs for this project' });
+      if (!currentUser.profileId) {
+        return res.status(401).json({ 
+          ok: false, 
+          error: 'Your Twitter account is not linked to a profile. Please ensure your account is properly connected.' 
+        });
+      }
+      return res.status(403).json({ ok: false, error: 'You do not have permission to create programs for this project. You must be the project owner, admin, or moderator.' });
     }
 
     try {
