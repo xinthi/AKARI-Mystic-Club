@@ -93,6 +93,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [treemapError, setTreemapError] = useState<Error | null>(null);
   const [showTreemap, setShowTreemap] = useState(true);
+  const [treemapStats, setTreemapStats] = useState<{ minValue: number; maxValue: number; invalidOrZeroCount: number } | null>(null);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const [myProjects, setMyProjects] = useState<Array<{
@@ -691,6 +692,11 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   First item keys: {Object.keys(topProjectsData[0]).join(', ')}
                 </div>
               )}
+              {treemapStats && (
+                <div className="mt-2 text-blue-300 text-xs">
+                  Treemap Stats: min={treemapStats.minValue.toFixed(2)}, max={treemapStats.maxValue.toFixed(2)}, invalid={treemapStats.invalidOrZeroCount}
+                </div>
+              )}
             </div>
 
             {/* Content Container - ARC UI v1.1: Treemap with list fallback */}
@@ -775,6 +781,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                             console.error('[ARC] Treemap error:', error);
                             setTreemapError(error);
                             setShowTreemap(false);
+                          }}
+                          onStatsUpdate={(stats) => {
+                            setTreemapStats(stats);
                           }}
                           onProjectClick={(item) => {
                             // Handle project click navigation

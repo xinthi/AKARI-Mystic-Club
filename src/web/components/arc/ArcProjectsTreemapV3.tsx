@@ -43,6 +43,7 @@ interface ArcProjectsTreemapV3Props {
   height: number;
   onError?: (error: Error) => void;
   onProjectClick?: (item: TreemapProjectItem) => void;
+  onStatsUpdate?: (stats: { minValue: number; maxValue: number; invalidOrZeroCount: number }) => void;
 }
 
 // =============================================================================
@@ -65,10 +66,18 @@ function getGrowthColor(growthPct: number): string {
 
 function normalizeForTreemap(values: number[]): number[] {
   if (values.length === 0) return [];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const validValues = values.filter(v => v > 0 && !isNaN(v) && isFinite(v));
+  if (validValues.length === 0) return values.map(() => 1);
+  
+  const min = Math.min(...validValues);
+  const max = Math.max(...validValues);
   if (max === min) return values.map(() => 1);
-  return values.map(v => ((v - min) / (max - min)) * 100 + 1);
+  
+  // Normalize to range [1, 101] to ensure all values are >= 1
+  return values.map(v => {
+    if (v <= 0 || isNaN(v) || !isFinite(v)) return 1;
+    return ((v - min) / (max - min)) * 100 + 1;
+  });
 }
 
 // =============================================================================
@@ -81,6 +90,7 @@ export function ArcProjectsTreemapV3({
   height,
   onError,
   onProjectClick,
+  onStatsUpdate,
 }: ArcProjectsTreemapV3Props) {
   const [renderedNodeCount, setRenderedNodeCount] = useState(0);
   const nodeCountRef = useRef(0);
@@ -110,23 +120,30 @@ export function ArcProjectsTreemapV3({
       return null;
     }
 
-    // Convert items to treemap format
-    const tileValues = data.map(item => {
-      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      return Math.max(10, Math.round(Math.abs(growthPct) * 100));
-    });
-    
-    const normalizedValues = normalizeForTreemap(tileValues);
-    
-    treemapData = data.map((item, index) => {
-      const name = item.display_name || item.name || 'Unknown';
-      const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      // Use twitter_username from API (not x_handle)
+    // Map items to treemap format with proper value calculation
+    const mappedData = data.map((item) => {
+      // Name fallback: display_name || name || twitter_username || slug
+      const name = item.display_name || item.name || item.twitter_username || item.slug || 'Unknown';
+      
+      // Value calculation: prefer growth_pct if numeric, otherwise fallback to 1
+      let computedValue: number;
+      if (typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct)) {
+        // Use absolute value of growth_pct, scaled appropriately
+        computedValue = Math.abs(item.growth_pct);
+      } else {
+        // Fallback to 1 if growth_pct is invalid
+        computedValue = 1;
+      }
+      
+      // Enforce value = Math.max(1, computedValue)
+      const value = Math.max(1, computedValue);
+      
+      const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
       const twitterUsername = item.twitter_username || '';
       
       return {
         name,
-        value: normalizedValues[index],
+        value,
         growth_pct: growthPct,
         projectId: item.id,
         twitter_username: twitterUsername,
@@ -137,6 +154,35 @@ export function ArcProjectsTreemapV3({
         originalItem: item,
       };
     });
+    
+    // Calculate stats for debug panel
+    const values = mappedData.map(d => d.value);
+    const validValues = values.filter(v => v > 0 && !isNaN(v) && isFinite(v));
+    const minValue = validValues.length > 0 ? Math.min(...validValues) : 0;
+    const maxValue = validValues.length > 0 ? Math.max(...validValues) : 0;
+    const invalidOrZeroCount = values.filter(v => v <= 0 || isNaN(v) || !isFinite(v)).length;
+    
+    // Report stats to parent
+    if (onStatsUpdate) {
+      onStatsUpdate({ minValue, maxValue, invalidOrZeroCount });
+    }
+    
+    // Check if all values are invalid
+    if (validValues.length === 0) {
+      if (onError) {
+        onError(new Error('All treemap values are invalid (0, NaN, or non-finite)'));
+      }
+      return null;
+    }
+    
+    // Normalize values for better visualization (ensures all values are >= 1)
+    const normalizedValues = normalizeForTreemap(values);
+    
+    // Apply normalized values back to data (guaranteed to be >= 1)
+    treemapData = mappedData.map((item, index) => ({
+      ...item,
+      value: Math.max(1, normalizedValues[index] || 1),
+    }));
   } catch (error: any) {
     console.error('[ArcProjectsTreemapV3] Error preparing data:', error);
     if (onError) {
