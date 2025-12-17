@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { GetServerSideProps } from 'next';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -114,57 +115,56 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   }, []);
 
   // Fetch top projects (only when canManageArc is true)
+  async function loadTopProjects() {
+    try {
+      setTopProjectsLoading(true);
+      setTopProjectsError(null);
+      
+      const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
+      
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
+        setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
+        setTopProjectsData([]);
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+
+      if (!data || !data.ok) {
+        setTopProjectsError(data?.error || 'Failed to load top projects');
+        setTopProjectsData([]);
+        return;
+      }
+
+      const items = data.items || data.projects || [];
+      
+      // Map to TopProjectItem format
+      const mappedItems: TopProjectItem[] = items.map((item: any) => ({
+        id: item.id || '',
+        name: item.display_name || item.name || 'Unknown',
+        display_name: item.display_name || item.name || 'Unknown',
+        twitter_username: item.twitter_username || '',
+        growth_pct: typeof item.growth_pct === 'number' ? item.growth_pct : 0,
+        slug: item.slug || null,
+        projectId: item.id || '',
+        arc_access_level: item.arc_access_level || 'none',
+        arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
+      }));
+
+      setTopProjectsData(mappedItems);
+    } catch (err: any) {
+      console.error('[ARC] Top projects fetch error:', err);
+      setTopProjectsError(err.message || 'Failed to load top projects');
+      setTopProjectsData([]);
+    } finally {
+      setTopProjectsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!canManageArc) {
-      setLoading(false);
       return;
-    }
-
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const res = await fetch(`/api/portal/arc/top-projects?limit=20`);
-        
-        if (!res.ok) {
-          const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
-          setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
-          setTopProjectsData([]);
-          return;
-        }
-
-        const data = await res.json().catch(() => null);
-
-        if (!data || !data.ok) {
-          setTopProjectsError(data?.error || 'Failed to load top projects');
-          setTopProjectsData([]);
-          return;
-        }
-
-        const items = data.items || data.projects || [];
-        
-        // Map to TopProjectItem format
-        const mappedItems: TopProjectItem[] = items.map((item: any) => ({
-          id: item.id || '',
-          name: item.display_name || item.name || 'Unknown',
-          display_name: item.display_name || item.name || 'Unknown',
-          twitter_username: item.twitter_username || '',
-          growth_pct: typeof item.growth_pct === 'number' ? item.growth_pct : 0,
-          slug: item.slug || null,
-          projectId: item.id || '',
-          arc_access_level: item.arc_access_level || 'none',
-          arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        }));
-
-        setTopProjectsData(mappedItems);
-      } catch (err: any) {
-        console.error('[ARC] Top projects fetch error:', err);
-        setTopProjectsError(err.message || 'Failed to load top projects');
-        setTopProjectsData([]);
-      } finally {
-        setLoading(false);
-      }
     }
 
     loadTopProjects();
