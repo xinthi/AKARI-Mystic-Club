@@ -78,11 +78,22 @@ export default function ProjectTeamPage() {
 
     try {
       const res = await fetch(`/api/portal/admin/projects/${projectId}`);
-      if (!res.ok) {
-        throw new Error('Failed to load project');
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Project Team] Response is not JSON:', contentType);
+        setError('Server returned invalid response. Please refresh the page.');
+        return;
       }
+      
       const data = await res.json();
-      if (data.ok && data.project) {
+      
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load project');
+      }
+      
+      if (data.project) {
         setProject({
           id: data.project.id,
           name: data.project.name || data.project.display_name || 'Unknown Project',
@@ -92,6 +103,7 @@ export default function ProjectTeamPage() {
       }
     } catch (err: any) {
       console.error('[Project Team] Error loading project:', err);
+      setError(err.message || 'Failed to load project details');
     }
   };
 
@@ -103,6 +115,16 @@ export default function ProjectTeamPage() {
 
     try {
       const res = await fetch(`/api/portal/admin/projects/${projectId}/team`);
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Project Team] Response is not JSON:', contentType);
+        setError('Server returned invalid response. Please refresh the page.');
+        setLoading(false);
+        return;
+      }
+      
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
@@ -111,6 +133,7 @@ export default function ProjectTeamPage() {
 
       setMembers(data.members || []);
     } catch (err: any) {
+      console.error('[Project Team] Error loading members:', err);
       setError(err.message || 'Failed to load team members');
     } finally {
       setLoading(false);
@@ -126,12 +149,25 @@ export default function ProjectTeamPage() {
     setSearching(true);
     try {
       const res = await fetch(`/api/portal/admin/profiles/search?q=${encodeURIComponent(query)}`);
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Project Team] Search response is not JSON:', contentType);
+        setSearchResults([]);
+        setSearching(false);
+        return;
+      }
+      
       const data = await res.json();
 
       if (res.ok && data.ok) {
         setSearchResults(data.profiles || []);
       } else {
         setSearchResults([]);
+        if (data.error) {
+          console.warn('[Project Team] Search error:', data.error);
+        }
       }
     } catch (err) {
       console.error('[Project Team] Error searching profiles:', err);
@@ -154,6 +190,7 @@ export default function ProjectTeamPage() {
     if (adding) return;
 
     setAdding(true);
+    setError(null); // Clear previous errors
     try {
       const res = await fetch(`/api/portal/admin/projects/${projectId}/team`, {
         method: 'POST',
@@ -163,6 +200,12 @@ export default function ProjectTeamPage() {
           role: selectedRole,
         }),
       });
+
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response');
+      }
 
       const data = await res.json();
 
@@ -175,6 +218,7 @@ export default function ProjectTeamPage() {
       setSearchQuery('');
       setSearchResults([]);
     } catch (err: any) {
+      console.error('[Project Team] Error adding member:', err);
       setError(err.message || 'Failed to add team member');
     } finally {
       setAdding(false);
@@ -187,6 +231,7 @@ export default function ProjectTeamPage() {
     if (removing.has(key)) return;
 
     setRemoving((prev) => new Set(prev).add(key));
+    setError(null); // Clear previous errors
     try {
       const res = await fetch(`/api/portal/admin/projects/${projectId}/team`, {
         method: 'DELETE',
@@ -197,6 +242,12 @@ export default function ProjectTeamPage() {
         }),
       });
 
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response');
+      }
+
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
@@ -206,6 +257,7 @@ export default function ProjectTeamPage() {
       // Reload members
       await loadMembers();
     } catch (err: any) {
+      console.error('[Project Team] Error removing member:', err);
       setError(err.message || 'Failed to remove team member');
     } finally {
       setRemoving((prev) => {
@@ -293,39 +345,56 @@ export default function ProjectTeamPage() {
                 className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
               />
               {searching && (
-                <p className="mt-2 text-xs text-slate-500">Searching...</p>
+                <p className="mt-2 text-xs text-slate-500 flex items-center gap-2">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-500 border-t-transparent"></span>
+                  Searching...
+                </p>
+              )}
+              {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">No profiles found. Try a different username.</p>
               )}
               {searchResults.length > 0 && (
                 <div className="mt-2 space-y-2">
-                  {searchResults.map((profile) => (
-                    <div
-                      key={profile.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700"
-                    >
-                      <div className="flex items-center gap-3">
-                        {profile.profile_image_url && (
-                          <img
-                            src={profile.profile_image_url}
-                            alt={profile.username}
-                            className="w-10 h-10 rounded-full"
-                          />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-white">@{profile.username}</p>
-                          {profile.name && (
-                            <p className="text-xs text-slate-400">{profile.name}</p>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleAddMember(profile.id)}
-                        disabled={adding || members.some(m => m.profile_id === profile.id && m.role === selectedRole)}
-                        className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  {searchResults.map((profile) => {
+                    const isAlreadyAdded = members.some(m => m.profile_id === profile.id && m.role === selectedRole);
+                    return (
+                      <div
+                        key={profile.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 transition-colors"
                       >
-                        {adding ? 'Adding...' : members.some(m => m.profile_id === profile.id && m.role === selectedRole) ? 'Already Added' : 'Add'}
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3">
+                          {profile.profile_image_url ? (
+                            <img
+                              src={profile.profile_image_url}
+                              alt={profile.username}
+                              className="w-10 h-10 rounded-full"
+                              onError={(e) => {
+                                // Hide broken images
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs font-medium">
+                              {profile.username[0]?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-white">@{profile.username}</p>
+                            {profile.name && (
+                              <p className="text-xs text-slate-400">{profile.name}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleAddMember(profile.id)}
+                          disabled={adding || isAlreadyAdded}
+                          className="px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {adding ? 'Adding...' : isAlreadyAdded ? 'Already Added' : 'Add'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

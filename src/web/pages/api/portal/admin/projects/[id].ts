@@ -89,7 +89,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<UpdateProjectResponse>
 ) {
-  if (req.method !== 'PATCH') {
+  // Always set JSON content type
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Support both GET and PATCH
+  if (req.method !== 'GET' && req.method !== 'PATCH') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
@@ -139,6 +143,35 @@ export default async function handler(
     const { id } = req.query;
     if (!id || typeof id !== 'string') {
       return res.status(400).json({ ok: false, error: 'Project ID is required' });
+    }
+
+    // GET: Return project details
+    if (req.method === 'GET') {
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .select('id, name, display_name, slug, x_handle, twitter_username, is_active, arc_active, arc_access_level, profile_type')
+        .eq('id', id)
+        .single();
+
+      if (projectError || !project) {
+        return res.status(404).json({ ok: false, error: 'Project not found' });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        project: {
+          id: project.id,
+          name: project.name,
+          display_name: project.display_name,
+          slug: project.slug,
+          x_handle: project.x_handle,
+          twitter_username: project.twitter_username,
+          is_active: project.is_active,
+          arc_active: project.arc_active,
+          arc_access_level: project.arc_access_level,
+          profile_type: project.profile_type,
+        },
+      });
     }
 
     const body = req.body as UpdateProjectBody;

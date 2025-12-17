@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { GetServerSideProps } from 'next';
+import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
@@ -642,6 +643,13 @@ export default function AdminProjectsPage() {
                           <td className="py-2.5 px-3">
                             {userIsSuperAdmin && (
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                <Link
+                                  href={`/portal/admin/projects/${project.id}/team`}
+                                  className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-all duration-300 text-[10px] font-medium h-7 flex items-center"
+                                  title="Manage Team"
+                                >
+                                  T
+                                </Link>
                                 <button
                                   onClick={() => handleClassify(project)}
                                   className="px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-[10px] font-medium h-7"

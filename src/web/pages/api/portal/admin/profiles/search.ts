@@ -94,6 +94,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<SearchResponse>
 ) {
+  // Always set JSON content type
+  res.setHeader('Content-Type', 'application/json');
+  
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
