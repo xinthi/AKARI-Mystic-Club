@@ -31,7 +31,7 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Always return JSON, never HTML
+  // Always return JSON, never HTML - set this FIRST before any operations
   res.setHeader('Content-Type', 'application/json');
   
   if (req.method !== 'GET') {
@@ -45,6 +45,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Check Supabase configuration before trying to use it
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[Auth /me] Missing Supabase configuration:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseServiceKey,
+      });
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Missing Supabase configuration. Please check your .env.local file in src/web/ directory.' 
+      });
+    }
+
     const supabase = getSupabaseAdmin();
 
     // Find session
@@ -134,7 +149,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('[Auth /me] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    
+    // Ensure we always return JSON, even if error occurred
+    const errorMessage = error?.message || 'Server error';
+    
+    // Check if it's a configuration error
+    if (errorMessage.includes('Missing Supabase') || errorMessage.includes('configuration')) {
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Missing Supabase configuration. Please check your .env.local file in src/web/ directory and restart the dev server.' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      ok: false, 
+      error: process.env.NODE_ENV === 'development' ? errorMessage : 'Server error' 
+    });
   }
 }
 

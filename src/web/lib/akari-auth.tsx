@@ -152,9 +152,22 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
           };
           setUser(fetchedUser);
         } else {
+          // Log error message if present
+          if (data.error) {
+            console.error('[AkariAuth] API returned error:', data.error);
+          }
           setUser(null);
         }
       } else {
+        // Try to parse error message from response
+        try {
+          const errorData = await res.json();
+          if (errorData.error) {
+            console.error('[AkariAuth] API error:', errorData.error);
+          }
+        } catch (e) {
+          console.error('[AkariAuth] Failed to parse error response:', res.status, res.statusText);
+        }
         setUser(null);
       }
     } catch (error) {

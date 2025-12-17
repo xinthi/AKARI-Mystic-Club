@@ -496,44 +496,33 @@ export default function AdminProjectsPage() {
         {!loading && !error && (
           <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)] max-w-full">
             <div className="overflow-x-auto max-w-full">
-              <table className="w-full min-w-[1100px]">
+              <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5 sticky top-0 z-10">
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-gradient-teal whitespace-nowrap">Name</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">X Handle</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1">
-                          Identity
-                          <span className="text-xs text-akari-muted/60" title="From profiles: Individual / Company">
-                            ℹ️
-                          </span>
-                        </div>
-                        <span className="text-xs font-normal text-akari-muted/60 lowercase">(from profiles)</span>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-gradient-teal whitespace-nowrap w-[200px]">Project</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[80px]">
+                      <div className="flex items-center gap-1" title="From profiles: Individual / Company">
+                        Identity
+                        <span className="text-[10px]">ℹ️</span>
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-gradient-blue whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1">
-                          Ecosystem Type
-                          <span className="text-xs text-akari-muted/60" title="From projects: Personal / Project">
-                            ℹ️
-                          </span>
-                        </div>
-                        <span className="text-xs font-normal text-akari-muted/60 lowercase">(from projects)</span>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-gradient-blue whitespace-nowrap w-[100px]">
+                      <div className="flex items-center gap-1" title="From projects: Personal / Project">
+                        Type
+                        <span className="text-[10px]">ℹ️</span>
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Claimed</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">ARC Level</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">ARC Active</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Updated</th>
-                    <th className="text-left py-3 px-4 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap">Actions</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[70px]">ARC</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[80px]">Status</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[100px] hidden lg:table-cell">Claimed</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[90px] hidden xl:table-cell">Updated</th>
+                    <th className="text-left py-2.5 px-3 text-xs uppercase tracking-wider font-semibold text-akari-muted whitespace-nowrap w-[200px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projects.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 px-5 text-center text-akari-muted">
+                      <td colSpan={8} className="py-8 px-5 text-center text-akari-muted">
                         No projects found
                       </td>
                     </tr>
@@ -544,56 +533,39 @@ export default function AdminProjectsPage() {
                           key={project.id}
                           className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
                         >
-                          <td className="py-3 px-4 text-akari-text font-semibold">
-                            <div className="truncate max-w-[220px]" title={project.display_name || project.name || ''}>
+                          <td className="py-2.5 px-3 text-akari-text">
+                            <div className="truncate font-semibold" title={project.display_name || project.name || ''}>
                               {project.display_name || project.name}
                             </div>
-                            <div className="text-xs text-akari-muted font-mono truncate max-w-[220px]">{project.slug}</div>
+                            <div className="text-[10px] text-akari-muted font-mono truncate">@{project.twitter_username || project.x_handle}</div>
+                            <div className="text-[10px] text-akari-muted/60 font-mono truncate">{project.slug}</div>
                           </td>
-                          <td className="py-3 px-4 text-akari-muted whitespace-nowrap">@{project.twitter_username || project.x_handle}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-2.5 px-3">
                             {project.identityType === 'company' ? (
-                              <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 font-medium whitespace-nowrap">Company</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-400 font-medium whitespace-nowrap">Co</span>
                             ) : project.identityType === 'individual' ? (
-                              <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 font-medium whitespace-nowrap">Individual</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400 font-medium whitespace-nowrap">Ind</span>
                             ) : (
-                              <span className="px-2 py-1 rounded text-xs bg-gray-500/20 text-gray-400 font-medium whitespace-nowrap">Unknown</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-500/20 text-gray-400 font-medium whitespace-nowrap">?</span>
                             )}
                           </td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                          <td className="py-2.5 px-3">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${
                               project.profile_type === 'project' 
                                 ? 'bg-purple-500/20 text-purple-400' 
                                 : project.profile_type === 'personal'
                                 ? 'bg-yellow-500/20 text-yellow-400'
                                 : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                            }`}>
+                            }`} title={!project.profile_type ? 'Needs classification' : ''}>
                               {project.profile_type === 'project' 
-                                ? 'Project' 
+                                ? 'Proj' 
                                 : project.profile_type === 'personal' 
-                                ? 'Personal' 
-                                : 'Unclassified'}
+                                ? 'Pers' 
+                                : '⚠️'}
                             </span>
-                            {!project.profile_type && (
-                              <p className="text-xs text-orange-400/70 mt-1 whitespace-nowrap">
-                                Needs classification
-                              </p>
-                            )}
                           </td>
-                          <td className="py-3 px-4 text-akari-muted text-xs whitespace-nowrap">
-                            {project.claimed_by ? (
-                              <div>
-                                <div className="truncate max-w-[100px]" title={project.claimed_by}>
-                                  {project.claimed_by.substring(0, 8)}...
-                                </div>
-                                <div>{formatDate(project.claimed_at)}</div>
-                              </div>
-                            ) : (
-                              '–'
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="relative flex items-center">
+                          <td className="py-2.5 px-3">
+                            <div className="relative">
                               <select
                                 value={project.arc_access_level || 'none'}
                                 onChange={(e) => {
@@ -601,7 +573,7 @@ export default function AdminProjectsPage() {
                                   handleUpdateArcField(project.id, 'arc_access_level', newValue);
                                 }}
                                 disabled={updatingProjectId === project.id || !userIsSuperAdmin}
-                                className={`px-2 py-1.5 rounded text-xs font-medium border transition-colors appearance-none bg-akari-bg h-8 ${
+                                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors appearance-none bg-akari-bg h-7 w-full ${
                                   updatingProjectId === project.id
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'cursor-pointer hover:opacity-80'
@@ -614,19 +586,20 @@ export default function AdminProjectsPage() {
                                     ? 'text-yellow-400 border-yellow-500/50'
                                     : 'text-gray-400 border-gray-500/50'
                                 }`}
+                                title={project.arc_access_level || 'none'}
                               >
                                 <option value="none">none</option>
-                                <option value="creator_manager">creator_manager</option>
-                                <option value="leaderboard">leaderboard</option>
-                                <option value="gamified">gamified</option>
+                                <option value="creator_manager">cm</option>
+                                <option value="leaderboard">lb</option>
+                                <option value="gamified">gam</option>
                               </select>
                               {updatingProjectId === project.id && (
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs">⏳</span>
+                                <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px]">⏳</span>
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            <label className="flex items-center gap-2 cursor-pointer group">
+                          <td className="py-2.5 px-3">
+                            <label className="flex items-center gap-1.5 cursor-pointer group" title={project.arc_active ? 'ARC Active' : 'ARC Inactive'}>
                               <input
                                 type="checkbox"
                                 checked={project.arc_active || false}
@@ -634,7 +607,7 @@ export default function AdminProjectsPage() {
                                   handleUpdateArcField(project.id, 'arc_active', e.target.checked);
                                 }}
                                 disabled={updatingProjectId === project.id || !userIsSuperAdmin}
-                                className={`w-4 h-4 rounded border-2 transition-colors ${
+                                className={`w-3.5 h-3.5 rounded border-2 transition-colors ${
                                   updatingProjectId === project.id
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'cursor-pointer'
@@ -644,40 +617,52 @@ export default function AdminProjectsPage() {
                                     : 'bg-transparent border-gray-500'
                                 }`}
                               />
-                              <span className={`text-xs whitespace-nowrap ${
+                              <span className={`text-[10px] whitespace-nowrap ${
                                 project.arc_active ? 'text-green-400' : 'text-akari-muted'
                               }`}>
-                                {project.arc_active ? 'Active' : 'Inactive'}
+                                {project.arc_active ? '✓' : '○'}
                               </span>
                             </label>
-                            {project.arc_active_until && (
-                              <div className="text-xs text-akari-muted mt-1 whitespace-nowrap">
-                                Until: {formatDate(project.arc_active_until)}
+                          </td>
+                          <td className="py-2.5 px-3 text-akari-muted text-[10px] hidden lg:table-cell">
+                            {project.claimed_by ? (
+                              <div title={project.claimed_by}>
+                                <div className="truncate max-w-[80px] font-mono">
+                                  {project.claimed_by.substring(0, 6)}...
+                                </div>
+                                <div className="text-[9px]">{formatDate(project.claimed_at)}</div>
                               </div>
+                            ) : (
+                              '–'
                             )}
                           </td>
-                          <td className="py-3 px-4 text-akari-muted text-xs whitespace-nowrap">{formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-2.5 px-3 text-akari-muted text-[10px] hidden xl:table-cell whitespace-nowrap">
+                            {formatDate(project.last_refreshed_at || project.claimed_at || project.first_tracked_at || project.last_updated_at)}
+                          </td>
+                          <td className="py-2.5 px-3">
                             {userIsSuperAdmin && (
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <button
                                   onClick={() => handleClassify(project)}
-                                  className="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-xs font-medium h-8"
+                                  className="px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/50 transition-all duration-300 text-[10px] font-medium h-7"
+                                  title="Classify"
                                 >
-                                  Classify
+                                  C
                                 </button>
                                 <button
                                   onClick={() => handleEdit(project)}
-                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-xs font-medium h-8"
+                                  className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition-all duration-300 text-[10px] font-medium h-7"
+                                  title="Edit"
                                 >
-                                  Edit
+                                  E
                                 </button>
                                 <button
                                   onClick={() => handleRefresh(project.id)}
                                   disabled={refreshingProjectId === project.id}
-                                  className="px-3 py-1.5 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed h-8"
+                                  className="px-2 py-1 rounded bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-[10px] font-medium disabled:opacity-50 disabled:cursor-not-allowed h-7"
+                                  title="Refresh"
                                 >
-                                  {refreshingProjectId === project.id ? 'Refreshing...' : 'Refresh'}
+                                  {refreshingProjectId === project.id ? '⏳' : 'R'}
                                 </button>
                               </div>
                             )}
