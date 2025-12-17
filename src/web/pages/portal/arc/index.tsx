@@ -7,7 +7,6 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { GetServerSideProps } from 'next';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -117,15 +116,16 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   // Fetch top projects (only when canManageArc is true)
   useEffect(() => {
     if (!canManageArc) {
+      setLoading(false);
       return;
     }
 
-    async function loadTopProjects() {
+    async function fetchData() {
       try {
-        setTopProjectsLoading(true);
-        setTopProjectsError(null);
+        setLoading(true);
+        setError(null);
         
-        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
+        const res = await fetch(`/api/portal/arc/top-projects?limit=20`);
         
         if (!res.ok) {
           const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -163,7 +163,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         setTopProjectsError(err.message || 'Failed to load top projects');
         setTopProjectsData([]);
       } finally {
-        setTopProjectsLoading(false);
+        setLoading(false);
       }
     }
 
@@ -436,7 +436,7 @@ function TopProjectsListFallback({
           );
         })}
       </div>
-    </div>
+    </PortalLayout>
   );
 }
 
