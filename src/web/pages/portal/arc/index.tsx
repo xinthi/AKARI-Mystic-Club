@@ -760,9 +760,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     <div className="h-full w-full flex flex-col">
                       {/* Debug Block (dev-only) */}
                       {isDevMode && (
-                        <div className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-xs font-mono">
+                        <div className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-xs font-mono max-w-full overflow-hidden">
                           <div className="text-yellow-400 font-semibold mb-2">🔍 Debug Info (Dev Only)</div>
-                          <div className="space-y-1 text-yellow-200/80">
+                          <div className="space-y-1 text-yellow-200/80 break-words">
                             <div>Mode: <span className="text-white">{topProjectsView}</span></div>
                             <div>Timeframe: <span className="text-white">{topProjectsTimeframe}</span></div>
                             <div>Raw API items.length: <span className="text-white">{rawApiItems.length}</span></div>
@@ -770,7 +770,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                             {topProjectsData.length > 0 && (
                               <div className="mt-2">
                                 <div className="text-yellow-400 mb-1">First 3 mapped objects:</div>
-                                <pre className="text-[10px] overflow-auto max-h-32 bg-black/30 p-2 rounded">
+                                <pre className="text-[10px] overflow-auto max-h-32 bg-black/30 p-2 rounded break-words whitespace-pre-wrap">
                                   {JSON.stringify(topProjectsData.slice(0, 3), null, 2)}
                                 </pre>
                               </div>

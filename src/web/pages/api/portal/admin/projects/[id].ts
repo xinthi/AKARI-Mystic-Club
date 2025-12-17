@@ -159,20 +159,22 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Project not found' });
       }
 
+      const adminProject: AdminProject = {
+        id: project.id,
+        name: project.name,
+        display_name: project.display_name ?? null,
+        slug: project.slug,
+        x_handle: project.x_handle,
+        twitter_username: project.twitter_username ?? null,
+        is_active: project.is_active,
+        arc_active: project.arc_active ?? undefined,
+        arc_access_level: project.arc_access_level ?? undefined,
+        profile_type: project.profile_type ?? undefined,
+      };
+
       return res.status(200).json({
         ok: true,
-        project: {
-          id: project.id,
-          name: project.name,
-          display_name: project.display_name,
-          slug: project.slug,
-          x_handle: project.x_handle,
-          twitter_username: project.twitter_username,
-          is_active: project.is_active,
-          arc_active: project.arc_active,
-          arc_access_level: project.arc_access_level,
-          profile_type: project.profile_type,
-        },
+        project: adminProject,
       });
     }
 
@@ -248,20 +250,22 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
+    const adminProject: AdminProject = {
+      id: updatedProject.id,
+      name: updatedProject.name,
+      display_name: updatedProject.display_name ?? null,
+      slug: updatedProject.slug,
+      x_handle: updatedProject.x_handle,
+      twitter_username: updatedProject.twitter_username ?? null,
+      is_active: updatedProject.is_active,
+      arc_active: updatedProject.arc_active ?? undefined,
+      arc_access_level: updatedProject.arc_access_level ?? undefined,
+      profile_type: updatedProject.profile_type ?? undefined,
+    };
+
     return res.status(200).json({
       ok: true,
-      project: {
-        id: updatedProject.id,
-        name: updatedProject.name,
-        display_name: updatedProject.display_name,
-        slug: updatedProject.slug,
-        x_handle: updatedProject.x_handle,
-        twitter_username: updatedProject.twitter_username,
-        is_active: updatedProject.is_active,
-        arc_active: updatedProject.arc_active,
-        arc_access_level: updatedProject.arc_access_level,
-        profile_type: updatedProject.profile_type,
-      },
+      project: adminProject,
     });
   } catch (error: any) {
     console.error('[Admin Projects API] Error:', error);
