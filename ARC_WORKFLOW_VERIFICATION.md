@@ -191,70 +191,90 @@ curl -X PATCH "http://localhost:3000/api/portal/admin/arc/leaderboard-requests/$
 
 ## D) All Sentiment Projects Show in Treemap
 
-### ✅ Implementation Status: COMPLETE
+### ✅ Implementation Status: COMPLETE (Option A)
 
 #### Files Changed:
 
-1. **`src/web/pages/api/portal/arc/top-projects.ts`**
-   - ✅ Updated inclusion rule: removed `profile_type='project'` filter (line 188-197)
-   - ✅ Now includes ALL projects where `is_active = true`
-   - ✅ Updated documentation comment to reflect new rule (line 1-15)
+1. **`supabase/migrations/20250103_set_all_active_projects_to_profile_type_project.sql`** (NEW)
+   - ✅ Migration to auto-set `profile_type='project'` for all active projects where `profile_type IS NULL`
+   - ✅ Ensures all Sentiment-tracked projects are marked as `profile_type='project'`
+   - ✅ Excludes projects explicitly marked as `profile_type='personal'` to avoid mixing personal profiles
 
-#### Inclusion Rule (Final):
+2. **`src/web/pages/api/portal/arc/top-projects.ts`**
+   - ✅ Uses `profile_type='project'` filter (as per Option A)
+   - ✅ Updated documentation comment to reflect rule
+
+#### Inclusion Rule (Final - Option A):
 
 **Definition:** A "Sentiment tracked project" is any row in the `projects` table where `is_active = true`.
 
-**Treemap Inclusion Rule:**
-- ✅ All projects where `is_active = true` are included in ARC Treemap
-- ✅ No filtering by `profile_type`, `arc_active`, or `arc_access_level` for inclusion
+**Implementation Strategy (Option A):**
+- ✅ All active projects are automatically set to `profile_type='project'` via migration
+- ✅ Treemap uses `profile_type='project'` filter to include all Sentiment-tracked projects
+- ✅ Projects explicitly marked as `profile_type='personal'` are excluded from Treemap
 - ✅ If metrics are missing, `growth_pct = 0` (project is NOT dropped)
+
+#### Migration to Run:
+
+```sql
+-- Run this migration in Supabase SQL Editor:
+-- File: supabase/migrations/20250103_set_all_active_projects_to_profile_type_project.sql
+
+-- This sets profile_type='project' for all active projects where profile_type IS NULL
+UPDATE projects 
+SET profile_type = 'project'
+WHERE is_active = true
+  AND profile_type IS NULL;
+```
 
 #### Verification SQL Queries:
 
-**Query 1: Count projects that should appear in Treemap**
+**Query 1: Total projects in Sentiment universe**
 ```sql
--- All active projects (these should ALL appear in Treemap)
-SELECT 
-  COUNT(*) as total_active_projects,
-  COUNT(*) FILTER (WHERE profile_type = 'project') as classified_as_project,
-  COUNT(*) FILTER (WHERE profile_type = 'personal') as classified_as_personal,
-  COUNT(*) FILTER (WHERE profile_type IS NULL) as unclassified
-FROM projects
-WHERE is_active = true;
+-- Count all projects in Sentiment
+SELECT COUNT(*) AS total_projects
+FROM projects;
 ```
 
-**Query 2: Verify Treemap inclusion universe**
+**Query 2: Total projects included in Treemap universe (should match total after migration)**
 ```sql
--- List all projects that should appear in Treemap (all active projects)
+-- Count projects included in Treemap (current rule: profile_type='project' AND is_active=true)
+SELECT COUNT(*) AS treemap_projects
+FROM projects
+WHERE profile_type = 'project' AND is_active = true;
+```
+
+**Query 3: Check projects NOT in Treemap (should only be 'personal' or inactive)**
+```sql
+-- List projects that are NOT included in Treemap
 SELECT 
-  id,
-  name,
-  display_name,
-  twitter_username,
   profile_type,
   is_active,
-  arc_active,
-  arc_access_level
+  COUNT(*) AS count
 FROM projects
-WHERE is_active = true
-ORDER BY name
-LIMIT 100;
+WHERE profile_type != 'project' OR is_active = false
+GROUP BY profile_type, is_active
+ORDER BY profile_type, is_active;
 ```
 
 #### Verification Steps:
 
-1. **Check API Response:**
+1. **Run Migration:**
+   - Execute migration `20250103_set_all_active_projects_to_profile_type_project.sql` in Supabase SQL Editor
+   - Verify: Query 1 count should equal Query 2 count (all active projects should have `profile_type='project'`)
+
+2. **Check API Response:**
    ```bash
    curl -X GET "http://localhost:3000/api/portal/arc/top-projects?mode=gainers&timeframe=7d&limit=50"
    
-   # Expected: Returns ALL active projects (not just profile_type='project')
-   # Count should match SQL query result above
+   # Expected: Returns all projects with profile_type='project' AND is_active=true
+   # Count should match Query 2 result
    ```
 
-2. **Verify in UI:**
+3. **Verify in UI:**
    - Navigate to `/portal/arc`
    - Check "Top Projects" treemap
-   - Should show all active projects from Sentiment
+   - Should show all active Sentiment-tracked projects
 
 ---
 
@@ -273,9 +293,12 @@ LIMIT 100;
    - Reordered validation to fetch request before validating body
 
 2. `src/web/pages/api/portal/arc/top-projects.ts`
-   - Removed `profile_type='project'` filter
-   - Updated to include ALL active projects
-   - Updated documentation comment
+   - Uses `profile_type='project'` filter (Option A approach)
+   - Updated documentation comment to reflect rule
+
+3. `supabase/migrations/20250103_set_all_active_projects_to_profile_type_project.sql` (NEW)
+   - Migration to set `profile_type='project'` for all active projects
+   - Ensures all Sentiment-tracked projects appear in Treemap
 
 ### Files Verified (No Changes Needed):
 
@@ -312,10 +335,11 @@ LIMIT 100;
 - [ ] Verify `arc_access_level` after approval → Should match selected value
 
 ### D) Treemap Inclusion
-- [ ] Check API returns all active projects → Should not filter by profile_type
-- [ ] Verify unclassified projects appear → Should appear in treemap
-- [ ] Verify personal projects appear → Should appear in treemap (if active)
-- [ ] Count matches SQL query → Should match `SELECT COUNT(*) FROM projects WHERE is_active = true`
+- [ ] Run migration `20250103_set_all_active_projects_to_profile_type_project.sql` → Should set all active projects to `profile_type='project'`
+- [ ] Verify Query 1 count = Query 2 count → All active projects should have `profile_type='project'`
+- [ ] Check API returns projects with `profile_type='project'` → Should filter by `profile_type='project'`
+- [ ] Verify personal profiles are excluded → Projects with `profile_type='personal'` should NOT appear
+- [ ] Count matches SQL query → Should match `SELECT COUNT(*) FROM projects WHERE profile_type='project' AND is_active=true`
 
 ---
 
@@ -329,15 +353,20 @@ LIMIT 100;
    - Deploy new page: `/portal/admin/projects/[id]/team`
    - Verify existing pages still work: `/portal/arc/project/[projectId]`, `/portal/admin/arc/leaderboard-requests`
 
-3. **Database verification:**
-   - No schema changes required (uses existing `project_team_members` table)
-   - Run verification SQL queries to confirm project counts
+3. **Database migration:**
+   - Run migration: `supabase/migrations/20250103_set_all_active_projects_to_profile_type_project.sql`
+   - This sets `profile_type='project'` for all active projects where `profile_type IS NULL`
+   - Run verification SQL queries to confirm project counts match
 
-4. **Test in production:**
+4. **Database verification:**
+   - No schema changes required (uses existing `project_team_members` table)
+   - Run verification SQL queries (Query 1 and Query 2) to confirm all active projects have `profile_type='project'`
+
+5. **Test in production:**
    - Follow testing checklist above
    - Verify team management UI works
    - Verify leaderboard request flow works
-   - Verify treemap shows all active projects
+   - Verify treemap shows all active Sentiment-tracked projects (with `profile_type='project'`)
 
 ---
 
@@ -346,7 +375,7 @@ LIMIT 100;
 - The team management API uses service role for database operations (RLS-safe)
 - Profile search uses simple username matching (case-insensitive)
 - All endpoints require SuperAdmin verification via `akari_user_roles` or `profiles.real_roles`
-- Treemap inclusion rule changed: now includes ALL active projects, not just `profile_type='project'`
+- Treemap inclusion rule (Option A): All active projects are set to `profile_type='project'` via migration, then Treemap filters by `profile_type='project'`
 - Approval API now prevents updating non-pending requests (defensive check)
 
 ---

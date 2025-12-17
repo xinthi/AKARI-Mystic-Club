@@ -3,10 +3,10 @@
  * 
  * Returns top projects by growth percentage for a given timeframe.
  * 
- * INCLUSION RULE: All active projects in the Sentiment system (projects table) are included.
- * - is_active = true is the ONLY inclusion requirement
- * - Does NOT filter by profile_type, arc_active, or arc_access_level for inclusion
- * - Every project that exists in the projects table (when tracked via Sentiment) MUST appear in ARC Treemap
+ * INCLUSION RULE: All active projects where profile_type = 'project' are included in Treemap.
+ * - profile_type = 'project' is the inclusion requirement (along with is_active = true)
+ * - All Sentiment-tracked projects should have profile_type = 'project' (set automatically)
+ * - Does NOT filter by arc_active or arc_access_level for inclusion
  * - If metrics are missing, growth_pct = 0 (project is NOT dropped)
  * 
  * Query params:
@@ -186,15 +186,16 @@ export default async function handler(
       });
     }
 
-    // Get ALL active projects (every project in Sentiment must appear in Treemap)
-    // Rule: All projects where is_active = true are included in Treemap universe
-    // We no longer filter by profile_type - all Sentiment-tracked projects appear
+    // Get projects where profile_type = 'project' (Treemap inclusion rule)
+    // All Sentiment-tracked projects should have profile_type='project' (set automatically via migration)
+    // Rule: profile_type='project' AND is_active=true are included in Treemap universe
     let projects: any[];
     try {
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('id, display_name, x_handle, arc_access_level, arc_active, profile_type, slug')
         .eq('is_active', true)
+        .eq('profile_type', 'project')
         .order('name', { ascending: true });
 
       if (projectsError) {
@@ -208,11 +209,11 @@ export default async function handler(
 
       projects = projectsData || [];
 
-      console.log(`[ARC top-projects] Found ${projects.length} active projects`);
+      console.log(`[ARC top-projects] Found ${projects.length} projects with profile_type='project'`);
       
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
-        console.log('[ARC top-projects] No active projects found');
+        console.log('[ARC top-projects] No projects found with profile_type=\'project\'');
         
         // Set cache-control headers to prevent aggressive caching
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
