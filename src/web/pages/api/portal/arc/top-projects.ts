@@ -212,10 +212,23 @@ export default async function handler(
       // Filter: include 'project' or NULL, exclude 'personal'
       projects = (allProjects || []).filter((p: any) => {
         const profileType = p.profile_type;
+        // Include projects with profile_type='project' or NULL (unclassified)
+        // Exclude 'personal' profiles
         return profileType === 'project' || profileType === null || profileType === undefined;
       });
 
       console.log(`[ARC top-projects] Found ${projects.length} projects (profile_type='project' or NULL, excluding 'personal')`);
+      console.log(`[ARC top-projects] Total active projects: ${allProjects?.length || 0}`);
+      
+      // If no projects found, log detailed info for debugging
+      if (projects.length === 0 && (allProjects?.length || 0) > 0) {
+        const profileTypeCounts = (allProjects || []).reduce((acc: any, p: any) => {
+          const pt = p.profile_type || 'NULL';
+          acc[pt] = (acc[pt] || 0) + 1;
+          return acc;
+        }, {});
+        console.warn(`[ARC top-projects] No projects match filter. Profile type distribution:`, profileTypeCounts);
+      }
       
       // Return empty result if no projects (not an error)
       if (projects.length === 0) {
