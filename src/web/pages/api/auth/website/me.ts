@@ -31,6 +31,9 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Always return JSON, never HTML
+  res.setHeader('Content-Type', 'application/json');
+  
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }

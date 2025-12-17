@@ -115,6 +115,16 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
     
     try {
       const res = await fetch('/api/auth/website/me');
+      
+      // Check if response is JSON before parsing
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('[AkariAuth] Response is not JSON, got:', contentType);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+      
       if (res.ok) {
         const data = await res.json();
         if (data.ok && data.user) {
