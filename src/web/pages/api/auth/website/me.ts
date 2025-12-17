@@ -114,11 +114,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     if (isDevUser && !userRoles.includes('super_admin')) {
       // Grant super_admin role to dev_user automatically
-      await supabase
+      // Check if role already exists first to avoid conflicts
+      const { data: existingRole } = await supabase
         .from('akari_user_roles')
-        .insert({ user_id: user.id, role: 'super_admin' })
-        .onConflict(['user_id', 'role'])
-        .ignore();
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+      
+      if (!existingRole) {
+        // Only insert if it doesn't exist
+        await supabase
+          .from('akari_user_roles')
+          .insert({ user_id: user.id, role: 'super_admin' });
+      }
       
       // Add super_admin to the roles array
       userRoles.push('super_admin');
