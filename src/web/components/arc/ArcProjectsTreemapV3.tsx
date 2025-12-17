@@ -6,9 +6,8 @@
  * No memoization optimizations yet.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
-import { Treemap } from 'recharts';
+import React from 'react';
+import { Treemap, ResponsiveContainer } from 'recharts';
 
 // =============================================================================
 // TYPES
@@ -93,227 +92,35 @@ export function ArcProjectsTreemapV3({
   onProjectClick,
   onStatsUpdate,
 }: ArcProjectsTreemapV3Props) {
-  const router = useRouter();
-  const [renderedNodeCount, setRenderedNodeCount] = useState(0);
-  const nodeCountRef = useRef(0);
-  const hasCheckedNodesRef = useRef(false);
+  // Prepare nodes: simple flat array with name and value
+  const nodes = data.map((item) => {
+    const name = item.display_name || item.name || item.twitter_username || item.slug || 'Unknown';
+    let value = 1;
+    if (typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct)) {
+      value = Math.max(1, Math.abs(item.growth_pct));
+    }
+    return { name, value };
+  });
 
-  // Check if nodes were rendered after a delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!hasCheckedNodesRef.current && data.length > 0 && nodeCountRef.current === 0) {
-        hasCheckedNodesRef.current = true;
-        if (onError) {
-          onError(new Error('Treemap rendered but produced no visible nodes'));
-        }
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [data.length, onError]);
-
-  // Prepare treemap data with error handling
-  let treemapData: TreemapDataPoint[] = [];
-  
-  try {
-    if (!data || data.length === 0) {
-      if (onError) {
-        onError(new Error('No data provided to treemap'));
-      }
-      return null;
-    }
-
-    // Map items to treemap format with proper value calculation
-    const mappedData = data.map((item) => {
-      // Name fallback: display_name || name || twitter_username || slug
-      const name = item.display_name || item.name || item.twitter_username || item.slug || 'Unknown';
-      
-      // Value calculation: prefer growth_pct if numeric, otherwise fallback to 1
-      let computedValue: number;
-      if (typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) && isFinite(item.growth_pct)) {
-        // Use absolute value of growth_pct, scaled appropriately
-        computedValue = Math.abs(item.growth_pct);
-      } else {
-        // Fallback to 1 if growth_pct is invalid
-        computedValue = 1;
-      }
-      
-      // Enforce value = Math.max(1, computedValue)
-      const value = Math.max(1, computedValue);
-      
-      const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
-      const twitterUsername = item.twitter_username || '';
-      
-      return {
-        name,
-        value,
-        growth_pct: growthPct,
-        projectId: item.id,
-        twitter_username: twitterUsername,
-        slug: item.slug || null,
-        arc_access_level: item.arc_access_level || 'none',
-        arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        fill: getGrowthColor(growthPct),
-        originalItem: item,
-      };
-    });
-    
-    // Calculate stats for debug panel
-    const values = mappedData.map(d => d.value);
-    const validValues = values.filter(v => v > 0 && !isNaN(v) && isFinite(v));
-    const minValue = validValues.length > 0 ? Math.min(...validValues) : 0;
-    const maxValue = validValues.length > 0 ? Math.max(...validValues) : 0;
-    const invalidOrZeroCount = values.filter(v => v <= 0 || isNaN(v) || !isFinite(v)).length;
-    
-    // Report stats to parent
-    if (onStatsUpdate) {
-      onStatsUpdate({ minValue, maxValue, invalidOrZeroCount });
-    }
-    
-    // Check if all values are invalid
-    if (validValues.length === 0) {
-      if (onError) {
-        onError(new Error('All treemap values are invalid (0, NaN, or non-finite)'));
-      }
-      return null;
-    }
-    
-    // Normalize values for better visualization (ensures all values are >= 1)
-    const normalizedValues = normalizeForTreemap(values);
-    
-    // Apply normalized values back to data (guaranteed to be >= 1)
-    // Create flat array with name and value for Recharts (extra fields are ignored by Recharts but preserved for click handling)
-    treemapData = mappedData.map((item, index) => ({
-      name: item.name,
-      value: Math.max(1, normalizedValues[index] || 1),
-      // Preserve slug and originalItem for click navigation (Recharts ignores these)
-      slug: item.slug,
-      originalItem: item.originalItem,
-    }));
-  } catch (error: any) {
-    console.error('[ArcProjectsTreemapV3] Error preparing data:', error);
-    if (onError) {
-      onError(error instanceof Error ? error : new Error(String(error)));
-    }
+  // Only early return if no nodes
+  if (nodes.length === 0) {
     return null;
   }
 
-
-  // Render treemap with error boundary
-  try {
-    if (width <= 0 || height <= 0) {
-      if (onError) {
-        onError(new Error('Invalid dimensions: width or height must be > 0'));
-      }
-      return null;
-    }
-
-    // Track that we're rendering
-    if (treemapData.length > 0 && nodeCountRef.current === 0) {
-      nodeCountRef.current = 1;
-      setRenderedNodeCount(1);
-    }
-
-    // Log data for debugging
-    console.log('[ArcProjectsTreemapV3] Rendering with data:', {
-      count: treemapData.length,
-      sample: treemapData.slice(0, 3),
-      width,
-      height,
-    });
-
-    // Minimal custom content renderer to make rectangles clickable
-    const ClickableCell = ({ x, y, width: cellWidth, height: cellHeight, payload }: any) => {
-      if (!payload) return null;
-
-      // Track that we've rendered a node
-      if (nodeCountRef.current === 0) {
-        nodeCountRef.current = 1;
-        setRenderedNodeCount(1);
-      }
-
-      const slug = payload.slug;
-      const originalItem = payload.originalItem;
-      const name = payload.name || 'Unknown';
-      const hasSlug = slug && typeof slug === 'string' && slug.length > 0;
-      
-      // Handle click: navigate to project page using slug
-      const handleClick = () => {
-        if (!hasSlug) return; // Do nothing if no slug
-        
-        // Use onProjectClick callback if provided, otherwise use router directly
-        if (onProjectClick && originalItem) {
-          onProjectClick(originalItem);
-        } else if (hasSlug) {
-          router.push(`/portal/arc/project/${slug}`);
-        }
-      };
-
-      // Truncate name if needed
-      const displayName = name.length > 20 ? name.substring(0, 20) + '...' : name;
-      const showLabel = cellWidth >= 50 && cellHeight >= 30;
-
-      return (
-        <g>
-          {/* Clickable rectangle */}
-          <rect
-            x={x}
-            y={y}
-            width={cellWidth}
-            height={cellHeight}
-            fill="#8884d8"
-            stroke="rgba(255, 255, 255, 0.3)"
-            strokeWidth={1}
-            onClick={handleClick}
-            style={{ cursor: hasSlug ? 'pointer' : 'default' }}
-          />
-          {/* Label with background for contrast */}
-          {showLabel && (
-            <g>
-              <rect
-                x={x + cellWidth / 2 - (displayName.length * 4)}
-                y={y + cellHeight / 2 - 8}
-                width={displayName.length * 8}
-                height={16}
-                fill="rgba(0, 0, 0, 0.6)"
-                rx={2}
-                style={{ pointerEvents: 'none' }}
-              />
-              <text
-                x={x + cellWidth / 2}
-                y={y + cellHeight / 2}
-                textAnchor="middle"
-                fill="white"
-                fontSize={12}
-                fontWeight="bold"
-                style={{ pointerEvents: 'none' }}
-              >
-                {displayName}
-              </text>
-            </g>
-          )}
-        </g>
-      );
-    };
-
-    return (
-      <div style={{ width, height, position: 'relative' }}>
+  return (
+    <div style={{ width, height: '100%', position: 'relative' }}>
+      <ResponsiveContainer width="100%" height="100%">
         <Treemap
-          width={width}
-          height={height}
-          data={treemapData}
+          data={nodes}
           dataKey="value"
           nameKey="name"
-          animationDuration={0}
-          content={<ClickableCell />}
+          isAnimationActive={false}
         />
+      </ResponsiveContainer>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, padding: '8px', fontSize: '12px', color: 'white', background: 'rgba(0,0,0,0.5)' }}>
+        Treemap mounted: {nodes.length}
       </div>
-    );
-  } catch (error: any) {
-    console.error('[ArcProjectsTreemapV3] Rendering error:', error);
-    if (onError) {
-      onError(error instanceof Error ? error : new Error(String(error)));
-    }
-    return null;
-  }
+    </div>
+  );
 }
 
