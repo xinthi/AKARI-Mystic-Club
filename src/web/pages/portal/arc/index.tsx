@@ -781,188 +781,153 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <div className="text-center py-8">
                   <p className="text-sm text-white/60">0 projects returned</p>
                 </div>
-              ) : treemapError || !showTreemap ? (
-                // Show fallback list if treemap failed
-                <div>
-                  {treemapError && (
-                    <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3">
-                      <p className="text-xs text-akari-danger mb-1">Treemap error, showing list fallback</p>
-                      <p className="text-xs text-akari-muted">{treemapError.message}</p>
-                    </div>
-                  )}
-                  <div className="space-y-3">
-                    {(() => {
-                      // Apply same filtering logic as treemap
-                      let filteredData = [...topProjectsData];
-                      
-                      if (treemapSegment === 'gainers') {
-                        filteredData = topProjectsData
-                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
-                          .sort((a: any, b: any) => (b.growth_pct || 0) - (a.growth_pct || 0))
-                          .slice(0, 20);
-                      } else if (treemapSegment === 'losers') {
-                        filteredData = topProjectsData
-                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
-                          .sort((a: any, b: any) => (a.growth_pct || 0) - (b.growth_pct || 0))
-                          .slice(0, 20);
-                      } else if (treemapSegment === 'stable') {
-                        filteredData = topProjectsData
-                          .filter((item: any) => {
-                            const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : null;
-                            return growthPct !== null && Math.abs(growthPct) <= 0.5;
-                          })
-                          .slice(0, 20);
-                      }
-                      
-                      return filteredData.map((item: any, index: number) => {
-                        const name = item.display_name || item.name || 'Unknown';
-                        const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                        const twitterUsername = item.twitter_username || '';
-                        
-                        return (
-                          <div
-                            key={item.id || index}
-                            className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-white truncate">{name}</div>
-                              {twitterUsername && (
-                                <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                              )}
-                            </div>
-                            <div className={`text-sm font-bold ml-4 ${
-                              growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                            }`}>
-                              {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
               ) : (
-                // Try to render treemap with error handling
-                <div style={{ width: '100%', height: '400px', position: 'relative' }}>
+                // Always render treemap container and list fallback
+                <div>
                   {(() => {
-                    try {
-                      const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
-                      const treemapHeight = 400;
-                      
-                      // Filter and sort data based on selected segment
-                      let filteredData = [...topProjectsData];
-                      
-                      if (treemapSegment === 'gainers') {
-                        // Sort desc by growth_pct and show top 20
-                        filteredData = topProjectsData
-                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
-                          .sort((a: any, b: any) => (b.growth_pct || 0) - (a.growth_pct || 0))
-                          .slice(0, 20);
-                      } else if (treemapSegment === 'losers') {
-                        // Sort asc by growth_pct and show top 20
-                        filteredData = topProjectsData
-                          .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
-                          .sort((a: any, b: any) => (a.growth_pct || 0) - (b.growth_pct || 0))
-                          .slice(0, 20);
-                      } else if (treemapSegment === 'stable') {
-                        // abs(growth_pct) <= 0.5, show up to 20
-                        filteredData = topProjectsData
-                          .filter((item: any) => {
-                            const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : null;
-                            return growthPct !== null && Math.abs(growthPct) <= 0.5;
-                          })
-                          .slice(0, 20);
-                      }
-                      // 'all' segment: show all items (no filtering)
-                      
-                      const treemapData: TreemapProjectItem[] = filteredData.map((item: any) => ({
-                        id: item.id,
-                        display_name: item.display_name,
-                        name: item.name,
-                        twitter_username: item.twitter_username, // Use twitter_username consistently
-                        growth_pct: item.growth_pct,
-                        slug: item.slug,
-                        arc_access_level: item.arc_access_level,
-                        arc_active: item.arc_active,
-                      }));
-                      
-                      const treemapResult = (
-                        <ArcProjectsTreemapV3
-                          data={treemapData}
-                          width={treemapWidth}
-                          height={treemapHeight}
-                          onError={(error) => {
-                            console.error('[ARC] Treemap error:', error);
-                            setTreemapError(error);
-                            setShowTreemap(false);
-                          }}
-                          onStatsUpdate={(stats) => {
-                            setTreemapStats(stats);
-                          }}
-                          onProjectClick={(item) => {
-                            // Handle project click navigation
-                            const arcAccessLevel = item.arc_access_level || 'none';
-                            const projectIdentifier = item.slug || item.id;
-                            
-                            if (arcAccessLevel === 'creator_manager') {
-                              router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-                            } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-                              router.push(`/portal/arc/project/${projectIdentifier}`);
-                            }
-                          }}
-                        />
-                      );
-                      
-                      // If treemap returns null, show fallback
-                      if (!treemapResult) {
-                        setTreemapError(new Error('Treemap returned null'));
-                        setShowTreemap(false);
-                        return null;
-                      }
-                      
-                      return treemapResult;
-                    } catch (error: any) {
-                      console.error('[ARC] Treemap render error:', error);
-                      setTreemapError(error instanceof Error ? error : new Error(String(error)));
-                      setShowTreemap(false);
-                      return null;
+                    // Filter and sort data based on selected segment (shared for both treemap and list)
+                    let filteredData = [...topProjectsData];
+                    
+                    if (treemapSegment === 'gainers') {
+                      // Sort desc by growth_pct and show top 20
+                      filteredData = topProjectsData
+                        .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                        .sort((a: any, b: any) => (b.growth_pct || 0) - (a.growth_pct || 0))
+                        .slice(0, 20);
+                    } else if (treemapSegment === 'losers') {
+                      // Sort asc by growth_pct and show top 20
+                      filteredData = topProjectsData
+                        .filter((item: any) => typeof item.growth_pct === 'number' && !isNaN(item.growth_pct))
+                        .sort((a: any, b: any) => (a.growth_pct || 0) - (b.growth_pct || 0))
+                        .slice(0, 20);
+                    } else if (treemapSegment === 'stable') {
+                      // abs(growth_pct) <= 0.5, show up to 20
+                      filteredData = topProjectsData
+                        .filter((item: any) => {
+                          const growthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : null;
+                          return growthPct !== null && Math.abs(growthPct) <= 0.5;
+                        })
+                        .slice(0, 20);
                     }
-                  })()}
-                  {/* If treemap returns null or fails, show list fallback */}
-                  {(treemapError || !showTreemap) && (
+                    // 'all' segment: show all items (no filtering)
+                    
+                    const shouldShowFallback = treemapError || !showTreemap || filteredData.length === 0;
+                    
+                    return (
+                      <>
+                        {/* Treemap Container - Always rendered */}
+                        <div style={{ width: '100%', height: '400px', position: 'relative' }}>
+                          {(() => {
+                            try {
+                              // Check if we have data to render
+                              if (filteredData.length === 0) {
+                                setTreemapError(new Error('No data to display'));
+                                setShowTreemap(false);
+                                return null;
+                              }
+                              
+                              const treemapWidth = Math.max(containerDimensions.width - 32, 400); // Account for padding
+                              const treemapHeight = 400;
+                              
+                              const treemapData: TreemapProjectItem[] = filteredData.map((item: any) => ({
+                                id: item.id,
+                                display_name: item.display_name,
+                                name: item.name,
+                                twitter_username: item.twitter_username, // Use twitter_username consistently
+                                growth_pct: item.growth_pct,
+                                slug: item.slug,
+                                arc_access_level: item.arc_access_level,
+                                arc_active: item.arc_active,
+                              }));
+                              
+                              // Only render treemap if no error and showTreemap is true
+                              if (!treemapError && showTreemap) {
+                                const treemapResult = (
+                                  <ArcProjectsTreemapV3
+                                    data={treemapData}
+                                    width={treemapWidth}
+                                    height={treemapHeight}
+                                    onError={(error) => {
+                                      console.error('[ARC] Treemap error:', error);
+                                      setTreemapError(error);
+                                      setShowTreemap(false);
+                                    }}
+                                    onStatsUpdate={(stats) => {
+                                      setTreemapStats(stats);
+                                    }}
+                                    onProjectClick={(item) => {
+                                      // Handle project click navigation
+                                      const arcAccessLevel = item.arc_access_level || 'none';
+                                      const projectIdentifier = item.slug || item.id;
+                                      
+                                      if (arcAccessLevel === 'creator_manager') {
+                                        router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+                                      } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+                                        router.push(`/portal/arc/project/${projectIdentifier}`);
+                                      }
+                                    }}
+                                  />
+                                );
+                                
+                                // If treemap returns null, mark as error
+                                if (!treemapResult) {
+                                  setTreemapError(new Error('Treemap returned null'));
+                                  setShowTreemap(false);
+                                  return null;
+                                }
+                                
+                                return treemapResult;
+                              }
+                              
+                              return null;
+                            } catch (error: any) {
+                              console.error('[ARC] Treemap render error:', error);
+                              setTreemapError(error instanceof Error ? error : new Error(String(error)));
+                              setShowTreemap(false);
+                              return null;
+                            }
+                          })()}
+                        </div>
+                        
+                        {/* List Fallback - Always shown below treemap container */}
+                        {shouldShowFallback && (
                     <div className="mt-4">
-                      <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3">
-                        <p className="text-xs text-akari-danger mb-1">Treemap error, showing list fallback</p>
-                        <p className="text-xs text-akari-muted">{treemapError?.message || 'Treemap unavailable'}</p>
-                      </div>
-                      <div className="space-y-3">
-                        {topProjectsData.map((item: any, index: number) => {
-                          const name = item.display_name || item.name || 'Unknown';
-                          const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-                          const twitterUsername = item.twitter_username || '';
-                          
-                          return (
-                            <div
-                              key={item.id || index}
-                              className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold text-white truncate">{name}</div>
-                                {twitterUsername && (
-                                  <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                                )}
+                          <div className="mb-4 rounded-lg border border-akari-warning/30 bg-akari-card/50 p-3">
+                            <p className="text-sm text-akari-warning font-medium mb-1">Treemap unavailable, showing list fallback</p>
+                            {treemapError && (
+                              <p className="text-xs text-akari-muted">{treemapError.message}</p>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            {filteredData.map((item: any, index: number) => {
+                            const name = item.display_name || item.name || 'Unknown';
+                            const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                            const twitterUsername = item.twitter_username || '';
+                            
+                            return (
+                              <div
+                                key={item.id || index}
+                                className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-semibold text-white truncate">{name}</div>
+                                  {twitterUsername && (
+                                    <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                                  )}
+                                </div>
+                                <div className={`text-sm font-bold ml-4 ${
+                                  growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                                }`}>
+                                  {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                                </div>
                               </div>
-                              <div className={`text-sm font-bold ml-4 ${
-                                growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                              }`}>
-                                {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                            );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
