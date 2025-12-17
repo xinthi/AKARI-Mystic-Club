@@ -33,7 +33,7 @@ function DevModeRoleSelector() {
   if (!isDevMode) return null;
   
   return (
-    <div className="fixed top-4 right-4 z-[100] bg-yellow-500 text-black p-3 rounded-xl shadow-lg text-sm">
+    <div className="fixed top-4 right-4 z-[100] bg-yellow-500 text-black p-3 rounded-xl shadow-lg text-sm max-w-[200px]">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-lg">🛠️</span>
         <span className="font-bold">DEV MODE</span>
@@ -41,16 +41,21 @@ function DevModeRoleSelector() {
       <select
         value={devRole}
         onChange={(e) => setDevRole(e.target.value as Role)}
-        className="w-full px-2 py-1 rounded bg-yellow-100 text-black border border-yellow-600"
+        className="w-full px-2 py-1 rounded bg-yellow-100 text-black border border-yellow-600 font-semibold"
       >
         <option value="user">👤 User</option>
         <option value="analyst">📊 Analyst</option>
         <option value="admin">🔑 Admin</option>
-        <option value="super_admin">⭐ Super Admin</option>
+        <option value="super_admin">⭐ Super Admin (Recommended)</option>
       </select>
       <p className="mt-2 text-[10px] opacity-70">
         Auth bypassed for testing
       </p>
+      {devRole !== 'super_admin' && (
+        <p className="mt-1 text-[10px] text-red-700 font-semibold">
+          ⚠️ Use Super Admin to see all functions
+        </p>
+      )}
     </div>
   );
 }

@@ -77,6 +77,7 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
   const [viewAsRole, setViewAsRoleState] = useState<Role | null>(null);
   
   // Dev mode state - persisted to localStorage
+  // Always default to super_admin for dev_user to ensure admin functions are visible
   const [devRole, setDevRoleState] = useState<Role>(() => {
     // Initialize from localStorage on client side
     if (typeof window !== 'undefined' && DEV_BYPASS_AUTH) {
@@ -85,16 +86,21 @@ export function AkariAuthProvider({ children }: AkariAuthProviderProps) {
         return stored as Role;
       }
     }
+    // Default to super_admin to ensure dev_user can see all functions
     return 'super_admin';
   });
   
   // In dev mode, always use mock user
+  // Ensure dev_user always has super_admin role for testing
   useEffect(() => {
     if (DEV_BYPASS_AUTH) {
-      setUser(createDevMockUser(devRole));
+      // If devRole is not super_admin, but we're in dev mode with dev_user,
+      // ensure we use super_admin to see all functions
+      const effectiveRole = devRole || 'super_admin';
+      setUser(createDevMockUser(effectiveRole));
       setIsLoading(false);
       // Persist to localStorage
-      localStorage.setItem('akari_dev_role', devRole);
+      localStorage.setItem('akari_dev_role', effectiveRole);
     }
   }, [devRole]);
 

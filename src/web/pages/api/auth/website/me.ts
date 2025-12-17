@@ -90,6 +90,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select('role')
       .eq('user_id', user.id);
 
+    // DEV MODE: Automatically ensure dev_user has super_admin role
+    const isDevUser = xIdentity?.username?.toLowerCase() === 'dev_user';
+    const userRoles = roles?.map(r => r.role) || ['user'];
+    
+    if (isDevUser && !userRoles.includes('super_admin')) {
+      // Grant super_admin role to dev_user automatically
+      await supabase
+        .from('akari_user_roles')
+        .insert({ user_id: user.id, role: 'super_admin' })
+        .onConflict(['user_id', 'role'])
+        .ignore();
+      
+      // Add super_admin to the roles array
+      userRoles.push('super_admin');
+      console.log('[Auth /me] Auto-granted super_admin to dev_user');
+    }
+
     // Get feature grants
     const { data: grants } = await supabase
       .from('akari_user_feature_grants')
@@ -102,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: user.id,
         displayName: user.display_name,
         avatarUrl: user.avatar_url,
-        roles: roles?.map(r => r.role) || ['user'],
+        roles: userRoles,
         featureGrants: grants || [],
         xUsername: xIdentity?.username || null,
         // Mystic Identity fields
