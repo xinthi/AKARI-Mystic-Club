@@ -246,6 +246,9 @@ export default async function handler(
       console.log('[AdminProjectsAPI] Is SuperAdmin:', isSuperAdmin);
       
       if (!isSuperAdmin) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AdminProjectsAPI] 403 returned: User is not SuperAdmin', { userId });
+        }
         return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
       }
     } else {

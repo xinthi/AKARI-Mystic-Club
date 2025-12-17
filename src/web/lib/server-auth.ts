@@ -143,6 +143,9 @@ export async function requireSuperAdmin(
   // Check for session token
   const sessionToken = getSessionTokenFromRequest(context.req);
   if (!sessionToken) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[requireSuperAdmin] SSR redirect triggered: No session token');
+    }
     return {
       redirect: {
         destination: '/portal?error=access_denied',
@@ -154,6 +157,9 @@ export async function requireSuperAdmin(
   // Get user ID from session
   const userId = await getUserIdFromSession(sessionToken);
   if (!userId) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[requireSuperAdmin] SSR redirect triggered: Invalid session');
+    }
     return {
       redirect: {
         destination: '/portal?error=access_denied',
@@ -165,6 +171,9 @@ export async function requireSuperAdmin(
   // Check if user is Super Admin
   const isSuperAdmin = await isSuperAdminServerSide(userId);
   if (!isSuperAdmin) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[requireSuperAdmin] SSR redirect triggered: User is not SuperAdmin', { userId });
+    }
     return {
       redirect: {
         destination: '/portal?error=access_denied',

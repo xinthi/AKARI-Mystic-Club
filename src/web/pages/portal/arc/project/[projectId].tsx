@@ -659,6 +659,15 @@ export default function ArcProjectPage() {
                 </>
               )}
 
+              {/* Show info box if user cannot request (not founder/admin/mod) */}
+              {!existingRequest && akariUser.isLoggedIn && canRequest === false && (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">
+                    Only project founders/admins can request ARC leaderboard access.
+                  </p>
+                </div>
+              )}
+
               {!akariUser.isLoggedIn && (
                 <p className="text-sm text-white/40">
                   Please log in to request ARC leaderboard access.

@@ -246,6 +246,9 @@ export default async function handler(
 
     const hasAnalyticsAccess = can(akariUser, 'markets.analytics') || can(akariUser, FEATURE_KEYS.DeepAnalyticsAddon);
     if (!hasAnalyticsAccess) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Analytics API] 403 returned: User lacks analytics entitlement', { userId: user.id });
+      }
       return res.status(403).json({ ok: false, error: 'Analytics access required' });
     }
 

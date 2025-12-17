@@ -209,7 +209,7 @@ export default async function handler(
     if (!canRequest) {
       return res.status(403).json({
         ok: false,
-        error: 'Only project admins/founders can request a leaderboard for this project.',
+        error: 'Only project founders/admins can request a leaderboard for this project.',
       });
     }
 
