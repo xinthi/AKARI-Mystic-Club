@@ -4,23 +4,13 @@
  * Campaign Discovery Hub - Modern dashboard for creators and projects
  */
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import dynamic from 'next/dynamic';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { getUserCampaignStatuses } from '@/lib/arc/helpers';
-import { TopProjectItem } from '@/components/arc/ArcTopProjectsTreemap';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-
-// Dynamic import with SSR disabled - recharts requires browser APIs
-const ArcTopProjectsTreemap = dynamic(
-  () => import('@/components/arc/ArcTopProjectsTreemap').then(mod => ({ default: mod.ArcTopProjectsTreemap })),
-  { ssr: false }
-);
 
 // =============================================================================
 // TYPES
@@ -93,17 +83,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
   const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
   const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
-  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>([]);
+  const [topProjectsData, setTopProjectsData] = useState<any[]>([]);
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
-  const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<Date | null>(null);
   const [rawApiItems, setRawApiItems] = useState<any[]>([]); // For debug display
   const [containerDimensions, setContainerDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-  const treemapContainerRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
   const [hasProjectAccess, setHasProjectAccess] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [treemapError, setTreemapError] = useState<Error | null>(null);
   const [myProjects, setMyProjects] = useState<Array<{
     id: string;
     name: string;
@@ -122,19 +109,15 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
 
-  // Check for safe-mode query param
-  const isSafeMode = router.query.safe === '1';
-
-  // Set mounted flag on client
+  // Track container dimensions for debug panel using ResizeObserver
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!listContainerRef.current) {
+      return;
+    }
 
-  // Track container dimensions for debug panel
-  useEffect(() => {
     const updateDimensions = () => {
-      if (treemapContainerRef.current) {
-        const rect = treemapContainerRef.current.getBoundingClientRect();
+      if (listContainerRef.current) {
+        const rect = listContainerRef.current.getBoundingClientRect();
         setContainerDimensions({
           width: Math.round(rect.width),
           height: Math.round(rect.height),
@@ -142,55 +125,24 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       }
     };
 
+    // Initial measurement
     updateDimensions();
+
+    // Use ResizeObserver for accurate tracking
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    resizeObserver.observe(listContainerRef.current);
+
+    // Also listen to window resize as fallback
     window.addEventListener('resize', updateDimensions);
-    // Use ResizeObserver for more accurate tracking
-    let resizeObserver: ResizeObserver | null = null;
-    if (treemapContainerRef.current && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(updateDimensions);
-      resizeObserver.observe(treemapContainerRef.current);
-    }
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', updateDimensions);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
     };
-  }, [mounted, topProjectsData.length]);
+  }, []);
 
   // Get user's Twitter username
   const userTwitterUsername = akariUser.user?.xUsername || null;
-
-  // Sort projects for Top Gainers/Losers
-  const sortedTopProjects = useMemo(() => {
-    const sorted = [...projects].sort((a, b) => {
-      // Use totalPoints as the primary metric, fallback to creatorCount
-      const aMetric = a.stats?.totalPoints ?? a.stats?.creatorCount ?? 0;
-      const bMetric = b.stats?.totalPoints ?? b.stats?.creatorCount ?? 0;
-      
-      if (topProjectsView === 'gainers') {
-        return bMetric - aMetric; // Highest first
-      } else {
-        return aMetric - bMetric; // Lowest first
-      }
-    });
-    
-    return sorted.slice(0, 20);
-  }, [projects, topProjectsView]);
-
-  // Calculate user stats
-  const userStats = useMemo(() => {
-    const joinedCount = myCampaigns.length;
-    const totalArcPoints = myCampaigns.reduce((sum, campaign) => sum + campaign.arcPoints, 0);
-    const activeCampaigns = projects.filter(p => p.arc_status === 'active').length;
-    
-    return {
-      projectsJoined: joinedCount,
-      totalArcPoints,
-      activeCampaigns,
-    };
-  }, [myCampaigns, projects]);
 
   // Fetch ARC projects and user campaign statuses
   useEffect(() => {
@@ -324,40 +276,25 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     fetchMyProjects();
   }, [akariUser.isLoggedIn]);
 
-    // Load top projects data with lightweight caching
-    const loadTopProjects = useCallback(async (forceRefresh = false) => {
-      // Check cache first (unless force refresh)
-      const cacheKey = `arc-top-projects-${topProjectsView}-${topProjectsTimeframe}`;
-      if (!forceRefresh && typeof window !== 'undefined') {
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached) {
-          try {
-            const { data, timestamp } = JSON.parse(cached);
-            // Use cache if less than 30 seconds old
-            if (Date.now() - timestamp < 30000) {
-              console.log('[ARC] Using cached top projects data');
-              setTopProjectsData(data);
-              setTopProjectsLastUpdated(new Date(timestamp));
-              return;
-            }
-          } catch (e) {
-            // Invalid cache, continue to fetch
-          }
-        }
-      }
+  // Load top projects data from API
+  useEffect(() => {
+    if (!canManageArc) {
+      return;
+    }
 
+    async function loadTopProjects() {
       setTopProjectsLoading(true);
       setTopProjectsError(null);
+      
       try {
-        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`, {
-          cache: forceRefresh ? 'no-store' : 'default',
-        });
+        const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
         
         if (!res.ok) {
           const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
           console.error('[ARC] top-projects fetch failed', { status: res.status, body: errorBody });
           setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
           setTopProjectsData([]);
+          setRawApiItems([]);
           return;
         }
 
@@ -365,6 +302,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           console.error('[ARC] top-projects JSON parse failed', parseError);
           setTopProjectsError('Invalid response from server');
           setTopProjectsData([]);
+          setRawApiItems([]);
           return null;
         });
 
@@ -376,6 +314,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           console.error('[ARC] top-projects API error', { status: res.status, body: data });
           setTopProjectsError(data.error || 'Failed to load top projects');
           setTopProjectsData([]);
+          setRawApiItems([]);
           return;
         }
 
@@ -394,50 +333,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         
         // Store raw API items for debug display
         setRawApiItems(items);
+        setTopProjectsData(items);
         
-        // If no projects, log helpful message
         if (items.length === 0) {
-          console.warn('[ARC] No projects returned. Check:');
-          console.warn('  1. Are there projects with profile_type="project" in database?');
-          console.warn('  2. Are those projects marked as is_active=true?');
-          console.warn('  3. Run: SELECT id, name, profile_type, is_active FROM projects WHERE profile_type=\'project\' AND is_active=true;');
-        }
-
-        // Safely map projects to treemap items with error handling
-        try {
-          const treemapItems: TopProjectItem[] = items.map((p: any) => {
-            if (!p || typeof p !== 'object') {
-              throw new Error('Invalid project item in array');
-            }
-            return {
-              projectId: p.id || '',
-              name: p.display_name || p.name || 'Unknown',
-              twitter_username: p.twitter_username || p.x_handle || '',
-              logo_url: null, // API no longer returns logo_url
-              growth_pct: typeof p.growth_pct === 'number' ? p.growth_pct : 0,
-              heat: undefined, // API no longer returns heat
-              slug: p.slug || null, // Use slug from API, fallback to null
-              arc_access_level: p.arc_access_level || 'none',
-              arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
-            };
-          });
-          console.log(`[ARC] Mapped ${treemapItems.length} items for treemap`);
-          setTopProjectsData(treemapItems);
-          setTopProjectsLastUpdated(new Date());
-          
-          // Cache in sessionStorage
-          if (typeof window !== 'undefined') {
-            const cacheKey = `arc-top-projects-${topProjectsView}-${topProjectsTimeframe}`;
-            sessionStorage.setItem(cacheKey, JSON.stringify({
-              data: treemapItems,
-              timestamp: Date.now(),
-            }));
-          }
-        } catch (mapError: any) {
-          console.error('[ARC] top-projects mapping failed', mapError);
-          setTopProjectsError('Failed to process project data');
-          setTopProjectsData([]);
-          setRawApiItems([]);
+          console.warn('[ARC] No projects returned');
         }
       } catch (err: any) {
         console.error('[ARC] top-projects fetch error', err);
@@ -447,14 +346,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       } finally {
         setTopProjectsLoading(false);
       }
-    }, [topProjectsView, topProjectsTimeframe]);
+    }
 
-    // Initial load
-    useEffect(() => {
-      if (canManageArc) {
-        loadTopProjects();
-      }
-    }, [canManageArc, loadTopProjects]);
+    loadTopProjects();
+  }, [canManageArc, topProjectsView, topProjectsTimeframe]);
 
 
   // Load ARC summary
@@ -642,14 +537,19 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   </Link>
                 )}
                 <button
-                  onClick={() => loadTopProjects(true)}
+                  onClick={() => {
+                    // Trigger reload by toggling a refresh state
+                    const refreshKey = Date.now();
+                    setTopProjectsTimeframe(prev => prev === '7d' ? '24h' : '7d');
+                    setTimeout(() => setTopProjectsTimeframe(prev => prev === '7d' ? '24h' : '7d'), 100);
+                  }}
                   disabled={topProjectsLoading}
                   className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {topProjectsLoading ? (
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
-                      Refreshing...
+                      Loading...
                     </>
                   ) : (
                     <>
@@ -726,148 +626,93 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           </section>
         )}
 
-        {/* Top Projects Treemap - ARC UI v1.1: Always render Treemap OR List Fallback (when canManageArc) */}
+        {/* Top Projects List - ARC UI v1.1: Simple list first */}
         <section className="mb-8">
           <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
             {/* Frame Header */}
             <div className="px-4 py-3 border-b border-white/10 bg-black/60 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Top Projects</h2>
-              <div className="flex items-center gap-4">
-                {/* Legend */}
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded bg-green-500/50 border border-green-400/50" />
-                    <span className="text-white/60">Gainers</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded bg-red-500/50 border border-red-400/50" />
-                    <span className="text-white/60">Losers</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded bg-gray-500/30 border border-gray-400/30" />
-                    <span className="text-white/60">Locked</span>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Treemap Container with Fixed Height - ARC UI v1.1: Never blank */}
-            <div className="p-4" style={{ minHeight: '480px', height: '480px' }} ref={treemapContainerRef}>
-              {/* ARC UI v1.1: Always render either Treemap OR List Fallback - never blank */}
-              <div className="h-full w-full flex flex-col">
-                {/* Visible Debug Panel (ALWAYS shown - ARC UI v1.1 requirement) */}
-                <ArcDebugPanel
-                  itemCount={topProjectsData.length}
-                  rawApiItemCount={rawApiItems.length}
-                  firstItemKeys={topProjectsData.length > 0 ? Object.keys(topProjectsData[0]) : []}
-                  containerWidth={containerDimensions.width}
-                  containerHeight={containerDimensions.height}
-                  mode={topProjectsView}
-                  timeframe={topProjectsTimeframe}
-                  hasError={!!treemapError || !!topProjectsError}
-                  errorMessage={treemapError?.message || topProjectsError || undefined}
-                />
-                
-                {/* Content Area: ALWAYS render either Treemap OR List Fallback (ARC UI v1.1) */}
-                <div className="flex-1 w-full min-h-0" style={{ minHeight: '300px' }}>
-                  {topProjectsLoading ? (
-                    // Loading: Show list fallback with loading state (ensures content is visible)
-                    <div className="h-full overflow-y-auto">
-                      <div className="flex items-center justify-center h-full min-h-[200px]">
-                        <div className="text-center">
-                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-3" />
-                          <span className="text-white/60 text-sm">Loading projects...</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : topProjectsError ? (
-                    // Error: Show list fallback with error message (ensures content is visible)
-                    <div className="h-full overflow-y-auto">
-                      <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
-                        <p className="text-xs text-akari-danger mb-1">Failed to load top projects</p>
-                        <p className="text-xs text-akari-muted">{topProjectsError}</p>
-                      </div>
-                      {/* Show list fallback even on error (may have cached/partial data) */}
-                      <TopProjectsListFallback
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                      />
-                    </div>
-                  ) : !topProjectsData || topProjectsData.length === 0 ? (
-                    // No items: ALWAYS show list fallback (even if empty) - ARC UI v1.1 requirement
-                    <div className="h-full overflow-y-auto">
-                      <TopProjectsListFallback
-                        items={[]}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                      />
-                    </div>
-                  ) : isSafeMode || !mounted || treemapError ? (
-                    // Safe mode, not mounted, or treemap error: ALWAYS show list fallback
-                    <div className="h-full overflow-y-auto">
-                      {treemapError && (
-                        <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
-                          <p className="text-xs text-akari-danger mb-1">Treemap failed, showing list fallback</p>
-                          <p className="text-xs text-akari-muted">{treemapError.message}</p>
-                        </div>
-                      )}
-                      <TopProjectsListFallback
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                      />
-                    </div>
-                  ) : (
-                    // Render treemap with ErrorBoundary - if it fails, fallback will show
-                    <ErrorBoundary
-                      onError={(error) => {
-                        console.error('[ARC] Treemap ErrorBoundary caught error:', error);
-                        setTreemapError(error);
-                      }}
-                      fallback={
-                        <div className="h-full flex flex-col">
-                          <div className="mb-4 rounded-lg border border-akari-danger/30 bg-akari-card/50 p-3 text-center">
-                            <p className="text-xs text-akari-danger mb-1">Treemap failed, showing list fallback</p>
-                          </div>
-                          <div className="flex-1 overflow-y-auto">
-                            <TopProjectsListFallback
-                              items={topProjectsData}
-                              mode={topProjectsView}
-                              timeframe={topProjectsTimeframe}
-                              onModeChange={setTopProjectsView}
-                              onTimeframeChange={setTopProjectsTimeframe}
-                              lastUpdated={topProjectsLastUpdated ?? undefined}
-                            />
-                          </div>
-                        </div>
-                      }
-                    >
-                      <SafeTreemapWrapper
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onModeChange={setTopProjectsView}
-                        onTimeframeChange={setTopProjectsTimeframe}
-                        lastUpdated={topProjectsLastUpdated ?? undefined}
-                        onError={(error) => {
-                          console.error('[ARC] Treemap error caught:', error);
-                          setTreemapError(error);
-                        }}
-                      />
-                    </ErrorBoundary>
-                  )}
+            {/* Debug Panel - ARC UI v1.1: Always visible at top */}
+            <div className="px-4 py-3 border-b border-white/10 bg-blue-500/10">
+              <div className="text-blue-400 font-semibold mb-2 text-xs">🔍 ARC Debug Panel (v1.1)</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-blue-200/80 text-xs">
+                <div>
+                  <span className="text-blue-300">Loading:</span>{' '}
+                  <span className="text-white font-bold">{topProjectsLoading ? 'Yes' : 'No'}</span>
+                </div>
+                <div>
+                  <span className="text-blue-300">Error:</span>{' '}
+                  <span className="text-white font-bold">{topProjectsError ? 'Yes' : 'No'}</span>
+                </div>
+                <div>
+                  <span className="text-blue-300">Item Count:</span>{' '}
+                  <span className="text-white font-bold">{topProjectsData.length}</span>
+                </div>
+                <div>
+                  <span className="text-blue-300">Container:</span>{' '}
+                  <span className="text-white font-bold">{containerDimensions.width}px × {containerDimensions.height}px</span>
                 </div>
               </div>
+              {topProjectsError && (
+                <div className="mt-2 text-red-400 text-xs break-words">
+                  Error: {topProjectsError}
+                </div>
+              )}
+              {topProjectsData.length > 0 && (
+                <div className="mt-2 text-blue-300 text-xs">
+                  First item keys: {Object.keys(topProjectsData[0]).join(', ')}
+                </div>
+              )}
+            </div>
+
+            {/* List Container - ARC UI v1.1: Simple list */}
+            <div className="p-4" style={{ minHeight: '400px' }} ref={listContainerRef}>
+              {topProjectsLoading ? (
+                <div className="flex items-center justify-center h-full min-h-[200px]">
+                  <div className="text-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-3" />
+                    <span className="text-white/60 text-sm">Loading projects...</span>
+                  </div>
+                </div>
+              ) : topProjectsError ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-akari-danger mb-2">Failed to load projects</p>
+                  <p className="text-xs text-akari-muted">{topProjectsError}</p>
+                </div>
+              ) : topProjectsData.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-white/60">0 projects returned</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {topProjectsData.map((item: any, index: number) => {
+                    const name = item.display_name || item.name || 'Unknown';
+                    const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+                    const twitterUsername = item.twitter_username || item.x_handle || '';
+                    
+                    return (
+                      <div
+                        key={item.id || index}
+                        className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-white truncate">{name}</div>
+                          {twitterUsername && (
+                            <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                          )}
+                        </div>
+                        <div className={`text-sm font-bold ml-4 ${
+                          growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                        }`}>
+                          {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(2)}%
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -1023,317 +868,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   );
 }
 
-// =============================================================================
-// DEBUG PANEL COMPONENT (ARC UI v1.1)
-// =============================================================================
-
-/**
- * Visible debug panel that always shows diagnostic information
- * Shows: item count, first item keys, container dimensions
- */
-function ArcDebugPanel({
-  itemCount,
-  rawApiItemCount,
-  firstItemKeys,
-  containerWidth,
-  containerHeight,
-  mode,
-  timeframe,
-  hasError,
-  errorMessage,
-}: {
-  itemCount: number;
-  rawApiItemCount: number;
-  firstItemKeys: string[];
-  containerWidth: number;
-  containerHeight: number;
-  mode: 'gainers' | 'losers';
-  timeframe: '24h' | '7d' | '30d' | '90d';
-  hasError: boolean;
-  errorMessage?: string;
-}) {
-  return (
-    <div className="mb-3 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs font-mono max-w-full overflow-hidden">
-      <div className="text-blue-400 font-semibold mb-2 flex items-center gap-2">
-        <span>🔍 ARC Debug Panel (v1.1)</span>
-        {hasError && <span className="text-red-400">⚠️ Error</span>}
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-blue-200/80">
-        <div>
-          <span className="text-blue-300">Items:</span>{' '}
-          <span className="text-white font-bold">{itemCount}</span>
-        </div>
-        <div>
-          <span className="text-blue-300">Raw API:</span>{' '}
-          <span className="text-white font-bold">{rawApiItemCount}</span>
-        </div>
-        <div>
-          <span className="text-blue-300">Width:</span>{' '}
-          <span className="text-white font-bold">{containerWidth}px</span>
-        </div>
-        <div>
-          <span className="text-blue-300">Height:</span>{' '}
-          <span className="text-white font-bold">{containerHeight}px</span>
-        </div>
-      </div>
-      <div className="mt-2 pt-2 border-t border-blue-500/20">
-        <div className="text-blue-300 mb-1">Mode: <span className="text-white">{mode}</span> | Timeframe: <span className="text-white">{timeframe}</span></div>
-        {firstItemKeys.length > 0 && (
-          <div className="text-blue-300">
-            First item keys: <span className="text-white">{firstItemKeys.join(', ')}</span>
-          </div>
-        )}
-        {hasError && errorMessage && (
-          <div className="mt-2 text-red-400 text-[10px] break-words">
-            Error: {errorMessage}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// FALLBACK COMPONENTS
-// =============================================================================
-
-/**
- * Simple list fallback for top projects (used in safe mode or when treemap fails)
- */
-function TopProjectsListFallback({
-  items,
-  mode,
-  timeframe,
-  onModeChange,
-  onTimeframeChange,
-  lastUpdated,
-}: {
-  items: TopProjectItem[];
-  mode: 'gainers' | 'losers';
-  timeframe: '24h' | '7d' | '30d' | '90d';
-  onModeChange?: (mode: 'gainers' | 'losers') => void;
-  onTimeframeChange?: (timeframe: '24h' | '7d' | '30d' | '90d') => void;
-  lastUpdated?: Date | string | number;
-}) {
-  const router = useRouter();
-
-  // Format last updated timestamp
-  const lastUpdatedText = useMemo(() => {
-    if (lastUpdated === undefined || lastUpdated === null) return null;
-    try {
-      const date = typeof lastUpdated === 'number' 
-        ? new Date(lastUpdated) 
-        : typeof lastUpdated === 'string' 
-        ? new Date(lastUpdated) 
-        : lastUpdated;
-      if (isNaN(date.getTime())) return null;
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    } catch {
-      return null;
-    }
-  }, [lastUpdated]);
-
-  const formatGrowthPct = (growthPct: number): string => {
-    const sign = growthPct >= 0 ? '+' : '';
-    return `${sign}${growthPct.toFixed(2)}%`;
-  };
-
-  return (
-    <div className="w-full">
-      {/* Header with Last updated and Controls */}
-      <div className="flex items-center justify-between mb-4">
-        {lastUpdatedText && (
-          <div className="text-xs text-white/50">
-            Last updated: {lastUpdatedText}
-          </div>
-        )}
-        {!lastUpdatedText && <div />}
-        
-        <div className="flex items-center gap-3">
-          {onModeChange && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => onModeChange('gainers')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'gainers'
-                    ? 'bg-akari-primary text-white'
-                    : 'bg-white/5 text-white/60 hover:bg-white/10'
-                }`}
-              >
-                Top Gainers
-              </button>
-              <button
-                onClick={() => onModeChange('losers')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'losers'
-                    ? 'bg-akari-primary text-white'
-                    : 'bg-white/5 text-white/60 hover:bg-white/10'
-                }`}
-              >
-                Top Losers
-              </button>
-            </div>
-          )}
-          {onTimeframeChange && (
-            <div className="flex gap-2">
-              {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
-                <button
-                  key={tf}
-                  onClick={() => onTimeframeChange(tf)}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                    timeframe === tf
-                      ? 'bg-white/10 text-white border border-white/20'
-                      : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
-                  }`}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* List view - ARC UI v1.1: Always show content, even if empty */}
-      <div className="h-full overflow-y-auto">
-        {items.length === 0 ? (
-          // Empty state: Show message (ensures content is always visible)
-          <div className="flex items-center justify-center h-full min-h-[200px]">
-            <div className="text-center max-w-md">
-              <p className="text-sm text-white/60 mb-2">No projects available</p>
-              <p className="text-xs text-white/40">
-                Projects need to be active and classified as &apos;project&apos; type to appear here.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {items.map((item) => {
-              const name = item.name || item.twitter_username || 'Unknown';
-              const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-              const twitterUsername = item.twitter_username || '';
-              // arc_active ONLY controls clickability (visual/UX)
-              // arc_access_level controls routing (and also locks if 'none')
-              const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-              
-              return (
-                <div
-                  key={item.projectId || Math.random()}
-                  className={`flex items-center justify-between p-4 rounded-lg border ${
-                    isClickable
-                      ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
-                      : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
-                  }`}
-                  onClick={() => {
-                    if (isClickable) {
-                      // Route based on arc_access_level (matches backend logic)
-                      const arcAccessLevel = item.arc_access_level || 'none';
-                      const projectIdentifier = item.slug || item.projectId;
-                      
-                      if (arcAccessLevel === 'creator_manager') {
-                        router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-                      } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-                        router.push(`/portal/arc/project/${projectIdentifier}`);
-                      }
-                      // 'none' → locked (handled by isClickable check above)
-                    }
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{name}</div>
-                    {twitterUsername && (
-                      <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
-                    )}
-                    {!isClickable && (
-                      <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
-                    )}
-                  </div>
-                  <div className={`text-sm font-bold ml-4 ${
-                    growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                  }`}>
-                    {formatGrowthPct(growthPct)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Safe wrapper for treemap that catches rendering errors
- */
-function SafeTreemapWrapper({
-  items,
-  mode,
-  timeframe,
-  onModeChange,
-  onTimeframeChange,
-  lastUpdated,
-  onError,
-}: {
-  items: TopProjectItem[];
-  mode: 'gainers' | 'losers';
-  timeframe: '24h' | '7d' | '30d' | '90d';
-  onModeChange?: (mode: 'gainers' | 'losers') => void;
-  onTimeframeChange?: (timeframe: '24h' | '7d' | '30d' | '90d') => void;
-  lastUpdated?: Date | string | number;
-  onError: (error: Error | null) => void;
-}) {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Reset error when props change
-    onError(null);
-  }, [items, mode, timeframe, onError]);
-
-  try {
-    return (
-      <ArcTopProjectsTreemap
-        items={items}
-        mode={mode}
-        timeframe={timeframe}
-        onModeChange={onModeChange}
-        onTimeframeChange={onTimeframeChange}
-        lastUpdated={lastUpdated}
-        onProjectClick={(project) => {
-          // Route based on arc_access_level (matches backend logic)
-          const arcAccessLevel = project.arc_access_level || 'none';
-          const projectIdentifier = project.slug || project.projectId;
-          
-          if (arcAccessLevel === 'creator_manager') {
-            router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-          } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-            router.push(`/portal/arc/project/${projectIdentifier}`);
-          }
-          // 'none' → locked (should not reach here if isClickable logic is correct)
-        }}
-      />
-    );
-  } catch (error: any) {
-    console.error('[ARC] Treemap rendering error:', error);
-    onError(error instanceof Error ? error : new Error(String(error)));
-    
-    // Render fallback on error
-    return (
-      <TopProjectsListFallback
-        items={items}
-        mode={mode}
-        timeframe={timeframe}
-        onModeChange={onModeChange}
-        onTimeframeChange={onTimeframeChange}
-        lastUpdated={lastUpdated}
-      />
-    );
-  }
-}
 
 // =============================================================================
 // SERVER-SIDE PROPS
