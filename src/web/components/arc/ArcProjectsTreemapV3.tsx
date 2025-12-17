@@ -179,10 +179,13 @@ export function ArcProjectsTreemapV3({
     const normalizedValues = normalizeForTreemap(values);
     
     // Apply normalized values back to data (guaranteed to be >= 1)
-    // Create TRULY flat array with ONLY name and value for Recharts
+    // Create flat array with name and value for Recharts (extra fields are ignored by Recharts but preserved for click handling)
     treemapData = mappedData.map((item, index) => ({
       name: item.name,
       value: Math.max(1, normalizedValues[index] || 1),
+      // Preserve slug and originalItem for click navigation (Recharts ignores these)
+      slug: item.slug,
+      originalItem: item.originalItem,
     }));
   } catch (error: any) {
     console.error('[ArcProjectsTreemapV3] Error preparing data:', error);
@@ -217,36 +220,64 @@ export function ArcProjectsTreemapV3({
     });
 
     return (
-      <div style={{ width, height, position: 'relative' }}>
+      <div style={{ width, height, position: 'relative', cursor: 'pointer' }}>
         <Treemap
           width={width}
           height={height}
           data={treemapData}
           dataKey="value"
           nameKey="name"
-          stroke="rgba(255, 255, 255, 0.1)"
+          stroke="rgba(255, 255, 255, 0.3)"
+          strokeWidth={1}
           fill="#8884d8"
           animationDuration={0}
+          onClick={(data: any, index: number) => {
+            // Handle click: navigate to project page using slug
+            // Recharts Treemap onClick receives the data point directly
+            if (onProjectClick && data) {
+              const originalItem = data.originalItem;
+              if (originalItem) {
+                onProjectClick(originalItem);
+              }
+            }
+          }}
           label={(props: any) => {
             // Track that we've rendered a node
             if (nodeCountRef.current === 0) {
               nodeCountRef.current = 1;
               setRenderedNodeCount(1);
             }
-            // Simple inline text label
+            // Improved inline text label with better contrast
             const name = props.name || 'Unknown';
             if (props.width < 50 || props.height < 30) return null;
+            
+            // Truncate name if needed
+            const displayName = name.length > 20 ? name.substring(0, 20) + '...' : name;
+            
             return (
-              <text
-                x={props.x + props.width / 2}
-                y={props.y + props.height / 2}
-                textAnchor="middle"
-                fill="white"
-                fontSize={12}
-                fontWeight="bold"
-              >
-                {name.length > 20 ? name.substring(0, 20) + '...' : name}
-              </text>
+              <g>
+                {/* Background rectangle for better text contrast */}
+                <rect
+                  x={props.x + props.width / 2 - (displayName.length * 4)}
+                  y={props.y + props.height / 2 - 8}
+                  width={displayName.length * 8}
+                  height={16}
+                  fill="rgba(0, 0, 0, 0.6)"
+                  rx={2}
+                />
+                {/* Text label with high contrast */}
+                <text
+                  x={props.x + props.width / 2}
+                  y={props.y + props.height / 2}
+                  textAnchor="middle"
+                  fill="white"
+                  fontSize={12}
+                  fontWeight="bold"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {displayName}
+                </text>
+              </g>
             );
           }}
         />
