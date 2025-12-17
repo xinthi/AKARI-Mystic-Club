@@ -179,19 +179,10 @@ export function ArcProjectsTreemapV3({
     const normalizedValues = normalizeForTreemap(values);
     
     // Apply normalized values back to data (guaranteed to be >= 1)
-    // Create flat array with just name and value for Recharts
+    // Create TRULY flat array with ONLY name and value for Recharts
     treemapData = mappedData.map((item, index) => ({
       name: item.name,
       value: Math.max(1, normalizedValues[index] || 1),
-      // Keep extra data for tooltip/click handling
-      growth_pct: item.growth_pct,
-      projectId: item.projectId,
-      twitter_username: item.twitter_username,
-      slug: item.slug,
-      arc_access_level: item.arc_access_level,
-      arc_active: item.arc_active,
-      fill: item.fill,
-      originalItem: item.originalItem,
     }));
   } catch (error: any) {
     console.error('[ArcProjectsTreemapV3] Error preparing data:', error);
@@ -201,30 +192,6 @@ export function ArcProjectsTreemapV3({
     return null;
   }
 
-  // Simple label component for inline text
-  const SimpleLabel = ({ x, y, width, height, name }: any) => {
-    if (!name || width < 50 || height < 30) return null;
-    
-    // Track that we've rendered a node
-    if (nodeCountRef.current === 0) {
-      nodeCountRef.current = 1;
-      setRenderedNodeCount(1);
-    }
-    
-    return (
-      <text
-        x={x + width / 2}
-        y={y + height / 2}
-        textAnchor="middle"
-        fill="white"
-        fontSize={12}
-        fontWeight="bold"
-        className="pointer-events-none"
-      >
-        {name.length > 20 ? name.substring(0, 20) + '...' : name}
-      </text>
-    );
-  };
 
   // Render treemap with error boundary
   try {
@@ -241,6 +208,14 @@ export function ArcProjectsTreemapV3({
       setRenderedNodeCount(1);
     }
 
+    // Log data for debugging
+    console.log('[ArcProjectsTreemapV3] Rendering with data:', {
+      count: treemapData.length,
+      sample: treemapData.slice(0, 3),
+      width,
+      height,
+    });
+
     return (
       <div style={{ width, height, position: 'relative' }}>
         <Treemap
@@ -251,8 +226,29 @@ export function ArcProjectsTreemapV3({
           nameKey="name"
           stroke="rgba(255, 255, 255, 0.1)"
           fill="#8884d8"
-          animationDuration={300}
-          label={(props: any) => <SimpleLabel {...props} name={props.name} />}
+          animationDuration={0}
+          label={(props: any) => {
+            // Track that we've rendered a node
+            if (nodeCountRef.current === 0) {
+              nodeCountRef.current = 1;
+              setRenderedNodeCount(1);
+            }
+            // Simple inline text label
+            const name = props.name || 'Unknown';
+            if (props.width < 50 || props.height < 30) return null;
+            return (
+              <text
+                x={props.x + props.width / 2}
+                y={props.y + props.height / 2}
+                textAnchor="middle"
+                fill="white"
+                fontSize={12}
+                fontWeight="bold"
+              >
+                {name.length > 20 ? name.substring(0, 20) + '...' : name}
+              </text>
+            );
+          }}
         />
       </div>
     );
