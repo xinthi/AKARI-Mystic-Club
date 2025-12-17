@@ -436,7 +436,7 @@ function TopProjectsListFallback({
           );
         })}
       </div>
-    </PortalLayout>
+    </div>
   );
 }
 
