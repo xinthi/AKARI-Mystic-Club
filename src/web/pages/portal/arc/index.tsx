@@ -193,23 +193,30 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   return (
     <PortalLayout title="ARC Universe">
       <div className="space-y-12 px-6 py-8">
+        {/* Header */}
+        <section className="mb-6">
+          <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
+            INFLUENCEFI ARC ECOSYSTEM
+          </p>
+          <h1 className="text-3xl font-bold md:text-4xl mb-2">
+            Where Influence Becomes Trackable
+          </h1>
+          <p className="max-w-2xl text-sm text-akari-muted">
+            ARC turns social performance into measurable reputation. Discover top movers, verified creators, and campaign-ready projects.
+          </p>
+        </section>
+
         {/* Top Projects Hero Section */}
         {canManageArc && (
           <section className="w-full">
-            {/* Header with Controls */}
+            {/* Controls */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Top Projects</h1>
-                <p className="text-sm text-white/60">
-                  Track momentum across crypto Twitter projects
-                </p>
-              </div>
               <div className="flex items-center gap-3">
                 {userIsSuperAdmin && (
                   <>
                     <Link
                       href="/portal/arc/admin"
-                      className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
+                      className="pill-neon inline-flex items-center justify-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 h-10 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -220,7 +227,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     <button
                       onClick={handleRefresh}
                       disabled={topProjectsLoading}
-                      className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="pill-neon inline-flex items-center justify-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 h-10 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {topProjectsLoading ? (
                         <>
@@ -242,7 +249,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTopProjectsView('gainers')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    className={`inline-flex items-center justify-center px-4 h-10 text-sm font-medium rounded-lg transition-colors ${
                       topProjectsView === 'gainers'
                         ? 'bg-akari-primary text-white'
                         : 'bg-white/5 text-white/60 hover:bg-white/10'
@@ -252,7 +259,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   </button>
                   <button
                     onClick={() => setTopProjectsView('losers')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    className={`inline-flex items-center justify-center px-4 h-10 text-sm font-medium rounded-lg transition-colors ${
                       topProjectsView === 'losers'
                         ? 'bg-akari-primary text-white'
                         : 'bg-white/5 text-white/60 hover:bg-white/10'
@@ -267,7 +274,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     <button
                       key={tf}
                       onClick={() => setTopProjectsTimeframe(tf)}
-                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      className={`inline-flex items-center justify-center px-3 h-10 text-xs font-medium rounded-lg transition-colors ${
                         topProjectsTimeframe === tf
                           ? 'bg-white/10 text-white border border-white/20'
                           : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
