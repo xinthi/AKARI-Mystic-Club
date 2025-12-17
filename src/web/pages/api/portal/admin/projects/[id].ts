@@ -22,6 +22,19 @@ interface UpdateProjectBody {
   profile_type?: 'personal' | 'project';
 }
 
+interface ProjectQueryResult {
+  id: string;
+  name: string;
+  display_name: string | null;
+  slug: string;
+  x_handle: string;
+  twitter_username: string | null;
+  is_active: boolean;
+  arc_active?: boolean | null;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
+  profile_type?: 'personal' | 'project' | null;
+}
+
 interface AdminProject {
   id: string;
   name: string;
@@ -159,17 +172,18 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Project not found' });
       }
 
+      const projectData = project as ProjectQueryResult;
       const adminProject: AdminProject = {
-        id: project.id,
-        name: project.name,
-        display_name: project.display_name ?? null,
-        slug: project.slug,
-        x_handle: project.x_handle,
-        twitter_username: project.twitter_username ?? null,
-        is_active: project.is_active,
-        arc_active: project.arc_active ?? undefined,
-        arc_access_level: project.arc_access_level ?? undefined,
-        profile_type: project.profile_type ?? undefined,
+        id: projectData.id,
+        name: projectData.name,
+        display_name: projectData.display_name ?? null,
+        slug: projectData.slug,
+        x_handle: projectData.x_handle,
+        twitter_username: projectData.twitter_username ?? null,
+        is_active: projectData.is_active,
+        arc_active: projectData.arc_active ?? undefined,
+        arc_access_level: projectData.arc_access_level ?? undefined,
+        profile_type: projectData.profile_type ?? undefined,
       };
 
       return res.status(200).json({
@@ -250,17 +264,18 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
+    const updatedProjectData = updatedProject as ProjectQueryResult;
     const adminProject: AdminProject = {
-      id: updatedProject.id,
-      name: updatedProject.name,
-      display_name: updatedProject.display_name ?? null,
-      slug: updatedProject.slug,
-      x_handle: updatedProject.x_handle,
-      twitter_username: updatedProject.twitter_username ?? null,
-      is_active: updatedProject.is_active,
-      arc_active: updatedProject.arc_active ?? undefined,
-      arc_access_level: updatedProject.arc_access_level ?? undefined,
-      profile_type: updatedProject.profile_type ?? undefined,
+      id: updatedProjectData.id,
+      name: updatedProjectData.name,
+      display_name: updatedProjectData.display_name ?? null,
+      slug: updatedProjectData.slug,
+      x_handle: updatedProjectData.x_handle,
+      twitter_username: updatedProjectData.twitter_username ?? null,
+      is_active: updatedProjectData.is_active,
+      arc_active: updatedProjectData.arc_active ?? undefined,
+      arc_access_level: updatedProjectData.arc_access_level ?? undefined,
+      profile_type: updatedProjectData.profile_type ?? undefined,
     };
 
     return res.status(200).json({
