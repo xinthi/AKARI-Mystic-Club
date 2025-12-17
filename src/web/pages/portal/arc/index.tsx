@@ -373,13 +373,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 // =============================================================================
 
 /**
- * Weighted card grid for top projects (soft treemap)
+ * Soft Treemap: Weighted card grid for top projects
  * 
- * Tiers are calculated by sorting projects by absolute growth_pct,
- * then dividing into 3 equal groups:
- * - Tier 1 (largest): Top 33% by absolute growth
- * - Tier 2 (medium): Middle 33%
- * - Tier 3 (smallest): Bottom 33%
+ * Tiers are calculated based on growth_pct thresholds:
+ * - Tier A: growth_pct >= 300 (large cards, span 6 columns)
+ * - Tier B: growth_pct >= 100 and < 300 (medium cards, span 4 columns)
+ * - Tier C: growth_pct < 100 (small cards, span 3 columns)
  */
 function TopProjectsListFallback({
   items,
@@ -393,46 +392,43 @@ function TopProjectsListFallback({
     return `${sign}${growthPct.toFixed(2)}%`;
   };
 
-  // Calculate tiers: sort by absolute growth, divide into 3 groups
-  const sortedItems = [...items].sort((a, b) => {
-    const absA = Math.abs(typeof a.growth_pct === 'number' ? a.growth_pct : 0);
-    const absB = Math.abs(typeof b.growth_pct === 'number' ? b.growth_pct : 0);
-    return absB - absA; // Descending order
-  });
+  // Calculate tiers based on growth_pct thresholds
+  const itemsWithTiers = items.map((item) => {
+    const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+    let tier: 'A' | 'B' | 'C';
+    let gridSpan: string;
+    let minHeight: string;
 
-  const tier1Threshold = Math.ceil(sortedItems.length / 3);
-  const tier2Threshold = Math.ceil((sortedItems.length * 2) / 3);
-
-  const itemsWithTiers = sortedItems.map((item, index) => {
-    let tier: 1 | 2 | 3;
-    if (index < tier1Threshold) {
-      tier = 1;
-    } else if (index < tier2Threshold) {
-      tier = 2;
+    if (growthPct >= 300) {
+      tier = 'A';
+      gridSpan = 'col-span-full md:col-span-6 lg:col-span-6';
+      minHeight = 'min-h-[180px]';
+    } else if (growthPct >= 100) {
+      tier = 'B';
+      gridSpan = 'col-span-full md:col-span-3 lg:col-span-4';
+      minHeight = 'min-h-[150px]';
     } else {
-      tier = 3;
+      tier = 'C';
+      gridSpan = 'col-span-full md:col-span-3 lg:col-span-3';
+      minHeight = 'min-h-[130px]';
     }
-    return { ...item, tier };
+
+    return { ...item, tier, gridSpan, minHeight };
   });
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+      <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 auto-rows-fr">
         {itemsWithTiers.map((item) => {
           const name = item.display_name || item.name || 'Unknown';
           const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
           const twitterUsername = item.twitter_username || '';
           const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-          const tier = item.tier;
-          
-          // Grid span based on tier (larger = higher growth)
-          const gridSpan = tier === 1 ? 'md:col-span-2 lg:col-span-2' : 'md:col-span-1';
-          const minHeight = tier === 1 ? 'min-h-[160px]' : tier === 2 ? 'min-h-[140px]' : 'min-h-[120px]';
           
           return (
             <div
               key={item.id || item.projectId || Math.random()}
-              className={`${gridSpan} ${minHeight} rounded-lg border p-4 flex flex-col justify-between ${
+              className={`${item.gridSpan} ${item.minHeight} rounded-lg border p-4 flex flex-col justify-between ${
                 isClickable
                   ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-colors'
                   : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
