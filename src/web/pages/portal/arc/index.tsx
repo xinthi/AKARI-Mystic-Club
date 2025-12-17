@@ -192,53 +192,119 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   return (
     <PortalLayout title="ARC Universe">
-      <div className="space-y-8 px-6 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">ARC Projects</h1>
-            <p className="text-sm text-white/60">
-              Track influence across crypto Twitter projects
-            </p>
-          </div>
-          {userIsSuperAdmin && (
-            <div className="flex items-center gap-2">
-              <Link
-                href="/portal/arc/admin"
-                className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                ARC Admin
-              </Link>
-              <button
-                onClick={handleRefresh}
-                disabled={topProjectsLoading}
-                className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {topProjectsLoading ? (
+      <div className="space-y-12 px-6 py-8">
+        {/* Top Projects Hero Section */}
+        {canManageArc && (
+          <section className="w-full">
+            {/* Header with Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">Top Projects</h1>
+                <p className="text-sm text-white/60">
+                  Track momentum across crypto Twitter projects
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {userIsSuperAdmin && (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
-                    Refreshing...
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh
+                    <Link
+                      href="/portal/arc/admin"
+                      className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      ARC Admin
+                    </Link>
+                    <button
+                      onClick={handleRefresh}
+                      disabled={topProjectsLoading}
+                      className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {topProjectsLoading ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
+                          Refreshing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Refresh
+                        </>
+                      )}
+                    </button>
                   </>
                 )}
-              </button>
+                {/* Mode buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTopProjectsView('gainers')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      topProjectsView === 'gainers'
+                        ? 'bg-akari-primary text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    Top Gainers
+                  </button>
+                  <button
+                    onClick={() => setTopProjectsView('losers')}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      topProjectsView === 'losers'
+                        ? 'bg-akari-primary text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    }`}
+                  >
+                    Top Losers
+                  </button>
+                </div>
+                {/* Timeframe buttons */}
+                <div className="flex gap-2">
+                  {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
+                    <button
+                      key={tf}
+                      onClick={() => setTopProjectsTimeframe(tf)}
+                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                        topProjectsTimeframe === tf
+                          ? 'bg-white/10 text-white border border-white/20'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                      }`}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* ARC Projects List */}
+            {/* Content */}
+            {topProjectsLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                <span className="ml-3 text-white/60">Loading top projects...</span>
+              </div>
+            ) : topProjectsError ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+                <p className="text-sm text-red-400">{topProjectsError}</p>
+              </div>
+            ) : topProjectsData.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                <p className="text-sm text-white/60">No top projects available</p>
+              </div>
+            ) : (
+              <TopProjectsListFallback
+                items={topProjectsData}
+              />
+            )}
+          </section>
+        )}
+
+        {/* ARC Projects List - Secondary Section */}
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4">ARC Projects</h2>
+          <h2 className="text-2xl font-semibold text-white mb-4">ARC Projects</h2>
           
           {projectsLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -286,83 +352,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
             </div>
           )}
         </section>
-
-        {/* Top Projects Section */}
-        {canManageArc && (
-          <section>
-            <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 bg-black/60">
-                <h2 className="text-lg font-semibold text-white mb-4">Top Projects</h2>
-                
-                {/* Controls */}
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* Mode buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setTopProjectsView('gainers')}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        topProjectsView === 'gainers'
-                          ? 'bg-akari-primary text-white'
-                          : 'bg-white/5 text-white/60 hover:bg-white/10'
-                      }`}
-                    >
-                      Top Gainers
-                    </button>
-                    <button
-                      onClick={() => setTopProjectsView('losers')}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        topProjectsView === 'losers'
-                          ? 'bg-akari-primary text-white'
-                          : 'bg-white/5 text-white/60 hover:bg-white/10'
-                      }`}
-                    >
-                      Top Losers
-                    </button>
-                  </div>
-
-                  {/* Timeframe buttons */}
-                  <div className="flex gap-2">
-                    {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
-                      <button
-                        key={tf}
-                        onClick={() => setTopProjectsTimeframe(tf)}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                          topProjectsTimeframe === tf
-                            ? 'bg-white/10 text-white border border-white/20'
-                            : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
-                        }`}
-                      >
-                        {tf}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                {topProjectsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                    <span className="ml-3 text-white/60">Loading top projects...</span>
-                  </div>
-                ) : topProjectsError ? (
-                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                    <p className="text-sm text-red-400">{topProjectsError}</p>
-                  </div>
-                ) : topProjectsData.length === 0 ? (
-                  <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                    <p className="text-sm text-white/60">No top projects available</p>
-                  </div>
-                ) : (
-                  <TopProjectsListFallback
-                    items={topProjectsData}
-                  />
-                )}
-              </div>
-            </div>
-          </section>
-        )}
       </div>
     </PortalLayout>
   );
@@ -373,12 +362,11 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 // =============================================================================
 
 /**
- * Weighted grid layout for top projects
+ * Hero + Mini Grid layout for top projects
  * 
- * Card sizing based on ranking by growth_pct:
- * - Top 3: Large cards (col-span-2, row-span-2)
- * - Next 6: Medium cards (col-span-1, row-span-1)
- * - Remaining: Small cards (col-span-1, row-span-1)
+ * - Row 1: 2 large cards (top 2 items) side by side on desktop, stacked on mobile
+ * - Row 2: up to 8 small cards (items 3-10) in compact grid
+ * - Limited to 10 items total
  */
 function TopProjectsListFallback({
   items,
@@ -392,46 +380,38 @@ function TopProjectsListFallback({
     return `${sign}${growthPct.toFixed(2)}%`;
   };
 
-  // Sort by growth_pct descending and assign card sizes based on ranking
-  const sortedItems = [...items].sort((a, b) => {
-    const growthA = typeof a.growth_pct === 'number' ? a.growth_pct : 0;
-    const growthB = typeof b.growth_pct === 'number' ? b.growth_pct : 0;
-    return growthB - growthA;
-  });
+  // Sort by growth_pct descending and limit to 10 items
+  const sortedItems = [...items]
+    .sort((a, b) => {
+      const growthA = typeof a.growth_pct === 'number' ? a.growth_pct : 0;
+      const growthB = typeof b.growth_pct === 'number' ? b.growth_pct : 0;
+      return growthB - growthA;
+    })
+    .slice(0, 10);
 
-  const itemsWithSizes = sortedItems.map((item, index) => {
-    let gridSpan: string;
-    let rowSpan: string;
-    let padding: string;
-    let fontSize: string;
+  const top2Items = sortedItems.slice(0, 2);
+  const remainingItems = sortedItems.slice(2, 10);
 
-    if (index < 3) {
-      // Top 3: Large cards
-      gridSpan = 'col-span-full md:col-span-2';
-      rowSpan = 'md:row-span-2';
-      padding = 'p-6';
-      fontSize = 'text-lg';
-    } else if (index < 9) {
-      // Next 6: Medium cards
-      gridSpan = 'col-span-full md:col-span-1';
-      rowSpan = 'md:row-span-1';
-      padding = 'p-4';
-      fontSize = 'text-base';
-    } else {
-      // Remaining: Small cards
-      gridSpan = 'col-span-full md:col-span-1';
-      rowSpan = 'md:row-span-1';
-      padding = 'p-3';
-      fontSize = 'text-sm';
+  // Helper function to handle click behavior
+  const handleCardClick = (item: TopProjectItem) => {
+    const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+    if (!isClickable) return;
+
+    const arcAccessLevel = item.arc_access_level || 'none';
+    const projectIdentifier = item.slug || item.projectId || item.id;
+    
+    if (arcAccessLevel === 'creator_manager') {
+      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+      router.push(`/portal/arc/project/${projectIdentifier}`);
     }
-
-    return { ...item, gridSpan, rowSpan, padding, fontSize };
-  });
+  };
 
   return (
-    <div className="w-full">
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-min">
-        {itemsWithSizes.map((item) => {
+    <div className="w-full space-y-6">
+      {/* Row 1: Top 2 Large Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {top2Items.map((item) => {
           const name = item.display_name || item.name || 'Unknown';
           const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
           const twitterUsername = item.twitter_username || '';
@@ -453,40 +433,23 @@ function TopProjectsListFallback({
           return (
             <div
               key={item.id || item.projectId || Math.random()}
-              className={`${item.gridSpan} ${item.rowSpan} ${item.padding} rounded-lg border ${borderColor} ${bgColor} flex flex-col justify-between min-h-[120px] ${
+              className={`rounded-xl border ${borderColor} ${bgColor} p-8 min-h-[220px] flex flex-col justify-between ${
                 isClickable
                   ? 'hover:bg-white/10 cursor-pointer transition-colors'
                   : 'opacity-50 cursor-not-allowed'
               }`}
-              onClick={() => {
-                if (isClickable) {
-                  const arcAccessLevel = item.arc_access_level || 'none';
-                  const projectIdentifier = item.slug || item.projectId || item.id;
-                  
-                  if (arcAccessLevel === 'creator_manager') {
-                    router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-                  } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-                    router.push(`/portal/arc/project/${projectIdentifier}`);
-                  }
-                }
-              }}
+              onClick={() => handleCardClick(item)}
             >
               <div className="flex-1 min-w-0">
-                <div className={`${item.fontSize} font-semibold text-white truncate mb-1`}>
-                  {name}
-                </div>
+                <div className="text-xl font-semibold text-white truncate mb-2">{name}</div>
                 {twitterUsername && (
-                  <div className="text-xs text-white/60 truncate mb-2">
-                    @{twitterUsername}
-                  </div>
+                  <div className="text-sm text-white/60 truncate mb-3">@{twitterUsername}</div>
                 )}
                 {!isClickable && (
-                  <div className="text-xs text-yellow-400 mt-1">
-                    🔒 No ARC leaderboard active
-                  </div>
+                  <div className="text-sm text-yellow-400 mt-2">🔒 No ARC leaderboard active</div>
                 )}
               </div>
-              <div className={`${item.fontSize === 'text-lg' ? 'text-xl' : item.fontSize} font-bold mt-2 ${
+              <div className={`text-3xl font-bold ${
                 growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
               }`}>
                 {formatGrowthPct(growthPct)}
@@ -495,6 +458,58 @@ function TopProjectsListFallback({
           );
         })}
       </div>
+
+      {/* Row 2: Small Cards Grid (items 3-10) */}
+      {remainingItems.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {remainingItems.map((item) => {
+            const name = item.display_name || item.name || 'Unknown';
+            const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+            const twitterUsername = item.twitter_username || '';
+            const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+            
+            // Color accent based on growth
+            const borderColor = growthPct > 0 
+              ? 'border-green-500/30' 
+              : growthPct < 0 
+              ? 'border-red-500/30' 
+              : 'border-white/10';
+            
+            const bgColor = growthPct > 0
+              ? 'bg-green-500/5'
+              : growthPct < 0
+              ? 'bg-red-500/5'
+              : 'bg-white/5';
+            
+            return (
+              <div
+                key={item.id || item.projectId || Math.random()}
+                className={`rounded-lg border ${borderColor} ${bgColor} p-4 min-h-[120px] flex flex-col justify-between ${
+                  isClickable
+                    ? 'hover:bg-white/10 cursor-pointer transition-colors'
+                    : 'opacity-50 cursor-not-allowed'
+                }`}
+                onClick={() => handleCardClick(item)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate mb-1">{name}</div>
+                  {twitterUsername && (
+                    <div className="text-xs text-white/60 truncate mb-1">@{twitterUsername}</div>
+                  )}
+                  {!isClickable && (
+                    <div className="text-xs text-yellow-400 mt-1">🔒</div>
+                  )}
+                </div>
+                <div className={`text-lg font-bold ${
+                  growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+                }`}>
+                  {formatGrowthPct(growthPct)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
