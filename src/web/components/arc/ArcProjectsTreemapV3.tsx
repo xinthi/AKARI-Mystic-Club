@@ -107,96 +107,6 @@ export function ArcProjectsTreemapV3({
     });
   }, [data]);
 
-  // CustomNode component: draws rect, labels, and handles clicks
-  const CustomNode = (props: any) => {
-    const { x, y, width: cellWidth, height: cellHeight, payload } = props;
-    if (!payload) return null;
-
-    const displayName = payload.display_name || payload.name || 'Unknown';
-    const growthPct = payload.growth_pct || 0;
-    
-    // Get fill color based on growth_pct
-    let fill: string;
-    if (growthPct > 0.5) {
-      fill = 'rgba(34, 197, 94, 0.6)'; // green
-    } else if (growthPct < -0.5) {
-      fill = 'rgba(239, 68, 68, 0.6)'; // red
-    } else {
-      fill = 'rgba(234, 179, 8, 0.6)'; // yellow
-    }
-
-    // Format growth percentage
-    const growthText = growthPct >= 0 ? `+${growthPct.toFixed(1)}%` : `${growthPct.toFixed(1)}%`;
-    
-    const showLabels = cellWidth >= 60 && cellHeight >= 40;
-    const maxNameLength = Math.floor(cellWidth / 6);
-    const displayNameTruncated = displayName.length > maxNameLength 
-      ? displayName.substring(0, maxNameLength) + '...' 
-      : displayName;
-
-    const handleClick = () => {
-      if (onProjectClick && payload) {
-        onProjectClick(payload);
-      }
-    };
-
-    return (
-      <g>
-        {/* Rectangle with color based on growth_pct */}
-        <rect
-          x={x}
-          y={y}
-          width={cellWidth}
-          height={cellHeight}
-          fill={fill}
-          stroke="#0b0f14"
-          strokeWidth={1}
-          onClick={handleClick}
-          style={{ cursor: 'pointer' }}
-        />
-        {/* Labels: display_name and growth % */}
-        {showLabels && (
-          <g>
-            {/* Background rectangle for readability */}
-            <rect
-              x={x + cellWidth / 2 - (Math.max(displayNameTruncated.length, growthText.length) * 4)}
-              y={y + cellHeight / 2 - 16}
-              width={Math.max(displayNameTruncated.length, growthText.length) * 8}
-              height={32}
-              fill="rgba(0, 0, 0, 0.7)"
-              rx={4}
-              style={{ pointerEvents: 'none' }}
-            />
-            {/* Display name */}
-            <text
-              x={x + cellWidth / 2}
-              y={y + cellHeight / 2 - 4}
-              textAnchor="middle"
-              fill="white"
-              fontSize={11}
-              fontWeight="bold"
-              style={{ pointerEvents: 'none' }}
-            >
-              {displayNameTruncated}
-            </text>
-            {/* Growth percentage */}
-            <text
-              x={x + cellWidth / 2}
-              y={y + cellHeight / 2 + 10}
-              textAnchor="middle"
-              fill="white"
-              fontSize={10}
-              fontWeight="600"
-              style={{ pointerEvents: 'none' }}
-            >
-              {growthText}
-            </text>
-          </g>
-        )}
-      </g>
-    );
-  };
-
   // Error tracking ref (no state updates during render)
   const errorRef = useRef<Error | null>(null);
   const errorReportedRef = useRef(false);
@@ -223,8 +133,7 @@ export function ArcProjectsTreemapV3({
             data={nodes}
             dataKey="value"
             nameKey="display_name"
-            stroke="#0b0f14"
-            content={<CustomNode />}
+            stroke="#fff"
           />
         </ResponsiveContainer>
       </div>
