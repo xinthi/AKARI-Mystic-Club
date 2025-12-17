@@ -74,6 +74,7 @@ interface LeaderboardRequest {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
   justification: string | null;
+  requested_arc_access_level?: 'creator_manager' | 'leaderboard' | 'gamified' | null;
   created_at: string;
 }
 
@@ -98,6 +99,7 @@ export default function ArcProjectPage() {
   const [requestLoading, setRequestLoading] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [justification, setJustification] = useState('');
+  const [selectedAccessLevel, setSelectedAccessLevel] = useState<'creator_manager' | 'leaderboard' | 'gamified'>('leaderboard');
   const [requestError, setRequestError] = useState<string | null>(null);
   const [canRequest, setCanRequest] = useState<boolean | null>(null); // null = checking, true/false = result
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
@@ -252,6 +254,7 @@ export default function ArcProjectPage() {
               id: data.request.id,
               status: data.request.status,
               justification: data.request.justification,
+              requested_arc_access_level: data.request.requested_arc_access_level || null,
               created_at: data.request.created_at,
             });
           }
@@ -326,6 +329,7 @@ export default function ArcProjectPage() {
         body: JSON.stringify({
           projectId: project.id,
           justification: justification.trim() || null,
+          requested_arc_access_level: selectedAccessLevel,
         }),
       });
 
@@ -340,10 +344,12 @@ export default function ArcProjectPage() {
         id: data.requestId,
         status: data.status === 'existing' ? 'pending' : 'pending',
         justification: justification.trim() || null,
+        requested_arc_access_level: selectedAccessLevel,
         created_at: new Date().toISOString(),
       });
       setShowRequestForm(false);
       setJustification('');
+      setSelectedAccessLevel('leaderboard');
     } catch (err: any) {
       setRequestError(err.message || 'Failed to submit request');
     } finally {
@@ -596,9 +602,17 @@ export default function ArcProjectPage() {
                     {existingRequest.status === 'pending'
                       ? 'Your request is being reviewed by administrators.'
                       : existingRequest.status === 'approved'
-                      ? 'ARC leaderboard access has been enabled for this project.'
+                      ? 'ARC access has been enabled for this project.'
                       : 'Your request was not approved.'}
                   </p>
+                  {existingRequest.requested_arc_access_level && (
+                    <p className="text-xs text-white/70 mt-2">
+                      <span className="font-medium">Requested:</span>{' '}
+                      {existingRequest.requested_arc_access_level === 'creator_manager' && 'Creator Manager'}
+                      {existingRequest.requested_arc_access_level === 'leaderboard' && 'Campaign Leaderboard'}
+                      {existingRequest.requested_arc_access_level === 'gamified' && 'Gamified Leaderboard'}
+                    </p>
+                  )}
                   {existingRequest.justification && (
                     <p className="text-xs text-white/40 mt-2 italic">
                       &quot;{existingRequest.justification}&quot;
@@ -615,10 +629,29 @@ export default function ArcProjectPage() {
                       onClick={() => setShowRequestForm(true)}
                       className="inline-flex items-center px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors font-medium"
                     >
-                      Request ARC Leaderboard
+                      Request ARC Access
                     </button>
                   ) : (
                     <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-white/70 mb-2">
+                          ARC Access Level <span className="text-red-400">*</span>
+                        </label>
+                        <select
+                          value={selectedAccessLevel}
+                          onChange={(e) => setSelectedAccessLevel(e.target.value as 'creator_manager' | 'leaderboard' | 'gamified')}
+                          className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                        >
+                          <option value="creator_manager">Creator Manager</option>
+                          <option value="leaderboard">Campaign Leaderboard</option>
+                          <option value="gamified">Gamified Leaderboard</option>
+                        </select>
+                        <p className="text-xs text-white/50 mt-1">
+                          {selectedAccessLevel === 'creator_manager' && 'Manage creator campaigns and programs'}
+                          {selectedAccessLevel === 'leaderboard' && 'Display project leaderboard with rankings'}
+                          {selectedAccessLevel === 'gamified' && 'Full gamified experience with missions and rewards'}
+                        </p>
+                      </div>
                       <div>
                         <label className="block text-sm text-white/70 mb-2">
                           Justification (optional)
@@ -626,7 +659,7 @@ export default function ArcProjectPage() {
                         <textarea
                           value={justification}
                           onChange={(e) => setJustification(e.target.value)}
-                          placeholder="Explain why you'd like to enable ARC leaderboard for this project..."
+                          placeholder="Explain why you'd like to enable ARC access for this project..."
                           className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary resize-none"
                           rows={4}
                         />
@@ -646,6 +679,7 @@ export default function ArcProjectPage() {
                           onClick={() => {
                             setShowRequestForm(false);
                             setJustification('');
+                            setSelectedAccessLevel('leaderboard');
                             setRequestError(null);
                           }}
                           disabled={requestLoading}

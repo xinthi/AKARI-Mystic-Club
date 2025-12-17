@@ -16,6 +16,7 @@ interface LeaderboardRequest {
   project_id: string;
   requested_by: string;
   justification: string | null;
+  requested_arc_access_level: 'creator_manager' | 'leaderboard' | 'gamified' | null;
   status: 'pending' | 'approved' | 'rejected';
   decided_by: string | null;
   decided_at: string | null;
@@ -177,6 +178,7 @@ export default async function handler(
         project_id,
         requested_by,
         justification,
+        requested_arc_access_level,
         status,
         decided_by,
         decided_at,
@@ -224,6 +226,7 @@ export default async function handler(
       project_id: r.project_id,
       requested_by: r.requested_by,
       justification: r.justification,
+      requested_arc_access_level: r.requested_arc_access_level,
       status: r.status,
       decided_by: r.decided_by,
       decided_at: r.decided_at,

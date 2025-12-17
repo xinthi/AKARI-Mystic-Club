@@ -21,6 +21,7 @@ interface LeaderboardRequest {
   project_id: string;
   requested_by: string;
   justification: string | null;
+  requested_arc_access_level: 'creator_manager' | 'leaderboard' | 'gamified' | null;
   status: 'pending' | 'approved' | 'rejected';
   decided_by: string | null;
   decided_at: string | null;
@@ -282,6 +283,7 @@ export default function AdminLeaderboardRequestsPage() {
                     <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Project</th>
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Requester</th>
+                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Requested Access</th>
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Justification</th>
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Created</th>
@@ -291,7 +293,7 @@ export default function AdminLeaderboardRequestsPage() {
                   <tbody>
                     {requests.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 px-5 text-center text-akari-muted">
+                        <td colSpan={7} className="py-8 px-5 text-center text-akari-muted">
                           No requests found
                         </td>
                       </tr>
@@ -317,6 +319,23 @@ export default function AdminLeaderboardRequestsPage() {
                               <div>{requesterName}</div>
                               {request.requester?.username && (
                                 <div className="text-xs text-akari-muted/60">@{request.requester.username}</div>
+                              )}
+                            </td>
+                            <td className="py-4 px-5 text-akari-muted text-sm">
+                              {request.requested_arc_access_level ? (
+                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                  request.requested_arc_access_level === 'gamified' 
+                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                                    : request.requested_arc_access_level === 'leaderboard'
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                    : 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                }`}>
+                                  {request.requested_arc_access_level === 'creator_manager' && 'Creator Manager'}
+                                  {request.requested_arc_access_level === 'leaderboard' && 'Campaign Leaderboard'}
+                                  {request.requested_arc_access_level === 'gamified' && 'Gamified Leaderboard'}
+                                </span>
+                              ) : (
+                                <span className="text-akari-muted/60">-</span>
                               )}
                             </td>
                             <td className="py-4 px-5 text-akari-muted text-sm max-w-xs">

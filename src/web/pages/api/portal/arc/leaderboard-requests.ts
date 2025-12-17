@@ -15,6 +15,7 @@ import { canRequestLeaderboard } from '@/lib/project-permissions';
 interface LeaderboardRequestPayload {
   projectId: string;
   justification?: string | null;
+  requested_arc_access_level?: 'creator_manager' | 'leaderboard' | 'gamified';
 }
 
 type LeaderboardRequestResponse =
@@ -126,7 +127,7 @@ export default async function handler(
       // Fetch user's request for this project
       const { data: request, error: requestError } = await supabase
         .from('arc_leaderboard_requests')
-        .select('id, status, justification, created_at')
+        .select('id, status, justification, requested_arc_access_level, created_at')
         .eq('project_id', projectId)
         .eq('requested_by', userProfile.profileId)
         .order('created_at', { ascending: false })
@@ -170,12 +171,20 @@ export default async function handler(
     }
 
     // Parse and validate request body
-    const { projectId, justification } = req.body as Partial<LeaderboardRequestPayload>;
+    const { projectId, justification, requested_arc_access_level } = req.body as Partial<LeaderboardRequestPayload>;
 
     if (!projectId || typeof projectId !== 'string') {
       return res.status(400).json({
         ok: false,
         error: 'projectId is required',
+      });
+    }
+
+    // Validate requested_arc_access_level if provided
+    if (requested_arc_access_level && !['creator_manager', 'leaderboard', 'gamified'].includes(requested_arc_access_level)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid requested_arc_access_level. Must be creator_manager, leaderboard, or gamified',
       });
     }
 
@@ -243,6 +252,7 @@ export default async function handler(
         project_id: projectId,
         requested_by: userProfile.profileId,
         justification: justification || null,
+        requested_arc_access_level: requested_arc_access_level || null,
         status: 'pending',
         decided_by: null,
         decided_at: null,
