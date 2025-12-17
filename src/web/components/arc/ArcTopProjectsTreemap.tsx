@@ -262,10 +262,14 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
     if (validItems.length === 0) return [];
 
     // Convert growth_pct into tile value with minimum size
-    // value = Math.max(1, Math.round(Math.abs(growth_pct) * 100))
+    // For zero growth, use a base value so items are still visible
+    // value = Math.max(10, Math.round(Math.abs(growth_pct) * 100))
+    // This ensures even 0% growth projects get a visible size (base of 10)
     const tileValues = validItems.map(item => {
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      return Math.max(1, Math.round(Math.abs(growthPct) * 100));
+      const absGrowth = Math.abs(growthPct);
+      // Use base value of 10 for 0% growth, scale up from there
+      return Math.max(10, Math.round(absGrowth * 100));
     });
     const normalizedValues = normalizeForTreemap(tileValues);
 
