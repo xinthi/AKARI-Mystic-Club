@@ -6,9 +6,9 @@
  * No memoization optimizations yet.
  */
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Treemap, ResponsiveContainer } from 'recharts';
+import { Treemap } from 'recharts';
 
 // =============================================================================
 // TYPES
@@ -96,16 +96,71 @@ export function ArcProjectsTreemapV3({
   const router = useRouter();
 
   // Build nodes with value and growth_pct
-  const nodes = useMemo(() => {
-    return data.map((item) => {
-      const validGrowthPct = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
-      return {
-        ...item,
-        value: Math.max(1, Math.abs(validGrowthPct)),
-        growth_pct: validGrowthPct,
-      };
-    });
-  }, [data]);
+  // IMPORTANT: Treemap needs positive numbers - use Math.abs to handle negative growth_pct
+  const nodes = (data ?? []).map((item) => {
+    const gp =
+      typeof item.growth_pct === "number" && !Number.isNaN(item.growth_pct)
+        ? item.growth_pct
+        : 0;
+
+    return {
+      ...item,
+      // IMPORTANT: Treemap needs a positive number
+      value: Math.max(1, Math.abs(gp)),
+    };
+  });
+
+  // CustomNode renderer: draws rect with color, labels, and handles clicks
+  const CustomNode = (props: any) => {
+    const { x, y, width, height } = props;
+    
+    // Guard: ensure valid dimensions
+    if (!width || !height || width <= 2 || height <= 2) return null;
+
+    // Safely extract item from payload (handle nested payload structure)
+    const item = props?.payload?.payload ?? props?.payload;
+    if (!item || typeof item !== 'object') return null;
+
+    // Compute growth percentage: valid growth_pct else 0
+    const gp =
+      typeof item.growth_pct === 'number' && !isNaN(item.growth_pct)
+        ? item.growth_pct
+        : 0;
+
+    // 3 colors only: green if gp>0.5, red if gp<-0.5, else yellow
+    const fill = gp > 0.5 ? '#16a34a' : gp < -0.5 ? '#dc2626' : '#f59e0b';
+
+    // Get display name
+    const name = item.display_name || item.name || '';
+    const label = name.length > 18 ? name.slice(0, 18) + '…' : name;
+    
+    // Format growth percent (1 decimal)
+    const pct = `${gp >= 0 ? '+' : ''}${gp.toFixed(1)}%`;
+
+    // Handle click: call onProjectClick(item)
+    const handleClick = () => {
+      if (props?.onProjectClick && item) {
+        props.onProjectClick(item);
+      }
+    };
+
+    return (
+      <g style={{ cursor: 'pointer' }} onClick={handleClick}>
+        <rect x={x} y={y} width={width} height={height} fill={fill} stroke="#0b0f14" />
+        {/* Render label + growth percent when tile is big enough */}
+        {width > 70 && height > 40 && (
+          <>
+            <text x={x + 8} y={y + 18} fontSize={12} fill="#fff" fontWeight={600}>
+              {label}
+            </text>
+            <text x={x + 8} y={y + 34} fontSize={11} fill="#fff" opacity={0.9}>
+              {pct}
+            </text>
+          </>
+        )}
+      </g>
+    );
+  };
 
   // Error tracking ref (no state updates during render)
   const errorRef = useRef<Error | null>(null);
@@ -127,16 +182,17 @@ export function ArcProjectsTreemapV3({
   // Render treemap with error boundary
   try {
     return (
-      <div style={{ width: '100%', height: '100%' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <Treemap
-            data={nodes}
-            dataKey="value"
-            nameKey="display_name"
-            stroke="#fff"
-          />
-        </ResponsiveContainer>
-      </div>
+      <Treemap
+        width={width}
+        height={height}
+        data={nodes}
+        dataKey="value"
+        nameKey="display_name"
+        stroke="#0b0f14"
+        content={(nodeProps: any) => (
+          <CustomNode {...nodeProps} onProjectClick={onProjectClick} />
+        )}
+      />
     );
   } catch (error: any) {
     // Store error in ref (no state update during render)
