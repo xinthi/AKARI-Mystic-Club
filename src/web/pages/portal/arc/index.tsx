@@ -1,21 +1,48 @@
 /**
  * ARC Home Page - Minimal Stable Version
  * 
- * Fetches top projects and displays them in a treemap visualization.
+ * Fetches ARC projects and top projects, displays them in a simple list format.
  * Always shows content - never blank.
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { ArcProjectsTreemapV3, TreemapProjectItem } from '@/components/arc/ArcProjectsTreemapV3';
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+interface ArcProject {
+  project_id: string;
+  slug: string | null;
+  name: string | null;
+  twitter_username: string | null;
+  arc_tier: 'basic' | 'pro' | 'event_host';
+  arc_status: 'inactive' | 'active' | 'suspended';
+  security_status: 'normal' | 'alert' | 'clear';
+}
+
+interface ArcProjectsResponse {
+  ok: boolean;
+  projects?: ArcProject[];
+  error?: string;
+}
+
+interface TopProjectItem {
+  id: string;
+  name: string;
+  display_name?: string;
+  twitter_username?: string;
+  growth_pct: number;
+  slug?: string | null;
+  projectId?: string;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  arc_active?: boolean;
+}
 
 interface ArcHomeProps {
   canManageArc: boolean;
@@ -33,39 +60,60 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const isDevMode = process.env.NODE_ENV === 'development';
   const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
 
-  // State
-  const [data, setData] = useState<TreemapProjectItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [treemapError, setTreemapError] = useState<Error | null>(null);
-  const [segment, setSegment] = useState<'all' | 'gainers' | 'losers' | 'stable'>('all');
-  const [dateRange, setDateRange] = useState<'24h' | '7d' | '30d'>('7d');
-  
-  // Container dimensions for treemap
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+  // State for projects list
+  const [projects, setProjects] = useState<ArcProject[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
-  // Track container dimensions
+  // State for top projects
+  const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
+  const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
+  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>([]);
+  const [topProjectsLoading, setTopProjectsLoading] = useState(false);
+  const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
+  // Get user's Twitter username (only one definition)
+  const userTwitterUsername = akariUser.user?.xUsername || null;
+
+  // Fetch ARC projects
   useEffect(() => {
-    if (!containerRef.current) return;
+    async function fetchProjects() {
+      try {
+        setProjectsLoading(true);
+        setProjectsError(null);
 
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        setContainerDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
+        const res = await fetch('/api/portal/arc/projects');
+        
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
+          setProjectsError(errorBody.error || `Failed to load projects (${res.status})`);
+          setProjects([]);
+          return;
+        }
+
+        const data: ArcProjectsResponse = await res.json().catch(() => null);
+
+        if (!data || !data.ok || !data.projects) {
+          setProjectsError(data?.error || 'Failed to load projects');
+          setProjects([]);
+          return;
+        }
+
+        setProjects(data.projects);
+      } catch (err: any) {
+        console.error('[ARC] Projects fetch error:', err);
+        setProjectsError(err.message || 'Failed to load projects');
+        setProjects([]);
+      } finally {
+        setProjectsLoading(false);
       }
-    };
+    }
 
-    updateDimensions();
-    const resizeObserver = new ResizeObserver(updateDimensions);
-    resizeObserver.observe(containerRef.current);
-
-    return () => resizeObserver.disconnect();
+    fetchProjects();
   }, []);
 
-  // Fetch top projects
+  // Fetch top projects (only when canManageArc is true)
   useEffect(() => {
     if (!canManageArc) {
       setLoading(false);
@@ -81,97 +129,50 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         
         if (!res.ok) {
           const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
-          setError(errorBody.error || `Failed to load projects (${res.status})`);
-          setData([]);
+          setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
+          setTopProjectsData([]);
           return;
         }
 
-        const result = await res.json();
-        
-        if (!result.ok) {
-          setError(result.error || 'Failed to load projects');
-          setData([]);
+        const data = await res.json().catch(() => null);
+
+        if (!data || !data.ok) {
+          setTopProjectsError(data?.error || 'Failed to load top projects');
+          setTopProjectsData([]);
           return;
         }
 
-        const items = result.items || result.projects || [];
+        const items = data.items || data.projects || [];
         
-        // Map to TreemapProjectItem format
-        const mappedItems: TreemapProjectItem[] = items.map((item: any) => ({
+        // Map to TopProjectItem format
+        const mappedItems: TopProjectItem[] = items.map((item: any) => ({
           id: item.id || '',
-          display_name: item.display_name || item.name || 'Unknown',
           name: item.display_name || item.name || 'Unknown',
-          twitter_username: item.twitter_username || null,
-          growth_pct: typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0,
+          display_name: item.display_name || item.name || 'Unknown',
+          twitter_username: item.twitter_username || '',
+          growth_pct: typeof item.growth_pct === 'number' ? item.growth_pct : 0,
           slug: item.slug || null,
+          projectId: item.id || '',
           arc_access_level: item.arc_access_level || 'none',
           arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
         }));
 
-        setData(mappedItems);
+        setTopProjectsData(mappedItems);
       } catch (err: any) {
-        console.error('[ARC] Fetch error:', err);
-        setError(err.message || 'Failed to load projects');
-        setData([]);
+        console.error('[ARC] Top projects fetch error:', err);
+        setTopProjectsError(err.message || 'Failed to load top projects');
+        setTopProjectsData([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchData();
-  }, [canManageArc]);
+    loadTopProjects();
+  }, [canManageArc, topProjectsView, topProjectsTimeframe, refreshNonce]);
 
-  // Filter and sort data based on segment
-  const filteredData = React.useMemo(() => {
-    if (segment === 'all') {
-      return data;
-    }
-    
-    let filtered = [...data];
-    
-    if (segment === 'gainers') {
-      filtered = filtered
-        .filter(item => item.growth_pct > 0.5)
-        .sort((a, b) => b.growth_pct - a.growth_pct)
-        .slice(0, 20);
-    } else if (segment === 'losers') {
-      filtered = filtered
-        .filter(item => item.growth_pct < -0.5)
-        .sort((a, b) => a.growth_pct - b.growth_pct)
-        .slice(0, 20);
-    } else if (segment === 'stable') {
-      filtered = filtered
-        .filter(item => Math.abs(item.growth_pct) <= 0.5)
-        .slice(0, 20);
-    }
-    
-    return filtered;
-  }, [data, segment]);
-
-  // Prepare treemap data with value field
-  const treemapData: TreemapProjectItem[] = filteredData.map((item) => {
-    const gp = typeof item.growth_pct === 'number' && !isNaN(item.growth_pct) ? item.growth_pct : 0;
-    return {
-      ...item,
-      value: Math.max(1, Math.abs(gp)),
-      growth_pct: gp,
-    };
-  });
-
-  // Calculate treemap dimensions
-  const treemapWidth = Math.max(400, containerDimensions.width - 32);
-  const treemapHeight = 400;
-
-  // Handle project click
-  const handleProjectClick = (item: TreemapProjectItem) => {
-    const arcAccessLevel = item.arc_access_level || 'none';
-    const projectIdentifier = item.slug || item.id;
-
-    if (arcAccessLevel === 'creator_manager') {
-      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
-    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-      router.push(`/portal/arc/project/${projectIdentifier}`);
-    }
+  // Handle refresh button
+  const handleRefresh = () => {
+    setRefreshNonce(prev => prev + 1);
   };
 
   // Show restricted view for non-SuperAdmins
@@ -191,168 +192,249 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   return (
     <PortalLayout title="ARC Universe">
-      <div className="space-y-6 px-6 py-8">
+      <div className="space-y-8 px-6 py-8">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">ARC Projects</h1>
-          <p className="text-sm text-white/60">
-            Track influence across crypto Twitter projects
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">ARC Projects</h1>
+            <p className="text-sm text-white/60">
+              Track influence across crypto Twitter projects
+            </p>
+          </div>
+          {userIsSuperAdmin && (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/portal/arc/admin"
+                className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                ARC Admin
+              </Link>
+              <button
+                onClick={handleRefresh}
+                disabled={topProjectsLoading}
+                className="pill-neon inline-flex items-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {topProjectsLoading ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Segment buttons */}
-          <div className="flex gap-2">
-            {(['all', 'gainers', 'losers', 'stable'] as const).map((seg) => (
-              <button
-                key={seg}
-                onClick={() => setSegment(seg)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  segment === seg
-                    ? 'bg-akari-primary text-white'
-                    : 'bg-white/5 text-white/60 hover:bg-white/10'
-                }`}
-              >
-                {seg === 'all' ? 'All' : seg === 'gainers' ? 'Top Gainers' : seg === 'losers' ? 'Top Losers' : 'Stable'}
-              </button>
-            ))}
-          </div>
-
-          {/* Date range dropdown (UI only for now) */}
-          <div className="flex gap-2">
-            {(['24h', '7d', '30d'] as const).map((range) => (
-              <button
-                key={range}
-                onClick={() => setDateRange(range)}
-                className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                  dateRange === range
-                    ? 'bg-white/10 text-white border border-white/20'
-                    : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
-                }`}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Loading state */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-            <span className="ml-3 text-white/60">Loading projects...</span>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && !loading && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Treemap Container */}
-        {!loading && !error && (
-          <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-            <div className="p-4">
-              {/* Treemap */}
-              {filteredData.length > 0 ? (
-                <div className="space-y-4">
-                  {/* Treemap */}
+        {/* ARC Projects List */}
+        <section>
+          <h2 className="text-xl font-semibold text-white mb-4">ARC Projects</h2>
+          
+          {projectsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+              <span className="ml-3 text-white/60">Loading projects...</span>
+            </div>
+          ) : projectsError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+              <p className="text-sm text-red-400">{projectsError}</p>
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+              <p className="text-sm text-white/60">No projects available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((project) => {
+                const projectName = project.name || 'Unknown';
+                const projectSlug = project.slug;
+                
+                return (
                   <div
-                    ref={containerRef}
-                    style={{ width: '100%', height: '400px', position: 'relative' }}
+                    key={project.project_id}
+                    className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-white/20 transition-colors"
                   >
-                    {containerDimensions.width === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-sm text-white/60">Measuring container...</p>
-                      </div>
+                    <div className="mb-2">
+                      <h3 className="text-sm font-semibold text-white truncate">{projectName}</h3>
+                      {project.twitter_username && (
+                        <p className="text-xs text-white/60 truncate">@{project.twitter_username}</p>
+                      )}
+                    </div>
+                    {projectSlug ? (
+                      <Link
+                        href={`/portal/arc/${projectSlug}`}
+                        className="inline-block w-full text-center px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium"
+                      >
+                        View Project →
+                      </Link>
                     ) : (
-                      <ArcProjectsTreemapV3
-                        data={treemapData}
-                        width={treemapWidth}
-                        height={treemapHeight}
-                        onError={(err) => {
-                          console.error('[ARC] Treemap error:', err);
-                          setTreemapError(err);
-                        }}
-                        onProjectClick={handleProjectClick}
-                      />
+                      <div className="text-xs text-white/40 italic">No slug available</div>
                     )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-                  {/* Fallback list (always show if treemap error or as backup) */}
-                  {(treemapError || filteredData.length > 0) && (
-                    <div className="mt-4">
-                      {treemapError && (
-                        <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
-                          <p className="text-xs text-yellow-400 mb-1">Treemap unavailable, showing list fallback</p>
-                          <p className="text-xs text-yellow-300/60">{treemapError.message}</p>
-                        </div>
-                      )}
-                      
-                      {/* List fallback */}
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {filteredData.map((item) => {
-                          const name = item.display_name || item.name || 'Unknown';
-                          const growthPct = item.growth_pct || 0;
-                          const isClickable = item.arc_active && item.arc_access_level !== 'none';
+        {/* Top Projects Section */}
+        {canManageArc && (
+          <section>
+            <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10 bg-black/60">
+                <h2 className="text-lg font-semibold text-white mb-4">Top Projects</h2>
+                
+                {/* Controls */}
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Mode buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTopProjectsView('gainers')}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        topProjectsView === 'gainers'
+                          ? 'bg-akari-primary text-white'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      }`}
+                    >
+                      Top Gainers
+                    </button>
+                    <button
+                      onClick={() => setTopProjectsView('losers')}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        topProjectsView === 'losers'
+                          ? 'bg-akari-primary text-white'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      }`}
+                    >
+                      Top Losers
+                    </button>
+                  </div>
 
-                          return (
-                            <div
-                              key={item.id}
-                              className={`flex items-center justify-between p-3 rounded-lg border ${
-                                isClickable
-                                  ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
-                                  : 'border-white/5 bg-white/5 opacity-50'
-                              }`}
-                              onClick={() => {
-                                if (isClickable) {
-                                  handleProjectClick(item);
-                                }
-                              }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold text-white truncate">{name}</div>
-                                {item.twitter_username && (
-                                  <div className="text-xs text-white/60 truncate">@{item.twitter_username}</div>
-                                )}
-                              </div>
-                              <div className={`text-sm font-bold ml-4 ${
-                                growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
-                              }`}>
-                                {growthPct >= 0 ? '+' : ''}{growthPct.toFixed(1)}%
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <p className="text-sm text-white/60 mb-2">No projects available</p>
-                    <p className="text-xs text-white/40">
-                      {filteredData.length === 0 && data.length > 0
-                        ? 'No projects match the selected filter'
-                        : 'Projects need to be active to appear here'}
-                    </p>
+                  {/* Timeframe buttons */}
+                  <div className="flex gap-2">
+                    {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
+                      <button
+                        key={tf}
+                        onClick={() => setTopProjectsTimeframe(tf)}
+                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                          topProjectsTimeframe === tf
+                            ? 'bg-white/10 text-white border border-white/20'
+                            : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                        }`}
+                      >
+                        {tf}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
 
-        {/* Empty state */}
-        {!loading && !error && data.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-            <p className="text-sm text-white/60">No projects available</p>
-          </div>
+              {/* Content */}
+              <div className="p-4">
+                {topProjectsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <span className="ml-3 text-white/60">Loading top projects...</span>
+                  </div>
+                ) : topProjectsError ? (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+                    <p className="text-sm text-red-400">{topProjectsError}</p>
+                  </div>
+                ) : topProjectsData.length === 0 ? (
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                    <p className="text-sm text-white/60">No top projects available</p>
+                  </div>
+                ) : (
+                  <TopProjectsListFallback
+                    items={topProjectsData}
+                  />
+                )}
+              </div>
+            </div>
+          </section>
         )}
+      </div>
+    </PortalLayout>
+  );
+}
+
+// =============================================================================
+// FALLBACK COMPONENTS
+// =============================================================================
+
+/**
+ * Simple list fallback for top projects
+ */
+function TopProjectsListFallback({
+  items,
+}: {
+  items: TopProjectItem[];
+}) {
+  const router = useRouter();
+
+  const formatGrowthPct = (growthPct: number): string => {
+    const sign = growthPct >= 0 ? '+' : '';
+    return `${sign}${growthPct.toFixed(2)}%`;
+  };
+
+  return (
+    <div className="w-full">
+      {/* List view */}
+      <div className="space-y-3">
+        {items.map((item) => {
+          const name = item.display_name || item.name || 'Unknown';
+          const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
+          const twitterUsername = item.twitter_username || '';
+          const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
+          
+          return (
+            <div
+              key={item.id || item.projectId || Math.random()}
+              className={`flex items-center justify-between p-4 rounded-lg border ${
+                isClickable
+                  ? 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
+                  : 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
+              }`}
+              onClick={() => {
+                if (isClickable) {
+                  const arcAccessLevel = item.arc_access_level || 'none';
+                  const projectIdentifier = item.slug || item.projectId || item.id;
+                  
+                  if (arcAccessLevel === 'creator_manager') {
+                    router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+                  } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+                    router.push(`/portal/arc/project/${projectIdentifier}`);
+                  }
+                }
+              }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white truncate">{name}</div>
+                {twitterUsername && (
+                  <div className="text-xs text-white/60 truncate">@{twitterUsername}</div>
+                )}
+                {!isClickable && (
+                  <div className="text-xs text-yellow-400 mt-1">🔒 No ARC leaderboard active</div>
+                )}
+              </div>
+              <div className={`text-sm font-bold ml-4 ${
+                growthPct > 0 ? 'text-green-400' : growthPct < 0 ? 'text-red-400' : 'text-white/60'
+              }`}>
+                {formatGrowthPct(growthPct)}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </PortalLayout>
   );
