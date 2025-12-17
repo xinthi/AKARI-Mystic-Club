@@ -1,5 +1,25 @@
 # Windows Prisma EPERM Build Issue - Workaround Guide
 
+## Quick Verification Steps
+
+```powershell
+# 1. Confirm branch
+git branch --show-current
+
+# 2. Check current directory (do NOT cd if already in src/web)
+pwd
+
+# 3. If Prisma EPERM error occurs, run:
+taskkill /F /IM node.exe
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+pnpm install
+pnpm build
+
+# 4. If build fails, locate error:
+# Error format: ./pages/portal/arc/index.tsx:10:5 = file:line:column
+# Open file and check that line number
+```
+
 ## Problem
 
 On Windows, `pnpm build` may fail with `EPERM: operation not permitted, unlink` errors related to Prisma query engine files. This is a known Windows file permission issue where Prisma's query engine binaries are locked by running Node processes.
@@ -16,23 +36,32 @@ On Windows, `pnpm build` may fail with `EPERM: operation not permitted, unlink` 
 
 ### Quick Fix (Most Common)
 
+**Important:** Do not run `cd src/web` if you're already inside `src/web`. Check your current directory first.
+
 1. **Close all running Node processes:**
    ```powershell
-   # Kill all node processes
    taskkill /F /IM node.exe
    ```
 
-2. **Clean build artifacts:**
+2. **Close any running dev servers** (Ctrl+C in terminals running `pnpm dev`)
+
+3. **Clean node_modules:**
    ```powershell
-   # Remove Next.js build cache
-   Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+   # From project root
+   Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
    
-   # Remove Prisma generated files
-   Remove-Item -Recurse -Force node_modules\.prisma -ErrorAction SilentlyContinue
+   # If inside src/web, also clean root node_modules
+   Remove-Item -Recurse -Force ..\..\node_modules -ErrorAction SilentlyContinue
    ```
 
-3. **Reinstall and rebuild:**
+4. **Reinstall and rebuild:**
    ```powershell
+   # From project root
+   pnpm install
+   pnpm build
+   
+   # OR from src/web (if already there)
+   cd ..\..
    pnpm install
    pnpm build
    ```

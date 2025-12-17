@@ -309,7 +309,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         originalItem: item, // Store original item for onProjectClick callback
       };
     });
-  }, [validItems]);
+  }, [validItems, items]);
 
   // Helper function to get navigation path based on arc_access_level (matches backend logic)
   // Routing rules:
