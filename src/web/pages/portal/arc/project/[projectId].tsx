@@ -8,7 +8,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
-import { createPortalClient } from '@/lib/portal/supabase';
 import { useAkariUser } from '@/lib/akari-auth';
 
 // =============================================================================
@@ -119,70 +118,31 @@ export default function ArcProjectPage() {
         setLoading(true);
         setError(null);
 
-        let supabase;
-        try {
-          supabase = createPortalClient();
-        } catch (configError: any) {
-          console.error('[ArcProjectPage] Supabase configuration error:', configError);
-          setError('Server configuration error. Please contact support.');
-          setLoading(false);
-          return;
-        }
-
-        // Try to find project by ID first, then by slug
-        // Support both UUID and slug identifiers
-        let projectData: any = null;
-        let projectError: any = null;
-
-        // Try ID first (UUID format)
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+        // Fetch project via API route instead of direct Supabase call
+        const res = await fetch(`/api/portal/arc/project/${projectId}`);
         
-        if (isUUID) {
-          const { data, error } = await supabase
-            .from('projects')
-            .select('id, name, display_name, twitter_username, x_handle, avatar_url, arc_access_level, arc_active, slug')
-            .eq('id', projectId)
-            .single();
-          projectData = data;
-          projectError = error;
+        // Check content type
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error('[ArcProjectPage] Response is not JSON:', contentType);
+          setError('Server returned invalid response. Please refresh the page.');
+          setLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          setError(data.error || 'Failed to load project');
+          setLoading(false);
+          return;
+        }
+
+        if (data.project) {
+          setProject(data.project as Project);
         } else {
-          // Try slug
-          const { data, error } = await supabase
-            .from('projects')
-            .select('id, name, display_name, twitter_username, x_handle, avatar_url, arc_access_level, arc_active, slug')
-            .eq('slug', projectId)
-            .single();
-          projectData = data;
-          projectError = error;
-        }
-
-        // Handle "not found" error gracefully (PGRST116 is the code for no rows)
-        if (projectError) {
-          if (projectError.code === 'PGRST116') {
-            setError('Project not found');
-            setLoading(false);
-            return;
-          }
-          // Other errors - log but don't crash
-          console.error('[ArcProjectPage] Supabase error:', projectError);
-          setError('Failed to load project');
-          setLoading(false);
-          return;
-        }
-
-        if (!projectData) {
           setError('Project not found');
-          setLoading(false);
-          return;
         }
-
-        // Normalize twitter_username (use x_handle if twitter_username is null)
-        const normalizedProject = {
-          ...projectData,
-          twitter_username: projectData.twitter_username || projectData.x_handle || null,
-        };
-
-        setProject(normalizedProject as Project);
       } catch (err: any) {
         // Never crash - show error state instead
         console.error('[ArcProjectPage] Fetch error:', err);
