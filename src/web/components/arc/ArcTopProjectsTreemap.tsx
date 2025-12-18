@@ -23,6 +23,7 @@ export interface TopProjectItem {
   slug?: string | null; // Optional slug for navigation
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active?: boolean;
+  value?: number; // Optional pre-computed value for treemap sizing (takes precedence over growth_pct)
 }
 
 interface ArcTopProjectsTreemapProps {
@@ -266,11 +267,13 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
 
     console.log(`[Treemap] Preparing ${validItems.length} items for treemap rendering`);
 
-    // Convert growth_pct into tile value with minimum size
-    // For zero growth, use a base value so items are still visible
-    // value = Math.max(10, Math.round(Math.abs(growth_pct) * 100))
-    // This ensures even 0% growth projects get a visible size (base of 10)
+    // Convert to tile values - prefer pre-computed value if available, otherwise compute from growth_pct
     const tileValues = validItems.map(item => {
+      // Prefer pre-computed value if provided
+      if (typeof item.value === 'number' && Number.isFinite(item.value) && item.value > 0) {
+        return item.value;
+      }
+      // Fallback to computing from growth_pct
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const absGrowth = Math.abs(growthPct);
       // Use base value of 10 for 0% growth, scale up from there

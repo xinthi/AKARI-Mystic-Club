@@ -97,6 +97,15 @@ interface TreemapWrapperProps {
 }
 
 function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: TreemapWrapperProps) {
+  const showDebug = process.env.NODE_ENV !== 'production';
+
+  // Debug: log when switching to treemap (must be before early returns)
+  React.useEffect(() => {
+    if (showDebug) {
+      console.log('[ARC] treemap toggle', { count: items?.length, first: items?.[0] });
+    }
+  }, [showDebug, items]);
+
   const fallback = (
     <>
       <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
@@ -115,20 +124,35 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
     );
   }
 
-  // Map items to treemap format
+  // Map items to treemap format, ensuring value field is always positive
   const treemapItems = items.map(item => ({
+    ...item,
     projectId: item.projectId || item.id,
     name: item.display_name || item.name || 'Unknown',
     twitter_username: item.twitter_username || '',
-    growth_pct: item.growth_pct,
+    growth_pct: typeof item.growth_pct === 'number' && Number.isFinite(item.growth_pct) 
+      ? item.growth_pct 
+      : 0,
+    // Ensure value is always positive - this is what the treemap uses for sizing
+    value: Math.max(1, Math.abs(Number(item.growth_pct ?? 0)) || 1),
     slug: item.slug || null,
-    arc_access_level: item.arc_access_level,
-    arc_active: item.arc_active,
   }));
+
+  // Compute min/max values for debug
+  const values = treemapItems.map(item => item.value || 1).filter(v => Number.isFinite(v));
+  const minValue = values.length > 0 ? Math.min(...values) : 0;
+  const maxValue = values.length > 0 ? Math.max(...values) : 0;
 
   return (
     <TreemapErrorBoundary onError={onError} fallback={fallback}>
-      <div className="w-full min-h-[420px] h-[420px] md:min-h-[560px] md:h-[560px]">
+      <div className="w-full min-h-[420px] h-[420px] md:min-h-[560px] md:h-[560px] relative">
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="absolute top-2 left-2 z-10 rounded-lg border border-blue-500/50 bg-blue-950/90 backdrop-blur px-3 py-2 text-xs text-blue-200 font-mono">
+            <div>Count: {treemapItems.length}</div>
+            <div>Min: {minValue.toFixed(2)}</div>
+            <div>Max: {maxValue.toFixed(2)}</div>
+          </div>
+        )}
         <ArcTopProjectsTreemap
           key={`${mode}-${timeframe}-${items.length}`}
           items={treemapItems}
@@ -470,14 +494,22 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
                     </div>
                   ) : (
-                    <TreemapWrapper
-                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
-                      items={topProjectsData}
-                      mode={topProjectsView}
-                      timeframe={topProjectsTimeframe}
-                      onProjectClick={handleTopProjectClick}
-                      onError={() => setTreemapError('Treemap unavailable')}
-                    />
+                    <>
+                      {process.env.NODE_ENV !== 'production' && (
+                        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
+                          <div>Top projects count: {topProjectsData?.length ?? 0}</div>
+                          <div className="mt-1">First item keys: {Object.keys(topProjectsData?.[0] ?? {}).join(', ')}</div>
+                        </div>
+                      )}
+                      <TreemapWrapper
+                        key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
+                        items={topProjectsData}
+                        mode={topProjectsView}
+                        timeframe={topProjectsTimeframe}
+                        onProjectClick={handleTopProjectClick}
+                        onError={() => setTreemapError('Treemap unavailable')}
+                      />
+                    </>
                   )}
                 </>
               )}
