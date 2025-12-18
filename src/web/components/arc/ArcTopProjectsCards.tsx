@@ -22,42 +22,7 @@ interface ArcTopProjectsCardsProps {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Format growth percentage for display
- */
-function formatGrowthPct(growthPct: number): string {
-  const sign = growthPct >= 0 ? '+' : '';
-  return `${sign}${growthPct.toFixed(2)}%`;
-}
-
-/**
- * Get color classes based on growth percentage
- */
-function getGrowthColorClasses(growthPct: number): {
-  border: string;
-  bg: string;
-  text: string;
-} {
-  if (growthPct > 0.1) {
-    return {
-      border: 'border-green-500/30',
-      bg: 'bg-green-500/5',
-      text: 'text-green-400',
-    };
-  } else if (growthPct < -0.1) {
-    return {
-      border: 'border-red-500/30',
-      bg: 'bg-red-500/5',
-      text: 'text-red-400',
-    };
-  } else {
-    return {
-      border: 'border-white/10',
-      bg: 'bg-white/5',
-      text: 'text-white/60',
-    };
-  }
-}
+import { formatGrowthPct, getGrowthColorClasses } from './utils';
 
 /**
  * Check if project is locked

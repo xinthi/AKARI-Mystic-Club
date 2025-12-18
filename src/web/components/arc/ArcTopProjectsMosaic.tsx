@@ -6,6 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { formatGrowthPct, getGrowthColorClasses } from './utils';
 
 // =============================================================================
 // TYPES
@@ -31,14 +32,6 @@ interface ArcTopProjectsMosaicProps {
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
-
-/**
- * Format growth percentage for display
- */
-function formatGrowthPct(growthPct: number): string {
-  const sign = growthPct >= 0 ? '+' : '';
-  return `${sign}${growthPct.toFixed(2)}%`;
-}
 
 /**
  * Get grid column span class based on index (0-indexed)
@@ -70,37 +63,6 @@ function getRowSpanClass(index: number): string {
   return 'lg:row-span-1';
 }
 
-/**
- * Get color classes based on growth percentage
- */
-function getGrowthColorClasses(growthPct: number): {
-  border: string;
-  bg: string;
-  text: string;
-} {
-  if (growthPct > 0.1) {
-    // Positive growth: green tint
-    return {
-      border: 'border-green-500/30',
-      bg: 'bg-green-500/5',
-      text: 'text-green-400',
-    };
-  } else if (growthPct < -0.1) {
-    // Negative growth: red tint
-    return {
-      border: 'border-red-500/30',
-      bg: 'bg-red-500/5',
-      text: 'text-red-400',
-    };
-  } else {
-    // Neutral (~0): neutral colors
-    return {
-      border: 'border-white/10',
-      bg: 'bg-white/5',
-      text: 'text-white/60',
-    };
-  }
-}
 
 /**
  * Check if project is locked

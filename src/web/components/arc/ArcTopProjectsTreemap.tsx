@@ -7,7 +7,13 @@
 
 import React, { useMemo, useState, memo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import dynamic from 'next/dynamic';
+
+// Client-only treemap component (no SSR)
+const ArcTopProjectsTreemapClient = dynamic(
+  () => import('@/components/arc/ArcTopProjectsTreemapClient').then(mod => ({ default: mod.ArcTopProjectsTreemapClient })),
+  { ssr: false }
+);
 
 // =============================================================================
 // TYPES
@@ -57,34 +63,7 @@ interface TreemapDataPoint {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Get color based on growth percentage
- */
-function getGrowthColor(growthPct: number): string {
-  if (growthPct > 0) {
-    // Positive growth: green gradient
-    // Scale intensity based on growth amount
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1); // Cap at 20% for max intensity
-    const opacity = 0.3 + intensity * 0.4; // 0.3 to 0.7 opacity
-    return `rgba(34, 197, 94, ${opacity})`; // green-500
-  } else if (growthPct < 0) {
-    // Negative growth: red gradient
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1);
-    const opacity = 0.3 + intensity * 0.4;
-    return `rgba(239, 68, 68, ${opacity})`; // red-500
-  } else {
-    // Neutral: gray
-    return 'rgba(156, 163, 175, 0.3)'; // gray-400
-  }
-}
-
-/**
- * Format growth percentage for display
- */
-function formatGrowthPct(growthPct: number): string {
-  const sign = growthPct >= 0 ? '+' : '';
-  return `${sign}${growthPct.toFixed(2)}%`;
-}
+import { getGrowthFill, formatGrowthPct } from './utils';
 
 /**
  * Get tier label from arc_access_level
@@ -306,7 +285,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         slug: item.slug || null,
         arc_access_level: item.arc_access_level || 'none',
         arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        fill: isClickable ? getGrowthColor(growthPct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
+        fill: isClickable ? getGrowthFill(growthPct, 0.65) : 'rgba(107, 114, 128, 0.6)', // Gray for locked (higher opacity for visibility)
         isClickable,
         isLocked,
         originalItem: item, // Store original item for onProjectClick callback
@@ -779,16 +758,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: '400px', height: '400px' }}>
-          <ResponsiveContainer width="100%" height={400}>
-            <Treemap
-              data={treemapData}
-              dataKey="value"
-              stroke="transparent"
-              content={((props: any) => <CustomCell {...props} />) as any}
-            >
-              <Tooltip content={<CustomTooltip />} />
-            </Treemap>
-          </ResponsiveContainer>
+          <ArcTopProjectsTreemapClient data={treemapData} />
         </div>
       )}
     </div>
