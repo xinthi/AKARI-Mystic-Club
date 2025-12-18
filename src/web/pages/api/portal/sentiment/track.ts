@@ -31,6 +31,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Use web-local Twitter client (inside src/web, can be compiled by Next.js)
 import { getUserProfile, getUserTweets, getUserFollowers, getUserMentions, TwitterTweet, TwitterFollower, TwitterMention } from '@/lib/twitter/twitter';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { isSuperAdminServerSide } from '@/lib/server-auth';
 
 // =============================================================================
 // LOCAL HELPERS (inlined to avoid cross-package imports)
@@ -80,6 +82,7 @@ interface TrackRequest {
   bio?: string;
   profileImageUrl?: string;
   followersCount?: number;
+  profile_type?: 'company' | 'personal'; // Optional: 'company' maps to 'project', 'personal' maps to 'personal'
 }
 
 interface TrackedProject {
@@ -114,7 +117,7 @@ function createSlug(username: string): string {
  * Create a Supabase client with service role for write access
  */
 function createServiceClient() {
-  const url = process.env.SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
@@ -127,6 +130,108 @@ function createServiceClient() {
       autoRefreshToken: false,
     },
   });
+}
+
+/**
+ * Get session token from request
+ */
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
+
+/**
+ * Get user ID from session token
+ */
+async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
+  try {
+    const supabase = getSupabaseAdmin();
+    
+    const { data: session, error: sessionError } = await supabase
+      .from('akari_user_sessions')
+      .select('user_id, expires_at')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (sessionError || !session) {
+      return null;
+    }
+
+    // Check if session is expired
+    if (new Date(session.expires_at) < new Date()) {
+      await supabase
+        .from('akari_user_sessions')
+        .delete()
+        .eq('session_token', sessionToken);
+      return null;
+    }
+
+    return session.user_id;
+  } catch (err) {
+    console.error('[Track] Error getting user from session:', err);
+    return null;
+  }
+}
+
+/**
+ * Get user tier from user ID
+ */
+async function getUserTierFromId(userId: string): Promise<'seer' | 'analyst' | 'institutional_plus'> {
+  try {
+    const supabase = getSupabaseAdmin();
+    
+    // Check if super admin
+    const isSuperAdmin = await isSuperAdminServerSide(userId);
+    if (isSuperAdmin) {
+      return 'institutional_plus';
+    }
+
+    // Get feature grants
+    const { data: grants } = await supabase
+      .from('akari_user_feature_grants')
+      .select('feature_key, starts_at, ends_at')
+      .eq('user_id', userId);
+
+    if (!grants) {
+      return 'seer';
+    }
+
+    const now = new Date();
+
+    // Check for Institutional Plus features
+    for (const grant of grants) {
+      const startsOk = !grant.starts_at || new Date(grant.starts_at) <= now;
+      const endsOk = !grant.ends_at || new Date(grant.ends_at) >= now;
+      
+      if (startsOk && endsOk) {
+        if (grant.feature_key === 'deep.explorer' || grant.feature_key === 'institutional.plus') {
+          return 'institutional_plus';
+        }
+      }
+    }
+
+    // Check for Analyst features
+    for (const grant of grants) {
+      const startsOk = !grant.starts_at || new Date(grant.starts_at) <= now;
+      const endsOk = !grant.ends_at || new Date(grant.ends_at) >= now;
+      
+      if (startsOk && endsOk) {
+        if (grant.feature_key === 'markets.analytics' || grant.feature_key === 'sentiment.compare' || grant.feature_key === 'sentiment.search') {
+          return 'analyst';
+        }
+      }
+    }
+
+    return 'seer';
+  } catch (err) {
+    console.error('[Track] Error getting user tier:', err);
+    return 'seer';
+  }
 }
 
 /**
@@ -418,10 +523,56 @@ export default async function handler(
       });
     }
 
+    // Get user from session for permission checks
+    const sessionToken = getSessionToken(req);
+    let userId: string | null = null;
+    let userTier: 'seer' | 'analyst' | 'institutional_plus' = 'seer';
+    let isSuperAdmin = false;
+
+    if (sessionToken) {
+      userId = await getUserIdFromSession(sessionToken);
+      if (userId) {
+        isSuperAdmin = await isSuperAdminServerSide(userId);
+        userTier = await getUserTierFromId(userId);
+      }
+    }
+
+    // Permission check: Only institutional_plus and superadmin can add new profiles
+    if (!isSuperAdmin && userTier !== 'institutional_plus') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Upgrade to Institutional Plus to add new company profiles.',
+      });
+    }
+
+    // Validate profile_type if provided
+    let dbProfileType: 'project' | 'personal' | null = null;
+    if (body.profile_type) {
+      // Map frontend 'company'/'personal' to DB 'project'/'personal'
+      if (body.profile_type === 'company') {
+        dbProfileType = 'project';
+      } else if (body.profile_type === 'personal') {
+        dbProfileType = 'personal';
+      } else {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid profile_type. Must be "company" or "personal"',
+        });
+      }
+
+      // Permission check: institutional_plus can only add 'company' profiles
+      if (!isSuperAdmin && userTier === 'institutional_plus' && body.profile_type !== 'company') {
+        return res.status(403).json({
+          ok: false,
+          error: 'Institutional Plus users can only add Company/Project profiles.',
+        });
+      }
+    }
+
     const slug = createSlug(username);
     const displayName = body.name || username;
 
-    console.log(`[API /portal/sentiment/track] Tracking profile: @${username}`);
+    console.log(`[API /portal/sentiment/track] Tracking profile: @${username}, profile_type: ${dbProfileType || 'null'}`);
 
     // Create service client for write access
     const supabase = createServiceClient();
@@ -596,12 +747,11 @@ export default async function handler(
       // Project is NOT claimed by default - must be explicitly claimed
       claimed_by: null,
       claimed_at: null,
-      profile_type: null, // NULL = unclassified. User claims and sets identity, SuperAdmin sets profile_type for ARC visibility
+      profile_type: dbProfileType, // Set from user selection (company -> 'project', personal -> 'personal')
       // IMPORTANT: profile_type='project' is required for ARC Top Projects visibility
       // - NULL = unclassified (newly tracked, not yet claimed)
-      // - 'personal' = individual profile (set by SuperAdmin after user claims)
-      // - 'project' = company/project profile (set by SuperAdmin after user claims, appears in ARC)
-      // Users claim and set identity (individual/company), SuperAdmin sets profile_type via Projects Admin
+      // - 'personal' = individual profile
+      // - 'project' = company/project profile (appears in ARC)
       is_company: false, // Default to false, SuperAdmin can set to true
       arc_active: false, // Default to false, only SuperAdmin can activate
     };
