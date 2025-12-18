@@ -169,7 +169,7 @@ export default function ArcRequestsPage() {
             <div>
               {requests.length === 0 ? (
                 <div className="bg-akari-card border border-akari-border rounded-lg p-8 text-center">
-                  <p className="text-akari-muted mb-4">You haven't made any requests yet.</p>
+                  <p className="text-akari-muted mb-4">You haven&apos;t made any requests yet.</p>
                   <Link
                     href="/portal/arc"
                     className="inline-block px-4 py-2 bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 rounded-lg hover:bg-akari-neon-teal/30 transition-colors"

@@ -5,7 +5,7 @@
  * Always shows content - never blank.
  */
 
-import React, { useEffect, useState, useMemo, Component, ReactNode } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, Component, ReactNode } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -229,7 +229,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   }, []);
 
   // Fetch top projects (only when canManageArc is true)
-  async function loadTopProjects() {
+  const loadTopProjects = useCallback(async () => {
     try {
       setTopProjectsLoading(true);
       setTopProjectsError(null);
@@ -284,7 +284,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     } finally {
       setTopProjectsLoading(false);
     }
-  }
+  }, [topProjectsView, topProjectsTimeframe]);
 
   useEffect(() => {
     if (!canManageArc) {
@@ -292,7 +292,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     }
 
     loadTopProjects();
-  }, [canManageArc, topProjectsView, topProjectsTimeframe, refreshNonce]);
+  }, [canManageArc, loadTopProjects, refreshNonce]);
 
   // Handle refresh button
   const handleRefresh = () => {
