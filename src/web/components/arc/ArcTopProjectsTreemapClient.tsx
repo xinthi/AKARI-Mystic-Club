@@ -9,6 +9,9 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Treemap, Tooltip } from 'recharts';
 import { formatGrowthPct } from './utils';
 
+// Single source of truth for treemap height
+const TREEMAP_HEIGHT = 540;
+
 // Import types from parent component
 export interface TreemapDataPoint {
   name: string;
@@ -108,7 +111,8 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
     return (
       <div 
         ref={containerRef}
-        className="w-full h-[400px] flex items-center justify-center text-white/60"
+        className="w-full flex items-center justify-center text-white/60"
+        style={{ height: `${TREEMAP_HEIGHT}px` }}
       >
         <div>Measuring...</div>
       </div>
@@ -116,12 +120,12 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
   }
 
   return (
-    <div ref={containerRef} className="relative w-full h-[400px]">
+    <div ref={containerRef} className="relative w-full" style={{ height: `${TREEMAP_HEIGHT}px` }}>
       {/* Treemap */}
       <div className="w-full h-full">
         <Treemap
           width={width}
-          height={400}
+          height={TREEMAP_HEIGHT}
           data={data}
           dataKey="value"
           stroke="rgba(255,255,255,0.12)"

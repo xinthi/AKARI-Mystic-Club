@@ -15,6 +15,9 @@ const ArcTopProjectsTreemapClient = dynamic(
   { ssr: false }
 );
 
+// Single source of truth for treemap height
+const TREEMAP_HEIGHT = 540;
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -582,7 +585,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         </div>
 
         {/* Fallback list view */}
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 min-h-[400px]">
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-6" style={{ minHeight: `${TREEMAP_HEIGHT}px` }}>
           {validItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-sm text-white/60 mb-2">No projects to display</p>
@@ -718,7 +721,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
       {treemapData.length === 0 ? (
-        <div className="h-[400px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40" style={{ height: `${TREEMAP_HEIGHT}px` }}>
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md mb-2">
             Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
@@ -733,7 +736,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: '400px', height: '400px' }}>
+        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: `${TREEMAP_HEIGHT}px`, height: `${TREEMAP_HEIGHT}px` }}>
           <ArcTopProjectsTreemapClient data={treemapData} />
         </div>
       )}
