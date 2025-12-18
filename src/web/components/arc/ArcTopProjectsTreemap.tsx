@@ -105,6 +105,21 @@ function normalizeForTreemap(values: number[]): number[] {
   return sqrtValues.map(v => 1 + ((v - min) / (max - min)) * 99);
 }
 
+/**
+ * Get tile fill color based on growth percentage
+ */
+function getTileFill(growthPct: number) {
+  if (growthPct > 0.5) {
+    return 'rgba(34, 197, 94, 0.85)'; // strong green
+  }
+
+  if (growthPct < -0.5) {
+    return 'rgba(239, 68, 68, 0.85)'; // strong red
+  }
+
+  return 'rgba(234, 179, 8, 0.85)'; // yellow for stable
+}
+
 // =============================================================================
 // CUSTOM TOOLTIP
 // =============================================================================
@@ -288,7 +303,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         slug: item.slug || null,
         arc_access_level: item.arc_access_level || 'none',
         arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        fill: getGrowthFill(growthPct, 0.65), // Always use growth-based color (locked gets overlay in CustomCell)
+        fill: getTileFill(growthPct), // Always use growth-based color (locked gets overlay in CustomCell)
         isClickable,
         isLocked,
         originalItem: item, // Store original item for onProjectClick callback
