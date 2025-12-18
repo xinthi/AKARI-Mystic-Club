@@ -107,8 +107,8 @@ export default async function handler(
     
     // If not authenticated, return null request (not an error)
     if (!sessionToken) {
-      const { mode } = req.query;
-      if (mode === 'my-requests') {
+      const { scope } = req.query;
+      if (scope === 'my') {
         return res.status(200).json({ ok: true, requests: [] });
       }
       return res.status(200).json({ ok: true, request: null });
@@ -120,17 +120,17 @@ export default async function handler(
       
       // If profile not found, return null request (not an error)
       if (!userProfile) {
-        const { mode } = req.query;
-        if (mode === 'my-requests') {
+        const { scope } = req.query;
+        if (scope === 'my') {
           return res.status(200).json({ ok: true, requests: [] });
         }
         return res.status(200).json({ ok: true, request: null });
       }
 
-      const { projectId, mode } = req.query;
+      const { projectId, scope } = req.query;
 
-      // Handle "my requests" mode
-      if (mode === 'my-requests') {
+      // Handle "my requests" scope
+      if (scope === 'my') {
         // Fetch all user's requests
         const { data: requests, error: requestsError } = await supabase
           .from('arc_leaderboard_requests')
@@ -162,12 +162,12 @@ export default async function handler(
         const normalizedRequests = (requests || []).map((req: any) => ({
           id: req.id,
           status: req.status,
-          justification: req.justification,
           requested_arc_access_level: req.requested_arc_access_level,
           created_at: req.created_at,
           decided_at: req.decided_at,
           project: req.projects ? {
             id: req.projects.id,
+            project_id: req.projects.id,
             name: req.projects.name,
             display_name: req.projects.display_name,
             slug: req.projects.slug,
@@ -180,7 +180,7 @@ export default async function handler(
 
       // Original behavior: fetch user's request for a specific project
       if (!projectId || typeof projectId !== 'string') {
-        return res.status(400).json({ ok: false, error: 'projectId is required when mode is not "my-requests"' });
+        return res.status(400).json({ ok: false, error: 'projectId is required when scope is not "my"' });
       }
 
       // Fetch user's request for this project

@@ -16,12 +16,12 @@ import Link from 'next/link';
 interface LeaderboardRequest {
   id: string;
   status: 'pending' | 'approved' | 'rejected';
-  justification: string | null;
   requested_arc_access_level: 'creator_manager' | 'leaderboard' | 'gamified' | null;
   created_at: string;
   decided_at: string | null;
   project: {
     id: string;
+    project_id?: string;
     name: string;
     display_name: string | null;
     slug: string | null;
@@ -107,7 +107,7 @@ export default function ArcRequestsPage() {
     setError(null);
 
     try {
-      const res = await fetch('/api/portal/arc/leaderboard-requests?mode=my-requests');
+      const res = await fetch('/api/portal/arc/leaderboard-requests?scope=my');
       const data = await res.json();
 
       if (!data.ok) {
@@ -126,15 +126,17 @@ export default function ArcRequestsPage() {
   const getProjectLink = (request: LeaderboardRequest): string => {
     if (!request.project) return '#';
     if (request.project.slug) {
-      return `/portal/arc/${request.project.slug}`;
+      return `/portal/arc/project/${request.project.slug}`;
     }
     return `/portal/arc/project/${request.project.id}`;
   };
 
-  // Get project display name
-  const getProjectName = (request: LeaderboardRequest): string => {
-    if (!request.project) return 'Unknown Project';
-    return request.project.display_name || request.project.name || request.project.twitter_username || 'Unknown Project';
+  // Get project display name with handle
+  const getProjectDisplay = (request: LeaderboardRequest): { name: string; handle: string | null } => {
+    if (!request.project) return { name: 'Unknown Project', handle: null };
+    const name = request.project.display_name || request.project.name || 'Unknown Project';
+    const handle = request.project.twitter_username || null;
+    return { name, handle };
   };
 
   return (
@@ -189,15 +191,21 @@ export default function ArcRequestsPage() {
                         <div className="flex-1">
                           <div className="flex items-start gap-3 mb-2">
                             <h3 className="text-lg font-semibold text-white">
-                              {request.project && (
-                                <Link
-                                  href={getProjectLink(request)}
-                                  className="hover:text-akari-neon-teal transition-colors"
-                                >
-                                  {getProjectName(request)}
-                                </Link>
-                              )}
-                              {!request.project && (
+                              {request.project ? (
+                                <>
+                                  <Link
+                                    href={getProjectLink(request)}
+                                    className="hover:text-akari-neon-teal transition-colors"
+                                  >
+                                    {getProjectDisplay(request).name}
+                                  </Link>
+                                  {getProjectDisplay(request).handle && (
+                                    <span className="text-akari-muted text-sm font-normal ml-2">
+                                      @{getProjectDisplay(request).handle}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
                                 <span className="text-akari-muted">Unknown Project</span>
                               )}
                             </h3>
@@ -205,20 +213,6 @@ export default function ArcRequestsPage() {
 
                           {/* Request Details */}
                           <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-akari-muted">Access Level:</span>
-                              <span className="text-white">
-                                {getAccessLevelLabel(request.requested_arc_access_level)}
-                              </span>
-                            </div>
-
-                            {request.justification && (
-                              <div>
-                                <span className="text-akari-muted">Justification: </span>
-                                <span className="text-white">{request.justification}</span>
-                              </div>
-                            )}
-
                             <div className="flex items-center gap-4 text-akari-muted">
                               <span>Created: {formatDate(request.created_at)}</span>
                               {request.decided_at && (
@@ -241,9 +235,9 @@ export default function ArcRequestsPage() {
                           {request.status === 'approved' && request.project && (
                             <Link
                               href={getProjectLink(request)}
-                              className="text-xs text-akari-neon-teal hover:text-akari-neon-teal/80 transition-colors flex items-center gap-1"
+                              className="px-3 py-1.5 rounded-lg bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors text-xs font-medium"
                             >
-                              View Project →
+                              View Project
                             </Link>
                           )}
                         </div>
