@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
 import { canManageProject } from '@/lib/project-permissions';
 import { randomBytes } from 'crypto';
 
@@ -129,6 +129,21 @@ export default async function handler(
 
     if (campaignError || !campaign) {
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
+    }
+
+    // Check ARC approval for the project
+    if (!DEV_MODE) {
+      const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+      if (!approval.isApproved) {
+        return res.status(403).json({
+          ok: false,
+          error: approval.isPending
+            ? 'ARC access is pending approval'
+            : approval.isRejected
+            ? 'ARC access was rejected'
+            : 'ARC access has not been approved for this project',
+        });
+      }
     }
 
     // Check permissions (admin/moderator can create links)

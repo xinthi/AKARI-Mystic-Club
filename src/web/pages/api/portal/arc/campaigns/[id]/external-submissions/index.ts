@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
 import { canManageProject } from '@/lib/project-permissions';
 
 // =============================================================================
@@ -98,6 +98,19 @@ export default async function handler(
               .single();
 
             if (campaign) {
+              // Check ARC approval for the project
+              const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+              if (!approval.isApproved) {
+                return res.status(403).json({
+                  ok: false,
+                  error: approval.isPending
+                    ? 'ARC access is pending approval'
+                    : approval.isRejected
+                    ? 'ARC access was rejected'
+                    : 'ARC access has not been approved for this project',
+                });
+              }
+
               // Check if admin/moderator
               const canManage = await canManageProject(supabase, userId, campaign.project_id);
               if (canManage) {
@@ -200,6 +213,32 @@ export default async function handler(
         new URL(body.url);
       } catch {
         return res.status(400).json({ ok: false, error: 'Invalid URL format' });
+      }
+
+      // Get campaign to check ARC approval
+      const { data: campaign } = await supabase
+        .from('arc_campaigns')
+        .select('project_id')
+        .eq('id', campaignId)
+        .single();
+
+      if (!campaign) {
+        return res.status(404).json({ ok: false, error: 'Campaign not found' });
+      }
+
+      // Check ARC approval for the project
+      if (!DEV_MODE) {
+        const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+        if (!approval.isApproved) {
+          return res.status(403).json({
+            ok: false,
+            error: approval.isPending
+              ? 'ARC access is pending approval'
+              : approval.isRejected
+              ? 'ARC access was rejected'
+              : 'ARC access has not been approved for this project',
+          });
+        }
       }
 
       // Get participant ID (from body or find from user profile)

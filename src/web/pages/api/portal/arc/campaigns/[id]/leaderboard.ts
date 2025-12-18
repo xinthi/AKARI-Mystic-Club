@@ -6,6 +6,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { checkArcProjectApproval, getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -59,6 +61,18 @@ function calculateScore(activity: {
   );
 }
 
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
+
+const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_MODE === 'true';
+
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -88,6 +102,74 @@ export default async function handler(
 
     if (campaignError || !campaign) {
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
+    }
+
+    // Check ARC approval for the project
+    const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+    if (!approval.isApproved && !DEV_MODE) {
+      return res.status(403).json({
+        ok: false,
+        error: approval.isPending
+          ? 'ARC access is pending approval'
+          : approval.isRejected
+          ? 'ARC access was rejected'
+          : 'ARC access has not been approved for this project',
+      });
+    }
+
+    // Check visibility rules: public leaderboards are visible to all, private require admin/participant
+    if (campaign.leaderboard_visibility === 'private' && !DEV_MODE) {
+      const sessionToken = getSessionToken(req);
+      if (sessionToken) {
+        const { data: session } = await supabase
+          .from('akari_user_sessions')
+          .select('user_id, expires_at')
+          .eq('session_token', sessionToken)
+          .single();
+
+        if (session && new Date(session.expires_at) >= new Date()) {
+          const userId = session.user_id;
+          
+          // Check if user is project admin/moderator or super admin
+          const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+          if (permissions.canManage || permissions.isSuperAdmin) {
+            // Allow access
+          } else {
+            // Check if user is a participant
+            const profileId = await getProfileIdFromUserId(supabase, userId);
+            if (profileId) {
+              const { data: participant } = await supabase
+                .from('arc_campaign_participants')
+                .select('id')
+                .eq('campaign_id', campaignId)
+                .eq('profile_id', profileId)
+                .maybeSingle();
+              
+              if (!participant) {
+                return res.status(403).json({
+                  ok: false,
+                  error: 'This leaderboard is private. Only participants and project admins can view it.',
+                });
+              }
+            } else {
+              return res.status(403).json({
+                ok: false,
+                error: 'This leaderboard is private. Only participants and project admins can view it.',
+              });
+            }
+          }
+        } else {
+          return res.status(403).json({
+            ok: false,
+            error: 'This leaderboard is private. Authentication required.',
+          });
+        }
+      } else {
+        return res.status(403).json({
+          ok: false,
+          error: 'This leaderboard is private. Authentication required.',
+        });
+      }
     }
 
     // Get all participants

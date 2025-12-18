@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
@@ -70,12 +70,25 @@ export default async function handler(
     // Get campaign
     const { data: campaign, error: campaignError } = await supabase
       .from('arc_campaigns')
-      .select('participation_mode, status')
+      .select('participation_mode, status, project_id')
       .eq('id', campaignId)
       .single();
 
     if (campaignError || !campaign) {
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
+    }
+
+    // Check ARC approval for the project
+    const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+    if (!approval.isApproved) {
+      return res.status(403).json({
+        ok: false,
+        error: approval.isPending
+          ? 'ARC access is pending approval for this project'
+          : approval.isRejected
+          ? 'ARC access was rejected for this project'
+          : 'ARC access has not been approved for this project',
+      });
     }
 
     // Check if campaign allows public/hybrid join

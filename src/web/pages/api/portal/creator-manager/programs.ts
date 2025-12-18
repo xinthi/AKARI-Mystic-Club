@@ -12,6 +12,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { verifyArcOptionAccess, checkArcProjectApproval } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
@@ -126,6 +127,19 @@ export default async function handler(
     }
 
     try {
+      // Check ARC approval for the project
+      const approval = await checkArcProjectApproval(supabase, projectId);
+      if (!approval.isApproved) {
+        return res.status(403).json({
+          ok: false,
+          error: approval.isPending
+            ? 'ARC access is pending approval'
+            : approval.isRejected
+            ? 'ARC access was rejected'
+            : 'ARC access has not been approved for this project',
+        });
+      }
+
       // Get programs for the project
       const { data: programs, error: programsError } = await supabase
         .from('creator_manager_programs')
@@ -201,6 +215,15 @@ export default async function handler(
     const currentUser = await getCurrentUser(supabase, sessionToken);
     if (!currentUser) {
       return res.status(401).json({ ok: false, error: 'Invalid or expired session. Please log in again.' });
+    }
+
+    // Check ARC approval and unlock status for option1_crm (Creator Manager)
+    const accessCheck = await verifyArcOptionAccess(supabase, body.projectId, 'option1_crm');
+    if (!accessCheck.allowed) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.reason || 'ARC Option 1 (Creator Manager) is not available for this project',
+      });
     }
 
     // Check permissions - must be project owner/admin/moderator

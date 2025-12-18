@@ -13,6 +13,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { checkArcProjectApproval } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
@@ -120,6 +121,19 @@ export default async function handler(
 
     if (programError || !program) {
       return res.status(404).json({ ok: false, error: 'Program not found' });
+    }
+
+    // Check ARC approval for the project
+    const approval = await checkArcProjectApproval(supabase, program.project_id);
+    if (!approval.isApproved) {
+      return res.status(403).json({
+        ok: false,
+        error: approval.isPending
+          ? 'ARC access is pending approval'
+          : approval.isRejected
+          ? 'ARC access was rejected'
+          : 'ARC access has not been approved for this project',
+      });
     }
 
     // Check permissions

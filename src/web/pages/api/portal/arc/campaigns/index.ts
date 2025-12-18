@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { verifyArcOptionAccess, getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { verifyArcOptionAccess, getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
 import { canManageProject } from '@/lib/project-permissions';
 
 // =============================================================================
@@ -83,6 +83,21 @@ export default async function handler(
     // Handle GET - list campaigns
     if (req.method === 'GET') {
       const projectId = req.query.projectId as string | undefined;
+
+      // If filtering by project, check ARC approval for that project
+      if (projectId) {
+        const approval = await checkArcProjectApproval(supabase, projectId);
+        if (!approval.isApproved) {
+          return res.status(403).json({
+            ok: false,
+            error: approval.isPending
+              ? 'ARC access is pending approval'
+              : approval.isRejected
+              ? 'ARC access was rejected'
+              : 'ARC access has not been approved for this project',
+          });
+        }
+      }
 
       let query = supabase
         .from('arc_campaigns')
