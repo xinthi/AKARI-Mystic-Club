@@ -350,7 +350,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           <section className="w-full max-w-6xl mx-auto">
             {/* Section Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-              <h2 className="text-2xl font-semibold text-white">Top Projects</h2>
+              <h2 className="text-2xl font-semibold text-white">TOP Profiles</h2>
               
               <div className="flex items-center gap-3 flex-wrap">
                 {userIsSuperAdmin && (
