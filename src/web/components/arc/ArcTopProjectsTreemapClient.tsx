@@ -71,6 +71,9 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 }
 
 const renderContent = (p: any) => {
+  // Early return if invalid
+  if (!p || (!p.payload && !p.name)) return null;
+  
   // Recharts sometimes gives values on p, sometimes on p.payload
   const x = Number(p?.x ?? 0);
   const y = Number(p?.y ?? 0);
@@ -78,6 +81,9 @@ const renderContent = (p: any) => {
   const h = Number(p?.height ?? 0);
 
   const d = (p?.payload ?? p) as any;
+  
+  // Early return if no valid data
+  if (!d || (w <= 0 || h <= 0)) return null;
 
   const nameRaw = String(d?.name ?? d?.twitter_username ?? 'Unknown');
   const growthPct = typeof d?.growth_pct === 'number' ? d.growth_pct : 0;
@@ -208,9 +214,14 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
           height={TREEMAP_HEIGHT}
           data={data}
           dataKey="value"
+          nameKey={null}
           stroke="rgba(255,255,255,0.12)"
           isAnimationActive={false}
-          content={renderContent}
+          content={(props: any) => {
+            // Ensure we completely replace default rendering
+            const result = renderContent(props);
+            return result;
+          }}
         >
           <Tooltip content={<CustomTooltip />} />
         </Treemap>
