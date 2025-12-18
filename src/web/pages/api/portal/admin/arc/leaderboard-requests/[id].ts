@@ -14,11 +14,24 @@ import { createClient } from '@supabase/supabase-js';
 
 interface UpdateRequestPayload {
   status: 'approved' | 'rejected';
-  arc_access_level?: 'leaderboard' | 'gamified';
+  arc_access_level?: 'leaderboard' | 'gamified' | 'creator_manager';
 }
 
 type UpdateRequestResponse =
-  | { ok: true }
+  | {
+      ok: true;
+      request: {
+        id: string;
+        status: 'approved' | 'rejected';
+        decided_by: string | null;
+        decided_at: string | null;
+      };
+      project: {
+        id: string;
+        arc_active: boolean;
+        arc_access_level: string | null;
+      };
+    }
   | { ok: false; error: string };
 
 // =============================================================================
@@ -239,15 +252,15 @@ export default async function handler(
     if (status === 'approved' && !arc_access_level) {
       return res.status(400).json({
         ok: false,
-        error: 'arc_access_level is required when approving (must be "leaderboard" or "gamified")',
+        error: 'arc_access_level is required when approving (must be "leaderboard", "gamified", or "creator_manager")',
       });
     }
 
     // Defensive check: ensure arc_access_level is valid if provided
-    if (status === 'approved' && arc_access_level && !['leaderboard', 'gamified'].includes(arc_access_level)) {
+    if (status === 'approved' && arc_access_level && !['leaderboard', 'gamified', 'creator_manager'].includes(arc_access_level)) {
       return res.status(400).json({
         ok: false,
-        error: 'arc_access_level must be "leaderboard" or "gamified"',
+        error: 'arc_access_level must be "leaderboard", "gamified", or "creator_manager"',
       });
     }
 
@@ -269,25 +282,101 @@ export default async function handler(
     }
 
     // If approved, update project ARC settings
+    let updatedProject = null;
     if (status === 'approved' && arc_access_level) {
       const projectUpdateData: any = {
         arc_active: true,
         arc_access_level: arc_access_level,
       };
 
-      const { error: projectUpdateError } = await supabase
+      const { data: projectData, error: projectUpdateError } = await supabase
         .from('projects')
         .update(projectUpdateData)
-        .eq('id', request.project_id);
+        .eq('id', request.project_id)
+        .select('id, arc_active, arc_access_level')
+        .single();
 
       if (projectUpdateError) {
         console.error('[Admin Leaderboard Request Update API] Error updating project:', projectUpdateError);
         // Don't fail the request update, but log the error
         console.warn('[Admin Leaderboard Request Update API] Request was updated but project update failed');
+        // Fetch current project state to return
+        const { data: currentProject } = await supabase
+          .from('projects')
+          .select('id, arc_active, arc_access_level')
+          .eq('id', request.project_id)
+          .single();
+        if (currentProject) {
+          updatedProject = {
+            id: currentProject.id,
+            arc_active: currentProject.arc_active,
+            arc_access_level: currentProject.arc_access_level,
+          };
+        }
+      } else if (projectData) {
+        updatedProject = {
+          id: projectData.id,
+          arc_active: projectData.arc_active,
+          arc_access_level: projectData.arc_access_level,
+        };
+      }
+    } else if (status === 'rejected') {
+      // For rejected requests, fetch current project state (should not change)
+      const { data: currentProject } = await supabase
+        .from('projects')
+        .select('id, arc_active, arc_access_level')
+        .eq('id', request.project_id)
+        .single();
+      if (currentProject) {
+        updatedProject = {
+          id: currentProject.id,
+          arc_active: currentProject.arc_active,
+          arc_access_level: currentProject.arc_access_level,
+        };
       }
     }
 
-    return res.status(200).json({ ok: true });
+    // Fetch updated request
+    const { data: updatedRequest, error: fetchError } = await supabase
+      .from('arc_leaderboard_requests')
+      .select('id, status, decided_by, decided_at')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('[Admin Leaderboard Request Update API] Error fetching updated request:', fetchError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch updated request',
+      });
+    }
+
+    if (!updatedRequest) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch updated request',
+      });
+    }
+
+    if (!updatedProject) {
+      // Fallback: return project with expected values
+      updatedProject = {
+        id: request.project_id,
+        arc_active: status === 'approved' ? true : false,
+        arc_access_level: status === 'approved' ? arc_access_level || null : null,
+      };
+    }
+
+    return res.status(200).json({
+      ok: true,
+      request: {
+        id: updatedRequest.id,
+        status: updatedRequest.status as 'approved' | 'rejected',
+        decided_by: updatedRequest.decided_by,
+        decided_at: updatedRequest.decided_at,
+      },
+      project: updatedProject,
+    });
   } catch (error: any) {
     console.error('[Admin Leaderboard Request Update API] Error:', error);
     return res.status(500).json({ ok: false, error: 'Server error' });

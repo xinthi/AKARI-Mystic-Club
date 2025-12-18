@@ -81,7 +81,7 @@ export default function AdminLeaderboardRequestsPage() {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [rowErrors, setRowErrors] = useState<Map<string, string>>(new Map());
   const [approveModal, setApproveModal] = useState<{ requestId: string; projectName: string } | null>(null);
-  const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified'>('leaderboard');
+  const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified' | 'creator_manager'>('leaderboard');
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -363,7 +363,10 @@ export default function AdminLeaderboardRequestsPage() {
                                 {request.status === 'pending' && (
                                   <>
                                     <button
-                                      onClick={() => setApproveModal({ requestId: request.id, projectName })}
+                                      onClick={() => {
+                                        setSelectedAccessLevel('leaderboard');
+                                        setApproveModal({ requestId: request.id, projectName });
+                                      }}
                                       disabled={isProcessing}
                                       className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
@@ -411,11 +414,12 @@ export default function AdminLeaderboardRequestsPage() {
                 <label className="block text-xs text-slate-400 mb-1">ARC Access Level</label>
                 <select
                   value={selectedAccessLevel}
-                  onChange={(e) => setSelectedAccessLevel(e.target.value as 'leaderboard' | 'gamified')}
+                  onChange={(e) => setSelectedAccessLevel(e.target.value as 'leaderboard' | 'gamified' | 'creator_manager')}
                   className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                 >
                   <option value="leaderboard">Leaderboard</option>
                   <option value="gamified">Gamified</option>
+                  <option value="creator_manager">Creator Manager</option>
                 </select>
                 <p className="text-xs text-slate-500 mt-1">
                   This will set the project&apos;s ARC access level and activate it.
