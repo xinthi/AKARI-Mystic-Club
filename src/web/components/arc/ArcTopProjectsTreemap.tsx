@@ -7,7 +7,7 @@
 
 import React, { useMemo, useState, memo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Treemap, ResponsiveContainer, Tooltip, Cell } from 'recharts';
+import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 
 // =============================================================================
 // TYPES
@@ -287,7 +287,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
       // Safe field access with fallbacks
       const name = item.name || item.twitter_username || 'Unknown';
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      const projectId = item.projectId || '';
+      const projectId = (item as any).projectId || (item as any).projectid || '';
       
       // arc_active ONLY controls clickability (visual/UX)
       // arc_access_level controls routing (and also locks if 'none')
@@ -784,12 +784,8 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
               data={treemapData}
               dataKey="value"
               stroke="transparent"
-              content={<CustomCell />}
-              animationDuration={300}
+              content={((props: any) => <CustomCell {...props} />) as any}
             >
-              {treemapData.map((entry, index) => (
-                <Cell key={`cell-${entry.projectId}-${index}`} fill={entry.fill} />
-              ))}
               <Tooltip content={<CustomTooltip />} />
             </Treemap>
           </ResponsiveContainer>
