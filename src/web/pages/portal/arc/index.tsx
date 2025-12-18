@@ -5,14 +5,15 @@
  * Always shows content - never blank.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Component, ReactNode } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
-import { ArcTopProjectsMosaic } from '@/components/arc/ArcTopProjectsMosaic';
+import { ArcTopProjectsCards } from '@/components/arc/ArcTopProjectsCards';
+import { ArcTopProjectsTreemap } from '@/components/arc/ArcTopProjectsTreemap';
 
 // =============================================================================
 // TYPES
@@ -51,6 +52,90 @@ interface ArcHomeProps {
 }
 
 // =============================================================================
+// ERROR BOUNDARY FOR TREEMAP
+// =============================================================================
+
+interface TreemapErrorBoundaryProps {
+  children: ReactNode;
+  onError: () => void;
+  fallback: ReactNode;
+}
+
+class TreemapErrorBoundary extends Component<TreemapErrorBoundaryProps, { hasError: boolean }> {
+  constructor(props: TreemapErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ARC] Treemap error boundary caught:', error, errorInfo);
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// =============================================================================
+// TREEMAP WRAPPER COMPONENT
+// =============================================================================
+
+interface TreemapWrapperProps {
+  items: TopProjectItem[];
+  mode: 'gainers' | 'losers';
+  timeframe: '24h' | '7d' | '30d' | '90d';
+  onProjectClick: (item: TopProjectItem) => void;
+  onError: () => void;
+}
+
+function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: TreemapWrapperProps) {
+  const fallback = (
+    <>
+      <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
+        <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
+      </div>
+      <ArcTopProjectsCards items={items} onClickItem={onProjectClick} />
+    </>
+  );
+
+  return (
+    <TreemapErrorBoundary onError={onError} fallback={fallback}>
+      <div className="w-full">
+        <ArcTopProjectsTreemap
+          items={items.map(item => ({
+            projectId: item.projectId || item.id,
+            name: item.display_name || item.name || 'Unknown',
+            twitter_username: item.twitter_username || '',
+            growth_pct: item.growth_pct,
+            slug: item.slug || null,
+            arc_access_level: item.arc_access_level,
+            arc_active: item.arc_active,
+          }))}
+          mode={mode}
+          timeframe={timeframe}
+          onProjectClick={(project) => {
+            const item = items.find(
+              i => (i.projectId || i.id) === project.projectId
+            );
+            if (item) {
+              onProjectClick(item);
+            }
+          }}
+        />
+      </div>
+    </TreemapErrorBoundary>
+  );
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
@@ -74,6 +159,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
+  const [treemapError, setTreemapError] = useState<string | null>(null);
 
   // Get user's Twitter username (only one definition)
   const userTwitterUsername = akariUser.user?.xUsername || null;
@@ -209,24 +296,26 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   return (
     <PortalLayout title="ARC Universe">
       <div className="space-y-8 px-6 py-8">
-        {/* Header */}
+        {/* Header - Matching Sentiment Terminal style */}
         <section className="mb-6">
           <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
-            INFLUENCEFI ARC ECOSYSTEM
+            ARC INFLUENCEFI TERMINAL
           </p>
           <h1 className="text-3xl font-bold md:text-4xl mb-2">
-            Where Influence Becomes Trackable
+            Where influence becomes trackable
           </h1>
           <p className="max-w-2xl text-sm text-akari-muted">
-            ARC turns social performance into measurable reputation. Discover top movers, verified creators, and campaign-ready projects.
+            Explore ARC-enabled projects, campaigns, and leaderboards.
           </p>
         </section>
 
-        {/* Top Projects Hero Section */}
+        {/* Top Projects Section */}
         {canManageArc && (
           <section className="w-full max-w-6xl mx-auto">
-            {/* Controls */}
+            {/* Section Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <h2 className="text-2xl font-semibold text-white">Top Projects</h2>
+              
               <div className="flex items-center gap-3 flex-wrap">
                 {userIsSuperAdmin && (
                   <>
@@ -261,6 +350,37 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </button>
                   </>
                 )}
+                
+                {/* View Toggle: Cards / Treemap */}
+                <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                  <button
+                    onClick={() => {
+                      setTopProjectsDisplayMode('cards');
+                      setTreemapError(null);
+                    }}
+                    className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
+                      topProjectsDisplayMode === 'cards'
+                        ? 'bg-white/10 text-white'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTopProjectsDisplayMode('treemap');
+                      setTreemapError(null);
+                    }}
+                    className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
+                      topProjectsDisplayMode === 'treemap'
+                        ? 'bg-white/10 text-white'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                  >
+                    Treemap
+                  </button>
+                </div>
+                
                 {/* Mode buttons */}
                 <div className="flex gap-2">
                   <button
@@ -303,8 +423,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
             </div>
 
-            {/* Panel without scrolling - fixed content */}
-            <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-4">
+            {/* Content Panel */}
+            <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-6">
               {topProjectsLoading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
@@ -319,64 +439,78 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   <p className="text-sm text-white/60">No top projects available</p>
                 </div>
               ) : (
-                <ArcTopProjectsMosaic
-                  items={topProjectsData}
-                  onClickItem={handleTopProjectClick}
-                />
+                <>
+                  {topProjectsDisplayMode === 'cards' ? (
+                    <ArcTopProjectsCards
+                      items={topProjectsData}
+                      onClickItem={handleTopProjectClick}
+                    />
+                  ) : (
+                    <TreemapWrapper
+                      items={topProjectsData}
+                      mode={topProjectsView}
+                      timeframe={topProjectsTimeframe}
+                      onProjectClick={handleTopProjectClick}
+                      onError={() => setTreemapError('Treemap unavailable')}
+                    />
+                  )}
+                </>
               )}
             </div>
           </section>
         )}
 
-        {/* ARC Projects List - Secondary Section */}
-        <section>
+        {/* ARC Projects Section */}
+        <section className="w-full max-w-6xl mx-auto">
           <h2 className="text-2xl font-semibold text-white mb-4">ARC Projects</h2>
           
-          {projectsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-              <span className="ml-3 text-white/60">Loading projects...</span>
-            </div>
-          ) : projectsError ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-              <p className="text-sm text-red-400">{projectsError}</p>
-            </div>
-          ) : projects.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-              <p className="text-sm text-white/60">No projects available</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.map((project) => {
-                const projectName = project.name || 'Unknown';
-                const projectSlug = project.slug;
-                
-                return (
-                  <div
-                    key={project.project_id}
-                    className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-white/20 transition-colors"
-                  >
-                    <div className="mb-2">
-                      <h3 className="text-sm font-semibold text-white truncate">{projectName}</h3>
-                      {project.twitter_username && (
-                        <p className="text-xs text-white/60 truncate">@{project.twitter_username}</p>
+          <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-6">
+            {projectsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                <span className="ml-3 text-white/60">Loading projects...</span>
+              </div>
+            ) : projectsError ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+                <p className="text-sm text-red-400">{projectsError}</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                <p className="text-sm text-white/60">No projects available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {projects.map((project) => {
+                  const projectName = project.name || 'Unknown';
+                  const projectSlug = project.slug;
+                  
+                  return (
+                    <div
+                      key={project.project_id}
+                      className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all cursor-pointer"
+                    >
+                      <div className="mb-3">
+                        <h3 className="text-base font-semibold text-white truncate mb-1">{projectName}</h3>
+                        {project.twitter_username && (
+                          <p className="text-sm text-white/60 truncate">@{project.twitter_username}</p>
+                        )}
+                      </div>
+                      {projectSlug ? (
+                        <Link
+                          href={`/portal/arc/${projectSlug}`}
+                          className="inline-block w-full text-center px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium"
+                        >
+                          View Project →
+                        </Link>
+                      ) : (
+                        <div className="text-xs text-white/40 italic">No slug available</div>
                       )}
                     </div>
-                    {projectSlug ? (
-                      <Link
-                        href={`/portal/arc/${projectSlug}`}
-                        className="inline-block w-full text-center px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium"
-                      >
-                        View Project →
-                      </Link>
-                    ) : (
-                      <div className="text-xs text-white/40 italic">No slug available</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </PortalLayout>
