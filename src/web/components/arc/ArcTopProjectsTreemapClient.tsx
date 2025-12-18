@@ -117,12 +117,6 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
 
   return (
     <div ref={containerRef} className="relative w-full h-[400px]">
-      {/* Debug overlay */}
-      <div className="absolute top-2 left-2 z-10 bg-black/80 border border-white/20 rounded px-2 py-1 text-xs text-white font-mono">
-        <div>Width: {Math.round(width)}px</div>
-        <div>Nodes: {data.length}</div>
-      </div>
-
       {/* Treemap */}
       <div className="w-full h-full">
         <Treemap

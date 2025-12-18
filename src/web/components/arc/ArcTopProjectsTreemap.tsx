@@ -368,10 +368,28 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           : 'rgba(156, 163, 175, 0.4)')
       : 'rgba(107, 114, 128, 0.4)'; // Gray border for locked
     
-    // Determine box size category for text display
+    // Determine if tile is tiny
+    const isTiny = width < 70 || height < 38;
+    
+    // Determine box size category for name truncation
     const isSmall = width < 100 || height < 50;
     const isMedium = !isSmall && (width < 150 || height < 70);
     const isLarge = !isSmall && !isMedium;
+    
+    // Truncate name based on tile size
+    let truncatedName = name;
+    if (isTiny) {
+      truncatedName = name.length > 8 ? name.substring(0, 8) + '...' : name;
+    } else if (isSmall) {
+      truncatedName = name.length > 12 ? name.substring(0, 12) + '...' : name;
+    } else if (isMedium) {
+      truncatedName = name.length > 16 ? name.substring(0, 16) + '...' : name;
+    } else {
+      truncatedName = name.length > 22 ? name.substring(0, 22) + '...' : name;
+    }
+    
+    // Growth % color: positive -> #4ade80, negative -> #f87171, zero -> #facc15
+    const growthColor = growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#facc15';
 
     // Calculate rounded corners (subtle, max 4px)
     const cornerRadius = Math.min(4, Math.min(width, height) * 0.1);
@@ -457,83 +475,41 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           </>
         )}
         
-        {/* Text labels based on box size */}
-        {isSmall && (
-          // Small boxes: only show growth_pct
+        {/* Text labels: render after lock overlay to stay visible */}
+        {isTiny ? (
+          // Tiny tiles: only show growth % (centered)
           <text
             x={x + width / 2}
             y={y + height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
+            fill={growthColor}
             fontSize={Math.min(width / 8, 12)}
             fontWeight="bold"
             className="pointer-events-none"
           >
             {formatGrowthPct(growthPct)}
           </text>
-        )}
-        
-        {isMedium && (
-          // Medium boxes: name + growth_pct
+        ) : (
+          // All other tiles: show name + growth %
           <>
             <text
               x={x + width / 2}
-              y={y + height / 2 - 6}
+              y={y + height * 0.45}
               textAnchor="middle"
               fill="white"
               fontSize={Math.min(width / 12, 12)}
               fontWeight="semibold"
               className="pointer-events-none"
             >
-              {name.length > 15 ? name.substring(0, 15) + '...' : name}
+              {truncatedName}
             </text>
             <text
               x={x + width / 2}
-              y={y + height / 2 + 8}
+              y={y + height * 0.70}
               textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
+              fill={growthColor}
               fontSize={Math.min(width / 14, 10)}
-              fontWeight="bold"
-              className="pointer-events-none"
-            >
-              {formatGrowthPct(growthPct)}
-            </text>
-          </>
-        )}
-        
-        {isLarge && (
-          // Large boxes: name + @handle + growth_pct
-          <>
-            <text
-              x={x + width / 2}
-              y={y + height / 2 - 12}
-              textAnchor="middle"
-              fill="white"
-              fontSize={Math.min(width / 10, 14)}
-              fontWeight="semibold"
-              className="pointer-events-none"
-            >
-              {name.length > 20 ? name.substring(0, 20) + '...' : name}
-            </text>
-            {twitterUsername && (
-              <text
-                x={x + width / 2}
-                y={y + height / 2 + 2}
-                textAnchor="middle"
-                fill="rgba(255, 255, 255, 0.7)"
-                fontSize={Math.min(width / 14, 11)}
-                className="pointer-events-none"
-              >
-                @{twitterUsername.length > 15 ? twitterUsername.substring(0, 15) + '...' : twitterUsername}
-              </text>
-            )}
-            <text
-              x={x + width / 2}
-              y={y + height / 2 + 16}
-              textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
-              fontSize={Math.min(width / 16, 10)}
               fontWeight="bold"
               className="pointer-events-none"
             >
