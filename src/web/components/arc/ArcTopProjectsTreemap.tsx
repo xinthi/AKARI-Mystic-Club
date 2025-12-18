@@ -107,17 +107,23 @@ function normalizeForTreemap(values: number[]): number[] {
 
 /**
  * Get tile fill color based on growth percentage
+ * Opacity varies by magnitude: 0.40 (min) to 0.80 (max)
  */
 function getTileFill(growthPct: number) {
+  // Compute magnitude (cap at 20% for max intensity)
+  const magnitude = Math.min(Math.abs(growthPct) / 20, 1);
+  // Opacity range: 0.40 to 0.80
+  const opacity = 0.40 + magnitude * 0.40;
+
   if (growthPct > 0.5) {
-    return 'rgba(34, 197, 94, 0.85)'; // strong green
+    return `rgba(34, 197, 94, ${opacity})`; // green with variable opacity
   }
 
   if (growthPct < -0.5) {
-    return 'rgba(239, 68, 68, 0.85)'; // strong red
+    return `rgba(239, 68, 68, ${opacity})`; // red with variable opacity
   }
 
-  return 'rgba(234, 179, 8, 0.85)'; // yellow for stable
+  return `rgba(234, 179, 8, ${opacity})`; // yellow with variable opacity
 }
 
 // =============================================================================

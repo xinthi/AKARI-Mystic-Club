@@ -120,9 +120,12 @@ const renderContent = (p: any) => {
         <text
           x={x + 10}
           y={y + 18}
-          fill="rgba(255,255,255,0.92)"
+          fill="rgba(255,255,255,0.95)"
           fontSize={nameFontSize}
           fontWeight={800}
+          paintOrder="stroke"
+          stroke="rgba(0,0,0,0.35)"
+          strokeWidth={2}
           style={{ pointerEvents: 'none' }}
         >
           {name}
@@ -133,9 +136,12 @@ const renderContent = (p: any) => {
       <text
         x={x + 10}
         y={isTiny ? y + 20 : y + 38}
-        fill={growthColor}
+        fill="rgba(255,255,255,0.95)"
         fontSize={pctFontSize}
         fontWeight={800}
+        paintOrder="stroke"
+        stroke="rgba(0,0,0,0.35)"
+        strokeWidth={2}
         style={{ pointerEvents: 'none' }}
       >
         {pctText}
