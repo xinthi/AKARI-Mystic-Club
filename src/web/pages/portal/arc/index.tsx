@@ -110,7 +110,7 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
   if (!items || items.length === 0) {
     return (
       <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
-        <p className="text-sm text-yellow-400">No data available for treemap, showing cards.</p>
+        <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
       </div>
     );
   }
@@ -128,9 +128,9 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
 
   return (
     <TreemapErrorBoundary onError={onError} fallback={fallback}>
-      <div className="w-full min-h-[420px] h-[420px] md:min-h-[520px] md:h-[520px]">
+      <div className="w-full min-h-[420px] h-[420px] md:min-h-[560px] md:h-[560px]">
         <ArcTopProjectsTreemap
-          key={`${mode}-${timeframe}`}
+          key={`${mode}-${timeframe}-${items.length}`}
           items={treemapItems}
           mode={mode}
           timeframe={timeframe}
@@ -467,11 +467,11 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     />
                   ) : topProjectsData.length === 0 ? (
                     <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
-                      <p className="text-sm text-yellow-400">No data available for treemap, showing cards.</p>
+                      <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
                     </div>
                   ) : (
                     <TreemapWrapper
-                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}`}
+                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
                       items={topProjectsData}
                       mode={topProjectsView}
                       timeframe={topProjectsTimeframe}
