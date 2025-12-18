@@ -214,14 +214,13 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
           height={TREEMAP_HEIGHT}
           data={data}
           dataKey="value"
-          nameKey={null}
           stroke="rgba(255,255,255,0.12)"
           isAnimationActive={false}
-          content={(props: any) => {
+          content={((props: any) => {
             // Ensure we completely replace default rendering
             const result = renderContent(props);
             return result;
-          }}
+          }) as any}
         >
           <Tooltip content={<CustomTooltip />} />
         </Treemap>
