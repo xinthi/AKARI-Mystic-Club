@@ -16,7 +16,9 @@ export type NotificationType =
   | 'creator_rejected'
   | 'mission_submitted'
   | 'mission_approved'
-  | 'mission_rejected';
+  | 'mission_rejected'
+  | 'leaderboard_request_approved'
+  | 'leaderboard_request_rejected';
 
 export interface NotificationContext {
   programId?: string;

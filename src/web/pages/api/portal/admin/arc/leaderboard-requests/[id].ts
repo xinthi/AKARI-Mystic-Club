@@ -7,6 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { createNotification } from '@/lib/notifications';
 
 // =============================================================================
 // TYPES
@@ -219,10 +220,10 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Request ID is required' });
     }
 
-    // Fetch the request to get project_id and current status (check status before validating body)
+    // Fetch the request to get project_id, requested_by, and current status (check status before validating body)
     const { data: request, error: requestError } = await supabase
       .from('arc_leaderboard_requests')
-      .select('id, project_id, status')
+      .select('id, project_id, requested_by, status')
       .eq('id', id)
       .single();
 
@@ -365,6 +366,40 @@ export default async function handler(
         arc_active: status === 'approved' ? true : false,
         arc_access_level: status === 'approved' ? arc_access_level || null : null,
       };
+    }
+
+    // Create notification for the requester (idempotent: check if notification already exists)
+    if (request.requested_by) {
+      const notificationType = status === 'approved' 
+        ? 'leaderboard_request_approved' 
+        : 'leaderboard_request_rejected';
+      
+      // Check if notification already exists for this request (idempotent)
+      // Fetch notifications of this type for this user and check if any have this requestId
+      const { data: existingNotifications } = await supabase
+        .from('notifications')
+        .select('context')
+        .eq('profile_id', request.requested_by)
+        .eq('type', notificationType);
+      
+      // Check if any notification has this requestId in context
+      const hasExistingNotification = existingNotifications?.some((notif: any) => 
+        notif.context?.requestId === id
+      );
+
+      // Only create notification if it doesn't exist
+      if (!hasExistingNotification) {
+        await createNotification(
+          supabase,
+          request.requested_by,
+          notificationType,
+          {
+            requestId: id,
+            projectId: request.project_id,
+            arc_access_level: status === 'approved' ? arc_access_level : null,
+          }
+        );
+      }
     }
 
     return res.status(200).json({

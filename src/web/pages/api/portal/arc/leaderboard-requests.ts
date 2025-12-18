@@ -99,14 +99,18 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<LeaderboardRequestResponse | { ok: true; request: any } | { ok: false; error: string }>
+  res: NextApiResponse<LeaderboardRequestResponse | { ok: true; request: any } | { ok: true; requests: any[] } | { ok: false; error: string }>
 ) {
-  // Handle GET - fetch user's request for a project
+  // Handle GET - fetch user's request for a project or all user's requests
   if (req.method === 'GET') {
     const sessionToken = getSessionToken(req);
     
     // If not authenticated, return null request (not an error)
     if (!sessionToken) {
+      const { mode } = req.query;
+      if (mode === 'my-requests') {
+        return res.status(200).json({ ok: true, requests: [] });
+      }
       return res.status(200).json({ ok: true, request: null });
     }
 
@@ -116,12 +120,67 @@ export default async function handler(
       
       // If profile not found, return null request (not an error)
       if (!userProfile) {
+        const { mode } = req.query;
+        if (mode === 'my-requests') {
+          return res.status(200).json({ ok: true, requests: [] });
+        }
         return res.status(200).json({ ok: true, request: null });
       }
 
-      const { projectId } = req.query;
+      const { projectId, mode } = req.query;
+
+      // Handle "my requests" mode
+      if (mode === 'my-requests') {
+        // Fetch all user's requests
+        const { data: requests, error: requestsError } = await supabase
+          .from('arc_leaderboard_requests')
+          .select(`
+            id,
+            status,
+            justification,
+            requested_arc_access_level,
+            created_at,
+            decided_at,
+            project_id,
+            projects:project_id (
+              id,
+              name,
+              display_name,
+              slug,
+              twitter_username
+            )
+          `)
+          .eq('requested_by', userProfile.profileId)
+          .order('created_at', { ascending: false });
+
+        if (requestsError) {
+          console.error('[Leaderboard Request API] Fetch my requests error:', requestsError);
+          return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
+        }
+
+        // Normalize the data structure
+        const normalizedRequests = (requests || []).map((req: any) => ({
+          id: req.id,
+          status: req.status,
+          justification: req.justification,
+          requested_arc_access_level: req.requested_arc_access_level,
+          created_at: req.created_at,
+          decided_at: req.decided_at,
+          project: req.projects ? {
+            id: req.projects.id,
+            name: req.projects.name,
+            display_name: req.projects.display_name,
+            slug: req.projects.slug,
+            twitter_username: req.projects.twitter_username,
+          } : null,
+        }));
+
+        return res.status(200).json({ ok: true, requests: normalizedRequests });
+      }
+
+      // Original behavior: fetch user's request for a specific project
       if (!projectId || typeof projectId !== 'string') {
-        return res.status(400).json({ ok: false, error: 'projectId is required' });
+        return res.status(400).json({ ok: false, error: 'projectId is required when mode is not "my-requests"' });
       }
 
       // Fetch user's request for this project
