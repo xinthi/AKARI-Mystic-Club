@@ -263,8 +263,8 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
     console.log(`[Treemap] Normalized ${normalizedValues.length} values. Range: ${Math.min(...normalizedValues)} to ${Math.max(...normalizedValues)}`);
 
     return validItems.map((item, index) => {
-      // Safe field access with fallbacks
-      const name = item.name || item.twitter_username || 'Unknown';
+      // Name fallback: name -> display_name -> twitter_username -> 'Unknown'
+      const name = item.name || (item as any).display_name || item.twitter_username || 'Unknown';
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const projectId = (item as any).projectId || (item as any).projectid || '';
       
@@ -285,7 +285,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         slug: item.slug || null,
         arc_access_level: item.arc_access_level || 'none',
         arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        fill: isClickable ? getGrowthFill(growthPct, 0.65) : 'rgba(107, 114, 128, 0.6)', // Gray for locked (higher opacity for visibility)
+        fill: getGrowthFill(growthPct, 0.65), // Always use growth-based color (locked gets overlay in CustomCell)
         isClickable,
         isLocked,
         originalItem: item, // Store original item for onProjectClick callback
@@ -465,7 +465,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
             y={y + height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.8)'}
+            fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
             fontSize={Math.min(width / 8, 12)}
             fontWeight="bold"
             className="pointer-events-none"
@@ -492,7 +492,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
               x={x + width / 2}
               y={y + height / 2 + 8}
               textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
+              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
               fontSize={Math.min(width / 14, 10)}
               fontWeight="bold"
               className="pointer-events-none"
@@ -532,7 +532,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
               x={x + width / 2}
               y={y + height / 2 + 16}
               textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
+              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#eab308'}
               fontSize={Math.min(width / 16, 10)}
               fontWeight="bold"
               className="pointer-events-none"
