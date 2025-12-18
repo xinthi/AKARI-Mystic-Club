@@ -42,9 +42,10 @@ interface TopProjectItem {
   twitter_username?: string;
   growth_pct: number;
   slug?: string | null;
-  projectId?: string;
+  projectId: string; // Required - normalized from various sources
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active?: boolean;
+  value?: number; // Optional - for treemap sizing
 }
 
 interface ArcHomeProps {
@@ -111,7 +112,10 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
       <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
         <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
       </div>
-      <ArcTopProjectsCards items={items} onClickItem={onProjectClick} />
+      <ArcTopProjectsCards 
+        items={items as any} 
+        onClickItem={onProjectClick as any} 
+      />
     </>
   );
 
@@ -124,35 +128,13 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
     );
   }
 
-  // Map items to treemap format, ensuring value field is always positive
-  const treemapItems = items.map(item => ({
-    ...item,
-    projectId: item.projectId || item.id,
-    name: item.display_name || item.name || 'Unknown',
-    twitter_username: item.twitter_username || '',
-    growth_pct: typeof item.growth_pct === 'number' && Number.isFinite(item.growth_pct) 
-      ? item.growth_pct 
-      : 0,
-    // Ensure value is always positive - this is what the treemap uses for sizing
-    value: Math.max(1, Math.abs(Number(item.growth_pct ?? 0)) || 1),
-    slug: item.slug || null,
-  }));
-
-  // Compute min/max values for debug
-  const values = treemapItems.map(item => item.value || 1).filter(v => Number.isFinite(v));
-  const minValue = values.length > 0 ? Math.min(...values) : 0;
-  const maxValue = values.length > 0 ? Math.max(...values) : 0;
+  // Items are already normalized with projectId and value, so use them directly
+  // Cast to match treemap component's expected interface (it requires non-optional fields)
+  const treemapItems = items as any;
 
   return (
     <TreemapErrorBoundary onError={onError} fallback={fallback}>
-      <div className="w-full min-h-[420px] h-[420px] md:min-h-[560px] md:h-[560px] relative">
-        {process.env.NODE_ENV !== 'production' && (
-          <div className="absolute top-2 left-2 z-10 rounded-lg border border-blue-500/50 bg-blue-950/90 backdrop-blur px-3 py-2 text-xs text-blue-200 font-mono">
-            <div>Count: {treemapItems.length}</div>
-            <div>Min: {minValue.toFixed(2)}</div>
-            <div>Max: {maxValue.toFixed(2)}</div>
-          </div>
-        )}
+      <div className="w-full min-h-[420px] h-[420px] md:min-h-[560px] md:h-[560px]">
         <ArcTopProjectsTreemap
           key={`${mode}-${timeframe}-${items.length}`}
           items={treemapItems}
@@ -271,20 +253,30 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
       const items = data.items || data.projects || [];
       
-      // Map to TopProjectItem format
-      const mappedItems: TopProjectItem[] = items.map((item: any) => ({
-        id: item.id || '',
-        name: item.display_name || item.name || 'Unknown',
-        display_name: item.display_name || item.name || 'Unknown',
-        twitter_username: item.twitter_username || '',
-        growth_pct: typeof item.growth_pct === 'number' ? item.growth_pct : 0,
-        slug: item.slug || null,
-        projectId: item.id || '',
-        arc_access_level: item.arc_access_level || 'none',
-        arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-      }));
+      // Normalize items to match TopProjectItem format, handling projectId variations
+      const normalizedItems: TopProjectItem[] = (items ?? []).map((p: any) => {
+        // Ensure projectId is always a string (handle various case variations)
+        const projectId = String(p.projectId ?? p.projectid ?? p.project_id ?? p.id ?? '');
+        const name = p.display_name || p.name || 'Unknown';
+        const twitterUsername = String(p.twitter_username || '');
+        
+        return {
+          ...p,
+          id: projectId,
+          projectId: projectId,
+          name: name,
+          display_name: name,
+          twitter_username: twitterUsername,
+          growth_pct: Number(p.growth_pct ?? 0),
+          slug: p.slug || null,
+          arc_access_level: p.arc_access_level || 'none',
+          arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+          // Ensure value exists for treemap sizing (always positive)
+          value: Math.max(1, Math.abs(Number(p.growth_pct ?? 0)) || 1),
+        };
+      });
 
-      setTopProjectsData(mappedItems);
+      setTopProjectsData(normalizedItems);
     } catch (err: any) {
       console.error('[ARC] Top projects fetch error:', err);
       setTopProjectsError(err.message || 'Failed to load top projects');
@@ -486,30 +478,22 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                 <>
                   {topProjectsDisplayMode === 'cards' ? (
                     <ArcTopProjectsCards
-                      items={topProjectsData}
-                      onClickItem={handleTopProjectClick}
+                      items={topProjectsData as any}
+                      onClickItem={handleTopProjectClick as any}
                     />
                   ) : topProjectsData.length === 0 ? (
                     <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
                       <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
                     </div>
                   ) : (
-                    <>
-                      {process.env.NODE_ENV !== 'production' && (
-                        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-300">
-                          <div>Top projects count: {topProjectsData?.length ?? 0}</div>
-                          <div className="mt-1">First item keys: {Object.keys(topProjectsData?.[0] ?? {}).join(', ')}</div>
-                        </div>
-                      )}
-                      <TreemapWrapper
-                        key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
-                        items={topProjectsData}
-                        mode={topProjectsView}
-                        timeframe={topProjectsTimeframe}
-                        onProjectClick={handleTopProjectClick}
-                        onError={() => setTreemapError('Treemap unavailable')}
-                      />
-                    </>
+                    <TreemapWrapper
+                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
+                      items={topProjectsData}
+                      mode={topProjectsView}
+                      timeframe={topProjectsTimeframe}
+                      onProjectClick={handleTopProjectClick}
+                      onError={() => setTreemapError('Treemap unavailable')}
+                    />
                   )}
                 </>
               )}
