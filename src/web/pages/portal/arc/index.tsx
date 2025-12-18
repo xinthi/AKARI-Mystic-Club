@@ -106,19 +106,32 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
     </>
   );
 
+  // Check if items array is empty
+  if (!items || items.length === 0) {
+    return (
+      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
+        <p className="text-sm text-yellow-400">No data available for treemap, showing cards.</p>
+      </div>
+    );
+  }
+
+  // Map items to treemap format
+  const treemapItems = items.map(item => ({
+    projectId: item.projectId || item.id,
+    name: item.display_name || item.name || 'Unknown',
+    twitter_username: item.twitter_username || '',
+    growth_pct: item.growth_pct,
+    slug: item.slug || null,
+    arc_access_level: item.arc_access_level,
+    arc_active: item.arc_active,
+  }));
+
   return (
     <TreemapErrorBoundary onError={onError} fallback={fallback}>
-      <div className="w-full">
+      <div className="w-full min-h-[420px] h-[420px] md:min-h-[520px] md:h-[520px]">
         <ArcTopProjectsTreemap
-          items={items.map(item => ({
-            projectId: item.projectId || item.id,
-            name: item.display_name || item.name || 'Unknown',
-            twitter_username: item.twitter_username || '',
-            growth_pct: item.growth_pct,
-            slug: item.slug || null,
-            arc_access_level: item.arc_access_level,
-            arc_active: item.arc_active,
-          }))}
+          key={`${mode}-${timeframe}`}
+          items={treemapItems}
           mode={mode}
           timeframe={timeframe}
           onProjectClick={(project) => {
@@ -161,6 +174,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
   const [treemapError, setTreemapError] = useState<string | null>(null);
+
+  // Auto-switch to cards if data is empty and treemap is selected
+  useEffect(() => {
+    if (topProjectsDisplayMode === 'treemap' && topProjectsData.length === 0 && !topProjectsLoading) {
+      setTopProjectsDisplayMode('cards');
+    }
+  }, [topProjectsDisplayMode, topProjectsData.length, topProjectsLoading]);
 
   // Get user's Twitter username (only one definition)
   const userTwitterUsername = akariUser.user?.xUsername || null;
@@ -445,8 +465,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       items={topProjectsData}
                       onClickItem={handleTopProjectClick}
                     />
+                  ) : topProjectsData.length === 0 ? (
+                    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
+                      <p className="text-sm text-yellow-400">No data available for treemap, showing cards.</p>
+                    </div>
                   ) : (
                     <TreemapWrapper
+                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}`}
                       items={topProjectsData}
                       mode={topProjectsView}
                       timeframe={topProjectsTimeframe}
