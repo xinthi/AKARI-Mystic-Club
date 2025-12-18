@@ -53,9 +53,17 @@ export function ArcTopProjectsCards({
     return sortedItems.slice(0, 6);
   }, [sortedItems]);
 
-  // Grid items (rest of the items)
+  // Grid items (rest of the items, limited to fit within 610px container)
+  // Featured: 2 rows × 120px + 1 gap (16px) = 256px
+  // Grid padding: 32px (p-4 top/bottom)
+  // Remaining: 610px - 256px - 32px = 322px
+  // Grid cards: h-[92px] with gap-3 (12px)
+  // Max rows: floor((322px - 12px) / (92px + 12px)) = floor(310 / 104) = 2 rows
+  // On xl (4 cols): 2 rows × 4 = 8 cards max
+  // On lg (3 cols): 2 rows × 3 = 6 cards max
+  // Conservative: limit to 8 cards to ensure fit
   const gridItems = useMemo(() => {
-    return sortedItems.slice(6);
+    return sortedItems.slice(6, 14); // 6 featured + 8 grid = 14 total
   }, [sortedItems]);
 
   const handleItemClick = (item: TopProjectItem) => {
@@ -77,10 +85,10 @@ export function ArcTopProjectsCards({
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full h-[610px] overflow-hidden flex flex-col">
       {/* Featured Cards Row (3-6 large cards) */}
       {featuredItems.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {featuredItems.map((item) => {
             const name = item.display_name || item.name || 'Unknown';
             const twitterUsername = item.twitter_username || '';
@@ -96,11 +104,11 @@ export function ArcTopProjectsCards({
                   border
                   ${colors.border}
                   ${colors.bg}
-                  p-5
+                  p-4
                   flex
                   flex-col
                   justify-between
-                  min-h-[140px]
+                  h-[120px]
                   transition-all
                   ${locked
                     ? 'opacity-50 cursor-not-allowed'
@@ -135,7 +143,7 @@ export function ArcTopProjectsCards({
 
       {/* Grid Cards (responsive grid of smaller cards) */}
       {gridItems.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4 flex-1 overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {gridItems.map((item) => {
               const name = item.display_name || item.name || 'Unknown';
@@ -152,11 +160,11 @@ export function ArcTopProjectsCards({
                     border
                     ${colors.border}
                     ${colors.bg}
-                    p-4
+                    p-3
                     flex
                     flex-col
                     justify-between
-                    min-h-[100px]
+                    h-[92px]
                     transition-all
                     ${locked
                       ? 'opacity-50 cursor-not-allowed'
