@@ -70,6 +70,80 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
+const renderContent = (p: any) => {
+  // Recharts sometimes gives values on p, sometimes on p.payload
+  const x = Number(p?.x ?? 0);
+  const y = Number(p?.y ?? 0);
+  const w = Number(p?.width ?? 0);
+  const h = Number(p?.height ?? 0);
+
+  const d = (p?.payload ?? p) as any;
+
+  const nameRaw = String(d?.name ?? d?.twitter_username ?? 'Unknown');
+  const growthPct = typeof d?.growth_pct === 'number' ? d.growth_pct : 0;
+  const pctText = formatGrowthPct(growthPct);
+
+  const fill = String(d?.fill ?? 'rgba(107,114,128,0.35)');
+
+  // Always render the rectangle, even if tiny
+  const rx = Math.max(0, Math.min(8, Math.min(w, h) * 0.12));
+
+  // Text rules
+  const isTiny = w < 70 || h < 38;
+  const maxChars = isTiny ? 0 : (w < 120 || h < 55) ? 10 : 18;
+  const name =
+    maxChars === 0 ? '' :
+    nameRaw.length > maxChars ? nameRaw.slice(0, maxChars - 1) + '…' : nameRaw;
+
+  const growthColor =
+    Math.abs(growthPct) < 0.01 ? '#facc15' : growthPct > 0 ? '#4ade80' : '#f87171';
+
+  // Bold in SVG: numeric font weight
+  const nameFontSize = Math.max(9, Math.min(14, w / 10));
+  const pctFontSize = Math.max(9, Math.min(14, w / 11));
+
+  return (
+    <g>
+      <rect
+        x={x + 1}
+        y={y + 1}
+        width={Math.max(0, w - 2)}
+        height={Math.max(0, h - 2)}
+        rx={rx}
+        ry={rx}
+        fill={fill}
+        stroke="rgba(255,255,255,0.12)"
+      />
+
+      {/* Name (bold) */}
+      {!isTiny && (
+        <text
+          x={x + 10}
+          y={y + 18}
+          fill="rgba(255,255,255,0.92)"
+          fontSize={nameFontSize}
+          fontWeight={800}
+          style={{ pointerEvents: 'none' }}
+        >
+          {name}
+        </text>
+      )}
+
+      {/* % (bold) */}
+      <text
+        x={x + 10}
+        y={isTiny ? y + 20 : y + 38}
+        fill={growthColor}
+        fontSize={pctFontSize}
+        fontWeight={800}
+        style={{ pointerEvents: 'none' }}
+      >
+        {pctText}
+      </text>
+    </g>
+  );
+};
+
 interface ArcTopProjectsTreemapClientProps {
   data: TreemapDataPoint[];
 }
@@ -130,6 +204,7 @@ export function ArcTopProjectsTreemapClient({ data }: ArcTopProjectsTreemapClien
           dataKey="value"
           stroke="rgba(255,255,255,0.12)"
           isAnimationActive={false}
+          content={renderContent}
         >
           <Tooltip content={<CustomTooltip />} />
         </Treemap>
