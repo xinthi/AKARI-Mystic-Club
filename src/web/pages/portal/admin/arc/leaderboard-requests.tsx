@@ -130,6 +130,7 @@ export default function AdminLeaderboardRequestsPage() {
       const res = await fetch(`/api/portal/admin/arc/leaderboard-requests/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies (session token) - required for authentication
         body: JSON.stringify({ status: 'rejected' }),
       });
 
@@ -173,6 +174,7 @@ export default function AdminLeaderboardRequestsPage() {
       const res = await fetch(`/api/portal/admin/arc/leaderboard-requests/${requestId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies (session token) - required for authentication
         body: JSON.stringify({
           status: 'approved',
           arc_access_level: selectedAccessLevel,
