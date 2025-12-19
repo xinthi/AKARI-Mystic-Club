@@ -55,6 +55,7 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
     .single();
 
   if (sessionError || !session) {
+    console.error('[Leaderboard Request API] Session lookup failed:', sessionError?.message || 'No session');
     return null;
   }
 
@@ -63,28 +64,47 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
       .from('akari_user_sessions')
       .delete()
       .eq('session_token', sessionToken);
+    console.error('[Leaderboard Request API] Session expired');
     return null;
   }
 
   // Get user's Twitter username to find profile
-  const { data: xIdentity } = await supabase
+  const { data: xIdentity, error: identityError } = await supabase
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', session.user_id)
     .eq('provider', 'x')
     .single();
 
-  if (!xIdentity?.username) {
+  if (identityError || !xIdentity?.username) {
+    console.error('[Leaderboard Request API] X identity lookup failed:', identityError?.message || 'No X identity');
     return null;
   }
 
-  const { data: profile } = await supabase
+  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+  
+  // Try exact match first
+  let { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id')
-    .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+    .select('id, username')
+    .eq('username', cleanUsername)
     .single();
 
+  // If not found, try case-insensitive search (in case username format differs)
+  if (!profile && profileError?.code === 'PGRST116') {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .ilike('username', cleanUsername);
+    
+    if (profiles && profiles.length > 0) {
+      profile = profiles[0];
+      console.log(`[Leaderboard Request API] Found profile with case-insensitive match: ${profiles[0].username} (looking for: ${cleanUsername})`);
+    }
+  }
+
   if (!profile) {
+    console.error(`[Leaderboard Request API] Profile not found for username: ${cleanUsername} (from X identity: ${xIdentity.username})`);
     return null;
   }
 
@@ -228,7 +248,10 @@ export default async function handler(
     // Get current user's profile
     const userProfile = await getCurrentUserProfile(supabase, sessionToken);
     if (!userProfile) {
-      return res.status(401).json({ ok: false, error: 'User profile not found' });
+      return res.status(401).json({ 
+        ok: false, 
+        error: 'Your Twitter profile is not tracked in the system. Please track your profile first using the Sentiment page before requesting ARC access.' 
+      });
     }
 
     // Parse and validate request body

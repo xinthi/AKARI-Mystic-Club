@@ -206,6 +206,7 @@ export default function ArcRequestsPage() {
       const res = await fetch('/api/portal/arc/leaderboard-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies (session token) - required for authentication
         body: JSON.stringify({
           projectId: selectedProject.id,
           justification: justification.trim() || null,
