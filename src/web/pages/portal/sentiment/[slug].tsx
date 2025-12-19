@@ -1016,8 +1016,8 @@ export default function SentimentDetail() {
       try {
         // Fetch ARC project data to get arc_access_level and arc_active
         const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
-        let arcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' = 'none';
-        let arcIsActive = false;
+        let arcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null = null;
+        let arcIsActive: boolean | null = null;
         
         if (arcRes.ok) {
           const arcData = await arcRes.json();
@@ -1026,7 +1026,19 @@ export default function SentimentDetail() {
             arcIsActive = arcData.project.arc_active ?? false;
             setArcAccessLevel(arcLevel);
             setArcActive(arcIsActive);
+          } else {
+            // Project not found in ARC, assume no ARC access
+            arcLevel = 'none';
+            arcIsActive = false;
+            setArcAccessLevel('none');
+            setArcActive(false);
           }
+        } else {
+          // API call failed, assume no ARC access (safer to show button)
+          arcLevel = 'none';
+          arcIsActive = false;
+          setArcAccessLevel('none');
+          setArcActive(false);
         }
 
         // Check if user can request
@@ -1039,7 +1051,7 @@ export default function SentimentDetail() {
         }
 
         // Check for existing request (only if ARC is not enabled)
-        if (arcLevel === 'none' || !arcIsActive) {
+        if (arcLevel === 'none' || arcLevel === null || arcIsActive === false || arcIsActive === null) {
           const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
           if (reqRes.ok) {
             const reqData = await reqRes.json();
@@ -1051,6 +1063,8 @@ export default function SentimentDetail() {
             } else {
               setExistingRequest(null);
             }
+          } else {
+            setExistingRequest(null);
           }
         } else {
           setExistingRequest(null);
@@ -1288,7 +1302,12 @@ export default function SentimentDetail() {
                     </Link>
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
-                  {isLoggedIn && canRequest === true && project && (arcAccessLevel === 'none' || !arcActive) && !existingRequest && (
+                  {isLoggedIn && 
+                   canRequest === true && 
+                   project && 
+                   (arcAccessLevel === 'none' || arcAccessLevel === null) && 
+                   (arcActive === false || arcActive === null) && 
+                   !existingRequest && (
                     <Link
                       href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
                       className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
