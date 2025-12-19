@@ -263,10 +263,11 @@ export default async function handler(
     let shouldShowRequestButton = false;
     let reason: string | undefined;
 
-    // DEV MODE: Always allow in development
+    // DEV MODE: Bypass permission checks in development only
+    // In production (NODE_ENV !== 'development'), this block is skipped
     if (DEV_MODE) {
       shouldShowRequestButton = arcAccessLevel === 'none' && !arcActive && !existingRequest;
-      reason = DEV_MODE ? 'DEV_MODE: allowed' : undefined;
+      reason = 'DEV_MODE: allowed';
     } else {
       const sessionToken = getSessionToken(req);
       if (!sessionToken) {

@@ -1029,11 +1029,15 @@ export default function SentimentDetail() {
       setArcCtaLoading(true);
       setArcCtaError(null);
       try {
-        const url = `/api/portal/arc/cta-state?projectId=${project.id}&_t=${Date.now()}`; // force no-cache in dev
-        console.log('[ARC CTA] fetch', url);
+        const url = `/api/portal/arc/cta-state?projectId=${project.id}${process.env.NODE_ENV !== 'production' ? `&_t=${Date.now()}` : ''}`;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[ARC CTA] fetch', url);
+        }
         const res = await fetch(url);
         const data = await res.json();
-        console.log('[ARC CTA] response', data);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[ARC CTA] response', data);
+        }
         if (!cancelled) setArcCta(data);
       } catch (e: any) {
         if (!cancelled) setArcCtaError(e?.message || 'cta-state fetch failed');
@@ -1268,7 +1272,8 @@ export default function SentimentDetail() {
                     </Link>
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
-                  {arcCta?.shouldShowRequestButton === true && project?.id && (
+                  {/* API-driven: Only show if API explicitly returns shouldShowRequestButton: true */}
+                  {arcCta?.ok === true && arcCta?.shouldShowRequestButton === true && project?.id && (
                     <Link
                       href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
                       className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
