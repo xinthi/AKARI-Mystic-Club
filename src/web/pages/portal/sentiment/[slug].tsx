@@ -955,6 +955,12 @@ export default function SentimentDetail() {
   const [audienceGeo, setAudienceGeo] = useState<AudienceGeoData | null>(null);
   const [audienceGeoLoading, setAudienceGeoLoading] = useState(false);
 
+  // ARC Request state
+  const [canRequest, setCanRequest] = useState<boolean | null>(null); // null = checking, true/false = result
+  const [arcAccessLevel, setArcAccessLevel] = useState<'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null>(null);
+  const [arcActive, setArcActive] = useState<boolean | null>(null);
+  const [existingRequest, setExistingRequest] = useState<{ id: string; status: 'pending' | 'approved' | 'rejected' } | null>(null);
+
   useEffect(() => {
     if (!slug) return;
 
@@ -995,6 +1001,68 @@ export default function SentimentDetail() {
 
     fetchData();
   }, [slug]);
+
+  // Check ARC status and permissions
+  useEffect(() => {
+    async function checkArcStatus() {
+      if (!project?.id || !isLoggedIn) {
+        setCanRequest(false);
+        setArcAccessLevel(null);
+        setArcActive(null);
+        setExistingRequest(null);
+        return;
+      }
+
+      try {
+        // Fetch ARC project data to get arc_access_level and arc_active
+        const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
+        let arcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' = 'none';
+        let arcIsActive = false;
+        
+        if (arcRes.ok) {
+          const arcData = await arcRes.json();
+          if (arcData.ok && arcData.project) {
+            arcLevel = arcData.project.arc_access_level || 'none';
+            arcIsActive = arcData.project.arc_active ?? false;
+            setArcAccessLevel(arcLevel);
+            setArcActive(arcIsActive);
+          }
+        }
+
+        // Check if user can request
+        const permRes = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
+        if (permRes.ok) {
+          const permData = await permRes.json();
+          if (permData.ok) {
+            setCanRequest(permData.canRequest);
+          }
+        }
+
+        // Check for existing request (only if ARC is not enabled)
+        if (arcLevel === 'none' || !arcIsActive) {
+          const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+          if (reqRes.ok) {
+            const reqData = await reqRes.json();
+            if (reqData.ok && reqData.request) {
+              setExistingRequest({
+                id: reqData.request.id,
+                status: reqData.request.status,
+              });
+            } else {
+              setExistingRequest(null);
+            }
+          }
+        } else {
+          setExistingRequest(null);
+        }
+      } catch (err) {
+        console.debug('[SentimentDetail] Could not check ARC status:', err);
+        setCanRequest(false);
+      }
+    }
+
+    checkArcStatus();
+  }, [project?.id, isLoggedIn]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1217,6 +1285,18 @@ export default function SentimentDetail() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       Open Deep Explorer
+                    </Link>
+                  )}
+                  {/* Request ARC Leaderboard Button (for admins/moderators) */}
+                  {isLoggedIn && canRequest === true && project && (arcAccessLevel === 'none' || !arcActive) && !existingRequest && (
+                    <Link
+                      href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
+                      className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Request ARC Leaderboard
                     </Link>
                   )}
                 </div>
