@@ -1071,16 +1071,37 @@ export default function SentimentDetail() {
           console.error('[SentimentDetail] Permission check error:', permErr);
         }
 
-        // Set canRequest: Use API result if available, otherwise use superadmin fallback
-        // ALWAYS allow superadmins regardless of API response
+        // Fallback: Check team membership if permission API failed or returned false
+        let isTeamMember = false;
+        if (!permissionCheckPassed || !apiCanRequest) {
+          try {
+            const roleRes = await fetch(`/api/portal/projects/${project.id}/my-role`);
+            if (roleRes.ok) {
+              const roleData = await roleRes.json();
+              if (roleData.ok && roleData.role) {
+                // User is owner, admin, or moderator
+                isTeamMember = ['owner', 'admin', 'moderator'].includes(roleData.role);
+                console.log('[SentimentDetail] Team role check result:', roleData.role, 'isTeamMember:', isTeamMember);
+              }
+            }
+          } catch (roleErr) {
+            console.error('[SentimentDetail] Team role check error:', roleErr);
+          }
+        }
+
+        // Set canRequest: Use API result if available, otherwise use fallbacks
+        // ALWAYS allow superadmins and team members (owner/admin/moderator) regardless of API response
         if (userIsSuperAdmin) {
           console.log('[SentimentDetail] User is superadmin - forcing canRequest to true');
+          setCanRequest(true);
+        } else if (isTeamMember) {
+          console.log('[SentimentDetail] User is team member (owner/admin/moderator) - forcing canRequest to true');
           setCanRequest(true);
         } else if (permissionCheckPassed) {
           setCanRequest(apiCanRequest);
         } else {
-          // API failed and user is not superadmin - don't set to false, keep null
-          console.warn('[SentimentDetail] Permission check failed and user is not superadmin');
+          // API failed and user is not superadmin or team member - don't set to false, keep null
+          console.warn('[SentimentDetail] Permission check failed and user is not superadmin or team member');
         }
 
         // Check for existing request (only if ARC is not enabled)
@@ -1349,6 +1370,8 @@ export default function SentimentDetail() {
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
                   {(() => {
                     const userIsSuperAdmin = isSuperAdmin(user);
+                    // Button shows if: canRequest is true OR user is superadmin
+                    // Note: canRequest will be set to true by fallback if user is admin/moderator
                     const shouldShow = isLoggedIn && 
                       project && 
                       (canRequest === true || userIsSuperAdmin) && 
