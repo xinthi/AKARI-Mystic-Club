@@ -960,6 +960,9 @@ export default function SentimentDetail() {
   const [arcAccessLevel, setArcAccessLevel] = useState<'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null>(null);
   const [arcActive, setArcActive] = useState<boolean | null>(null);
   const [existingRequest, setExistingRequest] = useState<{ id: string; status: 'pending' | 'approved' | 'rejected' } | null>(null);
+  
+  // Memoize superadmin status to prevent unnecessary recalculations
+  const userIsSuperAdminMemo = useMemo(() => isSuperAdmin(user), [user]);
 
   useEffect(() => {
     if (!slug) return;
@@ -1019,13 +1022,14 @@ export default function SentimentDetail() {
         return;
       }
 
-      // Check if user is superadmin as fallback
-      const userIsSuperAdmin = isSuperAdmin(user);
+      // Check if user is superadmin as fallback (use memoized value)
+      const userIsSuperAdmin = userIsSuperAdminMemo;
       console.log('[SentimentDetail] Starting ARC status check:', {
         projectId: project.id,
         isLoggedIn,
         userIsSuperAdmin,
         userRealRoles: user?.realRoles,
+        userObject: user ? { id: user.id, realRoles: user.realRoles } : null,
       });
       
       // If superadmin, set canRequest to true immediately (before API calls)
@@ -1171,7 +1175,16 @@ export default function SentimentDetail() {
     }
 
     checkArcStatus();
-  }, [project?.id, isLoggedIn, user]);
+  }, [project?.id, isLoggedIn, user, userIsSuperAdminMemo]);
+  
+  // Safety effect: Ensure canRequest stays true for superadmins
+  // This prevents the button from disappearing if canRequest gets set to false
+  useEffect(() => {
+    if (userIsSuperAdminMemo && canRequest === false) {
+      console.log('[SentimentDetail] Safety check: Superadmin detected but canRequest is false - fixing it');
+      setCanRequest(true);
+    }
+  }, [userIsSuperAdminMemo, canRequest]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1398,8 +1411,8 @@ export default function SentimentDetail() {
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
                   {(() => {
-                    // Always check superadmin status directly from user object (most reliable)
-                    const userIsSuperAdmin = user ? isSuperAdmin(user) : false;
+                    // Always check superadmin status using memoized value (most reliable)
+                    const userIsSuperAdmin = userIsSuperAdminMemo;
                     
                     // Button shows if: canRequest is true OR user is superadmin
                     // Note: canRequest will be set to true by fallback if user is admin/moderator
@@ -1419,6 +1432,7 @@ export default function SentimentDetail() {
                         isLoggedIn,
                         canRequest,
                         userIsSuperAdmin,
+                        userIsSuperAdminMemo,
                         hasPermission,
                         isSuperAdminCheck: user ? isSuperAdmin(user) : false,
                         userRealRoles: user?.realRoles,
