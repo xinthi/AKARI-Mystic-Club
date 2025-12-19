@@ -1015,6 +1015,12 @@ export default function SentimentDetail() {
 
       // Check if user is superadmin as fallback
       const userIsSuperAdmin = isSuperAdmin(user);
+      console.log('[SentimentDetail] Starting ARC status check:', {
+        projectId: project.id,
+        isLoggedIn,
+        userIsSuperAdmin,
+        userRealRoles: user?.realRoles,
+      });
       
       try {
         // Fetch ARC project data to get arc_access_level and arc_active
@@ -1046,12 +1052,13 @@ export default function SentimentDetail() {
 
         // Check if user can request
         let permissionCheckPassed = false;
+        let apiCanRequest = false;
         try {
           const permRes = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
           if (permRes.ok) {
             const permData = await permRes.json();
             if (permData.ok) {
-              setCanRequest(permData.canRequest);
+              apiCanRequest = permData.canRequest;
               permissionCheckPassed = true;
               console.log('[SentimentDetail] Permission check result:', permData.canRequest);
             } else {
@@ -1064,13 +1071,21 @@ export default function SentimentDetail() {
           console.error('[SentimentDetail] Permission check error:', permErr);
         }
 
-        // Fallback: If permission check failed but user is superadmin, allow request
-        if (!permissionCheckPassed && userIsSuperAdmin) {
-          console.log('[SentimentDetail] Using superadmin fallback for canRequest');
+        // Set canRequest: Use API result if available, otherwise use superadmin fallback
+        if (permissionCheckPassed) {
+          // If API returned false but user is superadmin, override with true
+          if (!apiCanRequest && userIsSuperAdmin) {
+            console.log('[SentimentDetail] API returned false, but user is superadmin - overriding to true');
+            setCanRequest(true);
+          } else {
+            setCanRequest(apiCanRequest);
+          }
+        } else if (userIsSuperAdmin) {
+          // API call failed, but user is superadmin - allow request
+          console.log('[SentimentDetail] Permission API failed, but user is superadmin - allowing request');
           setCanRequest(true);
-        } else if (!permissionCheckPassed) {
-          // Only set to false if we're sure they can't request
-          // Don't set to false on error - keep it null to avoid hiding button prematurely
+        } else {
+          // API failed and user is not superadmin - don't set to false, keep null
           console.warn('[SentimentDetail] Permission check failed and user is not superadmin');
         }
 
