@@ -19,6 +19,7 @@ interface LeaderboardRequest {
   requested_arc_access_level: 'creator_manager' | 'leaderboard' | 'gamified' | null;
   created_at: string;
   decided_at: string | null;
+  arc_access_level: 'creator_manager' | 'leaderboard' | 'gamified' | 'none' | null;
   project: {
     id: string;
     project_id?: string;

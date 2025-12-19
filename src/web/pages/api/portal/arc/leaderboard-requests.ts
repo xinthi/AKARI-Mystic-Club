@@ -147,7 +147,8 @@ export default async function handler(
               name,
               display_name,
               slug,
-              twitter_username
+              twitter_username,
+              arc_access_level
             )
           `)
           .eq('requested_by', userProfile.profileId)
@@ -165,6 +166,7 @@ export default async function handler(
           requested_arc_access_level: req.requested_arc_access_level,
           created_at: req.created_at,
           decided_at: req.decided_at,
+          arc_access_level: req.projects?.arc_access_level || null,
           project: req.projects ? {
             id: req.projects.id,
             project_id: req.projects.id,
