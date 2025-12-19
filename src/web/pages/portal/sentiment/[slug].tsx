@@ -914,7 +914,8 @@ export default function SentimentDetail() {
   // Get current user for permission checks
   const akariUser = useAkariUser();
   const { user } = akariUser;
-  const isLoggedIn = user?.isLoggedIn ?? false;
+  // Resilient logged-in detection: user exists and has an identifier (works in DEV MODE)
+  const isLoggedIn = !!user && (!!user.id || user.isLoggedIn === true);
   
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
@@ -955,18 +956,29 @@ export default function SentimentDetail() {
   const [audienceGeo, setAudienceGeo] = useState<AudienceGeoData | null>(null);
   const [audienceGeoLoading, setAudienceGeoLoading] = useState(false);
 
-  // ARC Request state
-  const [canRequest, setCanRequest] = useState<boolean | null>(null); // null = checking, true/false = result
-  const [arcAccessLevel, setArcAccessLevel] = useState<'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null>(null);
-  const [arcActive, setArcActive] = useState<boolean | null>(null);
-  const [existingRequest, setExistingRequest] = useState<{ id: string; status: 'pending' | 'approved' | 'rejected' } | null>(null);
-  
-  // ARC CTA status - prevents flashing by gating render until all checks complete
-  type ArcCtaStatus = 'idle' | 'loading' | 'ready';
-  const [arcCtaStatus, setArcCtaStatus] = useState<ArcCtaStatus>('idle');
-  
-  // Memoize superadmin status to prevent unnecessary recalculations
-  const userIsSuperAdminMemo = useMemo(() => isSuperAdmin(user), [user]);
+  // ARC CTA state - single source of truth from API
+  const [arcCta, setArcCta] = useState<any>(null);
+  const [arcCtaLoading, setArcCtaLoading] = useState(false);
+  const [arcCtaError, setArcCtaError] = useState<string | null>(null);
+
+  // Hard reset on slug change - prevents stale data from previous project
+  useEffect(() => {
+    // Reset ARC CTA state immediately when slug changes
+    setArcCta(null);
+    setArcCtaLoading(false);
+    setArcCtaError(null);
+    
+    // Reset all page data to avoid stale UI during navigation
+    setProject(null);
+    setMetrics([]);
+    setTweets([]);
+    setChanges24h(null);
+    setInfluencers([]);
+    setInnerCircle({ count: 0, power: 0 });
+    setCompetitors([]);
+    setError(null);
+    setLoading(true);
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -1009,181 +1021,28 @@ export default function SentimentDetail() {
     fetchData();
   }, [slug]);
 
-  // Reset ARC CTA state when project changes - prevents stale state from causing flashes
+  // Fetch ARC CTA state - single consolidated endpoint
   useEffect(() => {
-    // When switching projects, never reuse old ARC state
-    setCanRequest(null);
-    setArcAccessLevel(null);
-    setArcActive(null);
-    setExistingRequest(null);
-
-    if (!isLoggedIn || !project?.id) {
-      setArcCtaStatus('idle');
-      return;
-    }
-
-    setArcCtaStatus('loading');
-  }, [project?.id, isLoggedIn]);
-
-  // Check ARC status and permissions
-  useEffect(() => {
-    // Only run checks if prerequisites are met
-    if (!isLoggedIn || !project?.id) return;
-
+    if (!project?.id) return;
     let cancelled = false;
-
-    async function run() {
+    (async () => {
+      setArcCtaLoading(true);
+      setArcCtaError(null);
       try {
-        // Compute everything locally first (do not update state until the end)
-        let nextArcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' = 'none';
-        let nextArcActive = false;
-        let nextCanRequest = false;
-        let nextExistingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;
-
-        // Check superadmin status (local only, don't set state yet)
-        const userIsSuperAdmin = isSuperAdmin(user);
-
-        console.log('[SentimentDetail] Starting ARC status check:', {
-          projectId: project.id,
-          isLoggedIn,
-          userIsSuperAdmin,
-          userRealRoles: user?.realRoles,
-        });
-
-        // 1) Fetch ARC project state (best effort)
-        try {
-          const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
-          if (arcRes.ok) {
-            const arcData = await arcRes.json();
-            if (arcData.ok && arcData.project) {
-              nextArcLevel = arcData.project.arc_access_level || 'none';
-              nextArcActive = arcData.project.arc_active ?? false;
-            } else {
-              // Project not found in ARC, assume no ARC access
-              nextArcLevel = 'none';
-              nextArcActive = false;
-            }
-          } else {
-            // API call failed, assume no ARC access
-            nextArcLevel = 'none';
-            nextArcActive = false;
-          }
-        } catch (arcErr) {
-          console.error('[SentimentDetail] Error fetching ARC project:', arcErr);
-          nextArcLevel = 'none';
-          nextArcActive = false;
-        }
-
-        // 2) Permission API + fallback my-role
-        let permissionCheckPassed = false;
-        let apiCanRequest = false;
-        try {
-          const permRes = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
-          if (permRes.ok) {
-            const permData = await permRes.json();
-            if (permData.ok) {
-              apiCanRequest = permData.canRequest;
-              permissionCheckPassed = true;
-              console.log('[SentimentDetail] Permission check result:', permData.canRequest);
-            } else {
-              console.warn('[SentimentDetail] Permission API returned error:', permData.error);
-            }
-          } else {
-            console.warn('[SentimentDetail] Permission API request failed:', permRes.status, permRes.statusText);
-          }
-        } catch (permErr) {
-          console.error('[SentimentDetail] Permission check error:', permErr);
-        }
-
-        // Fallback: Check team membership if permission API failed or returned false
-        let isTeamMember = false;
-        if (!permissionCheckPassed || !apiCanRequest) {
-          try {
-            const roleRes = await fetch(`/api/portal/projects/${project.id}/my-role`);
-            if (roleRes.ok) {
-              const roleData = await roleRes.json();
-              if (roleData.ok && roleData.role) {
-                // User is owner, admin, or moderator
-                isTeamMember = ['owner', 'admin', 'moderator'].includes(roleData.role);
-                console.log('[SentimentDetail] Team role check result:', roleData.role, 'isTeamMember:', isTeamMember);
-              }
-            }
-          } catch (roleErr) {
-            console.error('[SentimentDetail] Team role check error:', roleErr);
-          }
-        }
-
-        // Compute canRequest: superadmin OR team member OR API result
-        nextCanRequest = userIsSuperAdmin || isTeamMember || apiCanRequest;
-
-        // 3) Existing request check ONLY if ARC not enabled
-        if (nextArcLevel === 'none' || nextArcActive === false) {
-          try {
-            const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
-            if (reqRes.ok) {
-              const reqData = await reqRes.json();
-              if (reqData.ok && reqData.request) {
-                nextExistingRequest = {
-                  id: reqData.request.id,
-                  status: reqData.request.status,
-                };
-                console.log('[SentimentDetail] Found existing request:', reqData.request.status);
-              } else {
-                nextExistingRequest = null;
-              }
-            } else {
-              nextExistingRequest = null;
-            }
-          } catch (reqErr) {
-            console.error('[SentimentDetail] Error checking existing request:', reqErr);
-            nextExistingRequest = null;
-          }
-        } else {
-          nextExistingRequest = null;
-        }
-
-        // Check if cancelled before committing state
-        if (cancelled) return;
-
-        // Commit all state at once (prevents flashing)
-        setArcAccessLevel(nextArcLevel);
-        setArcActive(nextArcActive);
-        setCanRequest(nextCanRequest);
-        setExistingRequest(nextExistingRequest);
-        setArcCtaStatus('ready');
-      } catch (err) {
-        console.error('[SentimentDetail] Error checking ARC status:', err);
-        
-        // Check if cancelled before committing error state
-        if (cancelled) return;
-
-        // On error: still mark ready, but default safest values (no flash)
-        const userIsSuperAdmin = isSuperAdmin(user);
-        setArcAccessLevel('none');
-        setArcActive(false);
-        setCanRequest(userIsSuperAdmin); // Allow superadmin even on error
-        setExistingRequest(null);
-        setArcCtaStatus('ready');
+        const url = `/api/portal/arc/cta-state?projectId=${project.id}&_t=${Date.now()}`; // force no-cache in dev
+        console.log('[ARC CTA] fetch', url);
+        const res = await fetch(url);
+        const data = await res.json();
+        console.log('[ARC CTA] response', data);
+        if (!cancelled) setArcCta(data);
+      } catch (e: any) {
+        if (!cancelled) setArcCtaError(e?.message || 'cta-state fetch failed');
+      } finally {
+        if (!cancelled) setArcCtaLoading(false);
       }
-    }
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoggedIn, project?.id, user]);
-  
-  // Safety effect: Ensure canRequest stays true for superadmins
-  // This prevents the button from disappearing if canRequest gets set to false
-  // Only correct after ready to avoid interfering with initial checks
-  useEffect(() => {
-    if (arcCtaStatus !== 'ready') return;
-    if (userIsSuperAdminMemo && canRequest === false) {
-      console.log('[SentimentDetail] Safety check: Superadmin detected but canRequest is false - fixing it');
-      setCanRequest(true);
-    }
-  }, [arcCtaStatus, userIsSuperAdminMemo, canRequest]);
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1409,43 +1268,7 @@ export default function SentimentDetail() {
                     </Link>
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
-                  {(() => {
-                    // Always check superadmin status using memoized value (most reliable)
-                    const userIsSuperAdmin = userIsSuperAdminMemo;
-                    
-                    // Button shows if: canRequest is true OR user is superadmin
-                    // Note: canRequest will be set to true by fallback if user is admin/moderator
-                    const hasPermission = canRequest === true || userIsSuperAdmin;
-                    const arcNotEnabled = (arcAccessLevel === 'none' || arcAccessLevel === null) && 
-                                         (arcActive === false || arcActive === null);
-                    
-                    const shouldShow = arcCtaStatus === 'ready' &&
-                      isLoggedIn &&
-                      project &&
-                      hasPermission &&
-                      arcNotEnabled &&
-                      !existingRequest;
-                    
-                    // Debug log
-                    if (isLoggedIn && project) {
-                      console.log('[SentimentDetail] Button visibility check:', {
-                        isLoggedIn,
-                        canRequest,
-                        userIsSuperAdmin,
-                        userIsSuperAdminMemo,
-                        hasPermission,
-                        isSuperAdminCheck: user ? isSuperAdmin(user) : false,
-                        userRealRoles: user?.realRoles,
-                        arcAccessLevel,
-                        arcActive,
-                        arcNotEnabled,
-                        existingRequest: !!existingRequest,
-                        shouldShow,
-                      });
-                    }
-                    
-                    return shouldShow;
-                  })() && (
+                  {arcCta?.shouldShowRequestButton === true && project?.id && (
                     <Link
                       href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
                       className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"

@@ -111,7 +111,7 @@ export default function ArcRequestsPage() {
   const [requestMode, setRequestMode] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
-  const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified'>('leaderboard');
+  const [selectedAccessLevel, setSelectedAccessLevel] = useState<'creator_manager' | 'leaderboard' | 'gamified'>('leaderboard');
   const [justification, setJustification] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -311,14 +311,17 @@ export default function ArcRequestsPage() {
                       </label>
                       <select
                         value={selectedAccessLevel}
-                        onChange={(e) => setSelectedAccessLevel(e.target.value as 'leaderboard' | 'gamified')}
+                        onChange={(e) => setSelectedAccessLevel(e.target.value as 'creator_manager' | 'leaderboard' | 'gamified')}
                         className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-neon-teal"
                       >
+                        <option value="creator_manager">Creator Manager</option>
                         <option value="leaderboard">Leaderboard</option>
                         <option value="gamified">Gamified</option>
                       </select>
                       <p className="text-xs text-akari-muted mt-2">
-                        {selectedAccessLevel === 'leaderboard' 
+                        {selectedAccessLevel === 'creator_manager'
+                          ? 'Manage creator campaigns and programs'
+                          : selectedAccessLevel === 'leaderboard' 
                           ? 'Display project leaderboard with rankings'
                           : 'Full gamified experience with missions and rewards'}
                       </p>
