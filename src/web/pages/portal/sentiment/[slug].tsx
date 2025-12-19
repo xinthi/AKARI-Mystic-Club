@@ -961,6 +961,10 @@ export default function SentimentDetail() {
   const [arcActive, setArcActive] = useState<boolean | null>(null);
   const [existingRequest, setExistingRequest] = useState<{ id: string; status: 'pending' | 'approved' | 'rejected' } | null>(null);
   
+  // ARC CTA status - prevents flashing by gating render until all checks complete
+  type ArcCtaStatus = 'idle' | 'loading' | 'ready';
+  const [arcCtaStatus, setArcCtaStatus] = useState<ArcCtaStatus>('idle');
+  
   // Memoize superadmin status to prevent unnecessary recalculations
   const userIsSuperAdminMemo = useMemo(() => isSuperAdmin(user), [user]);
 
@@ -1005,70 +1009,72 @@ export default function SentimentDetail() {
     fetchData();
   }, [slug]);
 
+  // Reset ARC CTA state when project changes - prevents stale state from causing flashes
+  useEffect(() => {
+    // When switching projects, never reuse old ARC state
+    setCanRequest(null);
+    setArcAccessLevel(null);
+    setArcActive(null);
+    setExistingRequest(null);
+
+    if (!isLoggedIn || !project?.id) {
+      setArcCtaStatus('idle');
+      return;
+    }
+
+    setArcCtaStatus('loading');
+  }, [project?.id, isLoggedIn]);
+
   // Check ARC status and permissions
   useEffect(() => {
-    async function checkArcStatus() {
-      if (!project?.id || !isLoggedIn) {
-        // If user is superadmin, still allow request even if project not loaded yet
-        const userIsSuperAdmin = isSuperAdmin(user);
-        if (userIsSuperAdmin) {
-          setCanRequest(true);
-        } else {
-          setCanRequest(false);
-        }
-        setArcAccessLevel(null);
-        setArcActive(null);
-        setExistingRequest(null);
-        return;
-      }
+    // Only run checks if prerequisites are met
+    if (!isLoggedIn || !project?.id) return;
 
-      // Check if user is superadmin as fallback (use memoized value)
-      const userIsSuperAdmin = userIsSuperAdminMemo;
-      console.log('[SentimentDetail] Starting ARC status check:', {
-        projectId: project.id,
-        isLoggedIn,
-        userIsSuperAdmin,
-        userRealRoles: user?.realRoles,
-        userObject: user ? { id: user.id, realRoles: user.realRoles } : null,
-      });
-      
-      // If superadmin, set canRequest to true immediately (before API calls)
-      // This ensures button shows immediately and doesn't disappear
-      if (userIsSuperAdmin) {
-        console.log('[SentimentDetail] User is superadmin - setting canRequest to true immediately');
-        setCanRequest(true);
-        // Continue with API calls for ARC status, but don't override canRequest
-      }
+    let cancelled = false;
 
+    async function run() {
       try {
-        // Fetch ARC project data to get arc_access_level and arc_active
-        const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
-        let arcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null = null;
-        let arcIsActive: boolean | null = null;
-        
-        if (arcRes.ok) {
-          const arcData = await arcRes.json();
-          if (arcData.ok && arcData.project) {
-            arcLevel = arcData.project.arc_access_level || 'none';
-            arcIsActive = arcData.project.arc_active ?? false;
-            setArcAccessLevel(arcLevel);
-            setArcActive(arcIsActive);
+        // Compute everything locally first (do not update state until the end)
+        let nextArcLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' = 'none';
+        let nextArcActive = false;
+        let nextCanRequest = false;
+        let nextExistingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;
+
+        // Check superadmin status (local only, don't set state yet)
+        const userIsSuperAdmin = isSuperAdmin(user);
+
+        console.log('[SentimentDetail] Starting ARC status check:', {
+          projectId: project.id,
+          isLoggedIn,
+          userIsSuperAdmin,
+          userRealRoles: user?.realRoles,
+        });
+
+        // 1) Fetch ARC project state (best effort)
+        try {
+          const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
+          if (arcRes.ok) {
+            const arcData = await arcRes.json();
+            if (arcData.ok && arcData.project) {
+              nextArcLevel = arcData.project.arc_access_level || 'none';
+              nextArcActive = arcData.project.arc_active ?? false;
+            } else {
+              // Project not found in ARC, assume no ARC access
+              nextArcLevel = 'none';
+              nextArcActive = false;
+            }
           } else {
-            // Project not found in ARC, assume no ARC access
-            arcLevel = 'none';
-            arcIsActive = false;
-            setArcAccessLevel('none');
-            setArcActive(false);
+            // API call failed, assume no ARC access
+            nextArcLevel = 'none';
+            nextArcActive = false;
           }
-        } else {
-          // API call failed, assume no ARC access (safer to show button)
-          arcLevel = 'none';
-          arcIsActive = false;
-          setArcAccessLevel('none');
-          setArcActive(false);
+        } catch (arcErr) {
+          console.error('[SentimentDetail] Error fetching ARC project:', arcErr);
+          nextArcLevel = 'none';
+          nextArcActive = false;
         }
 
-        // Check if user can request
+        // 2) Permission API + fallback my-role
         let permissionCheckPassed = false;
         let apiCanRequest = false;
         try {
@@ -1107,84 +1113,77 @@ export default function SentimentDetail() {
           }
         }
 
-        // Set canRequest: Use API result if available, otherwise use fallbacks
-        // ALWAYS allow superadmins and team members (owner/admin/moderator) regardless of API response
-        // IMPORTANT: Check superadmin FIRST, then team member, then API result
-        // This ensures superadmins and team members always get canRequest = true
-        // NOTE: If userIsSuperAdmin was true at start, canRequest is already set to true above
-        // This section ensures it stays true even after API calls complete
-        if (userIsSuperAdmin) {
-          // Superadmin - ALWAYS keep it true (never override with false)
-          console.log('[SentimentDetail] User is superadmin - ensuring canRequest stays true (never false)');
-          setCanRequest(true);
-        } else if (isTeamMember) {
-          console.log('[SentimentDetail] User is team member (owner/admin/moderator) - forcing canRequest to true');
-          setCanRequest(true);
-        } else if (permissionCheckPassed) {
-          // Only set to API result if user is NOT superadmin and NOT team member
-          console.log('[SentimentDetail] Setting canRequest from API result:', apiCanRequest);
-          setCanRequest(apiCanRequest);
-        } else {
-          // API failed and user is not superadmin or team member - set to false
-          // BUT: Re-check superadmin status here as a final safety check
-          const finalSuperAdminCheck = isSuperAdmin(user);
-          if (finalSuperAdminCheck) {
-            console.log('[SentimentDetail] Final safety check: user is superadmin - forcing canRequest to true');
-            setCanRequest(true);
-          } else {
-            console.warn('[SentimentDetail] Permission check failed and user is not superadmin or team member - setting canRequest to false');
-            setCanRequest(false);
-          }
-        }
+        // Compute canRequest: superadmin OR team member OR API result
+        nextCanRequest = userIsSuperAdmin || isTeamMember || apiCanRequest;
 
-        // Check for existing request (only if ARC is not enabled)
-        if (arcLevel === 'none' || arcLevel === null || arcIsActive === false || arcIsActive === null) {
+        // 3) Existing request check ONLY if ARC not enabled
+        if (nextArcLevel === 'none' || nextArcActive === false) {
           try {
             const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
             if (reqRes.ok) {
               const reqData = await reqRes.json();
               if (reqData.ok && reqData.request) {
-                setExistingRequest({
+                nextExistingRequest = {
                   id: reqData.request.id,
                   status: reqData.request.status,
-                });
+                };
                 console.log('[SentimentDetail] Found existing request:', reqData.request.status);
               } else {
-                setExistingRequest(null);
+                nextExistingRequest = null;
               }
             } else {
-              setExistingRequest(null);
+              nextExistingRequest = null;
             }
           } catch (reqErr) {
             console.error('[SentimentDetail] Error checking existing request:', reqErr);
-            setExistingRequest(null);
+            nextExistingRequest = null;
           }
         } else {
-          setExistingRequest(null);
+          nextExistingRequest = null;
         }
+
+        // Check if cancelled before committing state
+        if (cancelled) return;
+
+        // Commit all state at once (prevents flashing)
+        setArcAccessLevel(nextArcLevel);
+        setArcActive(nextArcActive);
+        setCanRequest(nextCanRequest);
+        setExistingRequest(nextExistingRequest);
+        setArcCtaStatus('ready');
       } catch (err) {
         console.error('[SentimentDetail] Error checking ARC status:', err);
-        // Don't set canRequest to false on error - use superadmin fallback
-        if (userIsSuperAdmin) {
-          console.log('[SentimentDetail] Error occurred, but using superadmin fallback');
-          setCanRequest(true);
-          setArcAccessLevel('none');
-          setArcActive(false);
-        }
+        
+        // Check if cancelled before committing error state
+        if (cancelled) return;
+
+        // On error: still mark ready, but default safest values (no flash)
+        const userIsSuperAdmin = isSuperAdmin(user);
+        setArcAccessLevel('none');
+        setArcActive(false);
+        setCanRequest(userIsSuperAdmin); // Allow superadmin even on error
+        setExistingRequest(null);
+        setArcCtaStatus('ready');
       }
     }
 
-    checkArcStatus();
-  }, [project?.id, isLoggedIn, user, userIsSuperAdminMemo]);
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, project?.id, user]);
   
   // Safety effect: Ensure canRequest stays true for superadmins
   // This prevents the button from disappearing if canRequest gets set to false
+  // Only correct after ready to avoid interfering with initial checks
   useEffect(() => {
+    if (arcCtaStatus !== 'ready') return;
     if (userIsSuperAdminMemo && canRequest === false) {
       console.log('[SentimentDetail] Safety check: Superadmin detected but canRequest is false - fixing it');
       setCanRequest(true);
     }
-  }, [userIsSuperAdminMemo, canRequest]);
+  }, [arcCtaStatus, userIsSuperAdminMemo, canRequest]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1420,10 +1419,11 @@ export default function SentimentDetail() {
                     const arcNotEnabled = (arcAccessLevel === 'none' || arcAccessLevel === null) && 
                                          (arcActive === false || arcActive === null);
                     
-                    const shouldShow = isLoggedIn && 
-                      project && 
-                      hasPermission && 
-                      arcNotEnabled && 
+                    const shouldShow = arcCtaStatus === 'ready' &&
+                      isLoggedIn &&
+                      project &&
+                      hasPermission &&
+                      arcNotEnabled &&
                       !existingRequest;
                     
                     // Debug log
