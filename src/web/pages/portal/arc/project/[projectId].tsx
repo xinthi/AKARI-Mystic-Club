@@ -400,6 +400,17 @@ export default function ArcProjectPage() {
                   {statusLabel}
                 </span>
               </div>
+              {/* Request ARC Leaderboard Button (for admins/moderators) */}
+              {akariUser.isLoggedIn && canRequest === true && (arcAccessLevel === 'none' || !arcActive) && !existingRequest && (
+                <div className="mt-4">
+                  <Link
+                    href={`/portal/arc/requests?projectId=${project?.id || projectId}&intent=request`}
+                    className="inline-flex items-center px-4 py-2 bg-akari-neon-teal text-black rounded-lg hover:bg-akari-neon-teal/80 transition-colors font-medium"
+                  >
+                    Request ARC Leaderboard
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
