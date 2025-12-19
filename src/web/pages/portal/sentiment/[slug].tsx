@@ -1006,7 +1006,13 @@ export default function SentimentDetail() {
   useEffect(() => {
     async function checkArcStatus() {
       if (!project?.id || !isLoggedIn) {
-        setCanRequest(false);
+        // If user is superadmin, still allow request even if project not loaded yet
+        const userIsSuperAdmin = isSuperAdmin(user);
+        if (userIsSuperAdmin) {
+          setCanRequest(true);
+        } else {
+          setCanRequest(false);
+        }
         setArcAccessLevel(null);
         setArcActive(null);
         setExistingRequest(null);
@@ -1022,6 +1028,14 @@ export default function SentimentDetail() {
         userRealRoles: user?.realRoles,
       });
       
+      // If superadmin, set canRequest to true immediately (before API calls)
+      // This ensures button shows immediately and doesn't disappear
+      if (userIsSuperAdmin) {
+        console.log('[SentimentDetail] User is superadmin - setting canRequest to true immediately');
+        setCanRequest(true);
+        // Continue with API calls for ARC status, but don't override canRequest
+      }
+
       try {
         // Fetch ARC project data to get arc_access_level and arc_active
         const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
@@ -1091,17 +1105,32 @@ export default function SentimentDetail() {
 
         // Set canRequest: Use API result if available, otherwise use fallbacks
         // ALWAYS allow superadmins and team members (owner/admin/moderator) regardless of API response
+        // IMPORTANT: Check superadmin FIRST, then team member, then API result
+        // This ensures superadmins and team members always get canRequest = true
+        // NOTE: If userIsSuperAdmin was true at start, canRequest is already set to true above
+        // This section ensures it stays true even after API calls complete
         if (userIsSuperAdmin) {
-          console.log('[SentimentDetail] User is superadmin - forcing canRequest to true');
+          // Superadmin - ALWAYS keep it true (never override with false)
+          console.log('[SentimentDetail] User is superadmin - ensuring canRequest stays true (never false)');
           setCanRequest(true);
         } else if (isTeamMember) {
           console.log('[SentimentDetail] User is team member (owner/admin/moderator) - forcing canRequest to true');
           setCanRequest(true);
         } else if (permissionCheckPassed) {
+          // Only set to API result if user is NOT superadmin and NOT team member
+          console.log('[SentimentDetail] Setting canRequest from API result:', apiCanRequest);
           setCanRequest(apiCanRequest);
         } else {
-          // API failed and user is not superadmin or team member - don't set to false, keep null
-          console.warn('[SentimentDetail] Permission check failed and user is not superadmin or team member');
+          // API failed and user is not superadmin or team member - set to false
+          // BUT: Re-check superadmin status here as a final safety check
+          const finalSuperAdminCheck = isSuperAdmin(user);
+          if (finalSuperAdminCheck) {
+            console.log('[SentimentDetail] Final safety check: user is superadmin - forcing canRequest to true');
+            setCanRequest(true);
+          } else {
+            console.warn('[SentimentDetail] Permission check failed and user is not superadmin or team member - setting canRequest to false');
+            setCanRequest(false);
+          }
         }
 
         // Check for existing request (only if ARC is not enabled)
@@ -1369,14 +1398,19 @@ export default function SentimentDetail() {
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
                   {(() => {
-                    const userIsSuperAdmin = isSuperAdmin(user);
+                    // Always check superadmin status directly from user object (most reliable)
+                    const userIsSuperAdmin = user ? isSuperAdmin(user) : false;
+                    
                     // Button shows if: canRequest is true OR user is superadmin
                     // Note: canRequest will be set to true by fallback if user is admin/moderator
+                    const hasPermission = canRequest === true || userIsSuperAdmin;
+                    const arcNotEnabled = (arcAccessLevel === 'none' || arcAccessLevel === null) && 
+                                         (arcActive === false || arcActive === null);
+                    
                     const shouldShow = isLoggedIn && 
                       project && 
-                      (canRequest === true || userIsSuperAdmin) && 
-                      (arcAccessLevel === 'none' || arcAccessLevel === null) && 
-                      (arcActive === false || arcActive === null) && 
+                      hasPermission && 
+                      arcNotEnabled && 
                       !existingRequest;
                     
                     // Debug log
@@ -1385,10 +1419,12 @@ export default function SentimentDetail() {
                         isLoggedIn,
                         canRequest,
                         userIsSuperAdmin,
-                        isSuperAdminCheck: isSuperAdmin(user),
+                        hasPermission,
+                        isSuperAdminCheck: user ? isSuperAdmin(user) : false,
                         userRealRoles: user?.realRoles,
                         arcAccessLevel,
                         arcActive,
+                        arcNotEnabled,
                         existingRequest: !!existingRequest,
                         shouldShow,
                       });
