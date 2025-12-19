@@ -419,12 +419,14 @@ export default function AdminLeaderboardRequestsPage() {
                   onChange={(e) => setSelectedAccessLevel(e.target.value as 'leaderboard' | 'gamified' | 'creator_manager')}
                   className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                 >
-                  <option value="leaderboard">Leaderboard</option>
-                  <option value="gamified">Gamified</option>
-                  <option value="creator_manager">Creator Manager</option>
+                  <option value="leaderboard">Leaderboard → /portal/arc/project/[slug]</option>
+                  <option value="gamified">Gamified → /portal/arc/project/[slug]</option>
+                  <option value="creator_manager">Creator Manager → /portal/arc/creator-manager</option>
                 </select>
                 <p className="text-xs text-slate-500 mt-1">
-                  This will set the project&apos;s ARC access level and activate it.
+                  {selectedAccessLevel === 'creator_manager' 
+                    ? 'Routes to Creator Manager tools. Sets projects.arc_active=true and projects.arc_access_level=creator_manager'
+                    : 'Routes to project ARC leaderboard page. Sets projects.arc_active=true and projects.arc_access_level=' + selectedAccessLevel}
                 </p>
               </div>
             </div>

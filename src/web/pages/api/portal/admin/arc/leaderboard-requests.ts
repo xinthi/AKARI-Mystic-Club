@@ -171,6 +171,7 @@ export default async function handler(
     }
 
     // Fetch all requests with project and requester info
+    // requested_by is a profile ID (foreign key to profiles.id)
     const { data: requests, error: requestsError } = await supabase
       .from('arc_leaderboard_requests')
       .select(`
@@ -199,26 +200,28 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
     }
 
-    // Fetch requester profiles
-    const requesterIds = [...new Set((requests || []).map((r: any) => r.requested_by))];
-    const { data: requesters, error: requestersError } = await supabase
-      .from('profiles')
-      .select('id, username, display_name')
-      .in('id', requesterIds);
+    // Fetch requester profiles (requested_by is a profile ID)
+    const requesterIds = [...new Set((requests || []).map((r: any) => r.requested_by).filter(Boolean))];
+    let requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
+    
+    if (requesterIds.length > 0) {
+      const { data: requesters, error: requestersError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name')
+        .in('id', requesterIds);
 
-    if (requestersError) {
-      console.error('[Admin Leaderboard Requests API] Error fetching requesters:', requestersError);
+      if (requestersError) {
+        console.error('[Admin Leaderboard Requests API] Error fetching requesters:', requestersError);
+      } else if (requesters) {
+        requesters.forEach((p: any) => {
+          requesterMap.set(p.id, {
+            id: p.id,
+            username: p.username,
+            display_name: p.display_name,
+          });
+        });
+      }
     }
-
-    // Build requester map
-    const requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
-    (requesters || []).forEach((p: any) => {
-      requesterMap.set(p.id, {
-        id: p.id,
-        username: p.username,
-        display_name: p.display_name,
-      });
-    });
 
     // Format response
     const formattedRequests: LeaderboardRequest[] = (requests || []).map((r: any) => ({
@@ -239,7 +242,7 @@ export default async function handler(
         slug: r.projects.slug,
         twitter_username: r.projects.twitter_username,
       } : undefined,
-      requester: requesterMap.get(r.requested_by),
+      requester: r.requested_by ? requesterMap.get(r.requested_by) : undefined,
     }));
 
     return res.status(200).json({

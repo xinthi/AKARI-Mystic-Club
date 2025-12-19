@@ -306,6 +306,11 @@ export default async function handler(
     }
 
     // If approved, update project ARC settings
+    // Routing rules:
+    // - creator_manager -> /portal/arc/creator-manager
+    // - leaderboard -> /portal/arc/project/[slug]
+    // - gamified -> /portal/arc/project/[slug] (same as leaderboard)
+    // This sets projects.arc_active=true and projects.arc_access_level=approved_access_level
     let updatedProject = null;
     if (status === 'approved' && arc_access_level) {
       const projectUpdateData: any = {

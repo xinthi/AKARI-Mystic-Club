@@ -195,11 +195,12 @@ export async function enforceArcApiTier(
   const guardResult = await checkArcApiTier(req, apiRoute);
   
   if (!guardResult.allowed) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: guardResult.reason || 'Access denied',
       reason: guardResult.reason,
     });
+    return res;
   }
   
   return null; // Access allowed
