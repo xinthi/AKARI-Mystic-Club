@@ -6,6 +6,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { getEffectiveArcActive } from '@/lib/arc/expiration';
+import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 
 // =============================================================================
 // TYPES
@@ -42,6 +44,12 @@ export default async function handler(
       error: 'Method not allowed',
     });
   }
+  
+  // Enforce tier guard
+  const tierCheck = await enforceArcApiTier(req, res, '/api/portal/arc/summary');
+  if (tierCheck) {
+    return tierCheck; // Access denied
+  }
 
   try {
     // Create Supabase client
@@ -75,14 +83,20 @@ export default async function handler(
     }
 
     // Get ARC enabled projects
-    // ARC Enabled = arc_active === true AND arc_access_level !== 'none'
+    // ARC Enabled = arc_active === true AND arc_access_level !== 'none' AND (arc_active_until IS NULL OR arc_active_until >= now)
     // This includes: 'leaderboard', 'gamified', 'creator_manager'
-    const { count: arcEnabledCount, error: arcEnabledError } = await supabase
+    // Note: We filter by arc_active=true first, then check expiration in code
+    const { data: arcEnabledProjects, error: arcEnabledError } = await supabase
       .from('projects')
-      .select('*', { count: 'exact', head: true })
+      .select('arc_active, arc_active_until')
       .eq('arc_active', true)
       .neq('arc_access_level', 'none')
       .eq('profile_type', 'project'); // Only count projects, not personal profiles
+    
+    // Filter out expired projects (virtual disable)
+    const arcEnabledCount = arcEnabledProjects?.filter(p => 
+      getEffectiveArcActive(p.arc_active, p.arc_active_until)
+    ).length || 0;
 
     if (arcEnabledError) {
       console.error('[ARC Summary API] Error counting ARC enabled projects:', arcEnabledError);

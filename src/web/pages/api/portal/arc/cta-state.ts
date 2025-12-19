@@ -8,6 +8,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { canRequestLeaderboard } from '@/lib/project-permissions';
+import { getEffectiveArcActive } from '@/lib/arc/expiration';
+import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 
 // DEV MODE: Skip authentication in development
 const DEV_MODE = process.env.NODE_ENV === 'development';
@@ -195,6 +197,12 @@ export default async function handler(
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
+  
+  // Enforce tier guard
+  const tierCheck = await enforceArcApiTier(req, res, '/api/portal/arc/cta-state');
+  if (tierCheck) {
+    return tierCheck; // Access denied
+  }
 
   const { projectId } = req.query;
   if (!projectId || typeof projectId !== 'string') {
@@ -204,16 +212,20 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Get ARC project state
+    // Get ARC project state (including expiration)
     const { data: projectData } = await supabase
       .from('projects')
-      .select('arc_access_level, arc_active')
+      .select('arc_access_level, arc_active, arc_active_until')
       .eq('id', projectId)
       .single();
 
     const arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' =
       projectData?.arc_access_level || 'none';
-    const arcActive = projectData?.arc_active ?? false;
+    const arcActiveRaw = projectData?.arc_active ?? false;
+    const arcActiveUntil = projectData?.arc_active_until || null;
+    
+    // Check expiration: if arc_active_until < now, treat as disabled
+    const arcActive = getEffectiveArcActive(arcActiveRaw, arcActiveUntil);
 
     // Get existing request (only if ARC not enabled)
     let existingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;

@@ -14,6 +14,8 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArcTopProjectsCards } from '@/components/arc/ArcTopProjectsCards';
 import { ArcTopProjectsTreemap } from '@/components/arc/ArcTopProjectsTreemap';
+import { requireArcTier } from '@/lib/server-auth';
+import { getRequiredTierForPage } from '@/lib/arc/access-policy';
 
 // =============================================================================
 // TYPES
@@ -572,6 +574,16 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 // =============================================================================
 
 export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (context) => {
+  // Check tier requirement for /portal/arc
+  const requiredTier = getRequiredTierForPage('/portal/arc');
+  if (requiredTier) {
+    const tierCheck = await requireArcTier(context, requiredTier, '/portal/arc');
+    if (tierCheck) {
+      return tierCheck;
+    }
+  }
+  
+  // Legacy logic: canManageArc (for SuperAdmin access to top projects)
   const isDevMode = process.env.NODE_ENV === 'development';
   
   if (isDevMode) {
