@@ -1072,18 +1072,12 @@ export default function SentimentDetail() {
         }
 
         // Set canRequest: Use API result if available, otherwise use superadmin fallback
-        if (permissionCheckPassed) {
-          // If API returned false but user is superadmin, override with true
-          if (!apiCanRequest && userIsSuperAdmin) {
-            console.log('[SentimentDetail] API returned false, but user is superadmin - overriding to true');
-            setCanRequest(true);
-          } else {
-            setCanRequest(apiCanRequest);
-          }
-        } else if (userIsSuperAdmin) {
-          // API call failed, but user is superadmin - allow request
-          console.log('[SentimentDetail] Permission API failed, but user is superadmin - allowing request');
+        // ALWAYS allow superadmins regardless of API response
+        if (userIsSuperAdmin) {
+          console.log('[SentimentDetail] User is superadmin - forcing canRequest to true');
           setCanRequest(true);
+        } else if (permissionCheckPassed) {
+          setCanRequest(apiCanRequest);
         } else {
           // API failed and user is not superadmin - don't set to false, keep null
           console.warn('[SentimentDetail] Permission check failed and user is not superadmin');
@@ -1353,12 +1347,32 @@ export default function SentimentDetail() {
                     </Link>
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
-                  {isLoggedIn && 
-                   project && 
-                   (canRequest === true || (canRequest === null && isSuperAdmin(user))) && 
-                   (arcAccessLevel === 'none' || arcAccessLevel === null) && 
-                   (arcActive === false || arcActive === null) && 
-                   !existingRequest && (
+                  {(() => {
+                    const userIsSuperAdmin = isSuperAdmin(user);
+                    const shouldShow = isLoggedIn && 
+                      project && 
+                      (canRequest === true || userIsSuperAdmin) && 
+                      (arcAccessLevel === 'none' || arcAccessLevel === null) && 
+                      (arcActive === false || arcActive === null) && 
+                      !existingRequest;
+                    
+                    // Debug log
+                    if (isLoggedIn && project) {
+                      console.log('[SentimentDetail] Button visibility check:', {
+                        isLoggedIn,
+                        canRequest,
+                        userIsSuperAdmin,
+                        isSuperAdminCheck: isSuperAdmin(user),
+                        userRealRoles: user?.realRoles,
+                        arcAccessLevel,
+                        arcActive,
+                        existingRequest: !!existingRequest,
+                        shouldShow,
+                      });
+                    }
+                    
+                    return shouldShow;
+                  })() && (
                     <Link
                       href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
                       className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
