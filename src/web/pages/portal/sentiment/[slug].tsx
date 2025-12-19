@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
-import { can, canUseDeepExplorer, FEATURE_KEYS } from '../../../lib/permissions';
+import { can, canUseDeepExplorer, FEATURE_KEYS, isSuperAdmin } from '../../../lib/permissions';
 import { classifyFreshness, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
 import { LockedFeatureOverlay } from '../../../components/portal/LockedFeatureOverlay';
 import { UpgradeModal } from '../../../components/portal/UpgradeModal';
@@ -1013,6 +1013,9 @@ export default function SentimentDetail() {
         return;
       }
 
+      // Check if user is superadmin as fallback
+      const userIsSuperAdmin = isSuperAdmin(user);
+      
       try {
         // Fetch ARC project data to get arc_access_level and arc_active
         const arcRes = await fetch(`/api/portal/arc/project/${project.id}`);
@@ -1042,41 +1045,74 @@ export default function SentimentDetail() {
         }
 
         // Check if user can request
-        const permRes = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
-        if (permRes.ok) {
-          const permData = await permRes.json();
-          if (permData.ok) {
-            setCanRequest(permData.canRequest);
+        let permissionCheckPassed = false;
+        try {
+          const permRes = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
+          if (permRes.ok) {
+            const permData = await permRes.json();
+            if (permData.ok) {
+              setCanRequest(permData.canRequest);
+              permissionCheckPassed = true;
+              console.log('[SentimentDetail] Permission check result:', permData.canRequest);
+            } else {
+              console.warn('[SentimentDetail] Permission API returned error:', permData.error);
+            }
+          } else {
+            console.warn('[SentimentDetail] Permission API request failed:', permRes.status, permRes.statusText);
           }
+        } catch (permErr) {
+          console.error('[SentimentDetail] Permission check error:', permErr);
+        }
+
+        // Fallback: If permission check failed but user is superadmin, allow request
+        if (!permissionCheckPassed && userIsSuperAdmin) {
+          console.log('[SentimentDetail] Using superadmin fallback for canRequest');
+          setCanRequest(true);
+        } else if (!permissionCheckPassed) {
+          // Only set to false if we're sure they can't request
+          // Don't set to false on error - keep it null to avoid hiding button prematurely
+          console.warn('[SentimentDetail] Permission check failed and user is not superadmin');
         }
 
         // Check for existing request (only if ARC is not enabled)
         if (arcLevel === 'none' || arcLevel === null || arcIsActive === false || arcIsActive === null) {
-          const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
-          if (reqRes.ok) {
-            const reqData = await reqRes.json();
-            if (reqData.ok && reqData.request) {
-              setExistingRequest({
-                id: reqData.request.id,
-                status: reqData.request.status,
-              });
+          try {
+            const reqRes = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+            if (reqRes.ok) {
+              const reqData = await reqRes.json();
+              if (reqData.ok && reqData.request) {
+                setExistingRequest({
+                  id: reqData.request.id,
+                  status: reqData.request.status,
+                });
+                console.log('[SentimentDetail] Found existing request:', reqData.request.status);
+              } else {
+                setExistingRequest(null);
+              }
             } else {
               setExistingRequest(null);
             }
-          } else {
+          } catch (reqErr) {
+            console.error('[SentimentDetail] Error checking existing request:', reqErr);
             setExistingRequest(null);
           }
         } else {
           setExistingRequest(null);
         }
       } catch (err) {
-        console.debug('[SentimentDetail] Could not check ARC status:', err);
-        setCanRequest(false);
+        console.error('[SentimentDetail] Error checking ARC status:', err);
+        // Don't set canRequest to false on error - use superadmin fallback
+        if (userIsSuperAdmin) {
+          console.log('[SentimentDetail] Error occurred, but using superadmin fallback');
+          setCanRequest(true);
+          setArcAccessLevel('none');
+          setArcActive(false);
+        }
       }
     }
 
     checkArcStatus();
-  }, [project?.id, isLoggedIn]);
+  }, [project?.id, isLoggedIn, user]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1303,8 +1339,8 @@ export default function SentimentDetail() {
                   )}
                   {/* Request ARC Leaderboard Button (for admins/moderators) */}
                   {isLoggedIn && 
-                   canRequest === true && 
                    project && 
+                   (canRequest === true || (canRequest === null && isSuperAdmin(user))) && 
                    (arcAccessLevel === 'none' || arcAccessLevel === null) && 
                    (arcActive === false || arcActive === null) && 
                    !existingRequest && (
