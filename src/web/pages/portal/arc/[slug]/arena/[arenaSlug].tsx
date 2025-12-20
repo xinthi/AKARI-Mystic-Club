@@ -34,6 +34,7 @@ interface ProjectInfo {
   name: string;
   twitter_username: string;
   avatar_url: string | null;
+  slug?: string | null;
 }
 
 interface Creator {
@@ -73,7 +74,11 @@ type ArenaResponse = ArenaDetailResponse | ArenaErrorResponse;
 
 export default function ArenaDetailsPage() {
   const router = useRouter();
-  const { slug: projectSlug, arenaSlug } = router.query;
+  const rawProjectSlug = router.query.slug;
+  const rawArenaSlug = router.query.arenaSlug;
+  // Normalize slugs: string, trim, toLowerCase
+  const projectSlug = typeof rawProjectSlug === 'string' ? rawProjectSlug.trim().toLowerCase() : null;
+  const arenaSlug = typeof rawArenaSlug === 'string' ? rawArenaSlug.trim().toLowerCase() : null;
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
@@ -122,7 +127,7 @@ export default function ArenaDetailsPage() {
         return;
       }
 
-      if (!arenaSlug || typeof arenaSlug !== 'string') {
+      if (!arenaSlug) {
         setLoading(false);
         setError('Arena slug is required');
         return;
@@ -132,8 +137,10 @@ export default function ArenaDetailsPage() {
         setLoading(true);
         setError(null);
 
+        // Normalize arena slug for API call
+        const normalizedArenaSlug = arenaSlug.trim().toLowerCase();
         // Use the correct API route that returns arena, project, and creators in one call
-        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}`);
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(normalizedArenaSlug)}`);
         
         if (!res.ok) {
           const errorData: ArenaErrorResponse = await res.json().catch(() => ({
@@ -667,8 +674,8 @@ export default function ArenaDetailsPage() {
     setModalError(null);
   };
 
-  // Safe project slug for navigation
-  const safeProjectSlug = typeof projectSlug === 'string' ? projectSlug : '';
+  // Safe project slug for navigation (use project.slug from API if available, otherwise normalized router slug)
+  const safeProjectSlug = (project?.slug || projectSlug || '').trim().toLowerCase();
 
   return (
     <PortalLayout title="ARC Arena">

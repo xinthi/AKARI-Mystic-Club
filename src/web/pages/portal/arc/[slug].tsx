@@ -177,7 +177,9 @@ function buildMissions(
 
 export default function ArcProjectHub() {
   const router = useRouter();
-  const { slug } = router.query;
+  const rawSlug = router.query.slug;
+  // Normalize slug: string, trim, toLowerCase
+  const slug = typeof rawSlug === 'string' ? rawSlug.trim().toLowerCase() : null;
   const akariUser = useAkariUser();
   const userTwitterUsername = akariUser.user?.xUsername || null;
 
@@ -203,7 +205,7 @@ export default function ArcProjectHub() {
   // Fetch project by slug and unified state
   useEffect(() => {
     async function fetchProject() {
-      if (!slug || typeof slug !== 'string') {
+      if (!slug) {
         setLoading(false);
         return;
       }
@@ -212,8 +214,8 @@ export default function ArcProjectHub() {
         setLoading(true);
         setError(null);
 
-        // Step 1: Resolve project by slug
-        const projectRes = await fetch(`/api/portal/arc/project/${slug}`);
+        // Step 1: Resolve project by slug (already normalized)
+        const projectRes = await fetch(`/api/portal/arc/project/${encodeURIComponent(slug)}`);
         const projectData = await projectRes.json();
 
         if (!projectData.ok || !projectData.project) {
@@ -291,7 +293,8 @@ export default function ArcProjectHub() {
     }
 
     fetchProject();
-  }, [slug, akariUser.user?.userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   // Fetch arenas for this project
   useEffect(() => {
@@ -301,10 +304,12 @@ export default function ArcProjectHub() {
       }
 
       try {
-        // Use projectId if available, otherwise fall back to slug
+        // Use projectId if available, otherwise fall back to normalized slug
         const res = await fetch(projectId 
           ? `/api/portal/arc/arenas?projectId=${encodeURIComponent(projectId)}`
-          : `/api/portal/arc/arenas?slug=${encodeURIComponent(slug as string)}`);
+          : slug
+          ? `/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`
+          : '/api/portal/arc/arenas');
         const data: ArenasResponse = await res.json();
 
         if (!data.ok) {
@@ -715,10 +720,10 @@ export default function ArcProjectHub() {
                     {/* Module-specific buttons */}
                     {unifiedState?.modules?.leaderboard?.enabled && (() => {
                       const activeArena = arenas.find(a => a.status === 'active' && (!a.starts_at || new Date(a.starts_at) <= new Date()) && (!a.ends_at || new Date(a.ends_at) >= new Date()));
-                      if (activeArena) {
+                      if (activeArena && project?.slug) {
                         return (
                           <Link
-                            href={`/portal/arc/${slug}/arena/${activeArena.slug}`}
+                            href={`/portal/arc/${encodeURIComponent(project.slug)}/arena/${encodeURIComponent(activeArena.slug)}`}
                             className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
                           >
                             View Leaderboard
@@ -747,9 +752,9 @@ export default function ArcProjectHub() {
                     )}
 
                     {/* Admin dashboard buttons */}
-                    {isProjectAdmin && unifiedState?.modules?.leaderboard?.enabled && (
+                    {isProjectAdmin && unifiedState?.modules?.leaderboard?.enabled && project?.slug && (
                       <Link
-                        href={`/portal/arc/admin/${slug}`}
+                        href={`/portal/arc/admin/${encodeURIComponent(project.slug)}`}
                         className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
                       >
                         Leaderboard Dashboard
@@ -855,10 +860,13 @@ export default function ArcProjectHub() {
                       </div>
                     ) : (
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {arenas.map((arena) => (
+                        {arenas.map((arena) => {
+                          const projectSlug = project?.slug || slug;
+                          if (!projectSlug) return null;
+                          return (
                           <Link
                             key={arena.id}
-                            href={`/portal/arc/${slug}/arena/${arena.slug}`}
+                            href={`/portal/arc/${encodeURIComponent(projectSlug)}/arena/${encodeURIComponent(arena.slug)}`}
                             className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all"
                           >
                             <h3 className="text-lg font-semibold text-white mb-2">{arena.name}</h3>
@@ -875,7 +883,8 @@ export default function ArcProjectHub() {
                               <span className="text-sm font-medium text-white">{arena.reward_depth}</span>
                             </div>
                           </Link>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
