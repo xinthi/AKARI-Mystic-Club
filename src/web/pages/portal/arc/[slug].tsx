@@ -13,6 +13,7 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/helpers';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
+import { isSuperAdmin } from '@/lib/permissions';
 
 // =============================================================================
 // TYPES
@@ -42,6 +43,27 @@ interface ArcProjectsResponse {
   ok: boolean;
   projects?: ArcProject[];
   error?: string;
+}
+
+interface UnifiedArcState {
+  ok: boolean;
+  modules?: {
+    leaderboard: { enabled: boolean; active: boolean; startAt: string | null; endAt: string | null };
+    gamefi: { enabled: boolean; active: boolean; startAt: string | null; endAt: string | null };
+    crm: { enabled: boolean; active: boolean; startAt: string | null; endAt: string | null; visibility: 'private' | 'public' | 'hybrid' };
+  };
+  requests?: { pending: boolean; lastStatus: 'pending' | 'approved' | 'rejected' | null };
+  error?: string;
+}
+
+interface ProjectData {
+  id: string;
+  name: string;
+  display_name: string | null;
+  twitter_username: string | null;
+  x_handle: string | null;
+  avatar_url: string | null;
+  slug: string | null;
 }
 
 interface Arena {
@@ -160,6 +182,9 @@ export default function ArcProjectHub() {
   const userTwitterUsername = akariUser.user?.xUsername || null;
 
   const [project, setProject] = useState<ArcProject | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [unifiedState, setUnifiedState] = useState<UnifiedArcState | null>(null);
+  const [isProjectAdmin, setIsProjectAdmin] = useState(false);
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [allCreators, setAllCreators] = useState<Creator[]>([]);
   const [userStatus, setUserStatus] = useState<UserCampaignStatus | null>(null);
@@ -175,7 +200,7 @@ export default function ArcProjectHub() {
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
   const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
 
-  // Fetch project from projects list
+  // Fetch project by slug and unified state
   useEffect(() => {
     async function fetchProject() {
       if (!slug || typeof slug !== 'string') {
@@ -187,17 +212,76 @@ export default function ArcProjectHub() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch('/api/portal/arc/projects');
-        const data: ArcProjectsResponse = await res.json();
+        // Step 1: Resolve project by slug
+        const projectRes = await fetch(`/api/portal/arc/project/${slug}`);
+        const projectData = await projectRes.json();
 
-        if (!data.ok || !data.projects) {
-          setError(data.error || 'Failed to load project');
+        if (!projectData.ok || !projectData.project) {
+          setError(projectData.error || 'Project not found');
           setLoading(false);
           return;
         }
 
-        const foundProject = data.projects.find((p) => p.slug === slug);
-        setProject(foundProject || null);
+        const projectInfo = projectData.project as ProjectData;
+        setProjectId(projectInfo.id);
+
+        // Step 2: Fetch unified ARC state
+        const stateRes = await fetch(`/api/portal/arc/state?projectId=${projectInfo.id}`);
+        const stateData: UnifiedArcState = await stateRes.json();
+
+        if (!stateData.ok) {
+          // If unified state fails, still show project but log warning
+          console.warn('[ArcProjectHub] Failed to fetch unified state:', stateData.error);
+        } else {
+          setUnifiedState(stateData);
+          
+          // Check if any module is enabled
+          const hasEnabledModule = stateData.modules?.leaderboard.enabled || 
+                                   stateData.modules?.gamefi.enabled || 
+                                   stateData.modules?.crm.enabled;
+          
+          if (!hasEnabledModule) {
+            setError('ARC is not enabled for this project');
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Step 3: Check if user is super admin (permission check can be expanded later)
+        setIsProjectAdmin(isSuperAdmin(akariUser.user));
+
+        // Step 4: Build ArcProject object from project data
+        // We'll need to fetch project_arc_settings for meta/tier if available
+        const arcProject: ArcProject = {
+          project_id: projectInfo.id,
+          slug: projectInfo.slug,
+          name: projectInfo.name || projectInfo.display_name || 'Unnamed Project',
+          twitter_username: projectInfo.twitter_username || projectInfo.x_handle,
+          arc_tier: 'basic', // Default, will be updated if we have project_arc_settings
+          arc_status: 'active', // Default
+          security_status: 'normal', // Default
+          meta: {}, // Will be populated if we fetch project_arc_settings
+        };
+
+        // Try to fetch project_arc_settings for meta/tier
+        try {
+          const settingsRes = await fetch(`/api/portal/arc/projects`);
+          const settingsData: ArcProjectsResponse = await settingsRes.json();
+          if (settingsData.ok && settingsData.projects) {
+            const foundSettings = settingsData.projects.find(p => p.project_id === projectInfo.id);
+            if (foundSettings) {
+              arcProject.arc_tier = foundSettings.arc_tier;
+              arcProject.arc_status = foundSettings.arc_status;
+              arcProject.security_status = foundSettings.security_status;
+              arcProject.meta = foundSettings.meta;
+            }
+          }
+        } catch (settingsErr) {
+          // Optional, use defaults if it fails
+          console.warn('[ArcProjectHub] Failed to fetch project settings:', settingsErr);
+        }
+
+        setProject(arcProject);
       } catch (err) {
         setError('Failed to connect to API');
         console.error('[ArcProjectHub] Fetch project error:', err);
@@ -207,17 +291,20 @@ export default function ArcProjectHub() {
     }
 
     fetchProject();
-  }, [slug]);
+  }, [slug, akariUser.user?.userId]);
 
   // Fetch arenas for this project
   useEffect(() => {
     async function fetchArenas() {
-      if (!slug || typeof slug !== 'string' || !project) {
+      if (!projectId || !project) {
         return;
       }
 
       try {
-        const res = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`);
+        // Use projectId if available, otherwise fall back to slug
+        const res = await fetch(projectId 
+          ? `/api/portal/arc/arenas?projectId=${encodeURIComponent(projectId)}`
+          : `/api/portal/arc/arenas?slug=${encodeURIComponent(slug as string)}`);
         const data: ArenasResponse = await res.json();
 
         if (!data.ok) {
@@ -242,7 +329,7 @@ export default function ArcProjectHub() {
     }
 
     fetchArenas();
-  }, [slug, project, selectedArenaId]);
+  }, [projectId, slug, project, selectedArenaId]);
 
   // Fetch creators for selected arena
   useEffect(() => {
@@ -279,14 +366,20 @@ export default function ArcProjectHub() {
   // Fetch user campaign status
   useEffect(() => {
     async function fetchUserStatus() {
-      if (!project || !userTwitterUsername) {
+      if ((!project && !projectId) || !userTwitterUsername) {
         setUserStatus(null);
         return;
       }
 
       try {
-        const statuses = await getUserCampaignStatuses([project.project_id], userTwitterUsername);
-        const status = statuses.get(project.project_id);
+        const targetProjectId = projectId || project?.project_id;
+        if (!targetProjectId) {
+          setUserStatus(null);
+          return;
+        }
+
+        const statuses = await getUserCampaignStatuses([targetProjectId], userTwitterUsername);
+        const status = statuses.get(targetProjectId);
         setUserStatus(status || { isFollowing: false, hasJoined: false });
       } catch (err) {
         console.error('[ArcProjectHub] Error fetching user status:', err);
@@ -295,7 +388,7 @@ export default function ArcProjectHub() {
     }
 
     fetchUserStatus();
-  }, [project, userTwitterUsername]);
+  }, [project, projectId, userTwitterUsername]);
 
   // Calculate project stats from arenas
   const projectStats = useMemo(() => {
@@ -330,15 +423,16 @@ export default function ArcProjectHub() {
 
   // Handle join campaign
   const handleJoinCampaign = async () => {
-    if (!project || joiningProjectId) return;
+    const targetProjectId = projectId || project?.project_id;
+    if (!targetProjectId || joiningProjectId) return;
 
     try {
-      setJoiningProjectId(project.project_id);
+      setJoiningProjectId(targetProjectId);
 
       const res = await fetch('/api/portal/arc/join-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: project.project_id }),
+        body: JSON.stringify({ projectId: targetProjectId }),
       });
 
       const result = await res.json();
@@ -362,9 +456,9 @@ export default function ArcProjectHub() {
       }
 
       // Refresh user status
-      if (userTwitterUsername) {
-        const statuses = await getUserCampaignStatuses([project.project_id], userTwitterUsername);
-        const status = statuses.get(project.project_id);
+      if (userTwitterUsername && targetProjectId) {
+        const statuses = await getUserCampaignStatuses([targetProjectId], userTwitterUsername);
+        const status = statuses.get(targetProjectId);
         setUserStatus(status || { isFollowing: false, hasJoined: false });
       }
 
@@ -522,11 +616,11 @@ export default function ArcProjectHub() {
           </div>
         )}
 
-        {/* Project not found */}
-        {!loading && !project && (
+        {/* Project not found or no modules enabled */}
+        {!loading && (!project || (unifiedState && !unifiedState.modules?.leaderboard?.enabled && !unifiedState.modules?.gamefi?.enabled && !unifiedState.modules?.crm?.enabled)) && (
           <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
             <p className="text-sm text-akari-muted">
-              ARC is not enabled for this project.
+              {error || 'ARC is not enabled for this project.'}
             </p>
           </div>
         )}
@@ -617,7 +711,52 @@ export default function ArcProjectHub() {
                   </div>
 
                   {/* CTA buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {/* Module-specific buttons */}
+                    {unifiedState?.modules?.leaderboard?.enabled && (() => {
+                      const activeArena = arenas.find(a => a.status === 'active' && (!a.starts_at || new Date(a.starts_at) <= new Date()) && (!a.ends_at || new Date(a.ends_at) >= new Date()));
+                      if (activeArena) {
+                        return (
+                          <Link
+                            href={`/portal/arc/${slug}/arena/${activeArena.slug}`}
+                            className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                          >
+                            View Leaderboard
+                          </Link>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
+                    {unifiedState?.modules?.crm?.enabled && (isProjectAdmin || unifiedState.modules.crm.visibility !== 'private') && (
+                      <Link
+                        href={`/portal/arc/creator-manager?projectId=${projectId}`}
+                        className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                      >
+                        {isProjectAdmin ? 'Creator Manager' : 'Apply as Creator'}
+                      </Link>
+                    )}
+                    
+                    {unifiedState?.modules?.gamefi?.enabled && (
+                      <button
+                        disabled
+                        className="px-4 py-2 text-sm font-medium border border-white/10 text-white/50 rounded-lg cursor-not-allowed"
+                      >
+                        GameFi (Coming soon)
+                      </button>
+                    )}
+
+                    {/* Admin dashboard buttons */}
+                    {isProjectAdmin && unifiedState?.modules?.leaderboard?.enabled && (
+                      <Link
+                        href={`/portal/arc/admin/${slug}`}
+                        className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                      >
+                        Leaderboard Dashboard
+                      </Link>
+                    )}
+
+                    {/* Original CTA buttons */}
                     {!userStatus?.isFollowing ? (
                       <button
                         onClick={() => setShowFollowModal(true)}
@@ -628,10 +767,10 @@ export default function ArcProjectHub() {
                     ) : !userStatus?.hasJoined ? (
                       <button
                         onClick={handleJoinCampaign}
-                        disabled={joiningProjectId === project.project_id}
+                        disabled={joiningProjectId === (projectId || project?.project_id)}
                         className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
                       >
-                        {joiningProjectId === project.project_id ? 'Joining...' : 'Join campaign'}
+                        {joiningProjectId === (projectId || project?.project_id) ? 'Joining...' : 'Join campaign'}
                       </button>
                     ) : (
                       <button

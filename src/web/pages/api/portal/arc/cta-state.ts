@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { canRequestLeaderboard } from '@/lib/project-permissions';
-import { getEffectiveArcActive } from '@/lib/arc/expiration';
+import { getArcUnifiedState, getLegacyAccessLevel, getLegacyArcActive } from '@/lib/arc/unified-state';
 import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 
 // DEV MODE: Skip authentication in development
@@ -212,62 +212,58 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Get ARC project state (including expiration)
-    const { data: projectData } = await supabase
-      .from('projects')
-      .select('arc_access_level, arc_active, arc_active_until')
-      .eq('id', projectId)
-      .single();
+    // Get unified ARC state (reads from arc_project_features, falls back to legacy fields)
+    let profileId: string | null = null;
+    const sessionToken = getSessionToken(req);
+    if (sessionToken) {
+      const currentUser = await getCurrentUser(supabase, sessionToken);
+      if (currentUser) {
+        // Get user's Twitter username to find profile
+        const { data: xIdentity } = await supabase
+          .from('akari_user_identities')
+          .select('username')
+          .eq('user_id', currentUser.userId)
+          .eq('provider', 'x')
+          .single();
 
-    const arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' =
-      projectData?.arc_access_level || 'none';
-    const arcActiveRaw = projectData?.arc_active ?? false;
-    const arcActiveUntil = projectData?.arc_active_until || null;
-    
-    // Check expiration: if arc_active_until < now, treat as disabled
-    const arcActive = getEffectiveArcActive(arcActiveRaw, arcActiveUntil);
-
-    // Get existing request (only if ARC not enabled)
-    let existingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;
-    if (arcAccessLevel === 'none' && !arcActive) {
-      const sessionToken = getSessionToken(req);
-      if (sessionToken) {
-        const currentUser = await getCurrentUser(supabase, sessionToken);
-        if (currentUser) {
-          // Get user's Twitter username to find profile
-          const { data: xIdentity } = await supabase
-            .from('akari_user_identities')
-            .select('username')
-            .eq('user_id', currentUser.userId)
-            .eq('provider', 'x')
+        if (xIdentity?.username) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
             .single();
 
-          if (xIdentity?.username) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-              .single();
-
-            if (profile) {
-              const { data: requests } = await supabase
-                .from('arc_leaderboard_requests')
-                .select('id, status')
-                .eq('project_id', projectId)
-                .eq('requested_by', profile.id)
-                .in('status', ['pending', 'approved', 'rejected'])
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-              if (requests && requests.length > 0) {
-                existingRequest = {
-                  id: requests[0].id,
-                  status: requests[0].status,
-                };
-              }
-            }
+          if (profile) {
+            profileId = profile.id;
           }
         }
+      }
+    }
+
+    const unifiedState = await getArcUnifiedState(supabase, projectId, profileId);
+    
+    // Get legacy equivalents for backward compatibility
+    const arcAccessLevel = getLegacyAccessLevel(unifiedState);
+    const arcActive = getLegacyArcActive(unifiedState);
+
+    // Get existing request (from unified state)
+    let existingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;
+    if (unifiedState.requests.lastStatus && profileId) {
+      // Fetch request ID if needed (unified state doesn't return ID)
+      const { data: requests } = await supabase
+        .from('arc_leaderboard_requests')
+        .select('id, status')
+        .eq('project_id', projectId)
+        .eq('requested_by', profileId)
+        .eq('status', unifiedState.requests.lastStatus)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (requests && requests.length > 0) {
+        existingRequest = {
+          id: requests[0].id,
+          status: requests[0].status,
+        };
       }
     }
 

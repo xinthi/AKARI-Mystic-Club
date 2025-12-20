@@ -6,7 +6,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
-import { getEffectiveArcActive } from '@/lib/arc/expiration';
 import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 
 // =============================================================================
@@ -83,23 +82,87 @@ export default async function handler(
     }
 
     // Get ARC enabled projects
-    // ARC Enabled = arc_active === true AND arc_access_level !== 'none' AND (arc_active_until IS NULL OR arc_active_until >= now)
-    // This includes: 'leaderboard', 'gamified', 'creator_manager'
-    // Note: We filter by arc_active=true first, then check expiration in code
-    const { data: arcEnabledProjects, error: arcEnabledError } = await supabase
+    // Check both new module enablements (arc_project_features) and legacy fields
+    // Projects are enabled if any module is active (enabled + within date range)
+    
+    // First, get projects with arc_project_features rows that have enabled modules
+    const { data: projectsWithFeatures, error: featuresError } = await supabase
+      .from('arc_project_features')
+      .select('project_id, leaderboard_enabled, leaderboard_start_at, leaderboard_end_at, gamefi_enabled, gamefi_start_at, gamefi_end_at, crm_enabled, crm_start_at, crm_end_at')
+      .or('leaderboard_enabled.eq.true,gamefi_enabled.eq.true,crm_enabled.eq.true');
+    
+    // Get project IDs to check their profile_type
+    const featureProjectIds = (projectsWithFeatures || []).map(f => f.project_id);
+    let enabledProjectIds = new Set<string>();
+    
+    if (featureProjectIds.length > 0) {
+      const { data: featureProjects } = await supabase
+        .from('projects')
+        .select('id')
+        .in('id', featureProjectIds)
+        .eq('profile_type', 'project');
+      
+      const featureProjectIdSet = new Set((featureProjects || []).map(p => p.id));
+      
+      // Check each project with features to see if any module is active
+      const now = new Date();
+      for (const feature of projectsWithFeatures || []) {
+        if (!featureProjectIdSet.has(feature.project_id)) continue;
+        
+        // Check if any module is active
+        const leaderboardActive = feature.leaderboard_enabled && 
+          feature.leaderboard_start_at && feature.leaderboard_end_at &&
+          new Date(feature.leaderboard_start_at) <= now && 
+          new Date(feature.leaderboard_end_at) >= now;
+        
+        const gamefiActive = feature.gamefi_enabled && 
+          feature.gamefi_start_at && feature.gamefi_end_at &&
+          new Date(feature.gamefi_start_at) <= now && 
+          new Date(feature.gamefi_end_at) >= now;
+        
+        const crmActive = feature.crm_enabled && 
+          feature.crm_start_at && feature.crm_end_at &&
+          new Date(feature.crm_start_at) <= now && 
+          new Date(feature.crm_end_at) >= now;
+        
+        if (leaderboardActive || gamefiActive || crmActive) {
+          enabledProjectIds.add(feature.project_id);
+        }
+      }
+    }
+    
+    // Also get projects using legacy fields (arc_active + arc_access_level)
+    // Only count projects that don't have arc_project_features rows (to avoid double counting)
+    const { data: allLegacyProjects, error: legacyError } = await supabase
       .from('projects')
-      .select('arc_active, arc_active_until')
+      .select('id, arc_active, arc_active_until')
       .eq('arc_active', true)
       .neq('arc_access_level', 'none')
-      .eq('profile_type', 'project'); // Only count projects, not personal profiles
+      .eq('profile_type', 'project');
     
-    // Filter out expired projects (virtual disable)
-    const arcEnabledCount = arcEnabledProjects?.filter(p => 
-      getEffectiveArcActive(p.arc_active, p.arc_active_until)
-    ).length || 0;
+    // Filter out projects that already have arc_project_features rows
+    const legacyProjects = (allLegacyProjects || []).filter(p => !enabledProjectIds.has(p.id));
+    
+    // Filter legacy projects by expiration (already filtered to exclude projects with features)
+    const now = new Date();
+    const legacyEnabledProjects = (legacyProjects || []).filter(p => {
+      // Check expiration (query already filters by arc_active=true)
+      if (p.arc_active_until) {
+        const expiresAt = new Date(p.arc_active_until);
+        if (expiresAt < now) return false; // Expired
+      }
+      return true;
+    });
+    
+    legacyEnabledProjects.forEach(p => enabledProjectIds.add(p.id));
+    
+    const arcEnabledCount = enabledProjectIds.size;
 
-    if (arcEnabledError) {
-      console.error('[ARC Summary API] Error counting ARC enabled projects:', arcEnabledError);
+    if (featuresError) {
+      console.error('[ARC Summary API] Error fetching projects with features:', featuresError);
+    }
+    if (legacyError) {
+      console.error('[ARC Summary API] Error fetching legacy ARC projects:', legacyError);
     }
 
     // Get active programs: Creator Manager programs + ARC Arenas
