@@ -19,15 +19,36 @@ export function NotificationsIcon() {
       return;
     }
 
+    // Skip all notification fetches in development mode to prevent 401 errors
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Notifications] DEV MODE - skipped');
+      setUnreadCount(0);
+      setLoading(false);
+      return;
+    }
+
     async function fetchUnreadCount() {
       try {
         const res = await fetch('/api/portal/notifications?limit=1');
+        
+        // Handle 401 (Unauthorized) silently - treat as empty notifications
+        // This prevents noisy errors from breaking ARC pages when user is not authenticated
+        if (res.status === 401) {
+          setUnreadCount(0);
+          setLoading(false);
+          return;
+        }
+
         const data = await res.json();
         if (data.ok) {
           setUnreadCount(data.unreadCount || 0);
+        } else {
+          // Non-401 errors: silently set to 0 (don't spam console)
+          setUnreadCount(0);
         }
       } catch (error) {
-        console.error('[NotificationsIcon] Error fetching count:', error);
+        // Silently handle errors - don't break pages if notifications fail
+        setUnreadCount(0);
       } finally {
         setLoading(false);
       }

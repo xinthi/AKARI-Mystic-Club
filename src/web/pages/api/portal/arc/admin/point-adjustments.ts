@@ -219,7 +219,24 @@ export default async function handler(
         createdByProfileId = userProfile.profileId;
       }
 
-      // Insert adjustment
+      // Verify creator exists in arena (but don't update arc_points - it stays as base_points)
+      const { data: creatorEntry, error: creatorError } = await supabase
+        .from('arena_creators')
+        .select('id, profile_id')
+        .eq('arena_id', body.arenaId)
+        .eq('profile_id', body.creatorProfileId)
+        .single();
+
+      if (creatorError || !creatorEntry) {
+        console.error('[API /portal/arc/admin/point-adjustments] Creator entry not found:', creatorError);
+        return res.status(404).json({
+          ok: false,
+          error: 'Creator not found in this arena',
+        });
+      }
+
+      // Insert adjustment (do NOT update arena_creators.arc_points - it remains as base_points)
+      // effective_points will be calculated as base_points + SUM(adjustments) in the query
       const { data: adjustment, error: insertError } = await supabase
         .from('arc_point_adjustments')
         .insert({

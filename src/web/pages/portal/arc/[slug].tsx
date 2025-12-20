@@ -179,9 +179,24 @@ export default function ArcProjectHub() {
   const router = useRouter();
   const rawSlug = router.query.slug;
   // Normalize slug: string, trim, toLowerCase
-  const slug = typeof rawSlug === 'string' ? rawSlug.trim().toLowerCase() : null;
+  const slug = typeof rawSlug === 'string' ? String(rawSlug).trim().toLowerCase() : null;
   const akariUser = useAkariUser();
   const userTwitterUsername = akariUser.user?.xUsername || null;
+
+  // Canonicalize slug: redirect if normalized differs from original
+  useEffect(() => {
+    if (!router.isReady) return;
+    
+    const rawSlugValue = router.query.slug;
+    if (typeof rawSlugValue === 'string' && rawSlugValue) {
+      const normalized = String(rawSlugValue).trim().toLowerCase();
+      if (normalized !== rawSlugValue) {
+        // Redirect to canonical URL (no full reload)
+        router.replace(`/portal/arc/${encodeURIComponent(normalized)}`, undefined, { shallow: false });
+        return;
+      }
+    }
+  }, [router.isReady, router.query.slug, router]);
 
   const [project, setProject] = useState<ArcProject | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -215,7 +230,27 @@ export default function ArcProjectHub() {
         setError(null);
 
         // Step 1: Resolve project by slug (already normalized)
-        const projectRes = await fetch(`/api/portal/arc/project/${encodeURIComponent(slug)}`);
+        const projectUrl = `/api/portal/arc/project/${encodeURIComponent(slug)}`;
+        
+        // Debug logging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ArcProjectHub] Fetching project:', {
+            slug,
+            fetchUrl: projectUrl,
+          });
+        }
+        
+        const projectRes = await fetch(projectUrl);
+        
+        // Debug logging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ArcProjectHub] Project fetch response:', {
+            url: projectUrl,
+            ok: projectRes.ok,
+            status: projectRes.status,
+          });
+        }
+        
         const projectData = await projectRes.json();
 
         if (!projectData.ok || !projectData.project) {
@@ -351,7 +386,28 @@ export default function ArcProjectHub() {
           return;
         }
 
-        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`);
+        const arenaUrl = `/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`;
+        
+        // Debug logging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ArcProjectHub] Fetching creators for arena:', {
+            arenaId: selectedArenaId,
+            arenaSlug: arena.slug,
+            fetchUrl: arenaUrl,
+          });
+        }
+        
+        const res = await fetch(arenaUrl);
+        
+        // Debug logging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ArcProjectHub] Arena creators fetch response:', {
+            url: arenaUrl,
+            ok: res.ok,
+            status: res.status,
+          });
+        }
+        
         const data: ArenaDetailResponse = await res.json();
 
         if (data.ok) {

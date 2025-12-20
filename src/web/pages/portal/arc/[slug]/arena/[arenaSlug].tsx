@@ -49,6 +49,17 @@ interface Creator {
   profile_id?: string;
 }
 
+interface AdjustmentHistoryItem {
+  id: string;
+  arena_id: string;
+  creator_profile_id: string;
+  points_delta: number;
+  reason: string;
+  created_by_profile_id: string;
+  created_at: string;
+  metadata: Record<string, any> | null;
+}
+
 interface ArenaDetailResponse {
   ok: true;
   arena: ArenaDetail;
@@ -77,10 +88,33 @@ export default function ArenaDetailsPage() {
   const rawProjectSlug = router.query.slug;
   const rawArenaSlug = router.query.arenaSlug;
   // Normalize slugs: string, trim, toLowerCase
-  const projectSlug = typeof rawProjectSlug === 'string' ? rawProjectSlug.trim().toLowerCase() : null;
-  const arenaSlug = typeof rawArenaSlug === 'string' ? rawArenaSlug.trim().toLowerCase() : null;
+  const projectSlug = typeof rawProjectSlug === 'string' ? String(rawProjectSlug).trim().toLowerCase() : null;
+  const arenaSlug = typeof rawArenaSlug === 'string' ? String(rawArenaSlug).trim().toLowerCase() : null;
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
+  // Canonicalize slugs: redirect if normalized differs from original
+  useEffect(() => {
+    if (!router.isReady) return;
+    
+    const rawProjectSlugValue = router.query.slug;
+    const rawArenaSlugValue = router.query.arenaSlug;
+    
+    if (typeof rawProjectSlugValue === 'string' && rawProjectSlugValue && typeof rawArenaSlugValue === 'string' && rawArenaSlugValue) {
+      const normalizedProject = String(rawProjectSlugValue).trim().toLowerCase();
+      const normalizedArena = String(rawArenaSlugValue).trim().toLowerCase();
+      
+      if (normalizedProject !== rawProjectSlugValue || normalizedArena !== rawArenaSlugValue) {
+        // Redirect to canonical URL (no full reload)
+        router.replace(
+          `/portal/arc/${encodeURIComponent(normalizedProject)}/arena/${encodeURIComponent(normalizedArena)}`,
+          undefined,
+          { shallow: false }
+        );
+        return;
+      }
+    }
+  }, [router.isReady, router.query.slug, router.query.arenaSlug, router]);
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -103,7 +137,7 @@ export default function ArenaDetailsPage() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
   const [adjustingCreator, setAdjustingCreator] = useState<Creator | null>(null);
-  const [adjustmentHistory, setAdjustmentHistory] = useState<any[]>([]);
+  const [adjustmentHistory, setAdjustmentHistory] = useState<AdjustmentHistoryItem[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -127,20 +161,58 @@ export default function ArenaDetailsPage() {
         return;
       }
 
-      if (!arenaSlug) {
+      // Ensure arenaSlug is a non-empty string before making the request
+      if (!arenaSlug || typeof arenaSlug !== 'string' || arenaSlug.trim().length === 0) {
+        console.warn('[ArenaDetailsPage] Invalid arenaSlug:', {
+          arenaSlug,
+          type: typeof arenaSlug,
+          length: arenaSlug?.length,
+          rawArenaSlug: rawArenaSlug,
+        });
         setLoading(false);
         setError('Arena slug is required');
         return;
+      }
+
+      // Ensure we never accidentally use projectSlug instead of arenaSlug
+      if (arenaSlug === projectSlug) {
+        console.warn('[ArenaDetailsPage] Warning: arenaSlug matches projectSlug, this may be incorrect:', {
+          arenaSlug,
+          projectSlug,
+        });
       }
 
       try {
         setLoading(true);
         setError(null);
 
-        // Normalize arena slug for API call
+        // Normalize arena slug for API call (only trim and toLowerCase, no other modifications)
         const normalizedArenaSlug = arenaSlug.trim().toLowerCase();
+        const fetchUrl = `/api/portal/arc/arenas/${encodeURIComponent(normalizedArenaSlug)}`;
+        
+        // Debug logging (development only)
+        console.log('[ArenaDetailsPage] Fetching arena:', {
+          rawArenaSlug: rawArenaSlug,
+          arenaSlug: arenaSlug,
+          normalizedArenaSlug,
+          projectSlug: projectSlug,
+          fetchUrl,
+          routerReady: router.isReady,
+        });
+
         // Use the correct API route that returns arena, project, and creators in one call
-        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(normalizedArenaSlug)}`);
+        // NEVER call /api/portal/arc/admin/arena-creators from this public page
+        const res = await fetch(fetchUrl);
+        
+        // Debug logging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ArenaDetailsPage] Fetch response:', {
+            url: fetchUrl,
+            ok: res.ok,
+            status: res.status,
+            statusText: res.statusText,
+          });
+        }
         
         if (!res.ok) {
           const errorData: ArenaErrorResponse = await res.json().catch(() => ({
@@ -160,6 +232,33 @@ export default function ArenaDetailsPage() {
           setError(data.error || 'Failed to load arena');
           setLoading(false);
           return;
+        }
+
+        // Canonicalize slug: if API returns a different slug than requested, redirect to canonical URL
+        const canonicalArenaSlug = data.arena.slug;
+        const normalizedCanonical = canonicalArenaSlug.trim().toLowerCase();
+        const normalizedRequested = normalizedArenaSlug.trim().toLowerCase();
+        
+        if (normalizedCanonical !== normalizedRequested) {
+          // Dev-only warning for debugging
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[ArenaDetailsPage] Slug mismatch detected:', {
+              requested: normalizedRequested,
+              canonical: normalizedCanonical,
+              redirecting: true,
+            });
+          }
+          
+          // Redirect to canonical URL using arena.slug from DB
+          const canonicalProjectSlug = (data.project?.slug || projectSlug || '').trim().toLowerCase();
+          if (canonicalProjectSlug && canonicalArenaSlug) {
+            router.replace(
+              `/portal/arc/${encodeURIComponent(canonicalProjectSlug)}/arena/${encodeURIComponent(canonicalArenaSlug)}`,
+              undefined,
+              { shallow: true }
+            );
+            return; // Don't set state, let redirect handle it
+          }
         }
 
         // Data is valid, set all state
@@ -261,6 +360,7 @@ export default function ArenaDetailsPage() {
     let topCreator: { username: string; points: number; ring?: string | null } | undefined;
 
     for (const creator of creators) {
+      // effective_points = base_points + adjustments_sum
       const points = creator.adjusted_points ?? creator.arc_points ?? 0;
       totalPoints += points;
 
@@ -337,7 +437,9 @@ export default function ArenaDetailsPage() {
         const ringName = creator.ring 
           ? creator.ring.charAt(0).toUpperCase() + creator.ring.slice(1)
           : 'Unknown';
-        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${creator.adjusted_points ?? creator.arc_points ?? 0} ARC points.`;
+        // effective_points = base_points + adjustments_sum
+        const effective = creator.adjusted_points ?? creator.arc_points ?? 0;
+        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${effective} ARC points.`;
 
         return {
           date,
@@ -379,8 +481,10 @@ export default function ArenaDetailsPage() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'points_desc':
+          // effective_points = base_points + adjustments_sum
           return (b.adjusted_points ?? b.arc_points ?? 0) - (a.adjusted_points ?? a.arc_points ?? 0);
         case 'points_asc':
+          // effective_points = base_points + adjustments_sum
           return (a.adjusted_points ?? a.arc_points ?? 0) - (b.adjusted_points ?? b.arc_points ?? 0);
         case 'joined_newest':
           if (!a.joined_at && !b.joined_at) return 0;
@@ -401,11 +505,34 @@ export default function ArenaDetailsPage() {
   }, [creators, searchTerm, ringFilter, sortBy]);
 
   // Refresh creators list
+  // Uses the same endpoint as initial fetch: /api/portal/arc/arenas/${arenaSlug}
+  // NEVER calls /api/portal/arc/admin/arena-creators
   const refreshCreators = async () => {
     if (!arenaSlug || typeof arenaSlug !== 'string') return;
 
     try {
-      const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}`);
+      const normalizedArenaSlug = arenaSlug.trim().toLowerCase();
+      const fetchUrl = `/api/portal/arc/arenas/${encodeURIComponent(normalizedArenaSlug)}`;
+      
+      // Debug logging (development only)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ArenaDetailsPage] Refreshing creators:', {
+          arenaSlug: normalizedArenaSlug,
+          fetchUrl,
+        });
+      }
+
+      const res = await fetch(fetchUrl);
+      
+      // Debug logging (development only)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ArenaDetailsPage] Refresh response:', {
+          url: fetchUrl,
+          ok: res.ok,
+          status: res.status,
+        });
+      }
+
       if (!res.ok) return;
 
       const data: ArenaResponse = await res.json();
@@ -639,8 +766,23 @@ export default function ArenaDetailsPage() {
         throw new Error(data.error || 'Failed to create adjustment');
       }
 
-      // Refresh creators list
+      // Refresh creators list to show updated arc_points (now updated directly in DB)
       await refreshCreators();
+
+      // If history modal was open, refresh it too
+      if (showHistoryModal && adjustingCreator?.profile_id) {
+        try {
+          const historyRes = await fetch(
+            `/api/portal/arc/admin/point-adjustments?arenaId=${encodeURIComponent(arena.id)}&creatorProfileId=${encodeURIComponent(adjustingCreator.profile_id)}`
+          );
+          const historyData = await historyRes.json();
+          if (historyRes.ok && historyData.ok) {
+            setAdjustmentHistory(historyData.adjustments || []);
+          }
+        } catch (err) {
+          console.error('[ArenaDetailsPage] Error refreshing history:', err);
+        }
+      }
 
       // Close modal
       setShowAdjustModal(false);
@@ -932,12 +1074,16 @@ export default function ArenaDetailsPage() {
                                   )}
                                 </div>
                                 <span className="text-sm font-medium text-akari-text ml-auto whitespace-nowrap">
-                                  {creator.adjusted_points ?? creator.arc_points ?? 0} pts
-                                  {creator.adjusted_points !== undefined && creator.adjusted_points !== creator.arc_points && (
-                                    <span className="text-xs text-akari-muted ml-1">
-                                      ({creator.arc_points ?? 0} base)
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    // effective_points = base_points + adjustments_sum
+                                    // Do NOT block negative effective points - they are valid after slashing
+                                    const effective = creator.adjusted_points ?? creator.arc_points ?? 0;
+                                    return (
+                                      <>
+                                        {effective} pts
+                                      </>
+                                    );
+                                  })()}
                                 </span>
                               </Link>
                               {userIsSuperAdmin && creator.id && (
@@ -1087,16 +1233,23 @@ export default function ArenaDetailsPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-akari-muted">ARC Points</label>
+                  <label className="mb-1 block text-xs text-akari-muted">Base ARC Points (non-negative)</label>
                   <input
                     type="number"
                     value={formData.arc_points}
-                    onChange={(e) => setFormData({ ...formData, arc_points: Number(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      if (val < 0) return; // Prevent negative values
+                      setFormData({ ...formData, arc_points: val });
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
                     disabled={modalLoading}
                   />
+                  <p className="mt-1 text-xs text-akari-muted">
+                    Note: To slash points (negative adjustments), use the &quot;Adjust&quot; button instead.
+                  </p>
                 </div>
 
                 <div>
@@ -1157,7 +1310,7 @@ export default function ArenaDetailsPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-akari-text">Edit Creator</h3>
+                <h3 className="text-lg font-semibold text-akari-text">Edit Creator (Base Points Only)</h3>
                 <button
                   onClick={closeModals}
                   className="text-akari-muted hover:text-akari-text transition-colors"
@@ -1181,16 +1334,23 @@ export default function ArenaDetailsPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-akari-muted">ARC Points</label>
+                  <label className="mb-1 block text-xs text-akari-muted">Base ARC Points (non-negative)</label>
                   <input
                     type="number"
                     value={formData.arc_points}
-                    onChange={(e) => setFormData({ ...formData, arc_points: Number(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      if (val < 0) return; // Prevent negative values
+                      setFormData({ ...formData, arc_points: val });
+                    }}
                     min="0"
                     step="0.01"
                     className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
                     disabled={modalLoading}
                   />
+                  <p className="mt-1 text-xs text-akari-muted">
+                    Note: To slash points (negative adjustments), use the &quot;Adjust&quot; button instead.
+                  </p>
                 </div>
 
                 <div>
@@ -1286,22 +1446,29 @@ export default function ArenaDetailsPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-akari-muted">Points Delta (can be negative)</label>
+                  <label className="mb-1 block text-xs text-akari-muted">Points Delta (can be negative for slashing)</label>
                   <input
                     type="number"
                     value={adjustmentForm.pointsDelta}
-                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, pointsDelta: Number(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      setAdjustmentForm({ ...adjustmentForm, pointsDelta: val });
+                    }}
                     step="0.01"
+                    placeholder="e.g., -5 for slashing 5 points"
                     className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
                     disabled={modalLoading}
                   />
                   <p className="mt-1 text-xs text-akari-muted">
-                    Current: {adjustingCreator.adjusted_points ?? adjustingCreator.arc_points ?? 0} pts
+                    Current effective: {adjustingCreator.adjusted_points ?? adjustingCreator.arc_points ?? 0} pts
                     {adjustmentForm.pointsDelta !== 0 && (
                       <span className="ml-2">
                         → {((adjustingCreator.adjusted_points ?? adjustingCreator.arc_points ?? 0) + adjustmentForm.pointsDelta).toFixed(2)} pts
                       </span>
                     )}
+                  </p>
+                  <p className="mt-1 text-xs text-akari-muted">
+                    Base: {adjustingCreator.arc_points ?? 0} pts
                   </p>
                 </div>
 
@@ -1362,8 +1529,13 @@ export default function ArenaDetailsPage() {
                 </button>
               </div>
 
-              {adjustmentHistory.length === 0 ? (
-                <p className="text-sm text-akari-muted">No adjustments recorded yet.</p>
+              {modalLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-sm text-akari-muted">Loading history...</span>
+                </div>
+              ) : adjustmentHistory.length === 0 ? (
+                <p className="text-sm text-akari-muted text-center py-8">No adjustments yet.</p>
               ) : (
                 <div className="space-y-3">
                   {adjustmentHistory.map((adj) => (
@@ -1375,13 +1547,20 @@ export default function ArenaDetailsPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-sm font-medium ${adj.points_delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {adj.points_delta >= 0 ? '+' : ''}{adj.points_delta.toFixed(2)} pts
+                              {adj.points_delta >= 0 ? '+' : ''}{adj.points_delta} pts
                             </span>
                           </div>
                           <p className="text-sm text-akari-text mb-2">{adj.reason}</p>
-                          <p className="text-xs text-akari-muted">
-                            {new Date(adj.created_at).toLocaleString()}
-                          </p>
+                          <div className="flex items-center gap-4 text-xs text-akari-muted">
+                            <span>
+                              {new Date(adj.created_at).toLocaleString()}
+                            </span>
+                            {adj.created_by_profile_id && (
+                              <span>
+                                By: {adj.created_by_profile_id.substring(0, 8)}...
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
