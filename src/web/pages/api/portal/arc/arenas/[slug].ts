@@ -37,6 +37,7 @@ interface Creator {
   id: string;
   twitter_username: string;
   arc_points: number;
+  adjusted_points: number;
   ring: 'core' | 'momentum' | 'discovery';
   style: string | null;
   meta: Record<string, any>;
@@ -48,6 +49,11 @@ type ArenaDetailResponse =
       arena: ArenaDetail;
       project: ProjectInfo;
       creators: Creator[];
+      sentiment: {
+        enabled: boolean;
+        summary: null;
+        series: any[];
+      };
     }
   | {
       ok: false;
@@ -143,9 +149,14 @@ export default async function handler(
     // Query arena_creators for this arena, ordered by arc_points DESC
     const { data: creatorsData, error: creatorsError } = await supabase
       .from('arena_creators')
-      .select('id, twitter_username, arc_points, ring, style, meta')
+      .select('id, twitter_username, arc_points, ring, style, meta, profile_id')
       .eq('arena_id', arenaData.id)
       .order('arc_points', { ascending: false });
+
+    // Get profile_ids for creators (filter out nulls)
+    const creatorProfileIds = (creatorsData || [])
+      .map((c: any) => c.profile_id)
+      .filter((id: any) => id !== null && id !== undefined);
 
     if (creatorsError) {
       console.error('[API /portal/arc/arenas/[slug]] Supabase error fetching creators:', creatorsError);
@@ -155,7 +166,26 @@ export default async function handler(
       });
     }
 
-    // Build response
+    // Fetch point adjustments for all creators in this arena
+    let adjustmentsMap: Record<string, number> = {};
+
+    if (creatorProfileIds.length > 0) {
+      const { data: adjustmentsData } = await supabase
+        .from('arc_point_adjustments')
+        .select('creator_profile_id, points_delta')
+        .eq('arena_id', arenaData.id)
+        .in('creator_profile_id', creatorProfileIds);
+
+      if (adjustmentsData) {
+        // Sum adjustments per creator
+        for (const adj of adjustmentsData) {
+          const creatorId = adj.creator_profile_id;
+          adjustmentsMap[creatorId] = (adjustmentsMap[creatorId] || 0) + Number(adj.points_delta);
+        }
+      }
+    }
+
+    // Build response with adjusted points
     const response: ArenaDetailResponse = {
       ok: true,
       arena: {
@@ -175,14 +205,26 @@ export default async function handler(
         twitter_username: project.x_handle || '',
         avatar_url: project.avatar_url || null,
       },
-      creators: (creatorsData || []).map((creator: any) => ({
-        id: creator.id,
-        twitter_username: creator.twitter_username,
-        arc_points: Number(creator.arc_points),
-        ring: creator.ring,
-        style: creator.style,
-        meta: creator.meta || {},
-      })),
+      creators: (creatorsData || []).map((creator: any) => {
+        const basePoints = Number(creator.arc_points);
+        const adjustment = creator.profile_id ? (adjustmentsMap[creator.profile_id] || 0) : 0;
+        const adjustedPoints = basePoints + adjustment;
+
+        return {
+          id: creator.id,
+          twitter_username: creator.twitter_username,
+          arc_points: basePoints,
+          adjusted_points: adjustedPoints,
+          ring: creator.ring,
+          style: creator.style,
+          meta: creator.meta || {},
+        };
+      }),
+      sentiment: {
+        enabled: true,
+        summary: null,
+        series: [],
+      },
     };
 
     return res.status(200).json(response);

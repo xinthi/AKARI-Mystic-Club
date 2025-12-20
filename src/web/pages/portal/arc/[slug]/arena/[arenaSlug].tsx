@@ -40,10 +40,12 @@ interface Creator {
   id?: string;
   twitter_username: string;
   arc_points: number;
+  adjusted_points: number;
   ring?: 'core' | 'momentum' | 'discovery' | string;
   style?: string | null;
   meta?: Record<string, any>;
   joined_at?: string | null;
+  profile_id?: string;
 }
 
 interface ArenaDetailResponse {
@@ -51,6 +53,11 @@ interface ArenaDetailResponse {
   arena: ArenaDetail;
   project: ProjectInfo;
   creators: Creator[];
+  sentiment: {
+    enabled: boolean;
+    summary: null;
+    series: any[];
+  };
 }
 
 interface ArenaErrorResponse {
@@ -87,9 +94,17 @@ export default function ArenaDetailsPage() {
   // Admin modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
+  const [adjustingCreator, setAdjustingCreator] = useState<Creator | null>(null);
+  const [adjustmentHistory, setAdjustmentHistory] = useState<any[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    pointsDelta: 0,
+    reason: '',
+  });
 
   // Form state for Add/Edit
   const [formData, setFormData] = useState({
@@ -143,7 +158,7 @@ export default function ArenaDetailsPage() {
         // Data is valid, set all state
         setArena(data.arena);
         setProject(data.project);
-        // Creators are already sorted by arc_points DESC from the API
+        // Creators are already sorted by adjusted_points DESC from the API
         setCreators(data.creators || []);
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to connect to API';
@@ -239,7 +254,7 @@ export default function ArenaDetailsPage() {
     let topCreator: { username: string; points: number; ring?: string | null } | undefined;
 
     for (const creator of creators) {
-      const points = creator.arc_points ?? 0;
+      const points = creator.adjusted_points ?? creator.arc_points ?? 0;
       totalPoints += points;
 
       // Track points by ring
@@ -248,7 +263,7 @@ export default function ArenaDetailsPage() {
         pointsByRing[ring] = (pointsByRing[ring] || 0) + points;
       }
 
-      // Track top creator
+      // Track top creator (using adjusted points)
       if (!topCreator || points > topCreator.points) {
         topCreator = {
           username: creator.twitter_username || 'Unknown',
@@ -315,7 +330,7 @@ export default function ArenaDetailsPage() {
         const ringName = creator.ring 
           ? creator.ring.charAt(0).toUpperCase() + creator.ring.slice(1)
           : 'Unknown';
-        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${creator.arc_points ?? 0} ARC points.`;
+        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${creator.adjusted_points ?? creator.arc_points ?? 0} ARC points.`;
 
         return {
           date,
@@ -357,9 +372,9 @@ export default function ArenaDetailsPage() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'points_desc':
-          return (b.arc_points ?? 0) - (a.arc_points ?? 0);
+          return (b.adjusted_points ?? b.arc_points ?? 0) - (a.adjusted_points ?? a.arc_points ?? 0);
         case 'points_asc':
-          return (a.arc_points ?? 0) - (b.arc_points ?? 0);
+          return (a.adjusted_points ?? a.arc_points ?? 0) - (b.adjusted_points ?? b.arc_points ?? 0);
         case 'joined_newest':
           if (!a.joined_at && !b.joined_at) return 0;
           if (!a.joined_at) return 1; // Missing dates go to bottom
@@ -553,17 +568,102 @@ export default function ArenaDetailsPage() {
     setShowEditModal(true);
   };
 
+  // Open history modal
+  const openHistoryModal = async (creator: Creator) => {
+    if (!arena || !creator.profile_id) {
+      setModalError('Creator profile ID is missing');
+      return;
+    }
+
+    setAdjustingCreator(creator);
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch(
+        `/api/portal/arc/admin/point-adjustments?arenaId=${encodeURIComponent(arena.id)}&creatorProfileId=${encodeURIComponent(creator.profile_id)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to fetch history');
+      }
+
+      setAdjustmentHistory(data.adjustments || []);
+      setShowHistoryModal(true);
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Error fetching history:', err);
+      setModalError(err?.message || 'Failed to load history');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Handle point adjustment
+  const handleAdjustPoints = async () => {
+    if (!arena || !adjustingCreator || !adjustingCreator.profile_id) {
+      setModalError('Missing required data');
+      return;
+    }
+
+    if (!adjustmentForm.reason.trim()) {
+      setModalError('Reason is required');
+      return;
+    }
+
+    setModalLoading(true);
+    setModalError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/admin/point-adjustments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          arenaId: arena.id,
+          creatorProfileId: adjustingCreator.profile_id,
+          pointsDelta: adjustmentForm.pointsDelta,
+          reason: adjustmentForm.reason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to create adjustment');
+      }
+
+      // Refresh creators list
+      await refreshCreators();
+
+      // Close modal
+      setShowAdjustModal(false);
+      setAdjustingCreator(null);
+      setAdjustmentForm({ pointsDelta: 0, reason: '' });
+      setModalError(null);
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Error adjusting points:', err);
+      setModalError(err?.message || 'Failed to adjust points');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   // Close modals
   const closeModals = () => {
     setShowAddModal(false);
     setShowEditModal(false);
+    setShowAdjustModal(false);
+    setShowHistoryModal(false);
     setEditingCreator(null);
+    setAdjustingCreator(null);
+    setAdjustmentHistory([]);
     setFormData({
       twitter_username: '',
       arc_points: 0,
       ring: 'discovery',
       style: '',
     });
+    setAdjustmentForm({ pointsDelta: 0, reason: '' });
     setModalError(null);
   };
 
@@ -825,21 +925,56 @@ export default function ArenaDetailsPage() {
                                   )}
                                 </div>
                                 <span className="text-sm font-medium text-akari-text ml-auto whitespace-nowrap">
-                                  {creator.arc_points ?? 0} pts
+                                  {creator.adjusted_points ?? creator.arc_points ?? 0} pts
+                                  {creator.adjusted_points !== undefined && creator.adjusted_points !== creator.arc_points && (
+                                    <span className="text-xs text-akari-muted ml-1">
+                                      ({creator.arc_points ?? 0} base)
+                                    </span>
+                                  )}
                                 </span>
                               </Link>
                               {userIsSuperAdmin && creator.id && (
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    openEditModal(creator);
-                                  }}
-                                  className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors flex-shrink-0 z-10 relative"
-                                  title="Edit creator"
-                                >
-                                  Edit
-                                </button>
+                                <div className="flex gap-1 flex-shrink-0 z-10 relative">
+                                  {creator.profile_id && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          setAdjustingCreator(creator);
+                                          setAdjustmentForm({ pointsDelta: 0, reason: '' });
+                                          setShowAdjustModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                        title="Adjust points"
+                                      >
+                                        Adjust
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          openHistoryModal(creator);
+                                        }}
+                                        className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                        title="View adjustment history"
+                                      >
+                                        History
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openEditModal(creator);
+                                    }}
+                                    className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                    title="Edit creator"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
                               )}
                             </div>
                           );
@@ -1112,6 +1247,168 @@ export default function ArenaDetailsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Adjust Points Modal */}
+        {showAdjustModal && adjustingCreator && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-akari-text">Adjust Points</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-akari-muted hover:text-akari-text transition-colors"
+                  disabled={modalLoading}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Creator</label>
+                  <input
+                    type="text"
+                    value={`@${adjustingCreator.twitter_username || 'Unknown'}`}
+                    disabled
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/20 border border-akari-border/20 rounded-lg text-akari-muted cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Points Delta (can be negative)</label>
+                  <input
+                    type="number"
+                    value={adjustmentForm.pointsDelta}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, pointsDelta: Number(e.target.value) || 0 })}
+                    step="0.01"
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                    disabled={modalLoading}
+                  />
+                  <p className="mt-1 text-xs text-akari-muted">
+                    Current: {adjustingCreator.adjusted_points ?? adjustingCreator.arc_points ?? 0} pts
+                    {adjustmentForm.pointsDelta !== 0 && (
+                      <span className="ml-2">
+                        → {((adjustingCreator.adjusted_points ?? adjustingCreator.arc_points ?? 0) + adjustmentForm.pointsDelta).toFixed(2)} pts
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-akari-muted">Reason (required)</label>
+                  <textarea
+                    value={adjustmentForm.reason}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
+                    placeholder="e.g., Manual correction for scoring error"
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors resize-none"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                {modalError && (
+                  <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
+                    <p className="text-xs text-akari-danger">{modalError}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={closeModals}
+                    className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+                    disabled={modalLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAdjustPoints}
+                    disabled={modalLoading || !adjustmentForm.reason.trim()}
+                    className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {modalLoading ? 'Adjusting...' : 'Apply Adjustment'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Adjustment History Modal */}
+        {showHistoryModal && adjustingCreator && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-2xl rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl max-h-[80vh] overflow-y-auto">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-akari-text">
+                  Adjustment History: @{adjustingCreator.twitter_username || 'Unknown'}
+                </h3>
+                <button
+                  onClick={closeModals}
+                  className="text-akari-muted hover:text-akari-text transition-colors"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {adjustmentHistory.length === 0 ? (
+                <p className="text-sm text-akari-muted">No adjustments recorded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {adjustmentHistory.map((adj) => (
+                    <div
+                      key={adj.id}
+                      className="p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-sm font-medium ${adj.points_delta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {adj.points_delta >= 0 ? '+' : ''}{adj.points_delta.toFixed(2)} pts
+                            </span>
+                          </div>
+                          <p className="text-sm text-akari-text mb-2">{adj.reason}</p>
+                          <p className="text-xs text-akari-muted">
+                            {new Date(adj.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sentiment Overlay Stub */}
+        {arena && (
+          <div className="mt-6 rounded-xl border border-akari-border bg-akari-card p-6">
+            <details className="group">
+              <summary className="cursor-pointer text-lg font-semibold text-akari-text list-none flex items-center justify-between">
+                <span>Sentiment (Beta)</span>
+                <svg
+                  className="h-5 w-5 text-akari-muted transition-transform group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-4 pt-4 border-t border-akari-border/30">
+                <p className="text-sm text-akari-muted mb-4">Coming soon. Sentiment analysis will be available here.</p>
+                <div className="text-xs text-akari-muted space-y-1">
+                  <p>Enabled: Yes</p>
+                  <p>Summary: Not available yet</p>
+                  <p>Series: Not available yet</p>
+                </div>
+              </div>
+            </details>
           </div>
         )}
       </div>
