@@ -14,6 +14,7 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/helpers';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import { isSuperAdmin } from '@/lib/permissions';
+import type { ProjectPermissionCheck } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -201,7 +202,7 @@ export default function ArcProjectHub() {
   const [project, setProject] = useState<ArcProject | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [unifiedState, setUnifiedState] = useState<UnifiedArcState | null>(null);
-  const [isProjectAdmin, setIsProjectAdmin] = useState(false);
+  const [permissions, setPermissions] = useState<ProjectPermissionCheck | null>(null);
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [allCreators, setAllCreators] = useState<Creator[]>([]);
   const [userStatus, setUserStatus] = useState<UserCampaignStatus | null>(null);
@@ -284,8 +285,18 @@ export default function ArcProjectHub() {
           }
         }
 
-        // Step 3: Check if user is super admin (permission check can be expanded later)
-        setIsProjectAdmin(isSuperAdmin(akariUser.user));
+        // Step 3: Fetch project permissions
+        try {
+          const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(projectInfo.id)}`);
+          if (permissionsRes.ok) {
+            const permissionsData = await permissionsRes.json();
+            if (permissionsData.ok) {
+              setPermissions(permissionsData.permissions);
+            }
+          }
+        } catch (permErr) {
+          console.warn('[ArcProjectHub] Failed to fetch permissions:', permErr);
+        }
 
         // Step 4: Build ArcProject object from project data
         // We'll need to fetch project_arc_settings for meta/tier if available
@@ -789,12 +800,12 @@ export default function ArcProjectHub() {
                       return null;
                     })()}
                     
-                    {unifiedState?.modules?.crm?.enabled && (isProjectAdmin || unifiedState.modules.crm.visibility !== 'private') && (
+                    {unifiedState?.modules?.crm?.enabled && ((permissions?.isSuperAdmin || permissions?.isOwner || permissions?.isAdmin || permissions?.isModerator) || unifiedState.modules.crm.visibility !== 'private') && (
                       <Link
                         href={`/portal/arc/creator-manager?projectId=${projectId}`}
                         className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
                       >
-                        {isProjectAdmin ? 'Creator Manager' : 'Apply as Creator'}
+                        {(permissions?.isSuperAdmin || permissions?.isOwner || permissions?.isAdmin || permissions?.isModerator) ? 'Creator Manager' : 'Apply as Creator'}
                       </Link>
                     )}
                     
@@ -808,7 +819,7 @@ export default function ArcProjectHub() {
                     )}
 
                     {/* Admin dashboard buttons */}
-                    {isProjectAdmin && unifiedState?.modules?.leaderboard?.enabled && project?.slug && (
+                    {(permissions?.isSuperAdmin || permissions?.isOwner || permissions?.isAdmin) && unifiedState?.modules?.leaderboard?.enabled && project?.slug && (
                       <Link
                         href={`/portal/arc/admin/${encodeURIComponent(project.slug)}`}
                         className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"

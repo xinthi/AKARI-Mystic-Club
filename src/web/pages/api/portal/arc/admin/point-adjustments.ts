@@ -9,6 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -90,6 +91,23 @@ async function checkSuperAdmin(
   return (roles?.length ?? 0) > 0;
 }
 
+async function getProjectIdFromArenaId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  arenaId: string
+): Promise<string | null> {
+  const { data: arena, error } = await supabase
+    .from('arenas')
+    .select('project_id')
+    .eq('id', arenaId)
+    .single();
+
+  if (error || !arena) {
+    return null;
+  }
+
+  return arena.project_id;
+}
+
 async function getCurrentUserProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   sessionToken: string
@@ -149,10 +167,13 @@ export default async function handler(
   const supabase = getSupabaseAdmin();
 
   // ==========================================================================
-  // AUTHENTICATION: Check Super Admin
+  // AUTHENTICATION: Check project permissions
   // ==========================================================================
   const DEV_MODE = process.env.NODE_ENV === 'development';
   
+  let userId: string | null = null;
+  let projectId: string | null = null;
+
   if (!DEV_MODE) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
@@ -170,11 +191,42 @@ export default async function handler(
       });
     }
 
-    const isSuperAdmin = await checkSuperAdmin(supabase, userProfile.userId);
-    if (!isSuperAdmin) {
+    userId = userProfile.userId;
+
+    // Get arenaId from request
+    let arenaId: string | null = null;
+    if (req.method === 'POST') {
+      arenaId = (req.body as CreateAdjustmentRequest)?.arenaId || null;
+    } else if (req.method === 'GET') {
+      arenaId = (req.query.arenaId as string) || null;
+    }
+
+    if (!arenaId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'arenaId is required',
+      });
+    }
+
+    // Get projectId from arenaId
+    projectId = await getProjectIdFromArenaId(supabase, arenaId);
+    if (!projectId) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Arena not found',
+      });
+    }
+
+    // Check project permissions
+    const permissions = await checkProjectPermissions(supabase, userId, projectId);
+    
+    // Point adjustments require: isSuperAdmin OR isOwner OR isAdmin OR isModerator
+    const canWrite = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
+    
+    if (!canWrite) {
       return res.status(403).json({
         ok: false,
-        error: 'Forbidden: SuperAdmin only',
+        error: 'You do not have permission to adjust points for this project',
       });
     }
   } else {

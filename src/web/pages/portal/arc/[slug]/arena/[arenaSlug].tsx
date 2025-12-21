@@ -12,6 +12,7 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
+import type { ProjectPermissionCheck } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -91,7 +92,6 @@ export default function ArenaDetailsPage() {
   const projectSlug = typeof rawProjectSlug === 'string' ? String(rawProjectSlug).trim().toLowerCase() : null;
   const arenaSlug = typeof rawArenaSlug === 'string' ? String(rawArenaSlug).trim().toLowerCase() : null;
   const akariUser = useAkariUser();
-  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
   // Canonicalize slugs: redirect if normalized differs from original
   useEffect(() => {
@@ -118,9 +118,15 @@ export default function ArenaDetailsPage() {
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
+  const [permissionsState, setPermissionsState] = useState<ProjectPermissionCheck | null>(null);
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Compute permission flags using safe local variable
+  const perms = permissionsState;
+  const canWrite = !!perms && (perms.isSuperAdmin || perms.isOwner || perms.isAdmin || perms.isModerator);
+  const canManageArenas = !!perms && (perms.isSuperAdmin || perms.isOwner || perms.isAdmin);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline' | 'map'>('leaderboard');
@@ -266,6 +272,21 @@ export default function ArenaDetailsPage() {
         setProject(data.project);
         // Creators are already sorted by adjusted_points DESC from the API
         setCreators(data.creators || []);
+
+        // Fetch project permissions
+        if (data.project?.id) {
+          try {
+            const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(data.project.id)}`);
+            if (permissionsRes.ok) {
+              const permissionsData = await permissionsRes.json();
+              if (permissionsData.ok) {
+                setPermissionsState(permissionsData.permissions);
+              }
+            }
+          } catch (permErr) {
+            console.warn('[ArenaDetailsPage] Failed to fetch permissions:', permErr);
+          }
+        }
       } catch (err: any) {
         const errorMessage = err?.message || 'Failed to connect to API';
         setError(errorMessage);
@@ -951,7 +972,7 @@ export default function ArenaDetailsPage() {
                     Map
                   </button>
                 </div>
-                {userIsSuperAdmin && activeTab === 'leaderboard' && (
+                {canWrite && activeTab === 'leaderboard' && (
                   <button
                     onClick={() => {
                       setFormData({
@@ -1086,7 +1107,7 @@ export default function ArenaDetailsPage() {
                                   })()}
                                 </span>
                               </Link>
-                              {userIsSuperAdmin && creator.id && (
+                              {canWrite && creator.id && (
                                 <div className="flex gap-1 flex-shrink-0 z-10 relative">
                                   {creator.profile_id && (
                                     <>
