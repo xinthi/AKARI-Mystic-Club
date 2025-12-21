@@ -205,6 +205,9 @@ export default function ArcProjectHub() {
   const [permissions, setPermissions] = useState<ProjectPermissionCheck | null>(null);
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [allCreators, setAllCreators] = useState<Creator[]>([]);
+  
+  // Compute permission flags
+  const canWrite = !!permissions && (permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator);
   const [userStatus, setUserStatus] = useState<UserCampaignStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,6 +215,11 @@ export default function ArcProjectHub() {
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [selectedArenaId, setSelectedArenaId] = useState<string | null>(null);
+  
+  // Option 2 join flow state
+  const [followVerified, setFollowVerified] = useState<boolean | null>(null);
+  const [verifyingFollow, setVerifyingFollow] = useState(false);
+  const [joiningLeaderboard, setJoiningLeaderboard] = useState(false);
 
   // Leaderboard filter/sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -462,6 +470,45 @@ export default function ArcProjectHub() {
     fetchUserStatus();
   }, [project, projectId, userTwitterUsername]);
 
+  // Check follow verification status (read-only check)
+  useEffect(() => {
+    async function checkFollowVerification() {
+      if (!projectId || !akariUser.user) {
+        setFollowVerified(null);
+        return;
+      }
+
+      // Skip check for investor_view (read-only)
+      if (permissions?.isInvestorView) {
+        setFollowVerified(null);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(projectId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok) {
+            setFollowVerified(data.verified);
+          }
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Error checking follow verification:', err);
+      }
+    }
+
+    checkFollowVerification();
+  }, [projectId, akariUser.user, permissions?.isInvestorView]);
+
+  // Check if user is already in creators list
+  const userIsInCreators = useMemo(() => {
+    if (!userTwitterUsername || !allCreators.length) return false;
+    const normalized = userTwitterUsername.toLowerCase().replace('@', '').trim();
+    return allCreators.some(c => 
+      c.twitter_username?.toLowerCase().replace('@', '').trim() === normalized
+    );
+  }, [userTwitterUsername, allCreators]);
+
   // Calculate project stats from arenas
   const projectStats = useMemo(() => {
     const activeArenas = arenas.filter(a => a.status === 'active');
@@ -493,7 +540,80 @@ export default function ArcProjectHub() {
     };
   }, [arenas, allCreators]);
 
-  // Handle join campaign
+  // Handle verify follow
+  const handleVerifyFollow = async () => {
+    if (!projectId || verifyingFollow) return;
+
+    try {
+      setVerifyingFollow(true);
+      const res = await fetch('/api/portal/arc/verify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to verify follow');
+      }
+
+      setFollowVerified(data.verified);
+      
+      if (!data.verified) {
+        alert('Please follow the project on X first, then try again.');
+      }
+    } catch (err: any) {
+      console.error('[ArcProjectHub] Verify follow error:', err);
+      alert(err?.message || 'Failed to verify follow. Please try again.');
+    } finally {
+      setVerifyingFollow(false);
+    }
+  };
+
+  // Handle join leaderboard
+  const handleJoinLeaderboard = async () => {
+    const targetProjectId = projectId || project?.project_id;
+    if (!targetProjectId || joiningLeaderboard) return;
+
+    try {
+      setJoiningLeaderboard(true);
+      const res = await fetch('/api/portal/arc/join-leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: targetProjectId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        if (data.reason === 'not_verified') {
+          alert('Please verify that you follow the project first.');
+          return;
+        }
+        throw new Error(data.error || 'Failed to join leaderboard');
+      }
+
+      // Refresh creators list
+      if (selectedArenaId) {
+        const arena = arenas.find(a => a.id === selectedArenaId);
+        if (arena?.slug) {
+          const arenaRes = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`);
+          const arenaData = await arenaRes.json();
+          if (arenaData.ok) {
+            setAllCreators(arenaData.creators || []);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[ArcProjectHub] Join leaderboard error:', err);
+      alert(err?.message || 'Failed to join leaderboard. Please try again.');
+    } finally {
+      setJoiningLeaderboard(false);
+    }
+  };
+
+  // Handle join campaign (legacy - keep for backward compatibility)
   const handleJoinCampaign = async () => {
     const targetProjectId = projectId || project?.project_id;
     if (!targetProjectId || joiningProjectId) return;
@@ -828,29 +948,64 @@ export default function ArcProjectHub() {
                       </Link>
                     )}
 
-                    {/* Original CTA buttons */}
-                    {!userStatus?.isFollowing ? (
-                      <button
-                        onClick={() => setShowFollowModal(true)}
-                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
-                      >
-                        Follow on X to join
-                      </button>
-                    ) : !userStatus?.hasJoined ? (
-                      <button
-                        onClick={handleJoinCampaign}
-                        disabled={joiningProjectId === (projectId || project?.project_id)}
-                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
-                      >
-                        {joiningProjectId === (projectId || project?.project_id) ? 'Joining...' : 'Join campaign'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setActiveTab('missions')}
-                        className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
-                      >
-                        View missions
-                      </button>
+                    {/* Option 2 Join Flow buttons (for normal users, not investor_view, not admins) */}
+                    {akariUser.user && !permissions?.isInvestorView && !canWrite && unifiedState?.modules?.leaderboard?.enabled && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {followVerified === false && (
+                            <button
+                              onClick={handleVerifyFollow}
+                              disabled={verifyingFollow}
+                              className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
+                            >
+                              {verifyingFollow ? 'Verifying...' : 'Verify Follow'}
+                            </button>
+                          )}
+                          {followVerified === true && !userIsInCreators && (
+                            <button
+                              onClick={handleJoinLeaderboard}
+                              disabled={joiningLeaderboard}
+                              className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
+                            >
+                              {joiningLeaderboard ? 'Joining...' : 'Join Leaderboard'}
+                            </button>
+                          )}
+                        </div>
+                        {(followVerified === false || (followVerified === true && !userIsInCreators)) && (
+                          <p className="text-xs text-white/60">
+                            To join, follow the project on X, then verify here.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Original CTA buttons (legacy - keep for backward compatibility when not logged in) */}
+                    {!akariUser.user && (
+                      <>
+                        {!userStatus?.isFollowing ? (
+                          <button
+                            onClick={() => setShowFollowModal(true)}
+                            className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                          >
+                            Follow on X to join
+                          </button>
+                        ) : !userStatus?.hasJoined ? (
+                          <button
+                            onClick={handleJoinCampaign}
+                            disabled={joiningProjectId === (projectId || project?.project_id)}
+                            className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all disabled:opacity-50"
+                          >
+                            {joiningProjectId === (projectId || project?.project_id) ? 'Joining...' : 'Join campaign'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setActiveTab('missions')}
+                            className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 text-black rounded-lg hover:shadow-[0_0_20px_rgba(0,246,162,0.4)] transition-all"
+                          >
+                            View missions
+                          </button>
+                        )}
+                      </>
                     )}
                     {project.twitter_username && (
                       <a

@@ -122,6 +122,11 @@ export default function ArenaDetailsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Option 2 join flow state
+  const [followVerified, setFollowVerified] = useState<boolean | null>(null);
+  const [verifyingFollow, setVerifyingFollow] = useState(false);
+  const [joiningLeaderboard, setJoiningLeaderboard] = useState(false);
 
   // Compute permission flags using safe local variable
   const perms = permissionsState;
@@ -281,6 +286,21 @@ export default function ArenaDetailsPage() {
               const permissionsData = await permissionsRes.json();
               if (permissionsData.ok) {
                 setPermissionsState(permissionsData.permissions);
+                
+                // Check follow verification status (read-only check)
+                if (akariUser.user && !permissionsData.permissions.isInvestorView && data.project?.id) {
+                  try {
+                    const verifyRes = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(data.project.id)}`);
+                    if (verifyRes.ok) {
+                      const verifyData = await verifyRes.json();
+                      if (verifyData.ok) {
+                        setFollowVerified(verifyData.verified);
+                      }
+                    }
+                  } catch (verifyErr) {
+                    console.warn('[ArenaDetailsPage] Failed to check follow verification:', verifyErr);
+                  }
+                }
               }
             }
           } catch (permErr) {
@@ -524,6 +544,79 @@ export default function ArenaDetailsPage() {
 
     return filtered;
   }, [creators, searchTerm, ringFilter, sortBy]);
+
+  // Check if user is already in creators list
+  const userTwitterUsername = akariUser.user?.xUsername || null;
+  const userIsInCreators = React.useMemo(() => {
+    if (!userTwitterUsername || !creators.length) return false;
+    const normalized = userTwitterUsername.toLowerCase().replace('@', '').trim();
+    return creators.some(c => 
+      c.twitter_username?.toLowerCase().replace('@', '').trim() === normalized
+    );
+  }, [userTwitterUsername, creators]);
+
+  // Handle verify follow
+  const handleVerifyFollow = async () => {
+    if (!project?.id || verifyingFollow) return;
+
+    try {
+      setVerifyingFollow(true);
+      const res = await fetch('/api/portal/arc/verify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to verify follow');
+      }
+
+      setFollowVerified(data.verified);
+      
+      if (!data.verified) {
+        alert('Please follow the project on X first, then try again.');
+      }
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Verify follow error:', err);
+      alert(err?.message || 'Failed to verify follow. Please try again.');
+    } finally {
+      setVerifyingFollow(false);
+    }
+  };
+
+  // Handle join leaderboard
+  const handleJoinLeaderboard = async () => {
+    if (!project?.id || joiningLeaderboard) return;
+
+    try {
+      setJoiningLeaderboard(true);
+      const res = await fetch('/api/portal/arc/join-leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        if (data.reason === 'not_verified') {
+          alert('Please verify that you follow the project first.');
+          return;
+        }
+        throw new Error(data.error || 'Failed to join leaderboard');
+      }
+
+      // Refresh creators list
+      await refreshCreators();
+    } catch (err: any) {
+      console.error('[ArenaDetailsPage] Join leaderboard error:', err);
+      alert(err?.message || 'Failed to join leaderboard. Please try again.');
+    } finally {
+      setJoiningLeaderboard(false);
+    }
+  };
 
   // Refresh creators list
   // Uses the same endpoint as initial fetch: /api/portal/arc/arenas/${arenaSlug}

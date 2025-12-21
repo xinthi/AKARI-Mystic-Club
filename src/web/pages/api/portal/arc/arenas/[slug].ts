@@ -9,6 +9,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient, createServiceClient } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -170,6 +172,16 @@ export default async function handler(
       return res.status(404).json({
         ok: false,
         error: 'Arena not found',
+      });
+    }
+
+    // Check ARC access (Option 2 = Leaderboard)
+    const supabaseAdmin = getSupabaseAdmin();
+    const accessCheck = await requireArcAccess(supabaseAdmin, arenaData.project_id, 2);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error,
       });
     }
 
