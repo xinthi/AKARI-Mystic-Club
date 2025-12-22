@@ -124,11 +124,25 @@ export default async function handler(
     if (!DEV_MODE) {
       const authUser = await getAuthUser(req);
       if (!authUser) {
+        // Log for debugging
+        if (process.env.NODE_ENV === 'production') {
+          console.log('[follow-status] Authentication failed', {
+            hasAuthHeader: !!req.headers.authorization,
+            hasCookie: !!req.headers.cookie,
+          });
+        }
         return res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
       }
 
       userProfile = await getCurrentUserProfile(supabase, authUser.userId);
       if (!userProfile) {
+        // Log for debugging
+        if (process.env.NODE_ENV === 'production') {
+          console.log('[follow-status] User profile lookup failed', {
+            userId: authUser.userId,
+            method: authUser.method,
+          });
+        }
         return res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
       }
     } else {

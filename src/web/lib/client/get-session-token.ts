@@ -18,8 +18,19 @@ export function getSessionToken(): string | null {
   for (const cookie of cookies) {
     if (cookie.startsWith('akari_session=')) {
       const token = cookie.substring('akari_session='.length).trim();
-      return token.length > 0 ? token : null;
+      if (token.length > 0) {
+        // Debug logging in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[getSessionToken] Found token:', token.substring(0, 10) + '...');
+        }
+        return token;
+      }
     }
+  }
+  
+  // Debug logging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getSessionToken] No token found. Cookies:', document.cookie ? 'present' : 'missing');
   }
   
   return null;

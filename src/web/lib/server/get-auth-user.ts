@@ -47,26 +47,34 @@ function getSessionTokenFromCookie(req: NextApiRequest): string | null {
 }
 
 /**
+ * Check if a token looks like a Supabase JWT (starts with "eyJ" which is base64-encoded JSON)
+ */
+function looksLikeJWT(token: string): boolean {
+  return token.startsWith('eyJ');
+}
+
+/**
  * Get user ID from Bearer token
- * Tries Supabase Auth JWT first, then falls back to custom akari_session token lookup
+ * Tries Supabase Auth JWT first (if token looks like JWT), then falls back to custom akari_session token lookup
  */
 async function getUserIdFromBearerToken(token: string): Promise<string | null> {
-  try {
-    // First, try Supabase Auth JWT (if using Supabase Auth)
-    const supabase = createPortalClient();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (!error && user) {
-      return user.id;
+  // If token looks like a JWT, try Supabase Auth first
+  if (looksLikeJWT(token)) {
+    try {
+      const supabase = createPortalClient();
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      
+      if (!error && user && user.id) {
+        return user.id;
+      }
+    } catch (err) {
+      // Supabase Auth failed - fall through to session token lookup
     }
-    
-    // If Supabase auth fails, treat token as akari_session token
-    // and look it up in the database
-    return await getUserIdFromSessionToken(token);
-  } catch (err) {
-    // If Supabase auth throws, try treating as akari_session token
-    return await getUserIdFromSessionToken(token);
   }
+  
+  // If Supabase auth fails or token is not a JWT, treat token as akari_session token
+  // and look it up in the database
+  return await getUserIdFromSessionToken(token);
 }
 
 /**
@@ -133,7 +141,16 @@ export async function getAuthUser(req: NextApiRequest): Promise<AuthUserResult |
     }
   }
 
-  // Not authenticated
+  // Not authenticated - log for debugging in production
+  if (process.env.NODE_ENV === 'production') {
+    console.log('[getAuthUser] No authentication found', {
+      hasBearer: !!bearerToken,
+      hasCookie: !!sessionToken,
+      authHeader: req.headers.authorization ? 'present' : 'missing',
+      cookieHeader: req.headers.cookie ? 'present' : 'missing',
+    });
+  }
+
   return null;
 }
 
