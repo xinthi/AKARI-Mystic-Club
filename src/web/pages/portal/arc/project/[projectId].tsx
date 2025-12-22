@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getSessionToken } from '@/lib/client/get-session-token';
 
 // =============================================================================
 // TYPES
@@ -297,10 +298,7 @@ export default function ArcProjectPage() {
 
       try {
         // Get session token from cookie for Bearer auth
-        const sessionToken = document.cookie
-          .split(';')
-          .find(c => c.trim().startsWith('akari_session='))
-          ?.split('=')[1]?.trim() || null;
+        const sessionToken = getSessionToken();
         
         const headers: HeadersInit = {};
         if (sessionToken) {
@@ -338,10 +336,7 @@ export default function ArcProjectPage() {
 
     try {
       // Get session token from cookie for Bearer auth
-      const sessionToken = document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('akari_session='))
-        ?.split('=')[1]?.trim() || null;
+      const sessionToken = getSessionToken();
       
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (sessionToken) {
@@ -378,10 +373,7 @@ export default function ArcProjectPage() {
 
     try {
       // Get session token from cookie for Bearer auth
-      const sessionToken = document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('akari_session='))
-        ?.split('=')[1]?.trim() || null;
+      const sessionToken = getSessionToken();
       
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (sessionToken) {

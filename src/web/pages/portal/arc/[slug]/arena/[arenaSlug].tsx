@@ -13,6 +13,7 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
+import { getSessionToken } from '@/lib/client/get-session-token';
 
 // =============================================================================
 // TYPES
@@ -311,10 +312,7 @@ export default function ArenaDetailsPage() {
                 if (akariUser.user && !permissionsData.permissions.isInvestorView && data.project?.id) {
                   try {
                     // Get session token from cookie for Bearer auth
-                    const sessionToken = document.cookie
-                      .split(';')
-                      .find(c => c.trim().startsWith('akari_session='))
-                      ?.split('=')[1]?.trim() || null;
+                    const sessionToken = getSessionToken();
                     
                     const headers: HeadersInit = {};
                     if (sessionToken) {
@@ -627,10 +625,7 @@ export default function ArenaDetailsPage() {
     try {
       setVerifyingFollow(true);
       // Get session token from cookie for Bearer auth
-      const sessionToken = document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('akari_session='))
-        ?.split('=')[1]?.trim() || null;
+      const sessionToken = getSessionToken();
       
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (sessionToken) {
@@ -670,10 +665,7 @@ export default function ArenaDetailsPage() {
     try {
       setJoiningLeaderboard(true);
       // Get session token from cookie for Bearer auth
-      const sessionToken = document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('akari_session='))
-        ?.split('=')[1]?.trim() || null;
+      const sessionToken = getSessionToken();
       
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
       if (sessionToken) {
