@@ -8,7 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
-import { getAuthUser } from '@/lib/server/get-auth-user';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -31,36 +31,6 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-async function getCurrentUserProfile(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  userId: string
-): Promise<{ profileId: string; twitterUsername: string } | null> {
-  // Get user's Twitter username
-  const { data: xIdentity, error: identityError } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', userId)
-    .eq('provider', 'x')
-    .single();
-
-  if (identityError || !xIdentity?.username) {
-    return null;
-  }
-
-  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', cleanUsername)
-    .single();
-
-  if (profileError || !profile) {
-    return null;
-  }
-
-  return { profileId: profile.id, twitterUsername: cleanUsername };
-}
 
 /**
  * Check if user follows project's X account
@@ -99,38 +69,54 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Authentication
-    const authUser = await getAuthUser(req);
-    if (!authUser) {
-      // Log for debugging
-      if (process.env.NODE_ENV === 'production') {
-        console.log('[verify-follow] Authentication failed', {
-          hasAuthHeader: !!req.headers.authorization,
-          hasCookie: !!req.headers.cookie,
-        });
-      }
-      return res.status(401).json({
-        ok: false,
-        error: 'Not authenticated',
-        reason: 'not_authenticated',
-      });
+    // Authentication (same pattern as /api/portal/arc/my-projects.ts)
+    const portalUser = await requirePortalUser(req, res);
+    if (!portalUser) {
+      return; // requirePortalUser already sent 401 response
     }
 
-    const userProfile = await getCurrentUserProfile(supabase, authUser.userId);
-    if (!userProfile) {
-      // Log for debugging
-      if (process.env.NODE_ENV === 'production') {
-        console.log('[verify-follow] User profile lookup failed', {
-          userId: authUser.userId,
-          method: authUser.method,
-        });
-      }
+    // Get Twitter username for profile lookup
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', portalUser.userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (identityError || !xIdentity?.username) {
       return res.status(401).json({
         ok: false,
         error: 'Invalid session',
         reason: 'not_authenticated',
       });
     }
+
+    const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+    
+    // Use profileId from portalUser if available, otherwise look it up
+    let profileId: string;
+    if (portalUser.profileId) {
+      profileId = portalUser.profileId;
+    } else {
+      // Fallback: look up profile by username
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanUsername)
+        .single();
+
+      if (profileError || !profile) {
+        return res.status(401).json({
+          ok: false,
+          error: 'Invalid session',
+          reason: 'not_authenticated',
+        });
+      }
+
+      profileId = profile.id;
+    }
+
+    const userProfile = { profileId, twitterUsername: cleanUsername };
 
     // Parse body
     const body = req.body as VerifyFollowBody;

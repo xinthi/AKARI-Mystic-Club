@@ -15,7 +15,6 @@ import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/help
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import { isSuperAdmin } from '@/lib/permissions';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
-import { getSessionToken } from '@/lib/client/get-session-token';
 
 // =============================================================================
 // TYPES
@@ -571,17 +570,8 @@ export default function ArcProjectHub() {
       }
 
       try {
-        // Get session token from cookie for Bearer auth
-        const sessionToken = getSessionToken();
-        
-        const headers: HeadersInit = {};
-        if (sessionToken) {
-          headers['Authorization'] = `Bearer ${sessionToken}`;
-        }
-        
         const res = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(projectId)}`, {
           credentials: 'include',
-          headers,
         });
         if (res.ok) {
           const data = await res.json();
@@ -643,17 +633,9 @@ export default function ArcProjectHub() {
 
     try {
       setVerifyingFollow(true);
-      // Get session token from cookie for Bearer auth
-      const sessionToken = getSessionToken();
-      
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`;
-      }
-      
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ projectId }),
       });
@@ -684,17 +666,9 @@ export default function ArcProjectHub() {
 
     try {
       setJoiningLeaderboard(true);
-      // Get session token from cookie for Bearer auth
-      const sessionToken = getSessionToken();
-      
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (sessionToken) {
-        headers['Authorization'] = `Bearer ${sessionToken}`;
-      }
-      
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ projectId: targetProjectId }),
       });
