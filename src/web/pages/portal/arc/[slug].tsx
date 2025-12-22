@@ -101,7 +101,7 @@ interface ArenaDetailResponse {
   creators: Creator[];
 }
 
-type TabType = 'overview' | 'leaderboard' | 'missions' | 'storyline' | 'map';
+type TabType = 'overview' | 'leaderboard' | 'missions' | 'storyline' | 'map' | 'crm';
 
 // =============================================================================
 // MISSION TYPES AND HELPERS
@@ -225,6 +225,34 @@ export default function ArcProjectHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
   const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
+
+  // CRM state
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<any | null>(null);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [externalSubmissions, setExternalSubmissions] = useState<any[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showUTMLinkModal, setShowUTMLinkModal] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<any | null>(null);
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    brief_objective: '',
+    participation_mode: 'invite_only' as 'invite_only' | 'public' | 'hybrid',
+    leaderboard_visibility: 'private' as 'public' | 'private',
+    start_at: '',
+    end_at: '',
+    website_url: '',
+    docs_url: '',
+    reward_pool_text: '',
+    winners_count: 100,
+    status: 'draft' as 'draft' | 'live' | 'paused' | 'ended',
+  });
+  const [inviteForm, setInviteForm] = useState({ twitter_username: '' });
+  const [utmForm, setUtmForm] = useState({ target_url: '' });
 
   // Fetch project by slug and unified state
   useEffect(() => {
@@ -448,6 +476,34 @@ export default function ArcProjectHub() {
 
     fetchCreators();
   }, [selectedArenaId, arenas]);
+
+  // Fetch campaigns when CRM tab is active or project loads
+  useEffect(() => {
+    async function fetchCampaigns() {
+      if (!projectId || !unifiedState?.modules?.crm?.enabled || !canWrite) {
+        return;
+      }
+
+      if (activeTab === 'crm' || campaigns.length === 0) {
+        setCampaignsLoading(true);
+        try {
+          const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.campaigns) {
+              setCampaigns(data.campaigns || []);
+            }
+          }
+        } catch (err) {
+          console.error('[ArcProjectHub] Error fetching campaigns:', err);
+        } finally {
+          setCampaignsLoading(false);
+        }
+      }
+    }
+
+    fetchCampaigns();
+  }, [projectId, unifiedState?.modules?.crm?.enabled, canWrite, activeTab]);
 
   // Fetch user campaign status
   useEffect(() => {
@@ -1030,7 +1086,7 @@ export default function ArcProjectHub() {
 
             {/* Tab Navigation */}
             <div className="flex items-center gap-2 border-b border-white/10 pb-2">
-              {(['overview', 'leaderboard', 'missions', 'storyline', 'map'] as TabType[]).map((tab) => (
+              {(['overview', 'leaderboard', 'missions', 'storyline', 'map', ...(unifiedState?.modules?.crm?.enabled ? ['crm'] : [])] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -1045,7 +1101,7 @@ export default function ArcProjectHub() {
                       : {}
                   }
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab === 'crm' ? 'Creator Manager' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
@@ -1406,6 +1462,313 @@ export default function ArcProjectHub() {
                   )}
                 </div>
               )}
+
+              {/* CRM Tab */}
+              {activeTab === 'crm' && (
+                <div className="space-y-6">
+                  {!unifiedState?.modules?.crm?.enabled ? (
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                      <p className="text-sm text-white/60">CRM (Creator Manager) is not enabled for this project.</p>
+                    </div>
+                  ) : !canWrite ? (
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+                      <p className="text-sm text-white/60">You do not have permission to manage campaigns.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Campaigns List */}
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-lg font-semibold text-white">Campaigns</h2>
+                          <button
+                            onClick={() => {
+                              setCampaignForm({
+                                name: '',
+                                brief_objective: '',
+                                participation_mode: 'invite_only',
+                                leaderboard_visibility: 'private',
+                                start_at: '',
+                                end_at: '',
+                                website_url: '',
+                                docs_url: '',
+                                reward_pool_text: '',
+                                winners_count: 100,
+                                status: 'draft',
+                              });
+                              setShowCreateCampaignModal(true);
+                            }}
+                            className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                          >
+                            Create Campaign
+                          </button>
+                        </div>
+                        {campaignsLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                          </div>
+                        ) : campaigns.length === 0 ? (
+                          <p className="text-sm text-white/60 text-center py-8">No campaigns yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {campaigns.map((campaign) => (
+                              <div
+                                key={campaign.id}
+                                onClick={() => {
+                                  setSelectedCampaign(campaign);
+                                  // Fetch participants and submissions
+                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/participants`)
+                                    .then(r => r.json())
+                                    .then(d => d.ok && setParticipants(d.participants || []))
+                                    .catch(console.error);
+                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/external-submissions`)
+                                    .then(r => r.json())
+                                    .then(d => d.ok && setExternalSubmissions(d.submissions || []))
+                                    .catch(console.error);
+                                }}
+                                className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                                  selectedCampaign?.id === campaign.id
+                                    ? 'border-akari-primary bg-akari-primary/10'
+                                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h3 className="text-base font-semibold text-white mb-1">{campaign.name}</h3>
+                                    {campaign.brief_objective && (
+                                      <p className="text-sm text-white/60 mb-2">{campaign.brief_objective}</p>
+                                    )}
+                                    <div className="flex items-center gap-4 text-xs text-white/40">
+                                      <span>{new Date(campaign.start_at).toLocaleDateString()} - {new Date(campaign.end_at).toLocaleDateString()}</span>
+                                      <span className="capitalize">{campaign.participation_mode.replace('_', ' ')}</span>
+                                    </div>
+                                  </div>
+                                  <span className={`px-2 py-1 text-xs rounded-full ${
+                                    campaign.status === 'live' ? 'bg-green-500/20 text-green-400' :
+                                    campaign.status === 'ended' ? 'bg-gray-500/20 text-gray-400' :
+                                    'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {campaign.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Campaign Details */}
+                      {selectedCampaign && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Campaign Info */}
+                          <div className="rounded-xl border border-white/10 bg-black/40 p-6 space-y-4">
+                            <h3 className="text-base font-semibold text-white">{selectedCampaign.name}</h3>
+                            {selectedCampaign.brief_objective && (
+                              <p className="text-sm text-white/60">{selectedCampaign.brief_objective}</p>
+                            )}
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-white/40 mb-1">Status</p>
+                                <p className="text-white capitalize">{selectedCampaign.status}</p>
+                              </div>
+                              <div>
+                                <p className="text-white/40 mb-1">Mode</p>
+                                <p className="text-white capitalize">{selectedCampaign.participation_mode.replace('_', ' ')}</p>
+                              </div>
+                              <div>
+                                <p className="text-white/40 mb-1">Visibility</p>
+                                <p className="text-white capitalize">{selectedCampaign.leaderboard_visibility}</p>
+                              </div>
+                              <div>
+                                <p className="text-white/40 mb-1">Winners</p>
+                                <p className="text-white">{selectedCampaign.winners_count}</p>
+                              </div>
+                            </div>
+                            {selectedCampaign.reward_pool_text && (
+                              <div>
+                                <p className="text-white/40 mb-1 text-sm">Reward Pool</p>
+                                <p className="text-white text-sm">{selectedCampaign.reward_pool_text}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Participants */}
+                          <div className="rounded-xl border border-white/10 bg-black/40 p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-base font-semibold text-white">Participants</h4>
+                              <button
+                                onClick={() => {
+                                  setInviteForm({ twitter_username: '' });
+                                  setShowInviteModal(true);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80"
+                              >
+                                Invite Creator
+                              </button>
+                            </div>
+                            {participantsLoading ? (
+                              <div className="flex items-center justify-center py-4">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                              </div>
+                            ) : participants.length === 0 ? (
+                              <p className="text-sm text-white/60">No participants yet.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {participants.map((p) => (
+                                  <div key={p.id} className="flex items-center justify-between p-2 rounded border border-white/5 bg-white/5">
+                                    <span className="text-sm text-white">@{p.twitter_username}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-1 text-xs rounded-full capitalize ${
+                                        p.status === 'accepted' ? 'bg-green-500/20 text-green-400' :
+                                        p.status === 'declined' ? 'bg-red-500/20 text-red-400' :
+                                        'bg-yellow-500/20 text-yellow-400'
+                                      }`}>
+                                        {p.status}
+                                      </span>
+                                      {p.status === 'invited' && (
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
+                                                method: 'PATCH',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ participant_id: p.id, status: 'accepted' }),
+                                              })
+                                                .then(r => r.json())
+                                                .then(d => {
+                                                  if (d.ok) {
+                                                    setParticipants(participants.map(part => part.id === p.id ? d.participant : part));
+                                                  }
+                                                })
+                                                .catch(console.error);
+                                            }}
+                                            className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded hover:bg-green-500/30"
+                                          >
+                                            Approve
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
+                                                method: 'PATCH',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ participant_id: p.id, status: 'declined' }),
+                                              })
+                                                .then(r => r.json())
+                                                .then(d => {
+                                                  if (d.ok) {
+                                                    setParticipants(participants.map(part => part.id === p.id ? d.participant : part));
+                                                  }
+                                                })
+                                                .catch(console.error);
+                                            }}
+                                            className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                                          >
+                                            Reject
+                                          </button>
+                                        </>
+                                      )}
+                                      <button
+                                        onClick={() => {
+                                          setSelectedParticipant(p);
+                                          setUtmForm({ target_url: '' });
+                                          setShowUTMLinkModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30"
+                                      >
+                                        UTM Link
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* External Submissions */}
+                      {selectedCampaign && (
+                        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                          <h4 className="text-base font-semibold text-white mb-4">External Submissions</h4>
+                          {submissionsLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                            </div>
+                          ) : externalSubmissions.length === 0 ? (
+                            <p className="text-sm text-white/60">No submissions yet.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {externalSubmissions.map((sub) => (
+                                <div key={sub.id} className="flex items-center justify-between p-3 rounded border border-white/5 bg-white/5">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-sm text-white">@{sub.participant?.twitter_username || 'Unknown'}</span>
+                                      <span className="text-xs text-white/40 capitalize">{sub.platform}</span>
+                                    </div>
+                                    <a href={sub.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline">
+                                      {sub.url}
+                                    </a>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-1 text-xs rounded-full ${
+                                      sub.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                                      sub.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                      'bg-yellow-500/20 text-yellow-400'
+                                    }`}>
+                                      {sub.status}
+                                    </span>
+                                    {sub.status === 'submitted' && (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/external-submissions/${sub.id}/review`, {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ action: 'approve' }),
+                                            })
+                                              .then(r => r.json())
+                                              .then(d => {
+                                                if (d.ok) {
+                                                  setExternalSubmissions(externalSubmissions.map(s => s.id === sub.id ? d.submission : s));
+                                                }
+                                              })
+                                              .catch(console.error);
+                                          }}
+                                          className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded hover:bg-green-500/30"
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/external-submissions/${sub.id}/review`, {
+                                              method: 'POST',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ action: 'reject' }),
+                                            })
+                                              .then(r => r.json())
+                                              .then(d => {
+                                                if (d.ok) {
+                                                  setExternalSubmissions(externalSubmissions.map(s => s.id === sub.id ? d.submission : s));
+                                                }
+                                              })
+                                              .catch(console.error);
+                                          }}
+                                          className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                                        >
+                                          Reject
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1436,6 +1799,320 @@ export default function ArcProjectHub() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Campaign Modal */}
+      {showCreateCampaignModal && projectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-black/90 border border-white/20 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-white mb-4">Create Campaign</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/60 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={campaignForm.name}
+                  onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  placeholder="Campaign name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-white/60 mb-1">Brief Objective</label>
+                <textarea
+                  value={campaignForm.brief_objective}
+                  onChange={(e) => setCampaignForm({ ...campaignForm, brief_objective: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  rows={3}
+                  placeholder="Campaign objective"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Participation Mode *</label>
+                  <select
+                    value={campaignForm.participation_mode}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, participation_mode: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  >
+                    <option value="invite_only">Invite Only</option>
+                    <option value="public">Public</option>
+                    <option value="hybrid">Hybrid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Visibility *</label>
+                  <select
+                    value={campaignForm.leaderboard_visibility}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, leaderboard_visibility: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  >
+                    <option value="private">Private</option>
+                    <option value="public">Public</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Start Date *</label>
+                  <input
+                    type="datetime-local"
+                    value={campaignForm.start_at}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, start_at: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">End Date *</label>
+                  <input
+                    type="datetime-local"
+                    value={campaignForm.end_at}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, end_at: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Website URL</label>
+                  <input
+                    type="url"
+                    value={campaignForm.website_url}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, website_url: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    placeholder="https://..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Docs URL</label>
+                  <input
+                    type="url"
+                    value={campaignForm.docs_url}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, docs_url: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-white/60 mb-1">Reward Pool Description</label>
+                <textarea
+                  value={campaignForm.reward_pool_text}
+                  onChange={(e) => setCampaignForm({ ...campaignForm, reward_pool_text: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  rows={2}
+                  placeholder="Reward pool details"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Winners Count</label>
+                  <input
+                    type="number"
+                    value={campaignForm.winners_count}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, winners_count: parseInt(e.target.value) || 100 })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Status</label>
+                  <select
+                    value={campaignForm.status}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="live">Live</option>
+                    <option value="paused">Paused</option>
+                    <option value="ended">Ended</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={async () => {
+                    if (!campaignForm.name || !campaignForm.start_at || !campaignForm.end_at) {
+                      alert('Please fill in required fields: name, start date, end date');
+                      return;
+                    }
+                    try {
+                      const res = await fetch('/api/portal/arc/campaigns', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          project_id: projectId,
+                          name: campaignForm.name,
+                          brief_objective: campaignForm.brief_objective || undefined,
+                          participation_mode: campaignForm.participation_mode,
+                          leaderboard_visibility: campaignForm.leaderboard_visibility,
+                          start_at: new Date(campaignForm.start_at).toISOString(),
+                          end_at: new Date(campaignForm.end_at).toISOString(),
+                          website_url: campaignForm.website_url || undefined,
+                          docs_url: campaignForm.docs_url || undefined,
+                          reward_pool_text: campaignForm.reward_pool_text || undefined,
+                          winners_count: campaignForm.winners_count,
+                          status: campaignForm.status,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.ok) {
+                        setCampaigns([...campaigns, data.campaign]);
+                        setShowCreateCampaignModal(false);
+                        setCampaignForm({
+                          name: '',
+                          brief_objective: '',
+                          participation_mode: 'invite_only',
+                          leaderboard_visibility: 'private',
+                          start_at: '',
+                          end_at: '',
+                          website_url: '',
+                          docs_url: '',
+                          reward_pool_text: '',
+                          winners_count: 100,
+                          status: 'draft',
+                        });
+                      } else {
+                        alert(data.error || 'Failed to create campaign');
+                      }
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to create campaign');
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => setShowCreateCampaignModal(false)}
+                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Creator Modal */}
+      {showInviteModal && selectedCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-black/90 border border-white/20 rounded-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Invite Creator</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/60 mb-1">Twitter Username</label>
+                <input
+                  type="text"
+                  value={inviteForm.twitter_username}
+                  onChange={(e) => setInviteForm({ twitter_username: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  placeholder="username (without @)"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!inviteForm.twitter_username) {
+                      alert('Please enter a Twitter username');
+                      return;
+                    }
+                    try {
+                      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          twitter_username: inviteForm.twitter_username,
+                          status: 'invited',
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.ok) {
+                        setParticipants([...participants, data.participant]);
+                        setShowInviteModal(false);
+                        setInviteForm({ twitter_username: '' });
+                      } else {
+                        alert(data.error || 'Failed to invite creator');
+                      }
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to invite creator');
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80"
+                >
+                  Invite
+                </button>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UTM Link Modal */}
+      {showUTMLinkModal && selectedCampaign && selectedParticipant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-black/90 border border-white/20 rounded-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Generate UTM Link</h3>
+            <p className="text-sm text-white/60 mb-4">For @{selectedParticipant.twitter_username}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/60 mb-1">Target URL *</label>
+                <input
+                  type="url"
+                  value={utmForm.target_url}
+                  onChange={(e) => setUtmForm({ target_url: e.target.value })}
+                  className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!utmForm.target_url) {
+                      alert('Please enter a target URL');
+                      return;
+                    }
+                    try {
+                      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants/${selectedParticipant.id}/link`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          target_url: utmForm.target_url,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (res.ok && data.ok) {
+                        alert(`UTM Link generated: ${data.redirect_url}\n\nCode: ${data.link.code}`);
+                        setShowUTMLinkModal(false);
+                        setUtmForm({ target_url: '' });
+                      } else {
+                        alert(data.error || 'Failed to generate UTM link');
+                      }
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to generate UTM link');
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80"
+                >
+                  Generate
+                </button>
+                <button
+                  onClick={() => setShowUTMLinkModal(false)}
+                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

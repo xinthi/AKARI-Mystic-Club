@@ -139,6 +139,16 @@ export default function ArenaDetailsPage() {
   // Quests state (Option 3)
   const [quests, setQuests] = useState<any[]>([]);
   const [questsLoading, setQuestsLoading] = useState(false);
+  const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
+  const [questForm, setQuestForm] = useState({
+    name: '',
+    narrative_focus: '',
+    starts_at: '',
+    ends_at: '',
+    reward_desc: '',
+    status: 'draft' as 'draft' | 'active' | 'paused' | 'ended',
+  });
+  const [gamefiEnabled, setGamefiEnabled] = useState(false);
 
   // Leaderboard filter/sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -1366,60 +1376,75 @@ export default function ArenaDetailsPage() {
               {/* Quests Tab Content (Option 3) */}
               {activeTab === 'quests' && (
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-akari-text">Quests</h2>
-                    {canWrite && (
-                      <button
-                        onClick={() => {
-                          // TODO: Add create quest modal
-                          alert('Create quest functionality coming soon');
-                        }}
-                        className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-                      >
-                        Create Quest
-                      </button>
-                    )}
-                  </div>
-                  {questsLoading ? (
+                  {!gamefiEnabled ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                      <span className="ml-3 text-akari-muted">Loading quests...</span>
-                    </div>
-                  ) : quests.length === 0 ? (
-                    <div className="flex items-center justify-center py-12">
-                      <p className="text-sm text-akari-muted">No quests available yet.</p>
+                      <p className="text-sm text-akari-muted">Option 3 (Gamified Leaderboard) is not enabled for this project.</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      {quests.map((quest) => (
-                        <div
-                          key={quest.id}
-                          className="p-4 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <h3 className="text-base font-semibold text-akari-text">{quest.name}</h3>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              quest.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                              quest.status === 'ended' ? 'bg-gray-500/20 text-gray-400' :
-                              'bg-yellow-500/20 text-yellow-400'
-                            }`}>
-                              {quest.status}
-                            </span>
-                          </div>
-                          {quest.narrative_focus && (
-                            <p className="text-sm text-akari-muted mb-2">{quest.narrative_focus}</p>
-                          )}
-                          <div className="flex items-center gap-4 text-xs text-akari-muted">
-                            <span>
-                              {new Date(quest.starts_at).toLocaleDateString()} - {new Date(quest.ends_at).toLocaleDateString()}
-                            </span>
-                            {quest.reward_desc && (
-                              <span>Reward: {quest.reward_desc}</span>
-                            )}
-                          </div>
+                    <>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold text-akari-text">Quests</h2>
+                        {canWrite && project && (
+                          <button
+                            onClick={() => {
+                              setQuestForm({
+                                name: '',
+                                narrative_focus: '',
+                                starts_at: '',
+                                ends_at: '',
+                                reward_desc: '',
+                                status: 'draft',
+                              });
+                              setShowCreateQuestModal(true);
+                            }}
+                            className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                          >
+                            Create Quest
+                          </button>
+                        )}
+                      </div>
+                      {questsLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                          <span className="ml-3 text-akari-muted">Loading quests...</span>
                         </div>
-                      ))}
-                    </div>
+                      ) : quests.length === 0 ? (
+                        <div className="flex items-center justify-center py-12">
+                          <p className="text-sm text-akari-muted">No quests available yet.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {quests.map((quest) => (
+                            <div
+                              key={quest.id}
+                              className="p-4 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h3 className="text-base font-semibold text-akari-text">{quest.name}</h3>
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  quest.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                                  quest.status === 'ended' ? 'bg-gray-500/20 text-gray-400' :
+                                  'bg-yellow-500/20 text-yellow-400'
+                                }`}>
+                                  {quest.status}
+                                </span>
+                              </div>
+                              {quest.narrative_focus && (
+                                <p className="text-sm text-akari-muted mb-2">{quest.narrative_focus}</p>
+                              )}
+                              <div className="flex items-center gap-4 text-xs text-akari-muted">
+                                <span>
+                                  {new Date(quest.starts_at).toLocaleDateString()} - {new Date(quest.ends_at).toLocaleDateString()}
+                                </span>
+                                {quest.reward_desc && (
+                                  <span>Reward: {quest.reward_desc}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -1792,6 +1817,132 @@ export default function ArenaDetailsPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Create Quest Modal */}
+        {showCreateQuestModal && project && arena && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-black/90 border border-white/20 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-white mb-4">Create Quest</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Name *</label>
+                  <input
+                    type="text"
+                    value={questForm.name}
+                    onChange={(e) => setQuestForm({ ...questForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    placeholder="Quest name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Narrative Focus</label>
+                  <textarea
+                    value={questForm.narrative_focus}
+                    onChange={(e) => setQuestForm({ ...questForm, narrative_focus: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    rows={3}
+                    placeholder="Quest narrative focus"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-white/60 mb-1">Start Date *</label>
+                    <input
+                      type="datetime-local"
+                      value={questForm.starts_at}
+                      onChange={(e) => setQuestForm({ ...questForm, starts_at: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/60 mb-1">End Date *</label>
+                    <input
+                      type="datetime-local"
+                      value={questForm.ends_at}
+                      onChange={(e) => setQuestForm({ ...questForm, ends_at: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Reward Description</label>
+                  <textarea
+                    value={questForm.reward_desc}
+                    onChange={(e) => setQuestForm({ ...questForm, reward_desc: e.target.value })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    rows={2}
+                    placeholder="Reward description"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Status</label>
+                  <select
+                    value={questForm.status}
+                    onChange={(e) => setQuestForm({ ...questForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="ended">Ended</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={async () => {
+                      if (!questForm.name || !questForm.starts_at || !questForm.ends_at) {
+                        alert('Please fill in required fields: name, start date, end date');
+                        return;
+                      }
+                      try {
+                        const res = await fetch('/api/portal/arc/quests', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            project_id: project.id,
+                            arena_id: arena.id,
+                            name: questForm.name,
+                            narrative_focus: questForm.narrative_focus || undefined,
+                            starts_at: new Date(questForm.starts_at).toISOString(),
+                            ends_at: new Date(questForm.ends_at).toISOString(),
+                            reward_desc: questForm.reward_desc || undefined,
+                            status: questForm.status,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.ok) {
+                          setQuests([...quests, data.quest]);
+                          setShowCreateQuestModal(false);
+                          setQuestForm({
+                            name: '',
+                            narrative_focus: '',
+                            starts_at: '',
+                            ends_at: '',
+                            reward_desc: '',
+                            status: 'draft',
+                          });
+                        } else {
+                          alert(data.error || 'Failed to create quest');
+                        }
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to create quest');
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80"
+                  >
+                    Create
+                  </button>
+                  <button
+                    onClick={() => setShowCreateQuestModal(false)}
+                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
