@@ -145,6 +145,14 @@ export default async function handler(
 
       userId = session.user_id;
 
+      // Runtime guard: ensure userId is a non-empty string
+      if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing userId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const uid: string = userId;
+
       // Get projectId from request (either from body or query)
       let arenaId: string | null = null;
       if (req.method === 'POST') {
@@ -177,14 +185,21 @@ export default async function handler(
       }
 
       // Get projectId from arenaId
-      projectId = await getProjectIdFromArenaId(supabase, arenaId);
-      if (!projectId) {
+      const fetchedProjectId = await getProjectIdFromArenaId(supabase, arenaId);
+      if (!fetchedProjectId) {
         return res.status(404).json({ ok: false, error: 'Arena not found' });
       }
 
-      // At this point, projectId is guaranteed to be non-null
+      // Runtime guard: ensure projectId is a non-empty string
+      if (!fetchedProjectId || typeof fetchedProjectId !== 'string' || fetchedProjectId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing projectId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const pid: string = fetchedProjectId;
+
       // Check project permissions
-      const permissions = await checkProjectPermissions(supabase, userId, projectId as string);
+      const permissions = await checkProjectPermissions(supabase, uid, pid);
       
       // Creator CRUD requires: isSuperAdmin OR isOwner OR isAdmin OR isModerator
       const canWrite = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
@@ -194,7 +209,7 @@ export default async function handler(
       }
 
       // Check ARC access (any option approved)
-      const hasArcAccess = await hasAnyArcAccess(supabase, projectId as string);
+      const hasArcAccess = await hasAnyArcAccess(supabase, pid);
       if (!hasArcAccess) {
         return res.status(403).json({ ok: false, error: 'ARC access not approved for this project' });
       }
