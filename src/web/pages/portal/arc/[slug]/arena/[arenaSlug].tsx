@@ -134,7 +134,11 @@ export default function ArenaDetailsPage() {
   const canManageArenas = !!perms && (perms.isSuperAdmin || perms.isOwner || perms.isAdmin);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline' | 'map'>('leaderboard');
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline' | 'map' | 'quests'>('leaderboard');
+  
+  // Quests state (Option 3)
+  const [quests, setQuests] = useState<any[]>([]);
+  const [questsLoading, setQuestsLoading] = useState(false);
 
   // Leaderboard filter/sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -230,7 +234,13 @@ export default function ArenaDetailsPage() {
             ok: false,
             error: `HTTP ${res.status}: Failed to fetch arena`,
           }));
-          setError(errorData.error || 'Failed to load arena');
+          
+          // Check if error is due to ARC access not approved
+          if (res.status === 403 && (errorData.error?.includes('ARC access not approved') || errorData.error?.includes('ARC access denied'))) {
+            setError('ARC access not approved for this project');
+          } else {
+            setError(errorData.error || 'Failed to load arena');
+          }
           setLoading(false);
           return;
         }
@@ -305,6 +315,34 @@ export default function ArenaDetailsPage() {
             }
           } catch (permErr) {
             console.warn('[ArenaDetailsPage] Failed to fetch permissions:', permErr);
+          }
+        }
+
+        // Fetch quests if Option 3 is enabled (check project state)
+        if (data.arena?.id && data.project?.id) {
+          try {
+            const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(data.project.id)}`);
+            if (stateRes.ok) {
+              const stateData = await stateRes.json();
+              if (stateData.ok && stateData.modules?.gamefi?.enabled) {
+                setQuestsLoading(true);
+                try {
+                  const questsRes = await fetch(`/api/portal/arc/quests?arenaId=${encodeURIComponent(data.arena.id)}`);
+                  if (questsRes.ok) {
+                    const questsData = await questsRes.json();
+                    if (questsData.ok && questsData.quests) {
+                      setQuests(questsData.quests);
+                    }
+                  }
+                } catch (err) {
+                  console.error('[ArenaDetailsPage] Error fetching quests:', err);
+                } finally {
+                  setQuestsLoading(false);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[ArenaDetailsPage] Error checking gamefi state:', err);
           }
         }
       } catch (err: any) {
@@ -1064,6 +1102,18 @@ export default function ArenaDetailsPage() {
                   >
                     Map
                   </button>
+                  {project && (
+                    <button
+                      onClick={() => setActiveTab('quests')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        activeTab === 'quests'
+                          ? 'text-akari-primary border-b-2 border-akari-primary'
+                          : 'text-akari-muted hover:text-akari-text'
+                      }`}
+                    >
+                      Quests
+                    </button>
+                  )}
                 </div>
                 {canWrite && activeTab === 'leaderboard' && (
                   <button
@@ -1308,6 +1358,67 @@ export default function ArenaDetailsPage() {
                   ) : (
                     <div className="flex items-center justify-center py-12">
                       <p className="text-sm text-akari-muted">No creators to display.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Quests Tab Content (Option 3) */}
+              {activeTab === 'quests' && (
+                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-akari-text">Quests</h2>
+                    {canWrite && (
+                      <button
+                        onClick={() => {
+                          // TODO: Add create quest modal
+                          alert('Create quest functionality coming soon');
+                        }}
+                        className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                      >
+                        Create Quest
+                      </button>
+                    )}
+                  </div>
+                  {questsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                      <span className="ml-3 text-akari-muted">Loading quests...</span>
+                    </div>
+                  ) : quests.length === 0 ? (
+                    <div className="flex items-center justify-center py-12">
+                      <p className="text-sm text-akari-muted">No quests available yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {quests.map((quest) => (
+                        <div
+                          key={quest.id}
+                          className="p-4 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="text-base font-semibold text-akari-text">{quest.name}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              quest.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                              quest.status === 'ended' ? 'bg-gray-500/20 text-gray-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {quest.status}
+                            </span>
+                          </div>
+                          {quest.narrative_focus && (
+                            <p className="text-sm text-akari-muted mb-2">{quest.narrative_focus}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-akari-muted">
+                            <span>
+                              {new Date(quest.starts_at).toLocaleDateString()} - {new Date(quest.ends_at).toLocaleDateString()}
+                            </span>
+                            {quest.reward_desc && (
+                              <span>Reward: {quest.reward_desc}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

@@ -1,8 +1,8 @@
 /**
- * API Route: POST /api/portal/arc/campaigns
- * GET /api/portal/arc/campaigns
+ * API Route: GET /api/portal/arc/quests
+ * POST /api/portal/arc/quests
  * 
- * Create or list ARC CRM campaigns.
+ * List or create ARC quests (Option 3: Gamified Leaderboard).
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -15,43 +15,33 @@ import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 // TYPES
 // =============================================================================
 
-interface CreateCampaignPayload {
+interface CreateQuestPayload {
   project_id: string;
-  type?: 'crm' | 'normal' | 'gamified';
-  participation_mode: 'invite_only' | 'public' | 'hybrid';
-  leaderboard_visibility: 'public' | 'private';
+  arena_id?: string;
   name: string;
-  brief_objective?: string;
-  start_at: string;
-  end_at: string;
-  website_url?: string;
-  docs_url?: string;
-  reward_pool_text?: string;
-  winners_count?: number;
+  narrative_focus?: string;
+  starts_at: string;
+  ends_at: string;
+  reward_desc?: string;
+  status?: 'draft' | 'active' | 'paused' | 'ended';
 }
 
-interface Campaign {
+interface Quest {
   id: string;
   project_id: string;
-  type: string;
-  participation_mode: string;
-  leaderboard_visibility: string;
+  arena_id: string | null;
   name: string;
-  brief_objective: string | null;
-  start_at: string;
-  end_at: string;
-  website_url: string | null;
-  docs_url: string | null;
-  reward_pool_text: string | null;
-  winners_count: number;
+  narrative_focus: string | null;
+  starts_at: string;
+  ends_at: string;
+  reward_desc: string | null;
   status: string;
-  created_by_profile_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-type CampaignsResponse =
-  | { ok: true; campaign?: Campaign; campaigns?: Campaign[] }
+type QuestsResponse =
+  | { ok: true; quest?: Quest; quests?: Quest[] }
   | { ok: false; error: string };
 
 // =============================================================================
@@ -76,49 +66,53 @@ const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_MODE 
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<CampaignsResponse>
+  res: NextApiResponse<QuestsResponse>
 ) {
   try {
     const supabase = getSupabaseAdmin();
 
-    // Handle GET - list campaigns
+    // Handle GET - list quests
     if (req.method === 'GET') {
       const projectId = req.query.projectId as string | undefined;
+      const arenaId = req.query.arenaId as string | undefined;
 
-      // If filtering by project, check ARC access (Option 1 = CRM)
+      // If filtering by project, check ARC access
       if (projectId) {
-        const accessCheck = await requireArcAccess(supabase, projectId, 1);
+        const accessCheck = await requireArcAccess(supabase, projectId, 3);
         if (!accessCheck.ok) {
           return res.status(403).json({
             ok: false,
-            error: accessCheck.error || 'ARC access not approved for this project',
+            error: accessCheck.error || 'ARC Option 3 (Gamified) is not available for this project',
           });
         }
       }
 
       let query = supabase
-        .from('arc_campaigns')
+        .from('arc_quests')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (projectId) {
         query = query.eq('project_id', projectId);
       }
+      if (arenaId) {
+        query = query.eq('arena_id', arenaId);
+      }
 
-      const { data: campaigns, error: fetchError } = await query;
+      const { data: quests, error: fetchError } = await query;
 
       if (fetchError) {
-        console.error('[ARC Campaigns API] Fetch error:', fetchError);
-        return res.status(500).json({ ok: false, error: 'Failed to fetch campaigns' });
+        console.error('[ARC Quests API] Fetch error:', fetchError);
+        return res.status(500).json({ ok: false, error: 'Failed to fetch quests' });
       }
 
       return res.status(200).json({
         ok: true,
-        campaigns: (campaigns || []) as Campaign[],
+        quests: (quests || []) as Quest[],
       });
     }
 
-    // Handle POST - create campaign
+    // Handle POST - create quest
     if (req.method === 'POST') {
       // Authentication
       let userId: string | null = null;
@@ -159,91 +153,80 @@ export default async function handler(
       }
 
       // Parse body
-      const body = req.body as CreateCampaignPayload;
+      const body = req.body as CreateQuestPayload;
 
       // Validate required fields
-      if (!body.project_id || !body.name || !body.start_at || !body.end_at) {
+      if (!body.project_id || !body.name || !body.starts_at || !body.ends_at) {
         return res.status(400).json({
           ok: false,
-          error: 'Missing required fields: project_id, name, start_at, end_at',
+          error: 'Missing required fields: project_id, name, starts_at, ends_at',
         });
       }
 
       // Validate dates
-      const startAt = new Date(body.start_at);
-      const endAt = new Date(body.end_at);
+      const startAt = new Date(body.starts_at);
+      const endAt = new Date(body.ends_at);
       if (isNaN(startAt.getTime()) || isNaN(endAt.getTime())) {
         return res.status(400).json({ ok: false, error: 'Invalid date format' });
       }
       if (endAt <= startAt) {
-        return res.status(400).json({ ok: false, error: 'end_at must be after start_at' });
+        return res.status(400).json({ ok: false, error: 'ends_at must be after starts_at' });
       }
 
-      // Check ARC access (Option 1 = CRM) and project permissions
+      // Check ARC access (Option 3 = Gamified) and project permissions
       if (!DEV_MODE && userId) {
-        const accessCheck = await requireArcAccess(supabase, body.project_id, 1);
+        const accessCheck = await requireArcAccess(supabase, body.project_id, 3);
         if (!accessCheck.ok) {
           return res.status(403).json({
             ok: false,
-            error: accessCheck.error || 'ARC Option 1 (CRM) is not available for this project',
+            error: accessCheck.error || 'ARC Option 3 (Gamified) is not available for this project',
           });
         }
 
-        // Check project management permissions
         const permissions = await checkProjectPermissions(supabase, userId, body.project_id);
         const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
         if (!canManage) {
           return res.status(403).json({
             ok: false,
-            error: 'You do not have permission to create campaigns for this project',
+            error: 'You do not have permission to create quests for this project',
           });
         }
       }
 
-      // Get profile ID
-      const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
-
-      // Create campaign
-      const campaignData = {
+      // Create quest
+      const questData = {
         project_id: body.project_id,
-        type: body.type || 'crm',
-        participation_mode: body.participation_mode,
-        leaderboard_visibility: body.leaderboard_visibility,
+        arena_id: body.arena_id || null,
         name: body.name,
-        brief_objective: body.brief_objective || null,
-        start_at: body.start_at,
-        end_at: body.end_at,
-        website_url: body.website_url || null,
-        docs_url: body.docs_url || null,
-        reward_pool_text: body.reward_pool_text || null,
-        winners_count: body.winners_count || 100,
-        status: 'draft',
-        created_by_profile_id: profileId || null,
+        narrative_focus: body.narrative_focus || null,
+        starts_at: body.starts_at,
+        ends_at: body.ends_at,
+        reward_desc: body.reward_desc || null,
+        status: body.status || 'draft',
       };
 
-      const { data: campaign, error: insertError } = await supabase
-        .from('arc_campaigns')
-        .insert(campaignData)
+      const { data: quest, error: insertError } = await supabase
+        .from('arc_quests')
+        .insert(questData)
         .select()
         .single();
 
       if (insertError) {
-        console.error('[ARC Campaigns API] Insert error:', insertError);
-        return res.status(500).json({ ok: false, error: 'Failed to create campaign' });
+        console.error('[ARC Quests API] Insert error:', insertError);
+        return res.status(500).json({ ok: false, error: 'Failed to create quest' });
       }
 
       return res.status(200).json({
         ok: true,
-        campaign: campaign as Campaign,
+        quest: quest as Quest,
       });
     }
 
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   } catch (error: any) {
-    console.error('[ARC Campaigns API] Error:', error);
+    console.error('[ARC Quests API] Error:', error);
     return res.status(500).json({ ok: false, error: 'Server error' });
   }
 }
-
 
 

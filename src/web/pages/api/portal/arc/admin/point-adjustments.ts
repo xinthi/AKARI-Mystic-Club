@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { hasAnyArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -227,6 +228,15 @@ export default async function handler(
       return res.status(403).json({
         ok: false,
         error: 'You do not have permission to adjust points for this project',
+      });
+    }
+
+    // Check ARC access (any option approved)
+    const hasArcAccess = await hasAnyArcAccess(supabase, projectId);
+    if (!hasArcAccess) {
+      return res.status(403).json({
+        ok: false,
+        error: 'ARC access not approved for this project',
       });
     }
   } else {

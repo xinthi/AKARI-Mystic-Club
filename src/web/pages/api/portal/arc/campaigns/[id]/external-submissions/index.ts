@@ -7,8 +7,9 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
-import { canManageProject } from '@/lib/project-permissions';
+import { requireArcAccess } from '@/lib/arc-access';
+import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -98,21 +99,18 @@ export default async function handler(
               .single();
 
             if (campaign) {
-              // Check ARC approval for the project
-              const approval = await checkArcProjectApproval(supabase, campaign.project_id);
-              if (!approval.isApproved) {
+              // Check ARC access (Option 1 = CRM)
+              const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+              if (!accessCheck.ok) {
                 return res.status(403).json({
                   ok: false,
-                  error: approval.isPending
-                    ? 'ARC access is pending approval'
-                    : approval.isRejected
-                    ? 'ARC access was rejected'
-                    : 'ARC access has not been approved for this project',
+                  error: accessCheck.error || 'ARC access not approved for this project',
                 });
               }
 
               // Check if admin/moderator
-              const canManage = await canManageProject(supabase, userId, campaign.project_id);
+              const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+              const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
               if (canManage) {
                 canView = true;
               } else {
@@ -226,17 +224,13 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Campaign not found' });
       }
 
-      // Check ARC approval for the project
+      // Check ARC access (Option 1 = CRM)
       if (!DEV_MODE) {
-        const approval = await checkArcProjectApproval(supabase, campaign.project_id);
-        if (!approval.isApproved) {
+        const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+        if (!accessCheck.ok) {
           return res.status(403).json({
             ok: false,
-            error: approval.isPending
-              ? 'ARC access is pending approval'
-              : approval.isRejected
-              ? 'ARC access was rejected'
-              : 'ARC access has not been approved for this project',
+            error: accessCheck.error || 'ARC access not approved for this project',
           });
         }
       }

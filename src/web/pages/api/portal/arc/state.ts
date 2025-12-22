@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getArcUnifiedState } from '@/lib/arc/unified-state';
 import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
+import { hasAnyArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -123,8 +124,20 @@ export default async function handler(
     return res.status(400).json({ ok: false, error: 'projectId is required' });
   }
 
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(projectId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid projectId format' });
+  }
+
   try {
     const supabase = getSupabaseAdmin();
+
+    // Check ARC access (any option approved)
+    const hasAccess = await hasAnyArcAccess(supabase, projectId);
+    if (!hasAccess) {
+      return res.status(403).json({ ok: false, error: 'ARC access not approved for this project' });
+    }
 
     // Get profile ID if user is authenticated (for request status)
     let profileId: string | null = null;

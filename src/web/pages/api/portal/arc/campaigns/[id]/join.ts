@@ -6,7 +6,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
+import { requireArcAccess } from '@/lib/arc-access';
+import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
@@ -78,16 +79,12 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
     }
 
-    // Check ARC approval for the project
-    const approval = await checkArcProjectApproval(supabase, campaign.project_id);
-    if (!approval.isApproved) {
+    // Check ARC access (Option 1 = CRM)
+    const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+    if (!accessCheck.ok) {
       return res.status(403).json({
         ok: false,
-        error: approval.isPending
-          ? 'ARC access is pending approval for this project'
-          : approval.isRejected
-          ? 'ARC access was rejected for this project'
-          : 'ARC access has not been approved for this project',
+        error: accessCheck.error || 'ARC access not approved for this project',
       });
     }
 

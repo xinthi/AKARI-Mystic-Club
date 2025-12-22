@@ -276,7 +276,13 @@ export default function ArcProjectHub() {
         const stateData: UnifiedArcState = await stateRes.json();
 
         if (!stateData.ok) {
-          // If unified state fails, still show project but log warning
+          // Check if error is due to ARC access not approved
+          if (stateData.error?.includes('ARC access not approved')) {
+            setError('ARC access not approved for this project');
+            setLoading(false);
+            return;
+          }
+          // If unified state fails for other reasons, still show project but log warning
           console.warn('[ArcProjectHub] Failed to fetch unified state:', stateData.error);
         } else {
           setUnifiedState(stateData);

@@ -6,8 +6,9 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getProfileIdFromUserId, checkArcProjectApproval } from '@/lib/arc-permissions';
-import { canManageProject } from '@/lib/project-permissions';
+import { requireArcAccess } from '@/lib/arc-access';
+import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -54,11 +55,23 @@ const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_MODE 
 // HANDLER
 // =============================================================================
 
+interface UpdateParticipantPayload {
+  status?: 'invited' | 'accepted' | 'declined' | 'tracked';
+}
+
+type ParticipantUpdateResponse =
+  | { ok: true; participant: Participant }
+  | { ok: false; error: string };
+
+type ParticipantsListResponse =
+  | { ok: true; participants: Participant[] }
+  | { ok: false; error: string };
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ParticipantsResponse>
+  res: NextApiResponse<ParticipantsResponse | ParticipantUpdateResponse | ParticipantsListResponse>
 ) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'PATCH') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
@@ -112,34 +125,49 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
     }
 
-    // Check ARC approval for the project
-    if (!DEV_MODE) {
-      const approval = await checkArcProjectApproval(supabase, campaign.project_id);
-      if (!approval.isApproved) {
-        return res.status(403).json({
-          ok: false,
-          error: approval.isPending
-            ? 'ARC access is pending approval'
-            : approval.isRejected
-            ? 'ARC access was rejected'
-            : 'ARC access has not been approved for this project',
-        });
+    // Handle GET - list participants
+    if (req.method === 'GET') {
+      const { data: participants, error: fetchError } = await supabase
+        .from('arc_campaign_participants')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        console.error('[ARC Participants API] Fetch error:', fetchError);
+        return res.status(500).json({ ok: false, error: 'Failed to fetch participants' });
       }
+
+      return res.status(200).json({
+        ok: true,
+        participants: (participants || []) as Participant[],
+      });
     }
 
-    // Check permissions
-    if (!DEV_MODE) {
-      const canManage = await canManageProject(supabase, userId, campaign.project_id);
-      if (!canManage) {
-        return res.status(403).json({
-          ok: false,
-          error: 'You do not have permission to add participants to this campaign',
-        });
-      }
-    }
+    // Handle POST - add participant (invite)
+    if (req.method === 'POST') {
+      // Check ARC access (Option 1 = CRM) and project permissions
+      if (!DEV_MODE && userId) {
+        const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+        if (!accessCheck.ok) {
+          return res.status(403).json({
+            ok: false,
+            error: accessCheck.error || 'ARC access not approved for this project',
+          });
+        }
 
-    // Parse body
-    const body = req.body as AddParticipantPayload;
+        const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+        const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
+        if (!canManage) {
+          return res.status(403).json({
+            ok: false,
+            error: 'You do not have permission to add participants to this campaign',
+          });
+        }
+      }
+
+      // Parse body
+      const body = req.body as AddParticipantPayload;
     let twitterUsername: string;
     let profileId: string | null = null;
 
@@ -207,15 +235,85 @@ export default async function handler(
       .select()
       .single();
 
-    if (insertError) {
-      console.error('[ARC Participants API] Insert error:', insertError);
-      return res.status(500).json({ ok: false, error: 'Failed to add participant' });
+      if (insertError) {
+        console.error('[ARC Participants API] Insert error:', insertError);
+        return res.status(500).json({ ok: false, error: 'Failed to add participant' });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        participant: participant as Participant,
+      });
     }
 
-    return res.status(200).json({
-      ok: true,
-      participant: participant as Participant,
-    });
+    // Handle PATCH - update participant (approve/reject)
+    if (req.method === 'PATCH') {
+      // Check ARC access (Option 1 = CRM) and project permissions
+      if (!DEV_MODE && userId) {
+        const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+        if (!accessCheck.ok) {
+          return res.status(403).json({
+            ok: false,
+            error: accessCheck.error || 'ARC access not approved for this project',
+          });
+        }
+
+        const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+        const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
+        if (!canManage) {
+          return res.status(403).json({
+            ok: false,
+            error: 'You do not have permission to update participants for this campaign',
+          });
+        }
+      }
+      const body = req.body as UpdateParticipantPayload & { participant_id?: string };
+      const participantId = body.participant_id || (req.query.participant_id as string);
+
+      if (!participantId) {
+        return res.status(400).json({ ok: false, error: 'participant_id is required' });
+      }
+
+      // Get participant
+      const { data: participant, error: participantError } = await supabase
+        .from('arc_campaign_participants')
+        .select('*')
+        .eq('id', participantId)
+        .eq('campaign_id', campaignId)
+        .single();
+
+      if (participantError || !participant) {
+        return res.status(404).json({ ok: false, error: 'Participant not found' });
+      }
+
+      // Update participant status
+      const updateData: any = {};
+      if (body.status !== undefined) {
+        updateData.status = body.status;
+        if (body.status === 'accepted' && !participant.joined_at) {
+          updateData.joined_at = new Date().toISOString();
+        }
+      }
+
+      const { data: updatedParticipant, error: updateError } = await supabase
+        .from('arc_campaign_participants')
+        .update(updateData)
+        .eq('id', participantId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('[ARC Participants API] Update error:', updateError);
+        return res.status(500).json({ ok: false, error: 'Failed to update participant' });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        participant: updatedParticipant as Participant,
+      });
+    }
+
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
   } catch (error: any) {
     console.error('[ARC Participants API] Error:', error);
     return res.status(500).json({ ok: false, error: 'Server error' });
