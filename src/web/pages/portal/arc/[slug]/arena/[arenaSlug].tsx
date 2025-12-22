@@ -368,7 +368,7 @@ export default function ArenaDetailsPage() {
     }
 
     fetchArenaDetails();
-  }, [router.isReady, arenaSlug]);
+  }, [router.isReady, arenaSlug, akariUser.user, projectSlug, rawArenaSlug, router]);
 
   // Helper function to get arena status badge color
   const getArenaStatusColor = (status: string) => {

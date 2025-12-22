@@ -182,8 +182,9 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Arena not found' });
       }
 
+      // At this point, projectId is guaranteed to be non-null
       // Check project permissions
-      const permissions = await checkProjectPermissions(supabase, userId, projectId);
+      const permissions = await checkProjectPermissions(supabase, userId, projectId as string);
       
       // Creator CRUD requires: isSuperAdmin OR isOwner OR isAdmin OR isModerator
       const canWrite = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
@@ -193,7 +194,7 @@ export default async function handler(
       }
 
       // Check ARC access (any option approved)
-      const hasArcAccess = await hasAnyArcAccess(supabase, projectId);
+      const hasArcAccess = await hasAnyArcAccess(supabase, projectId as string);
       if (!hasArcAccess) {
         return res.status(403).json({ ok: false, error: 'ARC access not approved for this project' });
       }

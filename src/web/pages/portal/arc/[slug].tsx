@@ -486,6 +486,15 @@ export default function ArcProjectHub() {
     fetchCreators();
   }, [selectedArenaId, arenas]);
 
+  // Track if campaigns have been loaded to avoid refetching unnecessarily
+  const [campaignsLoaded, setCampaignsLoaded] = useState(false);
+
+  // Reset campaigns loaded flag when project changes
+  useEffect(() => {
+    setCampaignsLoaded(false);
+    setCampaigns([]);
+  }, [projectId]);
+
   // Fetch campaigns when CRM tab is active or project loads
   useEffect(() => {
     async function fetchCampaigns() {
@@ -493,26 +502,31 @@ export default function ArcProjectHub() {
         return;
       }
 
-      if (activeTab === 'crm' || campaigns.length === 0) {
-        setCampaignsLoading(true);
-        try {
-          const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.campaigns) {
-              setCampaigns(data.campaigns || []);
-            }
+      // Only fetch if CRM tab is active or if we haven't loaded campaigns yet
+      const shouldFetch = activeTab === 'crm' || !campaignsLoaded;
+      if (!shouldFetch) {
+        return;
+      }
+
+      setCampaignsLoading(true);
+      try {
+        const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.campaigns) {
+            setCampaigns(data.campaigns || []);
+            setCampaignsLoaded(true);
           }
-        } catch (err) {
-          console.error('[ArcProjectHub] Error fetching campaigns:', err);
-        } finally {
-          setCampaignsLoading(false);
         }
+      } catch (err) {
+        console.error('[ArcProjectHub] Error fetching campaigns:', err);
+      } finally {
+        setCampaignsLoading(false);
       }
     }
 
     fetchCampaigns();
-  }, [projectId, unifiedState?.modules?.crm?.enabled, canWrite, activeTab]);
+  }, [projectId, unifiedState?.modules?.crm?.enabled, canWrite, activeTab, campaignsLoaded]);
 
   // Fetch user campaign status
   useEffect(() => {
