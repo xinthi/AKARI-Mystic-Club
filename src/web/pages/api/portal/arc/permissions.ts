@@ -145,6 +145,14 @@ export default async function handler(
       }
     }
 
+    // Runtime guard: ensure userId is a non-empty string
+    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing userId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const uid: string = userId;
+
     // Validate projectId query parameter
     const { projectId } = req.query;
     if (!projectId || typeof projectId !== 'string') {
@@ -158,7 +166,7 @@ export default async function handler(
     }
 
     // Check project permissions
-    const permissions = await checkProjectPermissions(supabase, userId, projectId);
+    const permissions = await checkProjectPermissions(supabase, uid, projectId);
 
     return res.status(200).json({ ok: true, permissions });
   } catch (err: any) {

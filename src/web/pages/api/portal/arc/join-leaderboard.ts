@@ -129,8 +129,9 @@ export default async function handler(
     let projectId: string | null = null;
     let arenaId: string | null = body.arenaId || null;
 
+    let fetchedProjectId: string | null = null;
     if (body.projectId) {
-      projectId = body.projectId;
+      fetchedProjectId = body.projectId;
     } else if (arenaId) {
       // Get projectId from arena
       const { data: arena } = await supabase
@@ -140,16 +141,24 @@ export default async function handler(
         .single();
       
       if (arena) {
-        projectId = arena.project_id;
+        fetchedProjectId = arena.project_id;
       }
     }
 
-    if (!projectId) {
+    if (!fetchedProjectId) {
       return res.status(400).json({ ok: false, error: 'projectId or arenaId is required' });
     }
 
+    // Runtime guard: ensure projectId is a non-empty string
+    if (!fetchedProjectId || typeof fetchedProjectId !== 'string' || fetchedProjectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = fetchedProjectId;
+
     // Check ARC access (Option 2 = Leaderboard)
-    const accessCheck = await requireArcAccess(supabase, projectId, 2);
+    const accessCheck = await requireArcAccess(supabase, pid, 2);
     if (!accessCheck.ok) {
       return res.status(403).json({
         ok: false,
@@ -162,7 +171,7 @@ export default async function handler(
       const { data: verification } = await supabase
         .from('arc_project_follows')
         .select('verified_at')
-        .eq('project_id', projectId)
+        .eq('project_id', pid)
         .eq('profile_id', userProfile.profileId)
         .maybeSingle();
 
@@ -180,7 +189,7 @@ export default async function handler(
       const { data: activeArena, error: arenaError } = await supabase
         .from('arenas')
         .select('id')
-        .eq('project_id', projectId)
+        .eq('project_id', pid)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -197,18 +206,29 @@ export default async function handler(
       arenaId = activeArena.id;
     }
 
+    // Runtime guard: ensure arenaId is a non-empty string
+    if (!arenaId || typeof arenaId !== 'string' || arenaId.trim().length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing arenaId',
+      });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const aid: string = arenaId;
+
     // Check if user is already in this arena
     const { data: existingCreator, error: checkError } = await supabase
       .from('arena_creators')
       .select('id')
-      .eq('arena_id', arenaId)
+      .eq('arena_id', aid)
       .eq('profile_id', userProfile.profileId)
       .maybeSingle();
 
     if (existingCreator) {
       return res.status(200).json({
         ok: true,
-        arenaId,
+        arenaId: aid,
         creatorId: existingCreator.id,
         message: 'Already joined this leaderboard',
       });
@@ -218,7 +238,7 @@ export default async function handler(
     const { data: newCreator, error: createError } = await supabase
       .from('arena_creators')
       .insert({
-        arena_id: arenaId,
+        arena_id: aid,
         profile_id: userProfile.profileId,
         twitter_username: userProfile.twitterUsername,
         arc_points: 0,
@@ -239,7 +259,7 @@ export default async function handler(
 
     return res.status(200).json({
       ok: true,
-      arenaId,
+      arenaId: aid,
       creatorId: newCreator.id,
     });
   } catch (err: any) {

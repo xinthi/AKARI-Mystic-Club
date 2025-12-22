@@ -150,22 +150,39 @@ export default async function handler(
 
       userId = session.user_id;
 
+      // Runtime guard: ensure userId is a non-empty string
+      if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing userId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const uid: string = userId;
+
       // Get projectId from request
+      let fetchedProjectId: string | null = null;
       if (req.method === 'POST') {
-        projectId = (req.body as CreateArenaBody)?.projectId || null;
+        fetchedProjectId = (req.body as CreateArenaBody)?.projectId || null;
       } else if (req.method === 'PATCH') {
         const arenaId = (req.body as UpdateArenaBody)?.id;
         if (arenaId) {
-          projectId = await getProjectIdFromArenaId(supabase, arenaId);
+          fetchedProjectId = await getProjectIdFromArenaId(supabase, arenaId);
         }
       }
 
-      if (!projectId) {
+      if (!fetchedProjectId) {
         return res.status(400).json({ ok: false, error: 'Could not determine project' });
       }
 
+      // Runtime guard: ensure projectId is a non-empty string
+      if (!fetchedProjectId || typeof fetchedProjectId !== 'string' || fetchedProjectId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing projectId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const pid: string = fetchedProjectId;
+
       // Check project permissions
-      const permissions = await checkProjectPermissions(supabase, userId, projectId);
+      const permissions = await checkProjectPermissions(supabase, uid, pid);
       
       // Arena CRUD requires: isSuperAdmin OR isOwner OR isAdmin
       const canManageArenas = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin;
@@ -175,7 +192,7 @@ export default async function handler(
       }
 
       // Check ARC access (any option approved)
-      const hasArcAccess = await hasAnyArcAccess(supabase, projectId);
+      const hasArcAccess = await hasAnyArcAccess(supabase, pid);
       if (!hasArcAccess) {
         return res.status(403).json({ ok: false, error: 'ARC access not approved for this project' });
       }

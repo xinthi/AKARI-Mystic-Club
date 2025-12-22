@@ -111,9 +111,17 @@ export default async function handler(
       targetProjectId = projectId!;
     }
 
+    // Runtime guard: ensure targetProjectId is a non-empty string
+    if (!targetProjectId || typeof targetProjectId !== 'string' || targetProjectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = targetProjectId;
+
     // Check ARC access (Option 2 = Leaderboard)
     const supabaseAdmin = getSupabaseAdmin();
-    const accessCheck = await requireArcAccess(supabaseAdmin, targetProjectId, 2);
+    const accessCheck = await requireArcAccess(supabaseAdmin, pid, 2);
     if (!accessCheck.ok) {
       return res.status(403).json({
         ok: false,

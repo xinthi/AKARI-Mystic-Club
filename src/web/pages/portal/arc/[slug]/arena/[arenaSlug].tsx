@@ -249,7 +249,7 @@ export default function ArenaDetailsPage() {
           if (res.status === 403 && (errorData.error?.includes('ARC access not approved') || errorData.error?.includes('ARC access denied'))) {
             setError('ARC access not approved for this project');
           } else {
-            setError(errorData.error || 'Failed to load arena');
+          setError(errorData.error || 'Failed to load arena');
           }
           setLoading(false);
           return;
