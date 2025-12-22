@@ -33,10 +33,20 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 // =============================================================================
 
 function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) {
+    return null;
+  }
+
+  // Handle both single cookie string and multiple cookies separated by semicolons
+  const cookies = cookieHeader.split(';').map(c => c.trim());
   for (const cookie of cookies) {
     if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
+      const token = cookie.substring('akari_session='.length).trim();
+      // Handle case where cookie value might be empty or have extra characters
+      if (token && token.length > 0) {
+        return token;
+      }
     }
   }
   return null;
@@ -108,6 +118,10 @@ export default async function handler(
     // Authentication
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
+      // Log for debugging (only in dev)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[join-leaderboard] No session token found. Cookie header:', req.headers.cookie ? 'present' : 'missing');
+      }
       return res.status(401).json({
         ok: false,
         error: 'Not authenticated',
@@ -117,6 +131,10 @@ export default async function handler(
 
     const userProfile = await getCurrentUserProfile(supabase, sessionToken);
     if (!userProfile) {
+      // Log for debugging (only in dev)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[join-leaderboard] Failed to get user profile from session token');
+      }
       return res.status(401).json({
         ok: false,
         error: 'Invalid session',
