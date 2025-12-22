@@ -53,6 +53,9 @@ interface ArcProjectFeaturesRow {
   crm_start_at: string | null;
   crm_end_at: string | null;
   crm_visibility: 'private' | 'public' | 'hybrid';
+  option1_crm_unlocked: boolean;
+  option2_normal_unlocked: boolean;
+  option3_gamified_unlocked: boolean;
 }
 
 // =============================================================================
@@ -155,46 +158,59 @@ export async function getArcUnifiedState(
   let gamefiState: ModuleState;
   let crmState: CrmModuleState;
 
+  // Check if project has approved ARC access
+  const { data: access } = await supabase
+    .from('arc_project_access')
+    .select('application_status')
+    .eq('project_id', projectId)
+    .eq('application_status', 'approved')
+    .maybeSingle();
+
+  const isApproved = !!access;
+
   // If arc_project_features row exists, use it
   if (featuresRow && !featuresError) {
     const features = featuresRow as ArcProjectFeaturesRow;
 
-    // Leaderboard module
+    // Leaderboard module - check option2_normal_unlocked
+    const leaderboardEnabled = isApproved && (features.option2_normal_unlocked || features.leaderboard_enabled);
     const leaderboardActive = isModuleActive(
-      features.leaderboard_enabled,
+      leaderboardEnabled,
       features.leaderboard_start_at,
       features.leaderboard_end_at
     );
     leaderboardState = {
-      enabled: features.leaderboard_enabled,
+      enabled: leaderboardEnabled,
       active: leaderboardActive.active,
       startAt: features.leaderboard_start_at,
       endAt: features.leaderboard_end_at,
       reason: leaderboardActive.reason,
     };
 
-    // GameFi module
+    // GameFi module - check option3_gamified_unlocked
+    const gamefiEnabled = isApproved && (features.option3_gamified_unlocked || features.gamefi_enabled);
     const gamefiActive = isModuleActive(
-      features.gamefi_enabled,
+      gamefiEnabled,
       features.gamefi_start_at,
       features.gamefi_end_at
     );
     gamefiState = {
-      enabled: features.gamefi_enabled,
+      enabled: gamefiEnabled,
       active: gamefiActive.active,
       startAt: features.gamefi_start_at,
       endAt: features.gamefi_end_at,
       reason: gamefiActive.reason,
     };
 
-    // CRM module
+    // CRM module - check option1_crm_unlocked
+    const crmEnabled = isApproved && (features.option1_crm_unlocked || features.crm_enabled);
     const crmActive = isModuleActive(
-      features.crm_enabled,
+      crmEnabled,
       features.crm_start_at,
       features.crm_end_at
     );
     crmState = {
-      enabled: features.crm_enabled,
+      enabled: crmEnabled,
       active: crmActive.active,
       startAt: features.crm_start_at,
       endAt: features.crm_end_at,

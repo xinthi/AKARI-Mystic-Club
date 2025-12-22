@@ -310,7 +310,9 @@ export default function ArenaDetailsPage() {
                 // Check follow verification status (read-only check)
                 if (akariUser.user && !permissionsData.permissions.isInvestorView && data.project?.id) {
                   try {
-                    const verifyRes = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(data.project.id)}`);
+                    const verifyRes = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(data.project.id)}`, {
+                      credentials: 'include',
+                    });
                     if (verifyRes.ok) {
                       const verifyData = await verifyRes.json();
                       if (verifyData.ok) {
@@ -615,6 +617,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
 
@@ -646,6 +649,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
 

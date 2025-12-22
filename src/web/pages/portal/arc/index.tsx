@@ -21,22 +21,6 @@ import { getRequiredTierForPage } from '@/lib/arc/access-policy';
 // TYPES
 // =============================================================================
 
-interface ArcProject {
-  project_id: string;
-  slug: string | null;
-  name: string | null;
-  twitter_username: string | null;
-  arc_tier: 'basic' | 'pro' | 'event_host';
-  arc_status: 'inactive' | 'active' | 'suspended';
-  security_status: 'normal' | 'alert' | 'clear';
-}
-
-interface ArcProjectsResponse {
-  ok: boolean;
-  projects?: ArcProject[];
-  error?: string;
-}
-
 interface TopProjectItem {
   id: string;
   name: string;
@@ -52,6 +36,17 @@ interface TopProjectItem {
 
 interface ArcHomeProps {
   canManageArc: boolean;
+}
+
+interface LiveLeaderboard {
+  arenaId: string;
+  arenaName: string;
+  arenaSlug: string;
+  projectId: string;
+  projectName: string;
+  projectSlug: string | null;
+  xHandle: string | null;
+  creatorCount: number;
 }
 
 // =============================================================================
@@ -168,11 +163,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const isDevMode = process.env.NODE_ENV === 'development';
   const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
 
-  // State for projects list
-  const [projects, setProjects] = useState<ArcProject[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
-
   // State for top projects
   const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
   const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
@@ -183,6 +173,11 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
   const [treemapError, setTreemapError] = useState<string | null>(null);
 
+  // Live Leaderboards state
+  const [liveLeaderboards, setLiveLeaderboards] = useState<LiveLeaderboard[]>([]);
+  const [liveLeaderboardsLoading, setLiveLeaderboardsLoading] = useState(false);
+  const [liveLeaderboardsError, setLiveLeaderboardsError] = useState<string | null>(null);
+
   // Auto-switch to cards if data is empty and treemap is selected
   useEffect(() => {
     if (topProjectsDisplayMode === 'treemap' && topProjectsData.length === 0 && !topProjectsLoading) {
@@ -192,43 +187,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   // Get user's Twitter username (only one definition)
   const userTwitterUsername = akariUser.user?.xUsername || null;
-
-  // Fetch ARC projects
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        setProjectsLoading(true);
-        setProjectsError(null);
-
-        const res = await fetch('/api/portal/arc/projects');
-        
-        if (!res.ok) {
-          const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
-          setProjectsError(errorBody.error || `Failed to load projects (${res.status})`);
-          setProjects([]);
-          return;
-        }
-
-        const data: ArcProjectsResponse = await res.json().catch(() => null);
-
-        if (!data || !data.ok || !data.projects) {
-          setProjectsError(data?.error || 'Failed to load projects');
-          setProjects([]);
-          return;
-        }
-
-        setProjects(data.projects);
-      } catch (err: any) {
-        console.error('[ARC] Projects fetch error:', err);
-        setProjectsError(err.message || 'Failed to load projects');
-        setProjects([]);
-      } finally {
-        setProjectsLoading(false);
-      }
-    }
-
-    fetchProjects();
-  }, []);
 
   // Fetch top projects (only when canManageArc is true)
   const loadTopProjects = useCallback(async () => {
@@ -295,6 +253,33 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
     loadTopProjects();
   }, [canManageArc, loadTopProjects, refreshNonce]);
+
+  // Fetch live leaderboards
+  useEffect(() => {
+    async function fetchLiveLeaderboards() {
+      try {
+        setLiveLeaderboardsLoading(true);
+        setLiveLeaderboardsError(null);
+
+        const res = await fetch('/api/portal/arc/live-leaderboards?limit=15');
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Failed to load live leaderboards');
+        }
+
+        setLiveLeaderboards(data.leaderboards || []);
+      } catch (err: any) {
+        console.error('[ARC] Live leaderboards fetch error:', err);
+        setLiveLeaderboardsError(err.message || 'Failed to load live leaderboards');
+        setLiveLeaderboards([]);
+      } finally {
+        setLiveLeaderboardsLoading(false);
+      }
+    }
+
+    fetchLiveLeaderboards();
+  }, []);
 
   // Handle refresh button
   const handleRefresh = () => {
@@ -512,58 +497,68 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           </section>
         )}
 
-        {/* ARC Projects Section */}
-        <section className="w-full max-w-6xl mx-auto">
-          <h2 className="text-2xl font-semibold text-white mb-4">ARC Projects</h2>
+        {/* Live Leaderboards Section */}
+        <section className="w-full max-w-6xl mx-auto mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Live Leaderboards</h2>
           
-          <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-6">
-            {projectsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                <span className="ml-3 text-white/60">Loading projects...</span>
-              </div>
-            ) : projectsError ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                <p className="text-sm text-red-400">{projectsError}</p>
-              </div>
-            ) : projects.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                <p className="text-sm text-white/60">No projects available</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {projects.map((project) => {
-                  const projectName = project.name || 'Unknown';
-                  const projectSlug = project.slug;
-                  
-                  return (
-                    <div
-                      key={project.project_id}
-                      className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all cursor-pointer"
-                    >
-                      <div className="mb-3">
-                        <h3 className="text-base font-semibold text-white truncate mb-1">{projectName}</h3>
-                        {project.twitter_username && (
-                          <p className="text-sm text-white/60 truncate">@{project.twitter_username}</p>
-                        )}
-                      </div>
-                      {projectSlug ? (
-                        <Link
-                          href={`/portal/arc/${projectSlug}`}
-                          className="inline-block w-full text-center px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-sm font-medium"
-                        >
-                          View Project →
-                        </Link>
-                      ) : (
-                        <div className="text-xs text-white/40 italic">No slug available</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {liveLeaderboardsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+              <span className="ml-3 text-white/60">Loading leaderboards...</span>
+            </div>
+          ) : liveLeaderboardsError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+              <p className="text-red-400 text-sm">{liveLeaderboardsError}</p>
+            </div>
+          ) : liveLeaderboards.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
+              <p className="text-white/60 text-sm">No active leaderboards at the moment.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {liveLeaderboards.map((leaderboard) => (
+                <div
+                  key={leaderboard.arenaId}
+                  className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
+                >
+                  <div className="mb-3">
+                    <h3 className="text-base font-semibold text-white mb-1 truncate">
+                      {leaderboard.arenaName}
+                    </h3>
+                    <p className="text-sm text-white/60 mb-1 truncate">
+                      {leaderboard.projectName}
+                    </p>
+                    {leaderboard.xHandle && (
+                      <p className="text-xs text-white/40 mb-2">@{leaderboard.xHandle}</p>
+                    )}
+                    <p className="text-xs text-white/40">
+                      {leaderboard.creatorCount} {leaderboard.creatorCount === 1 ? 'creator' : 'creators'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {leaderboard.projectSlug && (
+                      <Link
+                        href={`/portal/arc/${leaderboard.projectSlug}`}
+                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors"
+                      >
+                        View Project
+                      </Link>
+                    )}
+                    {leaderboard.projectSlug && (
+                      <Link
+                        href={`/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`}
+                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                      >
+                        View Arena
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
+
       </div>
     </PortalLayout>
   );

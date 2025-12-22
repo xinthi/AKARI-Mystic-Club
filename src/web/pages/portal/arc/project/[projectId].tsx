@@ -296,7 +296,9 @@ export default function ArcProjectPage() {
       }
 
       try {
-        const res = await fetch(`/api/portal/arc/follow-status?projectId=${project.id}`);
+        const res = await fetch(`/api/portal/arc/follow-status?projectId=${project.id}`, {
+          credentials: 'include',
+        });
         const data = await res.json();
 
         if (res.ok && data.ok) {
@@ -326,6 +328,7 @@ export default function ArcProjectPage() {
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
 
@@ -354,6 +357,7 @@ export default function ArcProjectPage() {
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
 

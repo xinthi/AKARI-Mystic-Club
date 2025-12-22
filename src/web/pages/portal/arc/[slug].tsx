@@ -570,7 +570,9 @@ export default function ArcProjectHub() {
       }
 
       try {
-        const res = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(projectId)}`);
+        const res = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.ok) {
@@ -634,6 +636,7 @@ export default function ArcProjectHub() {
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId }),
       });
 
@@ -666,6 +669,7 @@ export default function ArcProjectHub() {
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: targetProjectId }),
       });
 
@@ -1109,7 +1113,7 @@ export default function ArcProjectHub() {
 
             {/* Tab Navigation */}
             <div className="flex items-center gap-2 border-b border-white/10 pb-2">
-              {(['overview', 'leaderboard', 'missions', 'storyline', 'map', ...(unifiedState?.modules?.crm?.enabled ? ['crm'] : [])] as TabType[]).map((tab) => (
+              {(['overview', 'leaderboard', 'missions', 'storyline', 'map', ...(unifiedState?.modules?.crm?.enabled && canWrite ? ['crm'] : [])] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
