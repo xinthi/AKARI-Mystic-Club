@@ -267,7 +267,7 @@ export default function ArcProjectHub() {
         setError(null);
 
         // Step 1: Resolve project by slug (already normalized)
-        const projectUrl = `/api/portal/arc/project/${encodeURIComponent(slug)}`;
+        const projectUrl = `/api/portal/arc/project-by-slug?slug=${encodeURIComponent(slug)}`;
         
         // Debug logging (development only)
         if (process.env.NODE_ENV === 'development') {
@@ -296,7 +296,16 @@ export default function ArcProjectHub() {
           return;
         }
 
-        const projectInfo = projectData.project as ProjectData;
+        // Map project-by-slug response to ProjectData format
+        const projectInfo: ProjectData = {
+          id: projectData.project.id,
+          name: projectData.project.name,
+          display_name: projectData.project.name,
+          twitter_username: projectData.project.twitter_username,
+          x_handle: projectData.project.twitter_username,
+          avatar_url: projectData.project.avatar_url,
+          slug: projectData.project.slug,
+        };
         setProjectId(projectInfo.id);
 
         // Step 2: Fetch unified ARC state

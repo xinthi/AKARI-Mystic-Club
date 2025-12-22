@@ -334,7 +334,10 @@ export default function ArenaDetailsPage() {
             const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(data.project.id)}`);
             if (stateRes.ok) {
               const stateData = await stateRes.json();
-              if (stateData.ok && stateData.modules?.gamefi?.enabled) {
+              const gamefiEnabled = stateData.ok && stateData.modules?.gamefi?.enabled === true;
+              setGamefiEnabled(gamefiEnabled);
+              
+              if (gamefiEnabled) {
                 setQuestsLoading(true);
                 try {
                   const questsRes = await fetch(`/api/portal/arc/quests?arenaId=${encodeURIComponent(data.arena.id)}`);
@@ -1112,7 +1115,7 @@ export default function ArenaDetailsPage() {
                   >
                     Map
                   </button>
-                  {project && (
+                  {project && gamefiEnabled && (
                     <button
                       onClick={() => setActiveTab('quests')}
                       className={`px-4 py-2 text-sm font-medium transition-colors ${

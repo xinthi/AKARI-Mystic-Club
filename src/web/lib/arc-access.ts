@@ -95,11 +95,19 @@ export async function requireArcAccess(
   }
 
   // Check option unlock status
-  const optionField = `option${option}_${option === 1 ? 'crm' : option === 2 ? 'normal' : 'gamified'}_unlocked` as const;
+  // Strict mapping: option 1 => 'option1_crm_unlocked', option 2 => 'option2_normal_unlocked', option 3 => 'option3_gamified_unlocked'
+  const optionFieldMap: Record<ArcOption, 'option1_crm_unlocked' | 'option2_normal_unlocked' | 'option3_gamified_unlocked'> = {
+    1: 'option1_crm_unlocked',
+    2: 'option2_normal_unlocked',
+    3: 'option3_gamified_unlocked',
+  };
   
+  const optionField = optionFieldMap[option];
+  
+  // Fetch all feature columns to avoid dynamic selection
   const { data: features, error: featuresError } = await supabase
     .from('arc_project_features')
-    .select(optionField)
+    .select('*')
     .eq('project_id', projectId)
     .maybeSingle();
 
@@ -140,7 +148,8 @@ export async function requireArcAccess(
     };
   }
 
-  const isUnlocked = features[optionField] === true;
+  // Type-safe access to the option field
+  const isUnlocked = (features as Record<string, any>)[optionField] === true;
 
   if (!isUnlocked) {
     return {

@@ -104,6 +104,6 @@ CREATE POLICY "Users can read contributions"
 -- Only service role can write contributions (via API)
 CREATE POLICY "Only service role can write contributions"
   ON arc_contributions FOR INSERT
-  USING (auth.role() = 'service_role');
+  WITH CHECK (auth.role() = 'service_role');
 
 
