@@ -48,25 +48,13 @@ function getSessionTokenFromCookie(req: NextApiRequest): string | null {
 
 /**
  * Get user ID from Bearer token
- * Tries Supabase JWT first, then falls back to akari_session token lookup
+ * The app uses custom akari_session tokens, not Supabase JWT.
+ * So we directly look up the token in akari_user_sessions table.
  */
 async function getUserIdFromBearerToken(token: string): Promise<string | null> {
-  try {
-    // First, try Supabase JWT token (if using Supabase Auth)
-    const supabase = createPortalClient();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (!error && user) {
-      return user.id;
-    }
-    
-    // If Supabase auth fails, treat token as akari_session token
-    // and look it up in the database
-    return await getUserIdFromSessionToken(token);
-  } catch (err) {
-    // If Supabase auth throws, try treating as akari_session token
-    return await getUserIdFromSessionToken(token);
-  }
+  // The app uses custom session tokens, not Supabase Auth JWT
+  // So we directly look up the token in the database
+  return await getUserIdFromSessionToken(token);
 }
 
 /**
