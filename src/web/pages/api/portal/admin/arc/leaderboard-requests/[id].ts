@@ -305,14 +305,13 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to update request' });
     }
 
-    // If approved, update project ARC settings
-    // Routing rules:
-    // - creator_manager -> /portal/arc/creator-manager
-    // - leaderboard -> /portal/arc/project/[slug]
-    // - gamified -> /portal/arc/project/[slug] (same as leaderboard)
-    // This sets projects.arc_active=true and projects.arc_access_level=approved_access_level
+    // If approved, update project ARC settings using new access gate system
+    // 1. Update projects.arc_active and projects.arc_access_level (legacy support)
+    // 2. Create/update arc_project_access with application_status='approved'
+    // 3. Create/update arc_project_features with appropriate option unlocks
     let updatedProject = null;
     if (status === 'approved' && arc_access_level) {
+      // Step 1: Update legacy project fields
       const projectUpdateData: any = {
         arc_active: true,
         arc_access_level: arc_access_level,
@@ -327,8 +326,65 @@ export default async function handler(
 
       if (projectUpdateError) {
         console.error('[Admin Leaderboard Request Update API] Error updating project:', projectUpdateError);
-        // Don't fail the request update, but log the error
         console.warn('[Admin Leaderboard Request Update API] Request was updated but project update failed');
+      }
+
+      // Step 2: Create/update arc_project_access
+      const accessData = {
+        project_id: request.project_id,
+        application_status: 'approved' as const,
+        approved_at: new Date().toISOString(),
+        approved_by: adminProfile.profileId,
+      };
+
+      // Upsert arc_project_access
+      const { error: accessError } = await supabase
+        .from('arc_project_access')
+        .upsert(accessData, {
+          onConflict: 'project_id',
+        });
+
+      if (accessError) {
+        console.error('[Admin Leaderboard Request Update API] Error updating arc_project_access:', accessError);
+        // Continue - don't fail the request
+      }
+
+      // Step 3: Create/update arc_project_features with option unlocks
+      // Map arc_access_level to option unlocks:
+      // - creator_manager -> option1_crm_unlocked = true
+      // - leaderboard -> option2_normal_unlocked = true
+      // - gamified -> option3_gamified_unlocked = true
+      const featuresData: any = {
+        project_id: request.project_id,
+      };
+
+      if (arc_access_level === 'creator_manager') {
+        featuresData.option1_crm_unlocked = true;
+      } else if (arc_access_level === 'leaderboard') {
+        featuresData.option2_normal_unlocked = true;
+      } else if (arc_access_level === 'gamified') {
+        featuresData.option3_gamified_unlocked = true;
+      }
+
+      // Upsert arc_project_features
+      const { error: featuresError } = await supabase
+        .from('arc_project_features')
+        .upsert(featuresData, {
+          onConflict: 'project_id',
+        });
+
+      if (featuresError) {
+        console.error('[Admin Leaderboard Request Update API] Error updating arc_project_features:', featuresError);
+        // Continue - don't fail the request
+      }
+
+      if (projectData) {
+        updatedProject = {
+          id: projectData.id,
+          arc_active: projectData.arc_active,
+          arc_access_level: projectData.arc_access_level,
+        };
+      } else {
         // Fetch current project state to return
         const { data: currentProject } = await supabase
           .from('projects')
@@ -342,12 +398,6 @@ export default async function handler(
             arc_access_level: currentProject.arc_access_level,
           };
         }
-      } else if (projectData) {
-        updatedProject = {
-          id: projectData.id,
-          arc_active: projectData.arc_active,
-          arc_access_level: projectData.arc_access_level,
-        };
       }
     } else if (status === 'rejected') {
       // For rejected requests, fetch current project state (should not change)

@@ -151,8 +151,16 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'projectId is required' });
     }
 
+    // Runtime guard: ensure projectId is a non-empty string
+    if (!body.projectId || typeof body.projectId !== 'string' || body.projectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = body.projectId;
+
     // Check ARC access (Option 2 = Leaderboard)
-    const accessCheck = await requireArcAccess(supabase, body.projectId, 2);
+    const accessCheck = await requireArcAccess(supabase, pid, 2);
     if (!accessCheck.ok) {
       return res.status(403).json({
         ok: false,
@@ -164,7 +172,7 @@ export default async function handler(
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id, x_handle')
-      .eq('id', body.projectId)
+      .eq('id', pid)
       .single();
 
     if (projectError || !project) {
@@ -193,7 +201,7 @@ export default async function handler(
     const { data: existingVerification } = await supabase
       .from('arc_project_follows')
       .select('verified_at')
-      .eq('project_id', body.projectId)
+      .eq('project_id', pid)
       .eq('profile_id', userProfile.profileId)
       .maybeSingle();
 
@@ -209,7 +217,7 @@ export default async function handler(
     const { data: verification, error: insertError } = await supabase
       .from('arc_project_follows')
       .insert({
-        project_id: body.projectId,
+        project_id: pid,
         profile_id: userProfile.profileId,
         twitter_username: userProfile.twitterUsername,
         verified_at: new Date().toISOString(),

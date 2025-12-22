@@ -87,7 +87,15 @@ export default async function handler(
 
       // If filtering by project, check ARC access (Option 1 = CRM)
       if (projectId) {
-        const accessCheck = await requireArcAccess(supabase, projectId, 1);
+        // Runtime guard: ensure projectId is a non-empty string
+        if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+          return res.status(400).json({ ok: false, error: 'Invalid projectId' });
+        }
+
+        // TypeScript narrowing: assign to const with explicit string type
+        const pid: string = projectId;
+
+        const accessCheck = await requireArcAccess(supabase, pid, 1);
         if (!accessCheck.ok) {
           return res.status(403).json({
             ok: false,
@@ -181,7 +189,23 @@ export default async function handler(
 
       // Check ARC access (Option 1 = CRM) and project permissions
       if (!DEV_MODE && userId) {
-        const accessCheck = await requireArcAccess(supabase, body.project_id, 1);
+        // Runtime guard: ensure project_id is a non-empty string
+        if (!body.project_id || typeof body.project_id !== 'string' || body.project_id.trim().length === 0) {
+          return res.status(400).json({ ok: false, error: 'Missing projectId' });
+        }
+
+        // TypeScript narrowing: assign to const with explicit string type
+        const pid: string = body.project_id;
+
+        // Runtime guard: ensure userId is a non-empty string
+        if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+          return res.status(400).json({ ok: false, error: 'Missing userId' });
+        }
+
+        // TypeScript narrowing: assign to const with explicit string type
+        const uid: string = userId;
+
+        const accessCheck = await requireArcAccess(supabase, pid, 1);
         if (!accessCheck.ok) {
           return res.status(403).json({
             ok: false,
@@ -190,7 +214,7 @@ export default async function handler(
         }
 
         // Check project management permissions
-        const permissions = await checkProjectPermissions(supabase, userId, body.project_id);
+        const permissions = await checkProjectPermissions(supabase, uid, pid);
         const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
         if (!canManage) {
           return res.status(403).json({

@@ -105,6 +105,10 @@ export default function ArcProjectPage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [followVerified, setFollowVerified] = useState<boolean | null>(null);
+  const [checkingFollow, setCheckingFollow] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   // Fetch project by ID or slug
   useEffect(() => {
@@ -244,14 +248,29 @@ export default function ArcProjectPage() {
       setLeaderboardError(null);
 
       try {
-        const res = await fetch(`/api/portal/arc/projects/${project.id}/leaderboard`);
+        // Use the new arena-based leaderboard endpoint
+        const res = await fetch(`/api/portal/arc/leaderboard/${project.id}`);
         const data = await res.json();
 
         if (!res.ok || !data.ok) {
           throw new Error(data.error || 'Failed to load leaderboard');
         }
 
-        setLeaderboardEntries(data.entries || []);
+        // Map to expected format
+        const mappedEntries = (data.entries || []).map((entry: any) => ({
+          creator_profile_id: entry.creator_profile_id,
+          twitter_username: entry.twitter_username,
+          avatar_url: entry.avatar_url,
+          total_arc_points: entry.effective_points, // Use effective_points
+          xp: 0, // Not available in arena-based leaderboard
+          level: 0, // Not available in arena-based leaderboard
+          class: null, // Not available in arena-based leaderboard
+          rank: entry.rank,
+          base_points: entry.base_points,
+          effective_points: entry.effective_points,
+        }));
+
+        setLeaderboardEntries(mappedEntries);
       } catch (err: any) {
         console.error('[ArcProjectPage] Leaderboard fetch error:', err);
         setLeaderboardError(err.message || 'Failed to load leaderboard');
@@ -262,6 +281,96 @@ export default function ArcProjectPage() {
 
     fetchLeaderboard();
   }, [project]);
+
+  // Check follow status for Option 2 (Normal Leaderboard)
+  useEffect(() => {
+    async function checkFollowStatus() {
+      if (!project || !akariUser.isLoggedIn) {
+        setFollowVerified(false);
+        return;
+      }
+
+      const arcAccessLevel = project.arc_access_level || 'none';
+      if (arcAccessLevel !== 'leaderboard') {
+        return; // Only for Option 2
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/follow-status?projectId=${project.id}`);
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          setFollowVerified(data.verified || false);
+        } else {
+          setFollowVerified(false);
+        }
+      } catch (err) {
+        console.debug('[ArcProjectPage] Could not check follow status:', err);
+        setFollowVerified(false);
+      }
+    }
+
+    if (project && akariUser.isLoggedIn) {
+      checkFollowStatus();
+    }
+  }, [project, akariUser.isLoggedIn]);
+
+  // Handle verify follow
+  const handleVerifyFollow = async () => {
+    if (!project || checkingFollow) return;
+
+    setCheckingFollow(true);
+    setJoinError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/verify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok && data.verified) {
+        setFollowVerified(true);
+      } else {
+        setJoinError(data.error || 'Follow verification failed. Please make sure you follow the project on X.');
+      }
+    } catch (err: any) {
+      setJoinError(err.message || 'Failed to verify follow');
+    } finally {
+      setCheckingFollow(false);
+    }
+  };
+
+  // Handle join leaderboard
+  const handleJoinLeaderboard = async () => {
+    if (!project || joining || !followVerified) return;
+
+    setJoining(true);
+    setJoinError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/join-leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        // Reload leaderboard to show new entry
+        window.location.reload();
+      } else {
+        setJoinError(data.error || 'Failed to join leaderboard');
+      }
+    } catch (err: any) {
+      setJoinError(err.message || 'Failed to join leaderboard');
+    } finally {
+      setJoining(false);
+    }
+  };
 
   // Filter leaderboard by search query
   const filteredLeaderboard = useMemo(() => {
@@ -429,7 +538,38 @@ export default function ArcProjectPage() {
             </div>
           ) : arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified' ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white mb-4">Leaderboard</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Leaderboard</h3>
+                {/* Join CTA - Only for Option 2 (leaderboard) and normal users */}
+                {arcAccessLevel === 'leaderboard' && akariUser.isLoggedIn && (
+                  <div className="flex items-center gap-2">
+                    {followVerified === false && (
+                      <button
+                        onClick={handleVerifyFollow}
+                        disabled={checkingFollow}
+                        className="px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {checkingFollow ? 'Verifying...' : 'Verify Follow'}
+                      </button>
+                    )}
+                    {followVerified === true && (
+                      <button
+                        onClick={handleJoinLeaderboard}
+                        disabled={joining}
+                        className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {joining ? 'Joining...' : 'Join Leaderboard'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {joinError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 mb-4">
+                  <p className="text-red-400 text-sm">{joinError}</p>
+                </div>
+              )}
 
               {/* Search */}
               <div className="mb-4">
@@ -481,10 +621,18 @@ export default function ArcProjectPage() {
                             className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
                           >
                             <td className="py-4 px-5 text-akari-text font-semibold">
-                              {index < 3 ? (
-                                <span className="text-lg">{['🥇', '🥈', '🥉'][index]}</span>
+                              {(entry as any).rank ? (
+                                (entry as any).rank <= 3 ? (
+                                  <span className="text-lg">{['🥇', '🥈', '🥉'][(entry as any).rank - 1]}</span>
+                                ) : (
+                                  <span className="text-white/60">#{(entry as any).rank}</span>
+                                )
                               ) : (
-                                <span className="text-white/60">#{index + 1}</span>
+                                index < 3 ? (
+                                  <span className="text-lg">{['🥇', '🥈', '🥉'][index]}</span>
+                                ) : (
+                                  <span className="text-white/60">#{index + 1}</span>
+                                )
                               )}
                             </td>
                             <td className="py-4 px-5">
@@ -510,12 +658,16 @@ export default function ArcProjectPage() {
                               {entry.total_arc_points.toLocaleString()}
                             </td>
                             <td className="py-4 px-5 text-akari-muted">
-                              {entry.xp.toLocaleString()}
+                              {entry.xp > 0 ? entry.xp.toLocaleString() : '-'}
                             </td>
                             <td className="py-4 px-5">
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
-                                L{entry.level}
-                              </span>
+                              {entry.level > 0 ? (
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                  L{entry.level}
+                                </span>
+                              ) : (
+                                <span className="text-akari-muted/60 text-xs">-</span>
+                              )}
                             </td>
                             <td className="py-4 px-5">
                               {entry.class ? (

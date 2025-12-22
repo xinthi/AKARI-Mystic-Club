@@ -1950,32 +1950,6 @@ export default function ArenaDetailsPage() {
           </div>
         )}
 
-        {/* Sentiment Overlay Stub */}
-        {arena && (
-          <div className="mt-6 rounded-xl border border-akari-border bg-akari-card p-6">
-            <details className="group">
-              <summary className="cursor-pointer text-lg font-semibold text-akari-text list-none flex items-center justify-between">
-                <span>Sentiment (Beta)</span>
-                <svg
-                  className="h-5 w-5 text-akari-muted transition-transform group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </summary>
-              <div className="mt-4 pt-4 border-t border-akari-border/30">
-                <p className="text-sm text-akari-muted mb-4">Coming soon. Sentiment analysis will be available here.</p>
-                <div className="text-xs text-akari-muted space-y-1">
-                  <p>Enabled: Yes</p>
-                  <p>Summary: Not available yet</p>
-                  <p>Series: Not available yet</p>
-                </div>
-              </div>
-            </details>
-          </div>
-        )}
       </div>
     </PortalLayout>
   );
