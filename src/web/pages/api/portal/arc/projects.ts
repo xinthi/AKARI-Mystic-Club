@@ -7,7 +7,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
-import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 
 // =============================================================================
 // TYPES
@@ -59,11 +58,8 @@ export default async function handler(
     });
   }
   
-  // Enforce tier guard
-  const tierCheck = await enforceArcApiTier(req, res, '/api/portal/arc/projects');
-  if (tierCheck) {
-    return tierCheck; // Access denied
-  }
+  // This endpoint is PUBLIC - no authentication required
+  // It returns a list of ARC-enabled projects for the home page
 
   try {
     // Create Supabase client (read-only with anon key)
