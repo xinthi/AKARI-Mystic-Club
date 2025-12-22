@@ -310,8 +310,20 @@ export default function ArenaDetailsPage() {
                 // Check follow verification status (read-only check)
                 if (akariUser.user && !permissionsData.permissions.isInvestorView && data.project?.id) {
                   try {
+                    // Get session token from cookie for Bearer auth
+                    const sessionToken = document.cookie
+                      .split(';')
+                      .find(c => c.trim().startsWith('akari_session='))
+                      ?.split('=')[1]?.trim() || null;
+                    
+                    const headers: HeadersInit = {};
+                    if (sessionToken) {
+                      headers['Authorization'] = `Bearer ${sessionToken}`;
+                    }
+                    
                     const verifyRes = await fetch(`/api/portal/arc/follow-status?projectId=${encodeURIComponent(data.project.id)}`, {
                       credentials: 'include',
+                      headers,
                     });
                     if (verifyRes.ok) {
                       const verifyData = await verifyRes.json();
@@ -614,9 +626,20 @@ export default function ArenaDetailsPage() {
 
     try {
       setVerifyingFollow(true);
+      // Get session token from cookie for Bearer auth
+      const sessionToken = document.cookie
+        .split(';')
+        .find(c => c.trim().startsWith('akari_session='))
+        ?.split('=')[1]?.trim() || null;
+      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
@@ -646,9 +669,20 @@ export default function ArenaDetailsPage() {
 
     try {
       setJoiningLeaderboard(true);
+      // Get session token from cookie for Bearer auth
+      const sessionToken = document.cookie
+        .split(';')
+        .find(c => c.trim().startsWith('akari_session='))
+        ?.split('=')[1]?.trim() || null;
+      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });

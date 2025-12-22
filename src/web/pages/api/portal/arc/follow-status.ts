@@ -8,6 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthUser } from '@/lib/server/get-auth-user';
 
 // =============================================================================
 // TYPES
@@ -27,43 +28,15 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 // HELPERS
 // =============================================================================
 
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
 async function getCurrentUserProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  sessionToken: string
+  userId: string
 ): Promise<{ profileId: string; twitterUsername: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
   // Get user's Twitter username
   const { data: xIdentity, error: identityError } = await supabase
     .from('akari_user_identities')
     .select('username')
-    .eq('user_id', session.user_id)
+    .eq('user_id', userId)
     .eq('provider', 'x')
     .single();
 
@@ -149,12 +122,12 @@ export default async function handler(
     let userProfile: { profileId: string; twitterUsername: string } | null = null;
 
     if (!DEV_MODE) {
-      const sessionToken = getSessionToken(req);
-      if (!sessionToken) {
+      const authUser = await getAuthUser(req);
+      if (!authUser) {
         return res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
       }
 
-      userProfile = await getCurrentUserProfile(supabase, sessionToken);
+      userProfile = await getCurrentUserProfile(supabase, authUser.userId);
       if (!userProfile) {
         return res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
       }

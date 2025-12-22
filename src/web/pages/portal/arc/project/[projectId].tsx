@@ -296,8 +296,20 @@ export default function ArcProjectPage() {
       }
 
       try {
+        // Get session token from cookie for Bearer auth
+        const sessionToken = document.cookie
+          .split(';')
+          .find(c => c.trim().startsWith('akari_session='))
+          ?.split('=')[1]?.trim() || null;
+        
+        const headers: HeadersInit = {};
+        if (sessionToken) {
+          headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+        
         const res = await fetch(`/api/portal/arc/follow-status?projectId=${project.id}`, {
           credentials: 'include',
+          headers,
         });
         const data = await res.json();
 
@@ -325,9 +337,20 @@ export default function ArcProjectPage() {
     setJoinError(null);
 
     try {
+      // Get session token from cookie for Bearer auth
+      const sessionToken = document.cookie
+        .split(';')
+        .find(c => c.trim().startsWith('akari_session='))
+        ?.split('=')[1]?.trim() || null;
+      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/portal/arc/verify-follow', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });
@@ -354,9 +377,20 @@ export default function ArcProjectPage() {
     setJoinError(null);
 
     try {
+      // Get session token from cookie for Bearer auth
+      const sessionToken = document.cookie
+        .split(';')
+        .find(c => c.trim().startsWith('akari_session='))
+        ?.split('=')[1]?.trim() || null;
+      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+      
       const res = await fetch('/api/portal/arc/join-leaderboard', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ projectId: project.id }),
       });

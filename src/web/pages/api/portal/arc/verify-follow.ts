@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
+import { getAuthUser } from '@/lib/server/get-auth-user';
 
 // =============================================================================
 // TYPES
@@ -31,53 +32,15 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 // HELPERS
 // =============================================================================
 
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookieHeader = req.headers.cookie;
-  if (!cookieHeader) {
-    return null;
-  }
-
-  // Handle both single cookie string and multiple cookies separated by semicolons
-  const cookies = cookieHeader.split(';').map(c => c.trim());
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      const token = cookie.substring('akari_session='.length).trim();
-      // Handle case where cookie value might be empty or have extra characters
-      if (token && token.length > 0) {
-        return token;
-      }
-    }
-  }
-  return null;
-}
-
 async function getCurrentUserProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  sessionToken: string
+  userId: string
 ): Promise<{ profileId: string; twitterUsername: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
   // Get user's Twitter username
   const { data: xIdentity, error: identityError } = await supabase
     .from('akari_user_identities')
     .select('username')
-    .eq('user_id', session.user_id)
+    .eq('user_id', userId)
     .eq('provider', 'x')
     .single();
 
@@ -137,12 +100,8 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // Authentication
-    const sessionToken = getSessionToken(req);
-    if (!sessionToken) {
-      // Log for debugging (only in dev)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[verify-follow] No session token found. Cookie header:', req.headers.cookie ? 'present' : 'missing');
-      }
+    const authUser = await getAuthUser(req);
+    if (!authUser) {
       return res.status(401).json({
         ok: false,
         error: 'Not authenticated',
@@ -150,12 +109,8 @@ export default async function handler(
       });
     }
 
-    const userProfile = await getCurrentUserProfile(supabase, sessionToken);
+    const userProfile = await getCurrentUserProfile(supabase, authUser.userId);
     if (!userProfile) {
-      // Log for debugging (only in dev)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[verify-follow] Failed to get user profile from session token');
-      }
       return res.status(401).json({
         ok: false,
         error: 'Invalid session',
