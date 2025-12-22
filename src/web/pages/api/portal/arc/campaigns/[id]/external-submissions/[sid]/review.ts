@@ -132,9 +132,18 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
     }
 
+    // Runtime guard: ensure projectId is a non-empty string
+    const projectId = campaign.project_id;
+    if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = projectId;
+
     // Check ARC access (Option 1 = CRM) and project permissions
     if (!DEV_MODE && userId) {
-      const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+      const accessCheck = await requireArcAccess(supabase, pid, 1);
       if (!accessCheck.ok) {
         return res.status(403).json({
           ok: false,
@@ -142,7 +151,7 @@ export default async function handler(
         });
       }
 
-      const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+      const permissions = await checkProjectPermissions(supabase, userId, pid);
       const canManage = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
       if (!canManage) {
         return res.status(403).json({

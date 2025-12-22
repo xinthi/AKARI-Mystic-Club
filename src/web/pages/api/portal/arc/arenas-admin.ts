@@ -120,7 +120,6 @@ export default async function handler(
     // AUTHENTICATION: Check project permissions (with DEV MODE bypass)
     // ==========================================================================
     let userId: string | null = null;
-    let projectId: string | null = null;
 
     if (!DEV_MODE) {
       const sessionToken = getSessionToken(req);
@@ -159,27 +158,23 @@ export default async function handler(
       const uid: string = userId;
 
       // Get projectId from request
-      let fetchedProjectId: string | null = null;
+      let projectId: string | null = null;
       if (req.method === 'POST') {
-        fetchedProjectId = (req.body as CreateArenaBody)?.projectId || null;
+        projectId = (req.body as CreateArenaBody)?.projectId || null;
       } else if (req.method === 'PATCH') {
         const arenaId = (req.body as UpdateArenaBody)?.id;
         if (arenaId) {
-          fetchedProjectId = await getProjectIdFromArenaId(supabase, arenaId);
+          projectId = await getProjectIdFromArenaId(supabase, arenaId);
         }
       }
 
-      if (!fetchedProjectId) {
-        return res.status(400).json({ ok: false, error: 'Could not determine project' });
-      }
-
       // Runtime guard: ensure projectId is a non-empty string
-      if (!fetchedProjectId || typeof fetchedProjectId !== 'string' || fetchedProjectId.trim().length === 0) {
+      if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
         return res.status(400).json({ ok: false, error: 'Missing projectId' });
       }
 
       // TypeScript narrowing: assign to const with explicit string type
-      const pid: string = fetchedProjectId;
+      const pid: string = projectId;
 
       // Check project permissions
       const permissions = await checkProjectPermissions(supabase, uid, pid);

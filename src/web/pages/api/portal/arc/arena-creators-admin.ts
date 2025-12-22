@@ -115,7 +115,6 @@ export default async function handler(
     // AUTHENTICATION: Check project permissions (with DEV MODE bypass)
     // ==========================================================================
     let userId: string | null = null;
-    let projectId: string | null = null;
 
     if (!DEV_MODE) {
       const sessionToken = getSessionToken(req);
@@ -185,18 +184,18 @@ export default async function handler(
       }
 
       // Get projectId from arenaId
-      const fetchedProjectId = await getProjectIdFromArenaId(supabase, arenaId);
-      if (!fetchedProjectId) {
+      const projectId = await getProjectIdFromArenaId(supabase, arenaId);
+      if (!projectId) {
         return res.status(404).json({ ok: false, error: 'Arena not found' });
       }
 
       // Runtime guard: ensure projectId is a non-empty string
-      if (!fetchedProjectId || typeof fetchedProjectId !== 'string' || fetchedProjectId.trim().length === 0) {
+      if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
         return res.status(400).json({ ok: false, error: 'Missing projectId' });
       }
 
       // TypeScript narrowing: assign to const with explicit string type
-      const pid: string = fetchedProjectId;
+      const pid: string = projectId;
 
       // Check project permissions
       const permissions = await checkProjectPermissions(supabase, uid, pid);

@@ -104,8 +104,17 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Campaign not found' });
     }
 
+    // Runtime guard: ensure projectId is a non-empty string
+    const projectId = campaign.project_id;
+    if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = projectId;
+
     // Check ARC approval for the project
-    const approval = await checkArcProjectApproval(supabase, campaign.project_id);
+    const approval = await checkArcProjectApproval(supabase, pid);
     if (!approval.isApproved && !DEV_MODE) {
       return res.status(403).json({
         ok: false,
@@ -131,7 +140,7 @@ export default async function handler(
           const userId = session.user_id;
           
           // Check if user is project admin/moderator or super admin
-          const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
+          const permissions = await checkProjectPermissions(supabase, userId, pid);
           if (permissions.canManage || permissions.isSuperAdmin) {
             // Allow access
           } else {

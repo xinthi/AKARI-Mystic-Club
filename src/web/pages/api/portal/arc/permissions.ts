@@ -154,9 +154,9 @@ export default async function handler(
     const uid: string = userId;
 
     // Validate projectId query parameter
-    const { projectId } = req.query;
-    if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({ ok: false, error: 'projectId is required' });
+    const projectId = req.query.projectId;
+    if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
     }
 
     // Validate UUID format
@@ -165,8 +165,11 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Invalid projectId format' });
     }
 
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = projectId;
+
     // Check project permissions
-    const permissions = await checkProjectPermissions(supabase, uid, projectId);
+    const permissions = await checkProjectPermissions(supabase, uid, pid);
 
     return res.status(200).json({ ok: true, permissions });
   } catch (err: any) {
