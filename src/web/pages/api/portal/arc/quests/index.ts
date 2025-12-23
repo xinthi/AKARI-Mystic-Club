@@ -9,7 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { checkProjectPermissions } from '@/lib/project-permissions';
-import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -43,20 +43,6 @@ interface Quest {
 type QuestsResponse =
   | { ok: true; quest?: Quest; quests?: Quest[] }
   | { ok: false; error: string };
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
 
 const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_MODE === 'true';
 
@@ -122,33 +108,14 @@ export default async function handler(
 
     // Handle POST - create quest
     if (req.method === 'POST') {
-      // Authentication
+      // Authentication using shared helper
       let userId: string | null = null;
       if (!DEV_MODE) {
-        const sessionToken = getSessionToken(req);
-        if (!sessionToken) {
-          return res.status(401).json({ ok: false, error: 'Not authenticated' });
+        const portalUser = await requirePortalUser(req, res);
+        if (!portalUser) {
+          return; // requirePortalUser already sent 401 response
         }
-
-        const { data: session, error: sessionError } = await supabase
-          .from('akari_user_sessions')
-          .select('user_id, expires_at')
-          .eq('session_token', sessionToken)
-          .single();
-
-        if (sessionError || !session) {
-          return res.status(401).json({ ok: false, error: 'Invalid session' });
-        }
-
-        if (new Date(session.expires_at) < new Date()) {
-          await supabase
-            .from('akari_user_sessions')
-            .delete()
-            .eq('session_token', sessionToken);
-          return res.status(401).json({ ok: false, error: 'Session expired' });
-        }
-
-        userId = session.user_id;
+        userId = portalUser.userId;
       } else {
         // DEV MODE: Find a super admin user
         const { data: superAdmin } = await supabase
