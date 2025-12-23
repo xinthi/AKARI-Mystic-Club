@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
     url.host = newHostname;
     
     // Redirect to canonical domain (preserves path and query)
-    return NextResponse.redirect(url, 301); // Permanent redirect
+    return NextResponse.redirect(url, 308); // Permanent redirect (308 preserves method)
   }
 
   // No redirect needed

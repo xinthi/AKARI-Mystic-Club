@@ -110,9 +110,19 @@ export async function requirePortalUser(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<PortalUser | null> {
+  const hostname = req.headers.host || 'unknown';
+  const path = req.url || 'unknown';
+  const hasCookieHeader = !!req.headers.cookie;
   const sessionToken = getSessionToken(req);
   
   if (!sessionToken) {
+    // Safe debug logging: only log when auth fails, don't log tokens
+    console.log('[requirePortalUser] Auth failed: no session token', {
+      hostname,
+      path,
+      hasCookieHeader,
+      cookieNames: hasCookieHeader ? req.headers.cookie?.split(';').map(c => c.split('=')[0].trim()).filter(Boolean) : [],
+    });
     res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
     return null;
   }
@@ -121,6 +131,12 @@ export async function requirePortalUser(
   const user = await getPortalUserFromSession(supabase, sessionToken);
   
   if (!user) {
+    // Safe debug logging: only log when auth fails, don't log tokens
+    console.log('[requirePortalUser] Auth failed: invalid or expired session', {
+      hostname,
+      path,
+      hasSessionToken: !!sessionToken,
+    });
     res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
     return null;
   }

@@ -78,7 +78,9 @@ export default function NotificationsPage() {
 
   const loadNotifications = useCallback(async () => {
     try {
-      const res = await fetch('/api/portal/notifications?limit=100');
+      const res = await fetch('/api/portal/notifications?limit=100', {
+        credentials: 'include',
+      });
       const data = await res.json();
 
       if (data.ok) {
@@ -109,6 +111,7 @@ export default function NotificationsPage() {
       const res = await fetch('/api/portal/notifications/mark-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(notificationId ? { ids: [notificationId] } : {}),
       });
 

@@ -29,7 +29,9 @@ export function NotificationsIcon() {
 
     async function fetchUnreadCount() {
       try {
-        const res = await fetch('/api/portal/notifications?limit=1');
+        const res = await fetch('/api/portal/notifications?limit=1', {
+          credentials: 'include',
+        });
         
         // Handle 401 (Unauthorized) silently - treat as empty notifications
         // This prevents noisy errors from breaking ARC pages when user is not authenticated

@@ -62,6 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   if (process.env.NODE_ENV === 'production') {
     cookieOptions.push('Secure');
+    cookieOptions.push('Domain=.akarimystic.club'); // Shared across www and apex
   }
 
   res.setHeader('Set-Cookie', cookieOptions.join('; '));
