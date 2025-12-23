@@ -21,7 +21,7 @@ function getSupabaseAdmin() {
 
 // Parse session cookie
 function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  const cookies = req.headers.cookie?.split(';').map((c: string) => c.trim()) || [];
   for (const cookie of cookies) {
     if (cookie.startsWith('akari_session=')) {
       return cookie.substring('akari_session='.length);

@@ -27,6 +27,23 @@ export interface PortalUser {
 // =============================================================================
 
 /**
+ * Extract Bearer token from Authorization header
+ */
+function getBearerToken(req: NextApiRequest): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || typeof authHeader !== 'string') {
+    return null;
+  }
+  
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    return token.length > 0 ? token : null;
+  }
+  
+  return null;
+}
+
+/**
  * Extract session token from cookies (same pattern as /api/auth/website/me.ts)
  * Handles edge cases: whitespace, empty values, multiple cookie headers
  */
@@ -114,6 +131,7 @@ async function getPortalUserFromSession(
 
 /**
  * Require authenticated portal user from request.
+ * Supports both Authorization Bearer token and akari_session cookie.
  * Uses the same pattern as /api/auth/website/me.ts and /api/portal/arc/my-projects.ts
  * 
  * @param req - Next.js API request
@@ -127,7 +145,20 @@ export async function requirePortalUser(
   const hostname = req.headers.host || 'unknown';
   const path = req.url || 'unknown';
   const hasCookieHeader = !!req.headers.cookie;
-  const sessionToken = getSessionToken(req);
+  const hasAuthHeader = !!req.headers.authorization;
+  
+  // Try Bearer token first, then fall back to cookie
+  let sessionToken: string | null = null;
+  
+  const bearerToken = getBearerToken(req);
+  if (bearerToken) {
+    // If Bearer token is provided, treat it as akari_session token
+    // (In the future, this could validate a JWT, but for now we use session tokens)
+    sessionToken = bearerToken;
+  } else {
+    // Fall back to cookie-based auth
+    sessionToken = getSessionToken(req);
+  }
   
   if (!sessionToken) {
     // Safe debug logging: only log when auth fails, don't log tokens
@@ -135,7 +166,8 @@ export async function requirePortalUser(
       hostname,
       path,
       hasCookieHeader,
-      cookieNames: hasCookieHeader ? req.headers.cookie?.split(';').map(c => c.split('=')[0].trim()).filter(Boolean) : [],
+      hasAuthHeader,
+      cookieNames: hasCookieHeader ? req.headers.cookie?.split(';').map((c: string) => c.split('=')[0].trim()).filter(Boolean) : [],
     });
     res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
     return null;
