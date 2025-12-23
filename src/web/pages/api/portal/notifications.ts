@@ -43,7 +43,12 @@ export default async function handler(
 
   // Get current user using shared auth helper
   const portalUser = await requirePortalUser(req, res);
-  if (!portalUser) {
+  if (!portalUser || !portalUser.profileId) {
+    // requirePortalUser already sent 401 if user is null
+    // If user exists but profileId is null, also return 401
+    if (portalUser && !portalUser.profileId) {
+      return res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
+    }
     return; // requirePortalUser already sent 401 response
   }
 

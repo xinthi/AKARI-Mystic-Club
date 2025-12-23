@@ -28,14 +28,28 @@ export interface PortalUser {
 
 /**
  * Extract session token from cookies (same pattern as /api/auth/website/me.ts)
+ * Handles edge cases: whitespace, empty values, multiple cookie headers
  */
 function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) {
+    return null;
+  }
+
+  // Handle multiple Cookie headers (shouldn't happen but be safe)
+  const cookieStrings = Array.isArray(cookieHeader) ? cookieHeader : [cookieHeader];
+  
+  for (const cookieStr of cookieStrings) {
+    const cookies = cookieStr.split(';').map(c => c.trim());
+    for (const cookie of cookies) {
+      if (cookie.startsWith('akari_session=')) {
+        const token = cookie.substring('akari_session='.length).trim();
+        // Return token only if it's not empty
+        return token.length > 0 ? token : null;
+      }
     }
   }
+  
   return null;
 }
 

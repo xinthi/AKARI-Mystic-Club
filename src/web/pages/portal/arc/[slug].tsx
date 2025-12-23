@@ -309,7 +309,9 @@ export default function ArcProjectHub() {
         setProjectId(projectInfo.id);
 
         // Step 2: Fetch unified ARC state
-        const stateRes = await fetch(`/api/portal/arc/state?projectId=${projectInfo.id}`);
+        const stateRes = await fetch(`/api/portal/arc/state?projectId=${projectInfo.id}`, {
+          credentials: 'include',
+        });
         const stateData: UnifiedArcState = await stateRes.json();
 
         if (!stateData.ok) {
@@ -338,7 +340,9 @@ export default function ArcProjectHub() {
 
         // Step 3: Fetch project permissions
         try {
-          const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(projectInfo.id)}`);
+          const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(projectInfo.id)}`, {
+            credentials: 'include',
+          });
           if (permissionsRes.ok) {
             const permissionsData = await permissionsRes.json();
             if (permissionsData.ok) {
@@ -364,7 +368,9 @@ export default function ArcProjectHub() {
 
         // Try to fetch project_arc_settings for meta/tier
         try {
-          const settingsRes = await fetch(`/api/portal/arc/projects`);
+          const settingsRes = await fetch(`/api/portal/arc/projects`, {
+            credentials: 'include',
+          });
           const settingsData: ArcProjectsResponse = await settingsRes.json();
           if (settingsData.ok && settingsData.projects) {
             const foundSettings = settingsData.projects.find(p => p.project_id === projectInfo.id);
@@ -510,7 +516,9 @@ export default function ArcProjectHub() {
 
       setCampaignsLoading(true);
       try {
-        const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`);
+        const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.ok && data.campaigns) {

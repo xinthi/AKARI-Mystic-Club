@@ -301,7 +301,9 @@ export default function ArenaDetailsPage() {
         // Fetch project permissions
         if (data.project?.id) {
           try {
-            const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(data.project.id)}`);
+            const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(data.project.id)}`, {
+              credentials: 'include',
+            });
             if (permissionsRes.ok) {
               const permissionsData = await permissionsRes.json();
               if (permissionsData.ok) {
@@ -333,7 +335,9 @@ export default function ArenaDetailsPage() {
         // Fetch quests if Option 3 is enabled (check project state)
         if (data.arena?.id && data.project?.id) {
           try {
-            const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(data.project.id)}`);
+            const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(data.project.id)}`, {
+              credentials: 'include',
+            });
             if (stateRes.ok) {
               const stateData = await stateRes.json();
               const gamefiEnabled = stateData.ok && stateData.modules?.gamefi?.enabled === true;
@@ -342,7 +346,9 @@ export default function ArenaDetailsPage() {
               if (gamefiEnabled) {
                 setQuestsLoading(true);
                 try {
-                  const questsRes = await fetch(`/api/portal/arc/quests?arenaId=${encodeURIComponent(data.arena.id)}`);
+                  const questsRes = await fetch(`/api/portal/arc/quests?arenaId=${encodeURIComponent(data.arena.id)}`, {
+                    credentials: 'include',
+                  });
                   if (questsRes.ok) {
                     const questsData = await questsRes.json();
                     if (questsData.ok && questsData.quests) {

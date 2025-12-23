@@ -123,7 +123,9 @@ export default function ArcProjectPage() {
         setError(null);
 
         // Fetch project via API route instead of direct Supabase call
-        const res = await fetch(`/api/portal/arc/project/${projectId}`);
+        const res = await fetch(`/api/portal/arc/project/${projectId}`, {
+          credentials: 'include',
+        });
         
         // Check content type
         const contentType = res.headers.get('content-type');
@@ -168,7 +170,9 @@ export default function ArcProjectPage() {
       }
 
       try {
-        const res = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
+        const res = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`, {
+          credentials: 'include',
+        });
         
         if (!res.ok) {
           setCanRequest(false);
@@ -204,7 +208,9 @@ export default function ArcProjectPage() {
       // Only check for requests if project is not enabled
       if (arcAccessLevel === 'none' || !arcActive) {
         try {
-          const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+          const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`, {
+            credentials: 'include',
+          });
           
           // If not authenticated or forbidden, silently return
           if (res.status === 401 || res.status === 403) {
@@ -249,7 +255,9 @@ export default function ArcProjectPage() {
 
       try {
         // Use the new arena-based leaderboard endpoint
-        const res = await fetch(`/api/portal/arc/leaderboard/${project.id}`);
+        const res = await fetch(`/api/portal/arc/leaderboard/${project.id}`, {
+          credentials: 'include',
+        });
         const data = await res.json();
 
         if (!res.ok || !data.ok) {
@@ -399,6 +407,7 @@ export default function ArcProjectPage() {
       const res = await fetch('/api/portal/arc/leaderboard-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           projectId: project.id,
           justification: justification.trim() || null,

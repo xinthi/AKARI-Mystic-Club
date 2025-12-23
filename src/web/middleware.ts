@@ -18,7 +18,12 @@ export function middleware(request: NextRequest) {
     
     // Build new URL with canonical domain
     const url = request.nextUrl.clone();
-    url.host = newHostname;
+    // Use hostname property instead of host to avoid port issues
+    url.hostname = newHostname;
+    // Ensure protocol is https in production
+    if (process.env.NODE_ENV === 'production') {
+      url.protocol = 'https:';
+    }
     
     // Redirect to canonical domain (preserves path and query)
     return NextResponse.redirect(url, 308); // Permanent redirect (308 preserves method)
