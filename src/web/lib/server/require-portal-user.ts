@@ -11,6 +11,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { parse as parseCookie } from 'cookie';
 import { getSupabaseAdmin } from '../supabase-admin';
 
 // =============================================================================
@@ -44,30 +45,37 @@ function getBearerToken(req: NextApiRequest): string | null {
 }
 
 /**
- * Extract session token from cookies (same pattern as /api/auth/website/me.ts)
- * Handles edge cases: whitespace, empty values, multiple cookie headers
+ * Extract session token from cookies using proper cookie parser
+ * Handles edge cases: URL encoding, duplicate cookies, malformed headers
  */
 function getSessionToken(req: NextApiRequest): string | null {
-  const cookieHeader = req.headers.cookie;
+  const cookieHeader = req.headers.cookie ?? '';
   if (!cookieHeader) {
     return null;
   }
 
-  // Handle multiple Cookie headers (shouldn't happen but be safe)
-  const cookieStrings = Array.isArray(cookieHeader) ? cookieHeader : [cookieHeader];
-  
-  for (const cookieStr of cookieStrings) {
-    const cookies = cookieStr.split(';').map((c: string) => c.trim());
-    for (const cookie of cookies) {
-      if (cookie.startsWith('akari_session=')) {
-        const token = cookie.substring('akari_session='.length).trim();
-        // Return token only if it's not empty
-        return token.length > 0 ? token : null;
-      }
+  try {
+    // Use cookie parser to handle URL encoding and edge cases
+    const cookies = parseCookie(cookieHeader);
+    const token = cookies['akari_session'] ?? null;
+    
+    if (!token || typeof token !== 'string') {
+      return null;
     }
+    
+    // Decode URL-encoded token safely
+    try {
+      const decoded = decodeURIComponent(token);
+      return decoded.length > 0 ? decoded : null;
+    } catch (decodeError) {
+      // If decode fails, return raw token (might not be encoded)
+      return token.length > 0 ? token : null;
+    }
+  } catch (parseError) {
+    // If cookie parsing fails, log and return null
+    console.warn('[requirePortalUser] Cookie parse error:', parseError);
+    return null;
   }
-  
-  return null;
 }
 
 /**
@@ -167,7 +175,7 @@ export async function requirePortalUser(
       path,
       hasCookieHeader,
       hasAuthHeader,
-      cookieNames: hasCookieHeader ? req.headers.cookie?.split(';').map((c: string) => c.split('=')[0].trim()).filter(Boolean) : [],
+      cookieNames: hasCookieHeader ? Object.keys(parseCookie(req.headers.cookie ?? '')) : [],
     });
     res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
     return null;
