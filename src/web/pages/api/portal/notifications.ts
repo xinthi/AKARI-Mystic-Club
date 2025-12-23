@@ -25,7 +25,7 @@ interface Notification {
 
 type NotificationsResponse =
   | { ok: true; notifications: Notification[]; unreadCount: number }
-  | { ok: false; error: string };
+  | { ok: false; error: string; reason?: string };
 
 // =============================================================================
 // HANDLER

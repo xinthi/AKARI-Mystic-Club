@@ -40,7 +40,7 @@ function getSessionToken(req: NextApiRequest): string | null {
   const cookieStrings = Array.isArray(cookieHeader) ? cookieHeader : [cookieHeader];
   
   for (const cookieStr of cookieStrings) {
-    const cookies = cookieStr.split(';').map(c => c.trim());
+    const cookies = cookieStr.split(';').map((c: string) => c.trim());
     for (const cookie of cookies) {
       if (cookie.startsWith('akari_session=')) {
         const token = cookie.substring('akari_session='.length).trim();
