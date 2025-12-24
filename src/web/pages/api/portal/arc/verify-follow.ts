@@ -174,21 +174,7 @@ export default async function handler(
       });
     }
 
-    // Check if user follows project
-    const userFollows = await checkUserFollowsProject(
-      userProfile.twitterUsername,
-      project.x_handle
-    );
-
-    if (!userFollows) {
-      return res.status(200).json({
-        ok: true,
-        verified: false,
-        verifiedAt: null,
-      });
-    }
-
-    // Store verification in DB
+    // Check database first for existing verification
     const { data: existingVerification } = await supabase
       .from('arc_project_follows')
       .select('verified_at')
@@ -197,6 +183,7 @@ export default async function handler(
       .maybeSingle();
 
     if (existingVerification) {
+      // Already verified - return existing verification
       return res.status(200).json({
         ok: true,
         verified: true,
@@ -204,7 +191,13 @@ export default async function handler(
       });
     }
 
-    // Insert new verification
+    // No existing verification - for v1, this is manual verification
+    // When user clicks "Verify Follow", we create the verification record
+    // (X API check is not implemented yet, so we trust the user's manual action)
+    // In future, we can add X API check here before creating the record
+    
+    // For now, create verification record when user clicks "Verify Follow"
+    // This is the v1 manual verification flow
     const { data: verification, error: insertError } = await supabase
       .from('arc_project_follows')
       .insert({
