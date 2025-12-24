@@ -20,7 +20,7 @@ interface VerifyFollowBody {
 
 type VerifyFollowResponse =
   | { ok: true; verified: boolean; verifiedAt: string | null }
-  | { ok: false; error: string; reason?: 'not_following' | 'not_authenticated' | 'project_not_found' | 'x_identity_not_found' | 'profile_not_found' };
+  | { ok: false; error: string; reason?: 'not_following' | 'not_authenticated' | 'project_not_found' | 'x_identity_not_found' | 'profile_not_found' | 'profile_creation_failed' };
 
 // =============================================================================
 // DEV MODE BYPASS
@@ -95,28 +95,43 @@ export default async function handler(
 
     const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
     
-    // Use profileId from portalUser if available, otherwise look it up
+    // Use profileId from portalUser if available, otherwise look it up or create it
     let profileId: string;
     if (portalUser.profileId) {
       profileId = portalUser.profileId;
     } else {
       // Fallback: look up profile by username
-      const { data: profile, error: profileError } = await supabase
+      let profile = await supabase
         .from('profiles')
         .select('id')
         .eq('username', cleanUsername)
         .maybeSingle();
 
-      if (profileError || !profile) {
-        // User is authenticated but profile not found - this is a data issue, not auth
-        return res.status(400).json({
-          ok: false,
-          error: 'Profile not found for X identity',
-          reason: 'profile_not_found',
-        });
-      }
+      if (!profile.data) {
+        // Profile doesn't exist - auto-create it with minimal data
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            username: cleanUsername,
+            name: cleanUsername, // Use username as name fallback
+            updated_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
 
-      profileId = profile.id;
+        if (createError || !newProfile) {
+          console.error('[verify-follow] Failed to create profile:', createError);
+          return res.status(500).json({
+            ok: false,
+            error: 'Failed to create profile',
+            reason: 'profile_creation_failed',
+          });
+        }
+
+        profileId = newProfile.id;
+      } else {
+        profileId = profile.data.id;
+      }
     }
 
     const userProfile = { profileId, twitterUsername: cleanUsername };
