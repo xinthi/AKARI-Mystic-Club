@@ -87,26 +87,60 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 /**
- * Get user ID and profile ID from session token
+ * Check if token looks like a JWT (3 dot-separated parts)
+ */
+function looksLikeJwt(token: string): boolean {
+  return token.split('.').length === 3;
+}
+
+/**
+ * Try to validate JWT token using Supabase Auth
+ * Returns userId if valid, null if invalid (but does not throw)
+ */
+async function validateJwtToken(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  token: string
+): Promise<string | null> {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return null;
+    }
+    return user.id;
+  } catch (error) {
+    // JWT validation failed, but don't throw - fallback to session lookup
+    return null;
+  }
+}
+
+/**
+ * Get user ID and profile ID from session token (custom session table)
  * Returns null if session is invalid or expired
  */
 async function getPortalUserFromSession(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   sessionToken: string
 ): Promise<PortalUser | null> {
-  // Find session in database (same pattern as /api/auth/website/me.ts)
+  // Find session in database using SERVICE ROLE client (bypasses RLS)
   const { data: session, error: sessionError } = await supabase
     .from('akari_user_sessions')
     .select('user_id, expires_at')
     .eq('session_token', sessionToken)
-    .single();
+    .maybeSingle();
 
-  if (sessionError || !session) {
+  if (sessionError) {
+    console.warn('[requirePortalUser] Session lookup error:', sessionError.message);
+    return null;
+  }
+
+  if (!session) {
     return null;
   }
 
   // Check if session is expired
-  if (new Date(session.expires_at) < new Date()) {
+  const now = new Date();
+  const expiresAt = new Date(session.expires_at);
+  if (expiresAt < now) {
     // Clean up expired session
     await supabase
       .from('akari_user_sessions')
@@ -115,13 +149,13 @@ async function getPortalUserFromSession(
     return null;
   }
 
-  // Get user's Twitter username to find profile (same pattern as /api/portal/arc/my-projects.ts)
+  // Get user's Twitter username to find profile
   const { data: xIdentity } = await supabase
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', session.user_id)
     .eq('provider', 'x')
-    .single();
+    .maybeSingle();
 
   let profileId: string | null = null;
   if (xIdentity?.username) {
@@ -130,7 +164,7 @@ async function getPortalUserFromSession(
       .from('profiles')
       .select('id')
       .eq('username', cleanUsername)
-      .single();
+      .maybeSingle();
     
     profileId = profile?.id || null;
   }
@@ -224,12 +258,17 @@ export async function requirePortalUser(
     return null;
   }
 
+  // Determine token type
+  const tokenType = looksLikeJwt(sessionToken) ? 'jwt' : 'session';
+  res.setHeader('x-akari-token-type', tokenType);
+
   // Additional debug info when token is found
   if (isProd) {
     console.log('[requirePortalUser] Auth attempt', {
       hostname,
       path,
       authPath,
+      tokenType,
       tokenLength,
       hasCookieHeader,
       hasReqCookieAkariSession,
@@ -237,27 +276,77 @@ export async function requirePortalUser(
   }
 
   const supabase = getSupabaseAdmin();
-  const user = await getPortalUserFromSession(supabase, sessionToken);
-  
+  let userId: string | null = null;
+  let user: PortalUser | null = null;
+  let sessionLookup: 'hit' | 'miss' = 'miss';
+  let sessionExpired: boolean = false;
+
+  // Try JWT validation first if token looks like JWT
+  if (tokenType === 'jwt') {
+    userId = await validateJwtToken(supabase, sessionToken);
+    if (userId) {
+      // JWT validated successfully, get profile
+      const { data: xIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', userId)
+        .eq('provider', 'x')
+        .maybeSingle();
+
+      let profileId: string | null = null;
+      if (xIdentity?.username) {
+        const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+        
+        profileId = profile?.id || null;
+      }
+
+      user = { userId, profileId };
+      sessionLookup = 'hit';
+    }
+    // If JWT validation fails, fall through to session table lookup
+  }
+
+  // If JWT validation failed or token is not JWT, try session table lookup
   if (!user) {
-    // Enhanced debug logging: check what went wrong in session lookup
-    if (isProd) {
-      // Try to see if session exists in DB
-      const { data: sessionCheck, error: sessionCheckError } = await supabase
+    const sessionUser = await getPortalUserFromSession(supabase, sessionToken);
+    if (sessionUser) {
+      user = sessionUser;
+      sessionLookup = 'hit';
+    } else {
+      // Check if session exists but is expired
+      const { data: sessionCheck } = await supabase
         .from('akari_user_sessions')
         .select('user_id, expires_at')
         .eq('session_token', sessionToken)
         .maybeSingle();
       
+      if (sessionCheck) {
+        sessionExpired = new Date(sessionCheck.expires_at) < new Date();
+      }
+    }
+  }
+
+  // Set debug headers
+  res.setHeader('x-akari-session-lookup', sessionLookup);
+  res.setHeader('x-akari-session-expired', sessionExpired ? 'true' : 'false');
+  
+  if (!user) {
+    // Enhanced debug logging: check what went wrong
+    if (isProd) {
       console.log('[requirePortalUser] Auth failed: invalid or expired session', {
         hostname,
         path,
         authPath,
+        tokenType,
         tokenLength,
         hasSessionToken: !!sessionToken,
-        sessionExists: !!sessionCheck,
-        sessionError: sessionCheckError?.message || null,
-        sessionExpired: sessionCheck ? new Date(sessionCheck.expires_at) < new Date() : null,
+        sessionLookup,
+        sessionExpired,
       });
     }
     res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
