@@ -47,8 +47,18 @@ function getBearerToken(req: NextApiRequest): string | null {
 /**
  * Extract session token from cookies using proper cookie parser
  * Handles edge cases: URL encoding, duplicate cookies, malformed headers
+ * Prefers req.cookies if available (Next.js may parse), then falls back to header parsing
  */
 function getSessionToken(req: NextApiRequest): string | null {
+  // First, try req.cookies if Next.js has parsed it (though API routes typically don't auto-parse)
+  if (req.cookies && typeof req.cookies === 'object' && 'akari_session' in req.cookies) {
+    const token = req.cookies['akari_session'];
+    if (token && typeof token === 'string' && token.length > 0) {
+      return token;
+    }
+  }
+
+  // Fall back to parsing from cookie header (standard for API routes)
   const cookieHeader = req.headers.cookie ?? '';
   if (!cookieHeader) {
     return null;
