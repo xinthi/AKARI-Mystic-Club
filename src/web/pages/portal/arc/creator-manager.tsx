@@ -67,7 +67,7 @@ export default function CreatorManagerPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`);
+        const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(projectId)}`, { credentials: 'include' });
         const data = await res.json();
 
         if (!res.ok || !data.ok) {
@@ -98,7 +98,7 @@ export default function CreatorManagerPage() {
 
       try {
         setParticipantsLoading(true);
-        const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`);
+        const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, { credentials: 'include' });
         const data = await res.json();
 
         if (res.ok && data.ok && data.participants) {

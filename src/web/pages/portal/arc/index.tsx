@@ -194,7 +194,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       setTopProjectsLoading(true);
       setTopProjectsError(null);
       
-      const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`);
+      const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=20`, { credentials: 'include' });
       
       if (!res.ok) {
         const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -261,7 +261,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         setLiveLeaderboardsLoading(true);
         setLiveLeaderboardsError(null);
 
-        const res = await fetch('/api/portal/arc/live-leaderboards?limit=15');
+        const res = await fetch('/api/portal/arc/live-leaderboards?limit=15', { credentials: 'include' });
         const data = await res.json();
 
         if (!res.ok || !data.ok) {

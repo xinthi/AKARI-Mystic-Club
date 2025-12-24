@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -72,6 +73,12 @@ export default async function handler(
   }
 
   try {
+    // Authentication
+    const portalUser = await requirePortalUser(req, res);
+    if (!portalUser) {
+      return; // requirePortalUser already sent 401 response
+    }
+
     // Create Supabase client (read-only with anon key)
     const supabase = createPortalClient();
     const supabaseAdmin = getSupabaseAdmin();

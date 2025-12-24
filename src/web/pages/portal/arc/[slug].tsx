@@ -873,7 +873,7 @@ export default function ArcProjectHub() {
       if (selectedArenaId) {
         const arena = arenas.find(a => a.id === selectedArenaId);
         if (arena?.slug) {
-          const arenaRes = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`);
+          const arenaRes = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arena.slug)}`, { credentials: 'include' });
           const arenaData = await arenaRes.json();
           if (arenaData.ok) {
             setAllCreators(arenaData.creators || []);
@@ -899,6 +899,7 @@ export default function ArcProjectHub() {
       const res = await fetch('/api/portal/arc/join-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ projectId: targetProjectId }),
       });
 

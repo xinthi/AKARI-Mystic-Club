@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getArcUnifiedState } from '@/lib/arc/unified-state';
 import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
 import { hasAnyArcAccess } from '@/lib/arc-access';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -43,64 +44,6 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-async function getCurrentUserProfile(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  sessionToken: string
-): Promise<{ profileId: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
-  // Get user's Twitter username to find profile
-  const { data: xIdentity, error: identityError } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
-
-  if (identityError || !xIdentity?.username) {
-    return null;
-  }
-
-  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '');
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', cleanUsername)
-    .single();
-
-  if (profileError || !profile) {
-    return null;
-  }
-
-  return { profileId: profile.id };
-}
-
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -113,6 +56,12 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
   
+  // Authentication (required for ARC state endpoint)
+  const portalUser = await requirePortalUser(req, res);
+  if (!portalUser) {
+    return; // requirePortalUser already sent 401 response
+  }
+
   // Enforce tier guard
   const tierCheck = await enforceArcApiTier(req, res, '/api/portal/arc/state');
   if (tierCheck) {
@@ -139,15 +88,8 @@ export default async function handler(
       return res.status(403).json({ ok: false, error: 'ARC access not approved for this project' });
     }
 
-    // Get profile ID if user is authenticated (for request status)
-    let profileId: string | null = null;
-    const sessionToken = getSessionToken(req);
-    if (sessionToken) {
-      const userProfile = await getCurrentUserProfile(supabase, sessionToken);
-      if (userProfile) {
-        profileId = userProfile.profileId;
-      }
-    }
+    // Get profile ID from authenticated user (for request status)
+    const profileId: string | null = portalUser.profileId || null;
 
     // Get unified state
     const state = await getArcUnifiedState(supabase, projectId, profileId);

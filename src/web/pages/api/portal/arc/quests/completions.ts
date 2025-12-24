@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -22,83 +23,6 @@ type CompletionsResponse =
   | { ok: false; error: string };
 
 // =============================================================================
-// HELPERS
-// =============================================================================
-
-function getSessionTokenFromRequest(req: NextApiRequest): string | null {
-  // Try req.cookies first (Next.js parsed)
-  if (req.cookies && typeof req.cookies === 'object' && 'akari_session' in req.cookies) {
-    const token = req.cookies['akari_session'];
-    if (token && typeof token === 'string' && token.length > 0) {
-      return token;
-    }
-  }
-
-  // Fall back to parsing cookie header
-  const cookieHeader = req.headers.cookie ?? '';
-  if (!cookieHeader) {
-    return null;
-  }
-
-  const cookies = cookieHeader.split(';').map((c: string) => c.trim());
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-
-  return null;
-}
-
-async function getCurrentUserProfile(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  sessionToken: string
-): Promise<{ profileId: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
-  // Get user's Twitter username to find profile
-  const { data: xIdentity, error: identityError } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
-
-  if (identityError || !xIdentity?.username) {
-    return null;
-  }
-
-  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '');
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', cleanUsername)
-    .single();
-
-  if (profileError || !profile) {
-    return null;
-  }
-
-  return { profileId: profile.id };
-}
-
-// =============================================================================
 // HANDLER
 // =============================================================================
 
@@ -111,6 +35,16 @@ export default async function handler(
   }
 
   try {
+    // Authentication
+    const portalUser = await requirePortalUser(req, res);
+    if (!portalUser) {
+      return; // requirePortalUser already sent 401 response
+    }
+
+    if (!portalUser.profileId) {
+      return res.status(400).json({ ok: false, error: 'User profile not found' });
+    }
+
     const supabase = getSupabaseAdmin();
 
     // Get arenaId from query
@@ -143,22 +77,11 @@ export default async function handler(
       });
     }
 
-    // Get current user profile
-    const sessionToken = getSessionTokenFromRequest(req);
-    if (!sessionToken) {
-      return res.status(401).json({ ok: false, error: 'Authentication required' });
-    }
-
-    const userProfile = await getCurrentUserProfile(supabase, sessionToken);
-    if (!userProfile) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
-
     // Fetch completed missions for this user and arena
     const { data: completions, error: completionsError } = await supabase
       .from('arc_quest_completions')
       .select('mission_id, completed_at')
-      .eq('profile_id', userProfile.profileId)
+      .eq('profile_id', portalUser.profileId)
       .eq('arena_id', arenaId)
       .order('completed_at', { ascending: false });
 

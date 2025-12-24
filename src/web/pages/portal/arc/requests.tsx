@@ -142,7 +142,7 @@ export default function ArcRequestsPage() {
     setError(null);
 
     try {
-      const res = await fetch('/api/portal/arc/leaderboard-requests?scope=my');
+      const res = await fetch('/api/portal/arc/leaderboard-requests?scope=my', { credentials: 'include' });
       const data = await res.json();
 
       if (!data.ok) {
@@ -165,7 +165,7 @@ export default function ArcRequestsPage() {
 
     try {
       const identifier = projectId || slug;
-      const res = await fetch(`/api/portal/arc/project/${identifier}`);
+      const res = await fetch(`/api/portal/arc/project/${identifier}`, { credentials: 'include' });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {

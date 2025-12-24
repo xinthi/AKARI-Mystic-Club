@@ -733,6 +733,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch('/api/portal/arc/arena-creators-admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           arenaId: arena.id,
           twitter_username: formData.twitter_username.trim(),
@@ -789,6 +790,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch('/api/portal/arc/arena-creators-admin', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           id: editingCreator.id,
           arc_points: formData.arc_points,
@@ -927,6 +929,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch('/api/portal/arc/admin/point-adjustments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           arenaId: arena.id,
           creatorProfileId: adjustingCreator.profile_id,
@@ -1914,6 +1917,7 @@ export default function ArenaDetailsPage() {
                         const res = await fetch('/api/portal/arc/quests', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
                           body: JSON.stringify({
                             project_id: project.id,
                             arena_id: arena.id,
