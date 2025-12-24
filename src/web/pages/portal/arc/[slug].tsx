@@ -1423,7 +1423,7 @@ export default function ArcProjectHub() {
 
               {/* Missions Tab */}
               {activeTab === 'missions' && (() => {
-                const hasJoined = userStatus?.hasJoined || false;
+                const hasJoined = userIsInCreators || (userStatus?.hasJoined || false);
                 const projectArcPoints = userStatus?.arcPoints || 0;
                 const missions = buildMissions(hasJoined, completedMissionIds);
 

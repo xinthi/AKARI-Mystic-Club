@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -66,15 +67,45 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Invalid missionId' });
     }
 
-    // Verify arena exists
+    // Verify arena exists and get project_id
     const { data: arena, error: arenaError } = await supabase
       .from('arenas')
-      .select('id')
+      .select('id, project_id')
       .eq('id', body.arenaId)
       .single();
 
     if (arenaError || !arena) {
       return res.status(404).json({ ok: false, error: 'Arena not found' });
+    }
+
+    if (!arena.project_id) {
+      return res.status(400).json({ ok: false, error: 'Arena missing project_id' });
+    }
+
+    // Check ARC Option 3 access
+    const accessCheck = await requireArcAccess(supabase, arena.project_id, 3);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error || 'ARC Option 3 (Gamified) is not available for this project',
+      });
+    }
+
+    // Verify user is a creator in this arena (arena_creators table)
+    const { data: creatorCheck, error: creatorError } = await supabase
+      .from('arena_creators')
+      .select('id')
+      .eq('arena_id', body.arenaId)
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (creatorError) {
+      console.error('[ARC Quest Complete] Error checking arena membership:', creatorError);
+      return res.status(500).json({ ok: false, error: 'Failed to verify arena membership' });
+    }
+
+    if (!creatorCheck) {
+      return res.status(403).json({ ok: false, error: 'Not allowed' });
     }
 
     // Insert or upsert completion (respects unique constraint)
