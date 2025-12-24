@@ -338,35 +338,71 @@ export async function requirePortalUser(
       .eq('session_token', sessionToken)
       .maybeSingle();
     
-    if (sessionCheck) {
-      sessionLookup = 'hit';
-      sessionExpired = new Date(sessionCheck.expires_at) < new Date();
-      
-      // Only try to get user if session is not expired
-      if (!sessionExpired) {
-        const sessionUser = await getPortalUserFromSession(supabase, sessionToken);
-        if (sessionUser) {
-          user = sessionUser;
-        } else {
-          // Session exists but getPortalUserFromSession returned null - log why
-          if (isProd) {
-            console.log('[requirePortalUser] Session found but getPortalUserFromSession returned null', {
-              hostname,
-              path,
-              userId: sessionCheck.user_id,
-              expiresAt: sessionCheck.expires_at,
-            });
-          }
-        }
-      }
-    } else {
-      // Session not found in DB
-      if (isProd && sessionCheckError) {
+    if (sessionCheckError) {
+      // Log the error but continue
+      if (isProd) {
         console.log('[requirePortalUser] Session lookup error', {
           hostname,
           path,
           error: sessionCheckError.message,
+          code: sessionCheckError.code,
         });
+      }
+    } else if (sessionCheck) {
+      sessionLookup = 'hit';
+      const now = new Date();
+      const expiresAt = new Date(sessionCheck.expires_at);
+      sessionExpired = expiresAt < now;
+      
+      // Only try to get user if session is not expired
+      if (!sessionExpired) {
+        // Use the userId we already have from sessionCheck - no need to query again
+        const userId = sessionCheck.user_id;
+        
+        // Get profile (optional - don't fail if missing)
+        let profileId: string | null = null;
+        try {
+          const { data: xIdentity, error: xIdentityError } = await supabase
+            .from('akari_user_identities')
+            .select('username')
+            .eq('user_id', userId)
+            .eq('provider', 'x')
+            .maybeSingle();
+
+          if (xIdentityError) {
+            if (isProd) {
+              console.warn('[requirePortalUser] X identity lookup error (non-fatal):', xIdentityError.message);
+            }
+          } else if (xIdentity?.username) {
+            const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('username', cleanUsername)
+              .maybeSingle();
+            
+            if (profileError) {
+              if (isProd) {
+                console.warn('[requirePortalUser] Profile lookup error (non-fatal):', profileError.message);
+              }
+            } else {
+              profileId = profile?.id || null;
+            }
+          }
+        } catch (error) {
+          if (isProd) {
+            console.warn('[requirePortalUser] Error during profile lookup (non-fatal):', error);
+          }
+        }
+
+        // ALWAYS return user if session is valid - profile is optional
+        user = { userId, profileId };
+      } else {
+        // Session expired - clean it up
+        await supabase
+          .from('akari_user_sessions')
+          .delete()
+          .eq('session_token', sessionToken);
       }
     }
   }
