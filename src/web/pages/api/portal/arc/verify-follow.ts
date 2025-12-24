@@ -69,24 +69,26 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Authentication (same pattern as /api/portal/arc/my-projects.ts)
+    // Authentication using shared helper
     const portalUser = await requirePortalUser(req, res);
     if (!portalUser) {
-      return; // requirePortalUser already sent 401 response
+      return; // requirePortalUser already sent 401 response with debug headers
     }
 
     // Get Twitter username for profile lookup
+    // Note: profileId may be null, so we need to look up X identity
     const { data: xIdentity, error: identityError } = await supabase
       .from('akari_user_identities')
       .select('username')
       .eq('user_id', portalUser.userId)
       .eq('provider', 'x')
-      .single();
+      .maybeSingle();
 
     if (identityError || !xIdentity?.username) {
-      return res.status(401).json({
+      // X identity is required for verify-follow, but don't fail auth
+      return res.status(400).json({
         ok: false,
-        error: 'Invalid session',
+        error: 'X identity not found',
         reason: 'not_authenticated',
       });
     }

@@ -88,25 +88,28 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found', reason: 'project_not_found' });
     }
 
-    // Authentication (same pattern as /api/portal/arc/my-projects.ts)
+    // Authentication using shared helper
     let userProfile: { profileId: string; twitterUsername: string } | null = null;
 
     if (!DEV_MODE) {
       const portalUser = await requirePortalUser(req, res);
       if (!portalUser) {
-        return; // requirePortalUser already sent 401 response
+        return; // requirePortalUser already sent 401 response with debug headers
       }
 
       // Get Twitter username for profile lookup
+      // Note: profileId may be null, so we need to look up X identity
       const { data: xIdentity, error: identityError } = await supabase
         .from('akari_user_identities')
         .select('username')
         .eq('user_id', portalUser.userId)
         .eq('provider', 'x')
-        .single();
+        .maybeSingle();
 
       if (identityError || !xIdentity?.username) {
-        return res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
+        // X identity is required for follow-status, but don't fail auth
+        // Return verified: false instead
+        return res.status(200).json({ ok: true, verified: false });
       }
 
       const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
@@ -120,10 +123,11 @@ export default async function handler(
           .from('profiles')
           .select('id')
           .eq('username', cleanUsername)
-          .single();
+          .maybeSingle();
 
         if (profileError || !profile) {
-          return res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
+          // Profile not found - return verified: false instead of 401
+          return res.status(200).json({ ok: true, verified: false });
         }
 
         userProfile = { profileId: profile.id, twitterUsername: cleanUsername };

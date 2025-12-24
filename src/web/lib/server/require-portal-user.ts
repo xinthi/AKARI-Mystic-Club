@@ -23,6 +23,15 @@ export interface PortalUser {
   profileId: string | null;
 }
 
+type AuthFailReason = 
+  | 'no_cookie' 
+  | 'invalid_cookie' 
+  | 'session_miss' 
+  | 'session_expired' 
+  | 'db_error' 
+  | 'user_missing'
+  | 'none';
+
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -47,7 +56,6 @@ function getBearerToken(req: NextApiRequest): string | null {
 /**
  * Extract session token from cookies
  * Prefers req.cookies (Next.js parsed) first, then falls back to cookie parser
- * Handles duplicate cookies by preferring req.cookies (Path=/) or longest non-empty value
  */
 function getSessionToken(req: NextApiRequest): string | null {
   // First, try req.cookies if Next.js has parsed it (preferred - usually Path=/)
@@ -58,7 +66,7 @@ function getSessionToken(req: NextApiRequest): string | null {
     }
   }
 
-  // Fall back to parsing cookie header using cookie parser (handles URL encoding, duplicates)
+  // Fall back to parsing cookie header using cookie parser
   const cookieHeader = req.headers.cookie ?? '';
   if (!cookieHeader) {
     return null;
@@ -72,10 +80,9 @@ function getSessionToken(req: NextApiRequest): string | null {
       return null;
     }
     
-    // Cookie parser handles URL decoding automatically
     return token;
   } catch (parseError) {
-    // If cookie parsing fails, fall back to simple manual parsing (same as /api/auth/website/me.ts)
+    // If cookie parsing fails, fall back to simple manual parsing
     const cookies = cookieHeader.split(';').map((c: string) => c.trim());
     for (const cookie of cookies) {
       if (cookie.startsWith('akari_session=')) {
@@ -108,89 +115,8 @@ async function validateJwtToken(
     }
     return user.id;
   } catch (error) {
-    // JWT validation failed, but don't throw - fallback to session lookup
     return null;
   }
-}
-
-/**
- * Get user ID and profile ID from session token (custom session table)
- * Returns null if session is invalid or expired
- */
-async function getPortalUserFromSession(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  sessionToken: string
-): Promise<PortalUser | null> {
-  // Find session in database using SERVICE ROLE client (bypasses RLS)
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .maybeSingle();
-
-  if (sessionError) {
-    console.warn('[requirePortalUser] Session lookup error:', sessionError.message);
-    return null;
-  }
-
-  if (!session) {
-    return null;
-  }
-
-  // Check if session is expired
-  const now = new Date();
-  const expiresAt = new Date(session.expires_at);
-  if (expiresAt < now) {
-    // Clean up expired session
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
-  // IMPORTANT: Always return userId even if profile lookup fails
-  // Profile is optional, but userId is required for authentication
-  const userId = session.user_id;
-
-  // Get user's Twitter username to find profile (optional - don't fail if missing)
-  let profileId: string | null = null;
-  try {
-    const { data: xIdentity, error: xIdentityError } = await supabase
-      .from('akari_user_identities')
-      .select('username')
-      .eq('user_id', userId)
-      .eq('provider', 'x')
-      .maybeSingle();
-
-    if (xIdentityError) {
-      console.warn('[requirePortalUser] X identity lookup error:', xIdentityError.message);
-      // Continue without profile - userId is sufficient
-    } else if (xIdentity?.username) {
-      const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', cleanUsername)
-        .maybeSingle();
-      
-      if (profileError) {
-        console.warn('[requirePortalUser] Profile lookup error:', profileError.message);
-        // Continue without profile - userId is sufficient
-      } else {
-        profileId = profile?.id || null;
-      }
-    }
-  } catch (error) {
-    console.warn('[requirePortalUser] Error during profile lookup:', error);
-    // Continue without profile - userId is sufficient
-  }
-
-  // Always return user with userId (profileId can be null)
-  return {
-    userId,
-    profileId,
-  };
 }
 
 // =============================================================================
@@ -200,7 +126,8 @@ async function getPortalUserFromSession(
 /**
  * Require authenticated portal user from request.
  * Supports both Authorization Bearer token and akari_session cookie.
- * Uses the same pattern as /api/auth/website/me.ts and /api/portal/arc/my-projects.ts
+ * 
+ * ALWAYS sets debug headers, even on 401 responses.
  * 
  * @param req - Next.js API request
  * @param res - Next.js API response (for returning 401 if not authenticated)
@@ -216,122 +143,100 @@ export async function requirePortalUser(
   const hasAuthHeader = !!req.headers.authorization;
   const hasReqCookieAkariSession = !!(req.cookies && typeof req.cookies === 'object' && 'akari_session' in req.cookies);
   
+  // Initialize debug headers (will be set before any return)
+  let authMode: 'cookie' | 'bearer' | 'none' = 'none';
+  let tokenLength = 0;
+  let sessionLookup: 'hit' | 'miss' | 'error' = 'miss';
+  let sessionExpired: 'true' | 'false' | 'unknown' = 'unknown';
+  let authUserId: 'present' | 'missing' = 'missing';
+  let failReason: AuthFailReason = 'none';
+  
+  // Helper to set all debug headers
+  const setDebugHeaders = () => {
+    res.setHeader('x-akari-auth-mode', authMode);
+    res.setHeader('x-akari-has-cookie-header', hasCookieHeader ? 'true' : 'false');
+    res.setHeader('x-akari-has-akari-session-cookie', hasReqCookieAkariSession ? 'true' : 'false');
+    res.setHeader('x-akari-token-len', tokenLength.toString());
+    res.setHeader('x-akari-session-lookup', sessionLookup);
+    res.setHeader('x-akari-session-expired', sessionExpired);
+    res.setHeader('x-akari-auth-userid', authUserId);
+    res.setHeader('x-akari-auth-fail-reason', failReason);
+  };
+  
   // Try Bearer token first, then fall back to cookie
   let sessionToken: string | null = null;
-  let authPath: 'bearer' | 'cookie' | 'none' = 'none';
   
   const bearerToken = getBearerToken(req);
   if (bearerToken) {
     sessionToken = bearerToken;
-    authPath = 'bearer';
+    authMode = 'bearer';
+    tokenLength = sessionToken.length;
   } else {
     sessionToken = getSessionToken(req);
     if (sessionToken) {
-      authPath = 'cookie';
+      authMode = 'cookie';
+      tokenLength = sessionToken.length;
+    } else {
+      authMode = 'none';
+      failReason = hasCookieHeader ? 'invalid_cookie' : 'no_cookie';
+      setDebugHeaders();
+      res.status(401).json({ 
+        ok: false, 
+        error: 'Not authenticated', 
+        reason: failReason 
+      });
+      return null;
     }
   }
   
-  // TEMP: Add debug response headers (remove after confirming fix)
-  const tokenLength = sessionToken ? sessionToken.length : 0;
-  res.setHeader('x-akari-auth-mode', authPath);
-  res.setHeader('x-akari-has-cookie-header', hasCookieHeader ? 'true' : 'false');
-  res.setHeader('x-akari-has-akari-session-cookie', hasReqCookieAkariSession ? 'true' : 'false');
-  res.setHeader('x-akari-has-auth-header', hasAuthHeader ? 'true' : 'false');
-  res.setHeader('x-akari-token-len', tokenLength.toString());
-  
-  // Enhanced debug logging in production
-  const isProd = process.env.NODE_ENV === 'production';
-  if (isProd && !sessionToken) {
-    // Extract cookie names for debugging (without values)
-    const cookieNames: string[] = [];
-    let rawCookieHeader = '';
-    if (hasCookieHeader) {
-      rawCookieHeader = req.headers.cookie || '';
-      try {
-        const cookies = parseCookie(rawCookieHeader);
-        cookieNames.push(...Object.keys(cookies));
-      } catch {
-        const cookies = req.headers.cookie?.split(';').map((c: string) => c.trim()) || [];
-        cookieNames.push(...cookies.map((c: string) => {
-          const eqIdx = c.indexOf('=');
-          return eqIdx > 0 ? c.substring(0, eqIdx) : c;
-        }));
-      }
-    }
-    
-    console.log('[requirePortalUser] Auth failed: no session token', {
-      hostname,
-      path,
-      hasCookieHeader,
-      hasAuthHeader,
-      hasReqCookieAkariSession,
-      cookieNames,
-      authPath,
-      rawCookieHeaderLength: rawCookieHeader.length,
-    });
-  }
-  
-  if (!sessionToken) {
-    res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
-    return null;
-  }
-
   // Determine token type
   const tokenType = looksLikeJwt(sessionToken) ? 'jwt' : 'session';
   res.setHeader('x-akari-token-type', tokenType);
 
-  // Additional debug info when token is found
-  if (isProd) {
-    console.log('[requirePortalUser] Auth attempt', {
-      hostname,
-      path,
-      authPath,
-      tokenType,
-      tokenLength,
-      hasCookieHeader,
-      hasReqCookieAkariSession,
-    });
-  }
-
   const supabase = getSupabaseAdmin();
-  let userId: string | null = null;
   let user: PortalUser | null = null;
-  let sessionLookup: 'hit' | 'miss' = 'miss';
-  let sessionExpired: boolean = false;
 
   // Try JWT validation first if token looks like JWT
   if (tokenType === 'jwt') {
-    userId = await validateJwtToken(supabase, sessionToken);
-    if (userId) {
-      // JWT validated successfully, get profile
-      const { data: xIdentity } = await supabase
-        .from('akari_user_identities')
-        .select('username')
-        .eq('user_id', userId)
-        .eq('provider', 'x')
-        .maybeSingle();
-
+    const jwtUserId = await validateJwtToken(supabase, sessionToken);
+    if (jwtUserId) {
+      // JWT validated successfully, get profile (optional)
       let profileId: string | null = null;
-      if (xIdentity?.username) {
-        const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', cleanUsername)
+      try {
+        const { data: xIdentity } = await supabase
+          .from('akari_user_identities')
+          .select('username')
+          .eq('user_id', jwtUserId)
+          .eq('provider', 'x')
           .maybeSingle();
-        
-        profileId = profile?.id || null;
+
+        if (xIdentity?.username) {
+          const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', cleanUsername)
+            .maybeSingle();
+          
+          profileId = profile?.id || null;
+        }
+      } catch (error) {
+        // Profile lookup failed - non-fatal, continue with userId only
       }
 
-      user = { userId, profileId };
+      user = { userId: jwtUserId, profileId };
       sessionLookup = 'hit';
+      sessionExpired = 'false';
+      authUserId = 'present';
+      failReason = 'none';
+      setDebugHeaders();
+      return user;
     }
     // If JWT validation fails, fall through to session table lookup
   }
 
-  // If JWT validation failed or token is not JWT, try session table lookup
-  if (!user) {
-    // First check if session exists in DB (for debug header)
+  // Session token lookup (custom session table)
+  try {
     const { data: sessionCheck, error: sessionCheckError } = await supabase
       .from('akari_user_sessions')
       .select('user_id, expires_at')
@@ -339,96 +244,112 @@ export async function requirePortalUser(
       .maybeSingle();
     
     if (sessionCheckError) {
-      // Log the error but continue
-      if (isProd) {
-        console.log('[requirePortalUser] Session lookup error', {
-          hostname,
-          path,
-          error: sessionCheckError.message,
-          code: sessionCheckError.code,
-        });
-      }
-    } else if (sessionCheck) {
-      sessionLookup = 'hit';
-      const now = new Date();
-      const expiresAt = new Date(sessionCheck.expires_at);
-      sessionExpired = expiresAt < now;
-      
-      // Only try to get user if session is not expired
-      if (!sessionExpired) {
-        // Use the userId we already have from sessionCheck - no need to query again
-        const userId = sessionCheck.user_id;
-        
-        // Get profile (optional - don't fail if missing)
-        let profileId: string | null = null;
-        try {
-          const { data: xIdentity, error: xIdentityError } = await supabase
-            .from('akari_user_identities')
-            .select('username')
-            .eq('user_id', userId)
-            .eq('provider', 'x')
-            .maybeSingle();
-
-          if (xIdentityError) {
-            if (isProd) {
-              console.warn('[requirePortalUser] X identity lookup error (non-fatal):', xIdentityError.message);
-            }
-          } else if (xIdentity?.username) {
-            const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('username', cleanUsername)
-              .maybeSingle();
-            
-            if (profileError) {
-              if (isProd) {
-                console.warn('[requirePortalUser] Profile lookup error (non-fatal):', profileError.message);
-              }
-            } else {
-              profileId = profile?.id || null;
-            }
-          }
-        } catch (error) {
-          if (isProd) {
-            console.warn('[requirePortalUser] Error during profile lookup (non-fatal):', error);
-          }
-        }
-
-        // ALWAYS return user if session is valid - profile is optional
-        user = { userId, profileId };
-      } else {
-        // Session expired - clean it up
-        await supabase
-          .from('akari_user_sessions')
-          .delete()
-          .eq('session_token', sessionToken);
-      }
-    }
-  }
-
-  // Set debug headers
-  res.setHeader('x-akari-session-lookup', sessionLookup);
-  res.setHeader('x-akari-session-expired', sessionExpired ? 'true' : 'false');
-  
-  if (!user) {
-    // Enhanced debug logging: check what went wrong
-    if (isProd) {
-      console.log('[requirePortalUser] Auth failed: invalid or expired session', {
-        hostname,
-        path,
-        authPath,
-        tokenType,
-        tokenLength,
-        hasSessionToken: !!sessionToken,
-        sessionLookup,
-        sessionExpired,
+      // Database error
+      sessionLookup = 'error';
+      failReason = 'db_error';
+      setDebugHeaders();
+      res.status(401).json({ 
+        ok: false, 
+        error: 'Invalid session', 
+        reason: failReason 
       });
+      return null;
     }
-    res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
+    
+    if (!sessionCheck) {
+      // Session not found in database
+      sessionLookup = 'miss';
+      failReason = 'session_miss';
+      setDebugHeaders();
+      res.status(401).json({ 
+        ok: false, 
+        error: 'Invalid session', 
+        reason: failReason 
+      });
+      return null;
+    }
+    
+    // Session exists - check expiration
+    sessionLookup = 'hit';
+    const now = new Date();
+    const expiresAt = new Date(sessionCheck.expires_at);
+    
+    if (expiresAt < now) {
+      // Session expired - clean it up
+      sessionExpired = 'true';
+      failReason = 'session_expired';
+      await supabase
+        .from('akari_user_sessions')
+        .delete()
+        .eq('session_token', sessionToken);
+      setDebugHeaders();
+      res.status(401).json({ 
+        ok: false, 
+        error: 'Invalid session', 
+        reason: failReason 
+      });
+      return null;
+    }
+    
+    // Session is valid and not expired - ALWAYS return user
+    sessionExpired = 'false';
+    const sessionUserId: string = sessionCheck.user_id;
+    
+    // Ensure userId is not null (should never happen, but TypeScript safety)
+    if (!sessionUserId) {
+      failReason = 'user_missing';
+      setDebugHeaders();
+      res.status(401).json({ 
+        ok: false, 
+        error: 'Invalid session', 
+        reason: failReason 
+      });
+      return null;
+    }
+    
+    // Get profile (optional - don't fail if missing)
+    let profileId: string | null = null;
+    try {
+      const { data: xIdentity, error: xIdentityError } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', sessionUserId)
+        .eq('provider', 'x')
+        .maybeSingle();
+
+      if (!xIdentityError && xIdentity?.username) {
+        const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+        
+        if (!profileError && profile) {
+          profileId = profile.id;
+        }
+      }
+    } catch (error) {
+      // Profile lookup failed - non-fatal, continue with userId only
+    }
+
+    // ALWAYS return user if session is valid - profile is optional
+    user = { userId: sessionUserId, profileId };
+    authUserId = 'present';
+    failReason = 'none';
+    setDebugHeaders();
+    return user;
+    
+  } catch (error: any) {
+    // Unexpected error during session lookup
+    sessionLookup = 'error';
+    failReason = 'db_error';
+    setDebugHeaders();
+    res.status(401).json({ 
+      ok: false, 
+      error: 'Invalid session', 
+      reason: failReason 
+    });
     return null;
   }
-
-  return user;
 }
-
