@@ -268,14 +268,17 @@ export default async function handler(
     }
 
     // Check if user can request (permission check)
+    // Show button if user has permission AND no pending request exists
+    // This allows requesting additional ARC options even if project already has some access
     let shouldShowRequestButton = false;
     let reason: string | undefined;
 
     // DEV MODE: Bypass permission checks in development only
     // In production (NODE_ENV !== 'development'), this block is skipped
     if (DEV_MODE) {
-      shouldShowRequestButton = arcAccessLevel === 'none' && !arcActive && !existingRequest;
-      reason = 'DEV_MODE: allowed';
+      // In dev mode, show if no pending request (allow requesting even if ARC is active)
+      shouldShowRequestButton = !existingRequest || existingRequest.status !== 'pending';
+      reason = shouldShowRequestButton ? 'DEV_MODE: allowed' : 'Existing pending request';
     } else {
       const sessionToken = getSessionToken(req);
       if (!sessionToken) {
@@ -285,27 +288,36 @@ export default async function handler(
         if (!currentUser) {
           reason = 'Invalid session';
         } else {
+          // Check if user has permission to request
+          let hasPermission = false;
+          
           // Check superadmin
           const isSuperAdmin = await checkSuperAdmin(supabase, currentUser.userId);
           if (isSuperAdmin) {
-            shouldShowRequestButton = arcAccessLevel === 'none' && !arcActive && !existingRequest;
-            reason = shouldShowRequestButton ? 'Superadmin' : arcActive ? 'ARC already active' : existingRequest ? 'Existing request' : 'ARC enabled';
+            hasPermission = true;
           } else {
             // Check team role (owner/admin/moderator)
             const teamRole = await getUserProjectRole(supabase, currentUser.userId, projectId);
             if (teamRole) {
-              shouldShowRequestButton = arcAccessLevel === 'none' && !arcActive && !existingRequest;
-              reason = shouldShowRequestButton ? `Team role: ${teamRole}` : arcActive ? 'ARC already active' : existingRequest ? 'Existing request' : 'ARC enabled';
+              hasPermission = true;
             } else {
               // Check permission API
               const canRequest = await canRequestLeaderboard(supabase, currentUser.userId, projectId);
               if (canRequest) {
-                shouldShowRequestButton = arcAccessLevel === 'none' && !arcActive && !existingRequest;
-                reason = shouldShowRequestButton ? 'Permission API allowed' : arcActive ? 'ARC already active' : existingRequest ? 'Existing request' : 'ARC enabled';
-              } else {
-                reason = 'No permission';
+                hasPermission = true;
               }
             }
+          }
+
+          // Show button if user has permission AND no pending request
+          // This allows requesting additional options even if project already has ARC access
+          if (hasPermission) {
+            shouldShowRequestButton = !existingRequest || existingRequest.status !== 'pending';
+            reason = shouldShowRequestButton 
+              ? (isSuperAdmin ? 'Superadmin' : 'Has permission') 
+              : 'Existing pending request';
+          } else {
+            reason = 'No permission';
           }
         }
       }
