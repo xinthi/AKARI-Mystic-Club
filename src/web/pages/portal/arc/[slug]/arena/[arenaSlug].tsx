@@ -123,7 +123,7 @@ export default function ArenaDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Option 2 join flow state
+  // Mindshare Leaderboard join flow state
   const [followVerified, setFollowVerified] = useState<boolean | null>(null);
   const [verifyingFollow, setVerifyingFollow] = useState(false);
   const [joiningLeaderboard, setJoiningLeaderboard] = useState(false);
@@ -136,7 +136,7 @@ export default function ArenaDetailsPage() {
   // Tab state
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'storyline' | 'map' | 'quests'>('leaderboard');
   
-  // Quests state (Option 3)
+  // Quests state (Quest Leaderboard)
   const [quests, setQuests] = useState<any[]>([]);
   const [questsLoading, setQuestsLoading] = useState(false);
   const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
@@ -332,7 +332,7 @@ export default function ArenaDetailsPage() {
           }
         }
 
-        // Fetch quests if Option 3 is enabled (check project state)
+        // Fetch quests if Quest Leaderboard is enabled (check project state)
         if (data.arena?.id && data.project?.id) {
           try {
             const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(data.project.id)}`, {
@@ -1386,7 +1386,7 @@ export default function ArenaDetailsPage() {
                 </div>
               )}
 
-              {/* Quests Tab Content (Option 3) */}
+              {/* Quests Tab Content (Quest Leaderboard) */}
               {activeTab === 'quests' && (
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
                   {!gamefiEnabled ? (

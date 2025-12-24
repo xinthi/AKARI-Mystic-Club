@@ -219,7 +219,7 @@ export default function ArcProjectHub() {
   const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(new Set());
   const [completingMissionId, setCompletingMissionId] = useState<string | null>(null);
   
-  // Option 2 join flow state
+  // Mindshare Leaderboard join flow state
   const [followVerified, setFollowVerified] = useState<boolean | null>(null);
   const [verifyingFollow, setVerifyingFollow] = useState(false);
   const [joiningLeaderboard, setJoiningLeaderboard] = useState(false);
@@ -1167,7 +1167,7 @@ export default function ArcProjectHub() {
                       </Link>
                     )}
 
-                    {/* Option 2 Join Flow buttons (for normal users, not investor_view, not admins) */}
+                    {/* Mindshare Leaderboard Join Flow buttons (for normal users, not investor_view, not admins) */}
                     {akariUser.user && !permissions?.isInvestorView && !canWrite && unifiedState?.modules?.leaderboard?.enabled && (
                       <div className="flex flex-col gap-2">
                         <div className="flex flex-wrap gap-2">
@@ -1337,7 +1337,7 @@ export default function ArcProjectHub() {
                               {pulseMetrics.totalCompletions === null && (
                                 <span
                                   className="text-xs text-white/40 cursor-help"
-                                  title="Quest Leaderboard (Option 3) is not unlocked for this project"
+                                  title="Quest Leaderboard is not unlocked for this project"
                                 >
                                   (Locked)
                                 </span>
@@ -1397,6 +1397,14 @@ export default function ArcProjectHub() {
                           { rank: null, name: 'Verified Raider' as const },
                         ];
 
+                        // Badge border class mapping (fixed classes for Tailwind JIT)
+                        const badgeBorderClassMap: Record<string, string> = {
+                          'Legend': 'border-purple-500/50 bg-purple-500/10',
+                          'Core Raider': 'border-yellow-400/50 bg-yellow-400/10',
+                          'Signal Contributor': 'border-blue-400/50 bg-blue-400/10',
+                          'Verified Raider': 'border-green-400/50 bg-green-400/10',
+                        };
+
                         return badges.map((badge) => {
                           const badgeInfo = getBadgeDisplayInfo(badge.name);
                           const hasBadge = userRank ? getRankBadgeFromRank(userRank) === badge.name : false;
@@ -1407,7 +1415,7 @@ export default function ArcProjectHub() {
                               key={badge.name}
                               className={`rounded-lg border p-4 ${
                                 hasBadge
-                                  ? `border-${badgeInfo.color.split(' ')[0]}/50 bg-${badgeInfo.color.split(' ')[0]}/10`
+                                  ? badgeBorderClassMap[badge.name] || 'border-white/10 bg-black/20'
                                   : 'border-white/10 bg-black/20'
                               }`}
                             >
@@ -2376,9 +2384,29 @@ export default function ArcProjectHub() {
                           end_at: new Date(campaignForm.end_at).toISOString(),
                           website_url: campaignForm.website_url || undefined,
                           docs_url: campaignForm.docs_url || undefined,
-                          reward_pool_text: prizesEnabled && prizeBudget 
-                            ? `Prize budget: ${prizeBudget}. ${campaignForm.reward_pool_text || ''}`.trim() || undefined
-                            : campaignForm.reward_pool_text || undefined,
+                          reward_pool_text: (() => {
+                            if (!prizesEnabled || !prizeBudget) {
+                              // If prizes disabled, return user's text only (remove any existing prize budget line)
+                              const text = campaignForm.reward_pool_text || '';
+                              return text.replace(/^Prize budget:.*\n?/m, '').trim() || undefined;
+                            }
+                            
+                            // If prizes enabled, add/update prize budget line
+                            const existingText = campaignForm.reward_pool_text || '';
+                            const prizeLine = `Prize budget: ${prizeBudget}`;
+                            
+                            // Check if prize budget line already exists
+                            if (existingText.includes('Prize budget:')) {
+                              // Replace existing prize budget line
+                              const updatedText = existingText.replace(/^Prize budget:.*$/m, prizeLine);
+                              return updatedText.trim() || undefined;
+                            } else {
+                              // Prepend prize budget line with newline separator
+                              return existingText 
+                                ? `${prizeLine}\n${existingText}`.trim()
+                                : prizeLine;
+                            }
+                          })(),
                           winners_count: campaignForm.winners_count,
                           status: campaignForm.status,
                         }),
@@ -2396,7 +2424,22 @@ export default function ArcProjectHub() {
                           end_at: '',
                           website_url: '',
                           docs_url: '',
-                          reward_pool_text: prizesEnabled && prizeBudget ? `Prize budget: ${prizeBudget}. ${campaignForm.reward_pool_text || ''}`.trim() : campaignForm.reward_pool_text || '',
+                          reward_pool_text: (() => {
+                            if (!prizesEnabled || !prizeBudget) {
+                              // Remove prize budget line if exists
+                              const text = campaignForm.reward_pool_text || '';
+                              return text.replace(/^Prize budget:.*\n?/m, '').trim();
+                            }
+                            
+                            const existingText = campaignForm.reward_pool_text || '';
+                            const prizeLine = `Prize budget: ${prizeBudget}`;
+                            
+                            if (existingText.includes('Prize budget:')) {
+                              return existingText.replace(/^Prize budget:.*$/m, prizeLine).trim();
+                            } else {
+                              return existingText ? `${prizeLine}\n${existingText}`.trim() : prizeLine;
+                            }
+                          })(),
                           winners_count: 100,
                           status: 'draft',
                         });

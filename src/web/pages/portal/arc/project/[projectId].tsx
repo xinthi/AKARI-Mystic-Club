@@ -291,7 +291,7 @@ export default function ArcProjectPage() {
     fetchLeaderboard();
   }, [project]);
 
-  // Check follow status for Option 2 (Normal Leaderboard)
+  // Check follow status for Mindshare Leaderboard
   useEffect(() => {
     async function checkFollowStatus() {
       if (!project || !akariUser.isLoggedIn) {
@@ -301,7 +301,7 @@ export default function ArcProjectPage() {
 
       const arcAccessLevel = project.arc_access_level || 'none';
       if (arcAccessLevel !== 'leaderboard') {
-        return; // Only for Option 2
+        return; // Only for Mindshare Leaderboard
       }
 
       try {
@@ -554,7 +554,7 @@ export default function ArcProjectPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Leaderboard</h3>
-                {/* Join CTA - Only for Option 2 (leaderboard) and normal users */}
+                {/* Join CTA - Only for Mindshare Leaderboard and normal users */}
                 {arcAccessLevel === 'leaderboard' && akariUser.isLoggedIn && (
                   <div className="flex items-center gap-2">
                     {followVerified === false && (

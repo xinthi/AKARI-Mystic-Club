@@ -1,11 +1,11 @@
 /**
  * Page: /portal/arc/gamified/[projectId]
  * 
- * Quest Leaderboard (formerly Option 3: Gamified)
+ * Quest Leaderboard
  * Shows leaderboard and quests for active arena
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -106,9 +106,11 @@ export default function GamifiedLeaderboardPage() {
   const [arenaName, setArenaName] = useState<string | null>(null);
   const [arenaId, setArenaId] = useState<string | null>(null);
   const [userEntry, setUserEntry] = useState<LeaderboardEntry | null>(null);
-  const [userCompletions, setUserCompletions] = useState<Array<{ completed_at: string }>>([]);
+  const [userCompletions, setUserCompletions] = useState<Array<{ completed_at: string; mission_id?: string }>>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [leaderboardView, setLeaderboardView] = useState<'score' | 'impact' | 'consistency'>('score');
+  const [completingQuestId, setCompletingQuestId] = useState<string | null>(null);
+  const [completionSuccess, setCompletionSuccess] = useState<string | null>(null);
 
   // Fetch leaderboard, quests, user completions, and recent activity
   useEffect(() => {
@@ -151,38 +153,10 @@ export default function GamifiedLeaderboardPage() {
             setUserEntry(userEntry || null);
           }
 
-          // Fetch user completions for streak calculation
+          // Fetch user completions and recent activity
           if (gamifiedData.arena?.id && akariUser.isLoggedIn) {
-            try {
-              const completionsRes = await fetch(
-                `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(gamifiedData.arena.id)}`,
-                { credentials: 'include' }
-              );
-              if (completionsRes.ok) {
-                const completionsData = await completionsRes.json();
-                if (completionsData.ok) {
-                  setUserCompletions(completionsData.completions || []);
-                }
-              }
-            } catch (err) {
-              console.error('[GamifiedLeaderboardPage] Error fetching completions:', err);
-            }
-
-            // Fetch recent activity
-            try {
-              const activityRes = await fetch(
-                `/api/portal/arc/quests/recent-activity?arenaId=${encodeURIComponent(gamifiedData.arena.id)}`,
-                { credentials: 'include' }
-              );
-              if (activityRes.ok) {
-                const activityData = await activityRes.json();
-                if (activityData.ok) {
-                  setRecentActivity(activityData.activities || []);
-                }
-              }
-            } catch (err) {
-              console.error('[GamifiedLeaderboardPage] Error fetching recent activity:', err);
-            }
+            // Set arena ID first, then refetch will use it
+            setArenaId(gamifiedData.arena.id);
           }
         } else {
           throw new Error(gamifiedData.error || 'Failed to load gamified leaderboard');
@@ -196,7 +170,108 @@ export default function GamifiedLeaderboardPage() {
     }
 
     fetchData();
-  }, [projectId, akariUser.isLoggedIn, akariUser.user?.xUsername]);
+  }, [projectId, akariUser.isLoggedIn, akariUser.user?.xUsername, refetchCompletionsAndActivity]);
+
+  // Fetch completions when arenaId is set
+  useEffect(() => {
+    if (arenaId && akariUser.isLoggedIn) {
+      refetchCompletionsAndActivity(arenaId);
+    }
+  }, [arenaId, akariUser.isLoggedIn, refetchCompletionsAndActivity]);
+
+  // Refetch completions and recent activity
+  const refetchCompletionsAndActivity = useCallback(async (arenaIdToUse?: string) => {
+    const targetArenaId = arenaIdToUse || arenaId;
+    if (!targetArenaId || !akariUser.isLoggedIn) {
+      return;
+    }
+
+    try {
+      // Fetch user completions
+      const completionsRes = await fetch(
+        `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(targetArenaId)}`,
+        { credentials: 'include' }
+      );
+      if (completionsRes.ok) {
+        const completionsData = await completionsRes.json();
+        if (completionsData.ok) {
+          setUserCompletions(completionsData.completions || []);
+        }
+      }
+
+      // Fetch recent activity
+      const activityRes = await fetch(
+        `/api/portal/arc/quests/recent-activity?arenaId=${encodeURIComponent(targetArenaId)}`,
+        { credentials: 'include' }
+      );
+      if (activityRes.ok) {
+        const activityData = await activityRes.json();
+        if (activityData.ok) {
+          setRecentActivity(activityData.activities || []);
+        }
+      }
+
+      // Also refetch leaderboard to update user's points/rank
+      if (projectId && typeof projectId === 'string') {
+        const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
+          credentials: 'include',
+        });
+        const gamifiedData = await gamifiedRes.json();
+        if (gamifiedRes.ok && gamifiedData.ok) {
+          setLeaderboardEntries(gamifiedData.entries || []);
+          if (akariUser.isLoggedIn && akariUser.user?.xUsername) {
+            const userUsername = akariUser.user.xUsername.toLowerCase().replace('@', '');
+            const userEntry = gamifiedData.entries?.find((e: LeaderboardEntry) =>
+              e.twitter_username?.toLowerCase().replace('@', '') === userUsername
+            );
+            setUserEntry(userEntry || null);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[GamifiedLeaderboardPage] Error refetching data:', err);
+    }
+  }, [arenaId, projectId, akariUser.isLoggedIn, akariUser.user?.xUsername]);
+
+  // Handle quest completion
+  const handleCompleteQuest = async (missionId: string) => {
+    if (!arenaId || !akariUser.isLoggedIn || completingQuestId) {
+      return;
+    }
+
+    setCompletingQuestId(missionId);
+    setCompletionSuccess(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/quests/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          arenaId,
+          missionId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        // Show success message
+        setCompletionSuccess(`Quest completed! +${data.pointsAwarded || 0} points`);
+        setTimeout(() => setCompletionSuccess(null), 3000);
+
+        // Immediately refetch completions and activity to update recommended quest
+        await refetchCompletionsAndActivity();
+      } else {
+        alert(data.error || 'Failed to complete quest');
+      }
+    } catch (err: any) {
+      console.error('[GamifiedLeaderboardPage] Error completing quest:', err);
+      alert(err.message || 'Failed to complete quest');
+    } finally {
+      setCompletingQuestId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -246,6 +321,13 @@ export default function GamifiedLeaderboardPage() {
             <p className="text-white/60">Active Arena: {arenaName}</p>
           )}
         </div>
+
+        {/* Completion Success Message */}
+        {completionSuccess && (
+          <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3 mb-4">
+            <p className="text-sm text-green-400">{completionSuccess}</p>
+          </div>
+        )}
 
         {/* User Progression Card */}
         {(() => {
@@ -461,14 +543,35 @@ export default function GamifiedLeaderboardPage() {
             </div>
           ) : (() => {
             // Map quest data: use name as mission_id for categorization
-            const questsWithMissionId = quests.map(q => ({
-              ...q,
-              mission_id: q.name || q.title.toLowerCase().replace(/\s+/g, '-'),
-            }));
+            // Known mission IDs from completion endpoint: intro-thread, meme-drop, signal-boost, deep-dive
+            const knownMissionIdMap: Record<string, string> = {
+              'intro-thread': 'intro-thread',
+              'intro thread': 'intro-thread',
+              'meme-drop': 'meme-drop',
+              'meme drop': 'meme-drop',
+              'signal-boost': 'signal-boost',
+              'signal boost': 'signal-boost',
+              'deep-dive': 'deep-dive',
+              'deep dive': 'deep-dive',
+            };
+            
+            const questsWithMissionId = quests.map(q => {
+              // Try to match quest name/title to known mission IDs
+              const questKey = (q.name || q.title || '').toLowerCase().trim();
+              const matchedMissionId = knownMissionIdMap[questKey] || 
+                                      knownMissionIdMap[q.title?.toLowerCase().trim() || ''] ||
+                                      q.name || 
+                                      null;
+              
+              return {
+                ...q,
+                mission_id: matchedMissionId || 'other',
+              };
+            });
 
             // Get user's completed mission IDs
             const completedMissionIds = new Set(
-              userCompletions.map((c: any) => c.mission_id).filter(Boolean)
+              userCompletions.map((c: any) => c.mission_id || c.missionId).filter(Boolean)
             );
 
             // Find recommended quest: first incomplete quest
@@ -540,35 +643,50 @@ export default function GamifiedLeaderboardPage() {
                           {categoryInfo.name}
                         </h3>
                       </div>
-                      {categoryQuests.map((quest) => (
-                        <div
-                          key={quest.id}
-                          className="rounded-lg border border-white/10 bg-black/20 p-4"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h3 className="text-sm font-semibold text-white mb-1">{quest.title}</h3>
-                              {quest.description && (
-                                <p className="text-xs text-white/60 mb-2">{quest.description}</p>
-                              )}
-                              <div className="flex items-center gap-3">
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
-                                  +{quest.points_reward} points
-                                </span>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  quest.status === 'active'
-                                    ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                    : quest.status === 'completed'
-                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                                    : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                                }`}>
-                                  {quest.status}
-                                </span>
+                      {categoryQuests.map((quest) => {
+                        const questMissionId = quest.name || quest.title.toLowerCase().replace(/\s+/g, '-');
+                        const isCompleted = completedMissionIds.has(questMissionId);
+                        const canComplete = quest.status === 'active' && !isCompleted && hasJoined && !completingQuestId;
+
+                        return (
+                          <div
+                            key={quest.id}
+                            className="rounded-lg border border-white/10 bg-black/20 p-4"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h3 className="text-sm font-semibold text-white mb-1">{quest.title}</h3>
+                                {quest.description && (
+                                  <p className="text-xs text-white/60 mb-2">{quest.description}</p>
+                                )}
+                                <div className="flex items-center gap-3">
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                    +{quest.points_reward} points
+                                  </span>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    isCompleted || quest.status === 'completed'
+                                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                      : quest.status === 'active'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                  }`}>
+                                    {isCompleted ? 'completed' : quest.status}
+                                  </span>
+                                </div>
                               </div>
+                              {canComplete && (
+                                <button
+                                  onClick={() => handleCompleteQuest(questMissionId)}
+                                  disabled={completingQuestId === questMissionId}
+                                  className="ml-4 px-3 py-1.5 text-xs font-medium bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 rounded-lg hover:bg-akari-neon-teal/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {completingQuestId === questMissionId ? 'Completing...' : 'Complete'}
+                                </button>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}
