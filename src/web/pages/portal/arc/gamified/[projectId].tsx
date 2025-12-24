@@ -112,6 +112,60 @@ export default function GamifiedLeaderboardPage() {
   const [completingQuestId, setCompletingQuestId] = useState<string | null>(null);
   const [completionSuccess, setCompletionSuccess] = useState<string | null>(null);
 
+  // Refetch completions and recent activity (defined early for useEffect dependency)
+  const refetchCompletionsAndActivity = useCallback(async (arenaIdToUse?: string) => {
+    const targetArenaId = arenaIdToUse || arenaId;
+    if (!targetArenaId || !akariUser.isLoggedIn) {
+      return;
+    }
+
+    try {
+      // Fetch user completions
+      const completionsRes = await fetch(
+        `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(targetArenaId)}`,
+        { credentials: 'include' }
+      );
+      if (completionsRes.ok) {
+        const completionsData = await completionsRes.json();
+        if (completionsData.ok) {
+          setUserCompletions(completionsData.completions || []);
+        }
+      }
+
+      // Fetch recent activity
+      const activityRes = await fetch(
+        `/api/portal/arc/quests/recent-activity?arenaId=${encodeURIComponent(targetArenaId)}`,
+        { credentials: 'include' }
+      );
+      if (activityRes.ok) {
+        const activityData = await activityRes.json();
+        if (activityData.ok) {
+          setRecentActivity(activityData.activities || []);
+        }
+      }
+
+      // Also refetch leaderboard to update user's points/rank
+      if (projectId && typeof projectId === 'string') {
+        const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
+          credentials: 'include',
+        });
+        const gamifiedData = await gamifiedRes.json();
+        if (gamifiedRes.ok && gamifiedData.ok) {
+          setLeaderboardEntries(gamifiedData.entries || []);
+          if (akariUser.isLoggedIn && akariUser.user?.xUsername) {
+            const userUsername = akariUser.user.xUsername.toLowerCase().replace('@', '');
+            const userEntry = gamifiedData.entries?.find((e: LeaderboardEntry) =>
+              e.twitter_username?.toLowerCase().replace('@', '') === userUsername
+            );
+            setUserEntry(userEntry || null);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[GamifiedLeaderboardPage] Error refetching data:', err);
+    }
+  }, [arenaId, projectId, akariUser.isLoggedIn, akariUser.user?.xUsername]);
+
   // Fetch leaderboard, quests, user completions, and recent activity
   useEffect(() => {
     async function fetchData() {
@@ -178,60 +232,6 @@ export default function GamifiedLeaderboardPage() {
       refetchCompletionsAndActivity(arenaId);
     }
   }, [arenaId, akariUser.isLoggedIn, refetchCompletionsAndActivity]);
-
-  // Refetch completions and recent activity
-  const refetchCompletionsAndActivity = useCallback(async (arenaIdToUse?: string) => {
-    const targetArenaId = arenaIdToUse || arenaId;
-    if (!targetArenaId || !akariUser.isLoggedIn) {
-      return;
-    }
-
-    try {
-      // Fetch user completions
-      const completionsRes = await fetch(
-        `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(targetArenaId)}`,
-        { credentials: 'include' }
-      );
-      if (completionsRes.ok) {
-        const completionsData = await completionsRes.json();
-        if (completionsData.ok) {
-          setUserCompletions(completionsData.completions || []);
-        }
-      }
-
-      // Fetch recent activity
-      const activityRes = await fetch(
-        `/api/portal/arc/quests/recent-activity?arenaId=${encodeURIComponent(targetArenaId)}`,
-        { credentials: 'include' }
-      );
-      if (activityRes.ok) {
-        const activityData = await activityRes.json();
-        if (activityData.ok) {
-          setRecentActivity(activityData.activities || []);
-        }
-      }
-
-      // Also refetch leaderboard to update user's points/rank
-      if (projectId && typeof projectId === 'string') {
-        const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
-          credentials: 'include',
-        });
-        const gamifiedData = await gamifiedRes.json();
-        if (gamifiedRes.ok && gamifiedData.ok) {
-          setLeaderboardEntries(gamifiedData.entries || []);
-          if (akariUser.isLoggedIn && akariUser.user?.xUsername) {
-            const userUsername = akariUser.user.xUsername.toLowerCase().replace('@', '');
-            const userEntry = gamifiedData.entries?.find((e: LeaderboardEntry) =>
-              e.twitter_username?.toLowerCase().replace('@', '') === userUsername
-            );
-            setUserEntry(userEntry || null);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[GamifiedLeaderboardPage] Error refetching data:', err);
-    }
-  }, [arenaId, projectId, akariUser.isLoggedIn, akariUser.user?.xUsername]);
 
   // Handle quest completion
   const handleCompleteQuest = async (missionId: string) => {
@@ -644,9 +644,11 @@ export default function GamifiedLeaderboardPage() {
                         </h3>
                       </div>
                       {categoryQuests.map((quest) => {
-                        const questMissionId = quest.name || quest.title.toLowerCase().replace(/\s+/g, '-');
+                        // Use mission_id from mapped quest (already computed above)
+                        const questMissionId = quest.mission_id;
                         const isCompleted = completedMissionIds.has(questMissionId);
-                        const canComplete = quest.status === 'active' && !isCompleted && hasJoined && !completingQuestId;
+                        // Only allow completion if mission_id is in whitelist (not 'other')
+                        const canComplete = quest.status === 'active' && !isCompleted && hasJoined && !completingQuestId && questMissionId !== 'other';
 
                         return (
                           <div
