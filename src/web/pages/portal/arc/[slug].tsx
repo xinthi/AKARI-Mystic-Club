@@ -119,11 +119,11 @@ interface Mission {
 }
 
 /**
- * Build missions based on user's join status and ARC points
+ * Build missions based on user's join status and completed mission IDs
  */
 function buildMissions(
   hasJoined: boolean,
-  projectArcPoints: number
+  completedMissionIds: Set<string>
 ): Mission[] {
   const baseMissions: Omit<Mission, 'status'>[] = [
     {
@@ -161,8 +161,7 @@ function buildMissions(
 
     if (!hasJoined) {
       status = 'locked';
-    } else if (projectArcPoints >= m.rewardPoints * 2) {
-      // simple placeholder heuristic: if user has at least 2x rewardPoints, treat as completed
+    } else if (completedMissionIds.has(m.id)) {
       status = 'completed';
     } else {
       status = 'available';
@@ -215,6 +214,7 @@ export default function ArcProjectHub() {
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [selectedArenaId, setSelectedArenaId] = useState<string | null>(null);
+  const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(new Set());
   
   // Option 2 join flow state
   const [followVerified, setFollowVerified] = useState<boolean | null>(null);
@@ -562,6 +562,40 @@ export default function ArcProjectHub() {
 
     fetchUserStatus();
   }, [project, projectId, userTwitterUsername]);
+
+  // Fetch quest completions for selected arena
+  useEffect(() => {
+    async function fetchQuestCompletions() {
+      if (!selectedArenaId || !akariUser.isLoggedIn) {
+        setCompletedMissionIds(new Set());
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(selectedArenaId)}`, {
+          credentials: 'include',
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.completions) {
+            const missionIds = new Set<string>(data.completions.map((c: { mission_id: string }) => c.mission_id));
+            setCompletedMissionIds(missionIds);
+          } else {
+            setCompletedMissionIds(new Set());
+          }
+        } else {
+          // If unauthorized or error, just clear completions
+          setCompletedMissionIds(new Set());
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Error fetching quest completions:', err);
+        setCompletedMissionIds(new Set());
+      }
+    }
+
+    fetchQuestCompletions();
+  }, [selectedArenaId, akariUser.isLoggedIn]);
 
   // Check follow verification status (read-only check)
   useEffect(() => {
@@ -1346,7 +1380,7 @@ export default function ArcProjectHub() {
               {activeTab === 'missions' && (() => {
                 const hasJoined = userStatus?.hasJoined || false;
                 const projectArcPoints = userStatus?.arcPoints || 0;
-                const missions = buildMissions(hasJoined, projectArcPoints);
+                const missions = buildMissions(hasJoined, completedMissionIds);
 
                 return (
                   <section className="space-y-6">
