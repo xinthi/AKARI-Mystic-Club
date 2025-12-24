@@ -97,6 +97,20 @@ interface Creator {
   joined_at?: string | null;
 }
 
+interface MindshareLeaderboardEntry {
+  twitter_username: string;
+  avatar_url: string | null;
+  rank: number;
+  base_points: number;
+  multiplier: number;
+  score: number;
+  is_joined: boolean;
+  is_auto_tracked: boolean;
+  follow_verified: boolean;
+  ring: 'core' | 'momentum' | 'discovery' | null;
+  joined_at: string | null;
+}
+
 interface ArenaDetailResponse {
   ok: true;
   arena: Arena;
@@ -206,6 +220,9 @@ export default function ArcProjectHub() {
   const [permissions, setPermissions] = useState<ProjectPermissionCheck | null>(null);
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [allCreators, setAllCreators] = useState<Creator[]>([]);
+  const [mindshareLeaderboardEntries, setMindshareLeaderboardEntries] = useState<MindshareLeaderboardEntry[]>([]);
+  const [mindshareLeaderboardLoading, setMindshareLeaderboardLoading] = useState(false);
+  const [mindshareLeaderboardError, setMindshareLeaderboardError] = useState<string | null>(null);
   
   // Compute permission flags
   const canWrite = !!permissions && (permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator);
@@ -507,6 +524,45 @@ export default function ArcProjectHub() {
 
     fetchCreators();
   }, [selectedArenaId, arenas]);
+
+  // Fetch Mindshare Leaderboard (auto-tracked + joined participants)
+  useEffect(() => {
+    async function fetchMindshareLeaderboard() {
+      if (!projectId || !unifiedState?.modules?.leaderboard?.enabled) {
+        setMindshareLeaderboardEntries([]);
+        return;
+      }
+
+      // Only fetch when leaderboard tab is active
+      if (activeTab !== 'leaderboard') {
+        return;
+      }
+
+      try {
+        setMindshareLeaderboardLoading(true);
+        setMindshareLeaderboardError(null);
+
+        const res = await fetch(`/api/portal/arc/leaderboard/${projectId}`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Failed to load leaderboard');
+        }
+
+        setMindshareLeaderboardEntries(data.entries || []);
+      } catch (err: any) {
+        console.error('[ArcProjectHub] Mindshare leaderboard fetch error:', err);
+        setMindshareLeaderboardError(err.message || 'Failed to load leaderboard');
+        setMindshareLeaderboardEntries([]);
+      } finally {
+        setMindshareLeaderboardLoading(false);
+      }
+    }
+
+    fetchMindshareLeaderboard();
+  }, [projectId, unifiedState?.modules?.leaderboard?.enabled, activeTab]);
 
   // Fetch Campaign Pulse metrics
   useEffect(() => {
@@ -903,7 +959,7 @@ export default function ArcProjectHub() {
     return parts.length > 0 ? parts.join(' ') : 'This project is preparing to launch campaigns.';
   }, [arenas, projectStats]);
 
-  // Filter and sort creators for leaderboard
+  // Filter and sort creators for Quest Leaderboard (arena-based)
   const visibleCreators = useMemo(() => {
     let filtered = [...allCreators];
 
@@ -945,6 +1001,47 @@ export default function ArcProjectHub() {
 
     return filtered;
   }, [allCreators, searchTerm, ringFilter, sortBy]);
+
+  // Filter and sort entries for Mindshare Leaderboard (auto-tracked + joined)
+  const visibleMindshareEntries = useMemo(() => {
+    let filtered = [...mindshareLeaderboardEntries];
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter((entry) => {
+        return entry.twitter_username.toLowerCase().includes(term);
+      });
+    }
+
+    if (ringFilter !== 'all') {
+      filtered = filtered.filter((entry) => {
+        return entry.ring?.toLowerCase() === ringFilter.toLowerCase();
+      });
+    }
+
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'points_desc':
+          return b.score - a.score;
+        case 'points_asc':
+          return a.score - b.score;
+        case 'joined_newest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1;
+          if (!b.joined_at) return -1;
+          return new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime();
+        case 'joined_oldest':
+          if (!a.joined_at && !b.joined_at) return 0;
+          if (!a.joined_at) return 1;
+          if (!b.joined_at) return -1;
+          return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [mindshareLeaderboardEntries, searchTerm, ringFilter, sortBy]);
 
   // Compute storyline events
   const storyEvents = useMemo(() => {
@@ -1518,69 +1615,35 @@ export default function ArcProjectHub() {
               {/* Leaderboard Tab */}
               {activeTab === 'leaderboard' && (
                 <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-                  {arenas.length === 0 ? (
-                    <p className="text-sm text-akari-muted text-center py-8">
-                      No arenas available for this project.
-                    </p>
-                  ) : (
+                  {/* Mindshare Leaderboard (auto-tracked + joined) */}
+                  {unifiedState?.modules?.leaderboard?.enabled ? (
                     <>
-                      {/* Arena selector */}
-                      {arenas.length > 1 && (
-                        <div className="mb-6">
-                          <label htmlFor="arena-select" className="text-xs text-white/60 mb-2 block">
-            Select Arena:
-                          </label>
-                          <select
-                            id="arena-select"
-                            value={selectedArenaId || ''}
-                            onChange={(e) => setSelectedArenaId(e.target.value)}
-                            className="w-full md:w-auto px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
-                          >
-                            {arenas.map((arena) => (
-                              <option key={arena.id} value={arena.id}>
-                                {arena.name} ({arena.status})
-                              </option>
-                            ))}
-                          </select>
+                      {/* Auto-tracking Banner */}
+                      {mindshareLeaderboardEntries.length > 0 && (
+                        <div className="rounded-lg border border-akari-neon-teal/30 bg-akari-neon-teal/10 p-4 mb-6">
+                          <p className="text-sm text-white/90">
+                            We auto-track public CT signal. Join and follow to boost your points.
+                          </p>
                         </div>
                       )}
 
-                      {/* View Toggle Tabs */}
-                      <div className="mb-6 flex items-center justify-end">
-                        <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
-                          <button
-                            onClick={() => setLeaderboardView('score')}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                              leaderboardView === 'score'
-                                ? 'bg-white/10 text-white'
-                                : 'text-white/60 hover:text-white'
-                            }`}
-                          >
-                            Score
-                          </button>
-                          <button
-                            onClick={() => {}}
-                            disabled
-                            className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
-                            title="Coming soon"
-                          >
-                            Impact
-                          </button>
-                          <button
-                            onClick={() => {}}
-                            disabled
-                            className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
-                            title="Coming soon"
-                          >
-                            Consistency
-                          </button>
+                      {mindshareLeaderboardLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                          <span className="ml-3 text-white/60">Loading leaderboard...</span>
                         </div>
-                      </div>
-
-                      {allCreators.length === 0 ? (
-                        <p className="text-sm text-akari-muted text-center py-8">
-                          No creators have joined this arena yet.
-                        </p>
+                      ) : mindshareLeaderboardError ? (
+                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+                          <p className="text-red-400 text-sm">{mindshareLeaderboardError}</p>
+                        </div>
+                      ) : visibleMindshareEntries.length === 0 ? (
+                        <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
+                          <div className="text-4xl mb-4">📊</div>
+                          <h3 className="text-lg font-semibold text-white mb-2">No creators yet</h3>
+                          <p className="text-white/60 text-sm">
+                            Creators who generate signal will appear here automatically.
+                          </p>
+                        </div>
                       ) : (
                         <>
                           {/* Controls Bar */}
@@ -1617,73 +1680,296 @@ export default function ArcProjectHub() {
                                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                                 className="px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
                               >
-                                <option value="points_desc">Top points</option>
-                                <option value="points_asc">Lowest points</option>
+                                <option value="points_desc">Top score</option>
+                                <option value="points_asc">Lowest score</option>
                                 <option value="joined_newest">Newest joined</option>
                                 <option value="joined_oldest">Oldest joined</option>
                               </select>
                             </div>
                           </div>
 
-                          {/* Creators List */}
-                          {visibleCreators.length === 0 ? (
+                          {/* Mindshare Leaderboard Table */}
+                          <div className="rounded-2xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl overflow-hidden shadow-[0_0_30px_rgba(0,246,162,0.1)]">
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead>
+                                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Base Points</th>
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Multiplier</th>
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
+                                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {visibleMindshareEntries.map((entry) => {
+                                    const userIsThisEntry = akariUser.isLoggedIn && 
+                                      akariUser.user?.xUsername?.toLowerCase().replace('@', '') === entry.twitter_username.toLowerCase();
+                                    
+                                    return (
+                                      <tr
+                                        key={entry.twitter_username}
+                                        className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
+                                      >
+                                        <td className="py-4 px-5 text-akari-text font-semibold">
+                                          {entry.rank <= 3 ? (
+                                            <span className="text-lg">{['🥇', '🥈', '🥉'][entry.rank - 1]}</span>
+                                          ) : (
+                                            <span className="text-white/60">#{entry.rank}</span>
+                                          )}
+                                        </td>
+                                        <td className="py-4 px-5">
+                                          <div className="flex items-center gap-3">
+                                            {entry.avatar_url && (
+                                              <img
+                                                src={entry.avatar_url}
+                                                alt={entry.twitter_username}
+                                                className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
+                                                onError={(e) => {
+                                                  (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                              />
+                                            )}
+                                            <div>
+                                              <div className="text-sm font-semibold text-white">
+                                                @{entry.twitter_username}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="py-4 px-5 text-akari-text font-semibold">
+                                          {entry.base_points.toLocaleString()}
+                                        </td>
+                                        <td className="py-4 px-5">
+                                          {entry.multiplier > 1.0 ? (
+                                            <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                              {entry.multiplier}x
+                                            </span>
+                                          ) : (
+                                            <span className="text-akari-muted/60 text-xs">1.0x</span>
+                                          )}
+                                        </td>
+                                        <td className="py-4 px-5 text-akari-text font-semibold">
+                                          {entry.score.toLocaleString()}
+                                        </td>
+                                        <td className="py-4 px-5">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            {entry.is_auto_tracked && !entry.is_joined && (
+                                              <>
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
+                                                  Auto-tracked
+                                                </span>
+                                                {akariUser.isLoggedIn && userIsThisEntry && (
+                                                  <button
+                                                    onClick={async () => {
+                                                      if (!followVerified) {
+                                                        await handleVerifyFollow();
+                                                      }
+                                                      if (followVerified) {
+                                                        await handleJoinLeaderboard();
+                                                      }
+                                                    }}
+                                                    className="px-2 py-1 rounded text-xs font-medium bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors"
+                                                  >
+                                                    Join to boost points
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                            {entry.is_joined && entry.follow_verified && entry.multiplier > 1.0 && (
+                                              <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                                Boost active
+                                              </span>
+                                            )}
+                                            {entry.ring && (
+                                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                                {entry.ring}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    /* Quest Leaderboard (arena-based, legacy) */
+                    <>
+                      {arenas.length === 0 ? (
+                        <p className="text-sm text-akari-muted text-center py-8">
+                          No arenas available for this project.
+                        </p>
+                      ) : (
+                        <>
+                          {/* Arena selector */}
+                          {arenas.length > 1 && (
+                            <div className="mb-6">
+                              <label htmlFor="arena-select" className="text-xs text-white/60 mb-2 block">
+            Select Arena:
+                              </label>
+                              <select
+                                id="arena-select"
+                                value={selectedArenaId || ''}
+                                onChange={(e) => setSelectedArenaId(e.target.value)}
+                                className="w-full md:w-auto px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
+                              >
+                                {arenas.map((arena) => (
+                                  <option key={arena.id} value={arena.id}>
+                                    {arena.name} ({arena.status})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* View Toggle Tabs */}
+                          <div className="mb-6 flex items-center justify-end">
+                            <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                              <button
+                                onClick={() => setLeaderboardView('score')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                  leaderboardView === 'score'
+                                    ? 'bg-white/10 text-white'
+                                    : 'text-white/60 hover:text-white'
+                                }`}
+                              >
+                                Score
+                              </button>
+                              <button
+                                onClick={() => {}}
+                                disabled
+                                className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                                title="Coming soon"
+                              >
+                                Impact
+                              </button>
+                              <button
+                                onClick={() => {}}
+                                disabled
+                                className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                                title="Coming soon"
+                              >
+                                Consistency
+                              </button>
+                            </div>
+                          </div>
+
+                          {allCreators.length === 0 ? (
                             <p className="text-sm text-akari-muted text-center py-8">
-                              No creators match your filters.
+                              No creators have joined this arena yet.
                             </p>
                           ) : (
-                            <div className="space-y-3">
-                              {visibleCreators.map((creator, index) => {
-                                const rank = index + 1;
-                                return (
-                                  <Link
-                                    key={creator.id || `creator-${index}`}
-                                    href={`/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`}
-                                    className="group flex items-center gap-3 p-3 rounded-lg bg-black/60 border border-white/10 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all"
+                            <>
+                              {/* Controls Bar */}
+                              <div className="mb-6 space-y-4">
+                                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                  <input
+                                    type="text"
+                                    placeholder="Search creators…"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="flex-1 min-w-0 px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-akari-neon-teal/50"
+                                  />
+
+                                  <div className="flex gap-2 flex-wrap">
+                                    {(['all', 'core', 'momentum', 'discovery'] as const).map((ring) => (
+                                      <button
+                                        key={ring}
+                                        onClick={() => setRingFilter(ring)}
+                                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                          ringFilter === ring
+                                            ? ring === 'all'
+                                              ? 'bg-akari-neon-teal/20 border-akari-neon-teal/50 text-akari-neon-teal'
+                                              : getRingColor(ring)
+                                            : 'bg-black/60 border-white/20 text-white/60 hover:border-white/40'
+                                        }`}
+                                      >
+                                        {ring.charAt(0).toUpperCase() + ring.slice(1)}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                                    className="px-3 py-2 text-sm bg-black/60 border border-white/20 rounded-lg text-white focus:outline-none focus:border-akari-neon-teal/50"
                                   >
-                                    <div className="text-lg font-bold text-white/60 w-8 text-center">
-                                      #{rank}
-                                    </div>
-                                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-semibold text-white">
-                                      {creator.twitter_username?.charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-medium text-white truncate">
-                                        @{creator.twitter_username || 'Unknown'}
-                                      </div>
-                                      {creator.style && (
-                                        <div className="text-xs text-white/60 truncate">{creator.style}</div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {leaderboardView === 'score' && (
-                                        <div className="text-right">
-                                          <div className="text-sm font-bold text-white">
-                                            {creator.arc_points?.toLocaleString() || 0}
-                                          </div>
-                                          <div className="text-xs text-white/60">Score</div>
+                                    <option value="points_desc">Top points</option>
+                                    <option value="points_asc">Lowest points</option>
+                                    <option value="joined_newest">Newest joined</option>
+                                    <option value="joined_oldest">Oldest joined</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Creators List */}
+                              {visibleCreators.length === 0 ? (
+                                <p className="text-sm text-akari-muted text-center py-8">
+                                  No creators match your filters.
+                                </p>
+                              ) : (
+                                <div className="space-y-3">
+                                  {visibleCreators.map((creator, index) => {
+                                    const rank = index + 1;
+                                    return (
+                                      <Link
+                                        key={creator.id || `creator-${index}`}
+                                        href={`/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`}
+                                        className="group flex items-center gap-3 p-3 rounded-lg bg-black/60 border border-white/10 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all"
+                                      >
+                                        <div className="text-lg font-bold text-white/60 w-8 text-center">
+                                          #{rank}
                                         </div>
-                                      )}
-                                      {leaderboardView === 'impact' && (
-                                        <div className="text-right">
-                                          <div className="text-sm font-bold text-white/40">
-                                            —
-                                          </div>
-                                          <div className="text-xs text-white/40">Coming soon</div>
+                                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-semibold text-white">
+                                          {creator.twitter_username?.charAt(0).toUpperCase() || '?'}
                                         </div>
-                                      )}
-                                      {leaderboardView === 'consistency' && (
-                                        <div className="text-right">
-                                          <div className="text-sm font-bold text-white/40">
-                                            —
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm font-medium text-white truncate">
+                                            @{creator.twitter_username || 'Unknown'}
                                           </div>
-                                          <div className="text-xs text-white/40">Coming soon</div>
+                                          {creator.style && (
+                                            <div className="text-xs text-white/60 truncate">{creator.style}</div>
+                                          )}
                                         </div>
-                                      )}
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
+                                        <div className="flex items-center gap-2">
+                                          {leaderboardView === 'score' && (
+                                            <div className="text-right">
+                                              <div className="text-sm font-bold text-white">
+                                                {creator.arc_points?.toLocaleString() || 0}
+                                              </div>
+                                              <div className="text-xs text-white/60">Score</div>
+                                            </div>
+                                          )}
+                                          {leaderboardView === 'impact' && (
+                                            <div className="text-right">
+                                              <div className="text-sm font-bold text-white/40">
+                                                —
+                                              </div>
+                                              <div className="text-xs text-white/40">Coming soon</div>
+                                            </div>
+                                          )}
+                                          {leaderboardView === 'consistency' && (
+                                            <div className="text-right">
+                                              <div className="text-sm font-bold text-white/40">
+                                                —
+                                              </div>
+                                              <div className="text-xs text-white/40">Coming soon</div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </>
                           )}
                         </>
                       )}

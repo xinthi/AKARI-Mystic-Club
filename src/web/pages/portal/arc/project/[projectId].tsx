@@ -79,13 +79,17 @@ interface LeaderboardRequest {
 }
 
 interface LeaderboardEntry {
-  creator_profile_id: string;
   twitter_username: string;
   avatar_url: string | null;
-  total_arc_points: number;
-  xp: number;
-  level: number;
-  class: string | null;
+  rank: number;
+  base_points: number;
+  multiplier: number;
+  score: number;
+  is_joined: boolean;
+  is_auto_tracked: boolean;
+  follow_verified: boolean;
+  ring: 'core' | 'momentum' | 'discovery' | null;
+  joined_at: string | null;
 }
 
 export default function ArcProjectPage() {
@@ -265,21 +269,8 @@ export default function ArcProjectPage() {
           throw new Error(data.error || 'Failed to load leaderboard');
         }
 
-        // Map to expected format
-        const mappedEntries = (data.entries || []).map((entry: any) => ({
-          creator_profile_id: entry.creator_profile_id,
-          twitter_username: entry.twitter_username,
-          avatar_url: entry.avatar_url,
-          total_arc_points: entry.effective_points, // Use effective_points
-          xp: 0, // Not available in arena-based leaderboard
-          level: 0, // Not available in arena-based leaderboard
-          class: null, // Not available in arena-based leaderboard
-          rank: entry.rank,
-          base_points: entry.base_points,
-          effective_points: entry.effective_points,
-        }));
-
-        setLeaderboardEntries(mappedEntries);
+        // Use entries directly (already in correct format)
+        setLeaderboardEntries(data.entries || []);
       } catch (err: any) {
         console.error('[ArcProjectPage] Leaderboard fetch error:', err);
         setLeaderboardError(err.message || 'Failed to load leaderboard');
@@ -597,6 +588,15 @@ export default function ArcProjectPage() {
               </div>
 
               {/* Leaderboard Table */}
+              {/* Auto-tracking Banner */}
+              {filteredLeaderboard.length > 0 && (
+                <div className="rounded-lg border border-akari-neon-teal/30 bg-akari-neon-teal/10 p-4 mb-4">
+                  <p className="text-sm text-white/90">
+                    We auto-track public CT signal. Join and follow to boost your points.
+                  </p>
+                </div>
+              )}
+
               {leaderboardLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
@@ -611,7 +611,7 @@ export default function ArcProjectPage() {
                   <div className="text-4xl mb-4">📊</div>
                   <h3 className="text-lg font-semibold text-white mb-2">No creators yet</h3>
                   <p className="text-white/60 text-sm">
-                    Invite creators or open a public program.
+                    Creators who generate signal will appear here automatically.
                   </p>
                 </div>
               ) : (
@@ -622,78 +622,102 @@ export default function ArcProjectPage() {
                         <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Points</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">XP</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Level</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Class</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Base Points</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Multiplier</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredLeaderboard.map((entry, index) => (
-                          <tr
-                            key={entry.creator_profile_id}
-                            className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
-                          >
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              {(entry as any).rank ? (
-                                (entry as any).rank <= 3 ? (
-                                  <span className="text-lg">{['🥇', '🥈', '🥉'][(entry as any).rank - 1]}</span>
+                        {filteredLeaderboard.map((entry) => {
+                          const userIsThisEntry = akariUser.isLoggedIn && 
+                            akariUser.user?.xUsername?.toLowerCase().replace('@', '') === entry.twitter_username.toLowerCase();
+                          
+                          return (
+                            <tr
+                              key={entry.twitter_username}
+                              className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
+                            >
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.rank <= 3 ? (
+                                  <span className="text-lg">{['🥇', '🥈', '🥉'][entry.rank - 1]}</span>
                                 ) : (
-                                  <span className="text-white/60">#{(entry as any).rank}</span>
-                                )
-                              ) : (
-                                index < 3 ? (
-                                  <span className="text-lg">{['🥇', '🥈', '🥉'][index]}</span>
-                                ) : (
-                                  <span className="text-white/60">#{index + 1}</span>
-                                )
-                              )}
-                            </td>
-                            <td className="py-4 px-5">
-                              <div className="flex items-center gap-3">
-                                {entry.avatar_url && (
-                                  <img
-                                    src={entry.avatar_url}
-                                    alt={entry.twitter_username}
-                                    className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
+                                  <span className="text-white/60">#{entry.rank}</span>
                                 )}
-                                <div>
-                                  <div className="text-sm font-semibold text-white">
-                                    @{entry.twitter_username}
+                              </td>
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-3">
+                                  {entry.avatar_url && (
+                                    <img
+                                      src={entry.avatar_url}
+                                      alt={entry.twitter_username}
+                                      className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  )}
+                                  <div>
+                                    <div className="text-sm font-semibold text-white">
+                                      @{entry.twitter_username}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              {entry.total_arc_points.toLocaleString()}
-                            </td>
-                            <td className="py-4 px-5 text-akari-muted">
-                              {entry.xp > 0 ? entry.xp.toLocaleString() : '-'}
-                            </td>
-                            <td className="py-4 px-5">
-                              {entry.level > 0 ? (
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
-                                  L{entry.level}
-                                </span>
-                              ) : (
-                                <span className="text-akari-muted/60 text-xs">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 px-5">
-                              {entry.class ? (
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
-                                  {entry.class}
-                                </span>
-                              ) : (
-                                <span className="text-akari-muted/60 text-xs">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.base_points.toLocaleString()}
+                              </td>
+                              <td className="py-4 px-5">
+                                {entry.multiplier > 1.0 ? (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                    {entry.multiplier}x
+                                  </span>
+                                ) : (
+                                  <span className="text-akari-muted/60 text-xs">1.0x</span>
+                                )}
+                              </td>
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.score.toLocaleString()}
+                              </td>
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {entry.is_auto_tracked && !entry.is_joined && (
+                                    <>
+                                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
+                                        Auto-tracked
+                                      </span>
+                                      {akariUser.isLoggedIn && userIsThisEntry && (
+                                        <button
+                                          onClick={async () => {
+                                            if (!followVerified) {
+                                              await handleVerifyFollow();
+                                            }
+                                            if (followVerified) {
+                                              await handleJoinLeaderboard();
+                                            }
+                                          }}
+                                          className="px-2 py-1 rounded text-xs font-medium bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors"
+                                        >
+                                          Join to boost points
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                  {entry.is_joined && entry.follow_verified && entry.multiplier > 1.0 && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                      Boost active
+                                    </span>
+                                  )}
+                                  {entry.ring && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                      {entry.ring}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
