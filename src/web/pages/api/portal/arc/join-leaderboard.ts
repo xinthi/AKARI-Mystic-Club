@@ -159,17 +159,42 @@ export default async function handler(
 
     // Check follow verification
     if (!DEV_MODE) {
-      const { data: verification } = await supabase
+      // Check by profile_id first, then fallback to twitter_username
+      // (profile_id might be null or different if profile was created separately)
+      const { data: verificationByProfile } = await supabase
         .from('arc_project_follows')
-        .select('verified_at')
+        .select('verified_at, profile_id')
         .eq('project_id', pid)
         .eq('profile_id', userProfile.profileId)
         .maybeSingle();
 
+      let verification = verificationByProfile;
+
+      // If not found by profile_id, try by twitter_username
+      if (!verification) {
+        const { data: verificationByUsername } = await supabase
+          .from('arc_project_follows')
+          .select('verified_at, profile_id')
+          .eq('project_id', pid)
+          .eq('twitter_username', userProfile.twitterUsername)
+          .maybeSingle();
+
+        verification = verificationByUsername;
+
+        // If found by username but profile_id is different/null, update it
+        if (verification && (!verification.profile_id || verification.profile_id !== userProfile.profileId)) {
+          await supabase
+            .from('arc_project_follows')
+            .update({ profile_id: userProfile.profileId })
+            .eq('project_id', pid)
+            .eq('twitter_username', userProfile.twitterUsername);
+        }
+      }
+
       if (!verification) {
         return res.status(200).json({
           ok: false,
-          error: 'Follow verification required',
+          error: 'Follow verification required. Please verify your follow first.',
           reason: 'not_verified',
         });
       }
