@@ -149,28 +149,46 @@ async function getPortalUserFromSession(
     return null;
   }
 
-  // Get user's Twitter username to find profile
-  const { data: xIdentity } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .maybeSingle();
+  // IMPORTANT: Always return userId even if profile lookup fails
+  // Profile is optional, but userId is required for authentication
+  const userId = session.user_id;
 
+  // Get user's Twitter username to find profile (optional - don't fail if missing)
   let profileId: string | null = null;
-  if (xIdentity?.username) {
-    const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', cleanUsername)
+  try {
+    const { data: xIdentity, error: xIdentityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
       .maybeSingle();
-    
-    profileId = profile?.id || null;
+
+    if (xIdentityError) {
+      console.warn('[requirePortalUser] X identity lookup error:', xIdentityError.message);
+      // Continue without profile - userId is sufficient
+    } else if (xIdentity?.username) {
+      const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanUsername)
+        .maybeSingle();
+      
+      if (profileError) {
+        console.warn('[requirePortalUser] Profile lookup error:', profileError.message);
+        // Continue without profile - userId is sufficient
+      } else {
+        profileId = profile?.id || null;
+      }
+    }
+  } catch (error) {
+    console.warn('[requirePortalUser] Error during profile lookup:', error);
+    // Continue without profile - userId is sufficient
   }
 
+  // Always return user with userId (profileId can be null)
   return {
-    userId: session.user_id,
+    userId,
     profileId,
   };
 }
@@ -313,20 +331,42 @@ export async function requirePortalUser(
 
   // If JWT validation failed or token is not JWT, try session table lookup
   if (!user) {
-    const sessionUser = await getPortalUserFromSession(supabase, sessionToken);
-    if (sessionUser) {
-      user = sessionUser;
+    // First check if session exists in DB (for debug header)
+    const { data: sessionCheck, error: sessionCheckError } = await supabase
+      .from('akari_user_sessions')
+      .select('user_id, expires_at')
+      .eq('session_token', sessionToken)
+      .maybeSingle();
+    
+    if (sessionCheck) {
       sessionLookup = 'hit';
-    } else {
-      // Check if session exists but is expired
-      const { data: sessionCheck } = await supabase
-        .from('akari_user_sessions')
-        .select('user_id, expires_at')
-        .eq('session_token', sessionToken)
-        .maybeSingle();
+      sessionExpired = new Date(sessionCheck.expires_at) < new Date();
       
-      if (sessionCheck) {
-        sessionExpired = new Date(sessionCheck.expires_at) < new Date();
+      // Only try to get user if session is not expired
+      if (!sessionExpired) {
+        const sessionUser = await getPortalUserFromSession(supabase, sessionToken);
+        if (sessionUser) {
+          user = sessionUser;
+        } else {
+          // Session exists but getPortalUserFromSession returned null - log why
+          if (isProd) {
+            console.log('[requirePortalUser] Session found but getPortalUserFromSession returned null', {
+              hostname,
+              path,
+              userId: sessionCheck.user_id,
+              expiresAt: sessionCheck.expires_at,
+            });
+          }
+        }
+      }
+    } else {
+      // Session not found in DB
+      if (isProd && sessionCheckError) {
+        console.log('[requirePortalUser] Session lookup error', {
+          hostname,
+          path,
+          error: sessionCheckError.message,
+        });
       }
     }
   }
