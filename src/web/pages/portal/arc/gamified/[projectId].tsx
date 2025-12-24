@@ -33,6 +33,8 @@ interface Quest {
   description: string | null;
   points_reward: number;
   status: 'active' | 'completed' | 'locked';
+  name?: string; // Quest name (may correspond to mission_id)
+  narrative_focus?: string | null;
 }
 
 interface RecentActivityItem {
@@ -106,6 +108,7 @@ export default function GamifiedLeaderboardPage() {
   const [userEntry, setUserEntry] = useState<LeaderboardEntry | null>(null);
   const [userCompletions, setUserCompletions] = useState<Array<{ completed_at: string }>>([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const [leaderboardView, setLeaderboardView] = useState<'score' | 'impact' | 'consistency'>('score');
 
   // Fetch leaderboard, quests, user completions, and recent activity
   useEffect(() => {
@@ -129,7 +132,15 @@ export default function GamifiedLeaderboardPage() {
           setLeaderboardEntries(gamifiedData.entries || []);
           setArenaName(gamifiedData.arena?.name || null);
           setArenaId(gamifiedData.arena?.id || null);
-          setQuests(gamifiedData.quests || []);
+          // Map quests: API returns 'name' but component expects 'title'
+          const mappedQuests = (gamifiedData.quests || []).map((q: any) => ({
+            ...q,
+            title: q.name || q.title || 'Untitled Quest',
+            description: q.narrative_focus || q.description || null,
+            points_reward: q.reward_desc ? parseInt(q.reward_desc) || 0 : 0,
+            status: q.status === 'active' ? 'active' : q.status === 'completed' ? 'completed' : 'locked',
+          }));
+          setQuests(mappedQuests);
 
           // Find user's entry if logged in
           if (akariUser.isLoggedIn && akariUser.user?.xUsername) {
@@ -330,7 +341,39 @@ export default function GamifiedLeaderboardPage() {
 
         {/* Leaderboard Section */}
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Leaderboard</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-white">Leaderboard</h2>
+            
+            {/* View Toggle Tabs */}
+            <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+              <button
+                onClick={() => setLeaderboardView('score')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  leaderboardView === 'score'
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                Score
+              </button>
+              <button
+                onClick={() => {}}
+                disabled
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                title="Coming soon"
+              >
+                Impact
+              </button>
+              <button
+                onClick={() => {}}
+                disabled
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                title="Coming soon"
+              >
+                Consistency
+              </button>
+            </div>
+          </div>
 
           {leaderboardEntries.length === 0 ? (
             <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
@@ -348,8 +391,8 @@ export default function GamifiedLeaderboardPage() {
                     <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
                       <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Points</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Ring</th>
+                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
+                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Level</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -386,19 +429,14 @@ export default function GamifiedLeaderboardPage() {
                           {entry.effective_points.toLocaleString()}
                         </td>
                         <td className="py-4 px-5">
-                          {entry.ring ? (
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              entry.ring === 'core' 
-                                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                                : entry.ring === 'momentum'
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                                : 'bg-green-500/20 text-green-400 border border-green-500/50'
-                            }`}>
-                              {entry.ring}
-                            </span>
-                          ) : (
-                            <span className="text-akari-muted/60 text-xs">-</span>
-                          )}
+                          {(() => {
+                            const levelData = calculateLevelFromScore(entry.effective_points);
+                            return (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                L{levelData.level}
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -421,39 +459,122 @@ export default function GamifiedLeaderboardPage() {
                 Quests will appear here when they are created for this arena.
               </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {quests.map((quest) => (
-                <div
-                  key={quest.id}
-                  className="rounded-lg border border-white/10 bg-black/20 p-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-semibold text-white mb-1">{quest.title}</h3>
-                      {quest.description && (
-                        <p className="text-xs text-white/60 mb-2">{quest.description}</p>
-                      )}
-                      <div className="flex items-center gap-3">
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
-                          +{quest.points_reward} points
-                        </span>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          quest.status === 'active'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                            : quest.status === 'completed'
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                            : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                        }`}>
-                          {quest.status}
-                        </span>
+          ) : (() => {
+            // Map quest data: use name as mission_id for categorization
+            const questsWithMissionId = quests.map(q => ({
+              ...q,
+              mission_id: q.name || q.title.toLowerCase().replace(/\s+/g, '-'),
+            }));
+
+            // Get user's completed mission IDs
+            const completedMissionIds = new Set(
+              userCompletions.map((c: any) => c.mission_id).filter(Boolean)
+            );
+
+            // Find recommended quest: first incomplete quest
+            const recommendedQuest = questsWithMissionId.find(
+              q => q.status === 'active' && !completedMissionIds.has(q.mission_id)
+            );
+
+            // Group quests by category
+            const groupedQuests = new Map<string, typeof questsWithMissionId>();
+            questsWithMissionId.forEach(quest => {
+              const category = getQuestCategory(quest.mission_id);
+              const categoryKey = category;
+              if (!groupedQuests.has(categoryKey)) {
+                groupedQuests.set(categoryKey, []);
+              }
+              groupedQuests.get(categoryKey)!.push(quest);
+            });
+
+            // Check if user has joined leaderboard
+            const hasJoined = !!userEntry;
+
+            return (
+              <div className="space-y-6">
+                {/* Recommended Quest */}
+                {recommendedQuest && hasJoined && (
+                  <div className="rounded-lg border-2 border-akari-neon-teal/50 bg-gradient-to-br from-akari-neon-teal/10 to-black/40 p-4 mb-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 text-2xl">⭐</div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-akari-neon-teal mb-1">
+                          Recommended next quest
+                        </h3>
+                        <h4 className="text-base font-semibold text-white mb-1">
+                          {recommendedQuest.title}
+                        </h4>
+                        {recommendedQuest.description && (
+                          <p className="text-xs text-white/60 mb-2">{recommendedQuest.description}</p>
+                        )}
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                            +{recommendedQuest.points_reward} points
+                          </span>
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                            active
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+
+                {/* Show CTA if user not joined */}
+                {!hasJoined && akariUser.isLoggedIn && (
+                  <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 mb-6">
+                    <p className="text-sm text-yellow-400">
+                      Join the leaderboard to see your quest progression and recommended quests.
+                    </p>
+                  </div>
+                )}
+
+                {/* Grouped Quests */}
+                {Array.from(groupedQuests.entries()).map(([category, categoryQuests]) => {
+                  const categoryInfo = getQuestCategoryInfo(category as 'Quick' | 'Signal' | 'Weekly Boss' | 'Other');
+                  return (
+                    <div key={category} className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{categoryInfo.icon}</span>
+                        <h3 className={`text-sm font-semibold ${categoryInfo.color.split(' ')[2]}`}>
+                          {categoryInfo.name}
+                        </h3>
+                      </div>
+                      {categoryQuests.map((quest) => (
+                        <div
+                          key={quest.id}
+                          className="rounded-lg border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h3 className="text-sm font-semibold text-white mb-1">{quest.title}</h3>
+                              {quest.description && (
+                                <p className="text-xs text-white/60 mb-2">{quest.description}</p>
+                              )}
+                              <div className="flex items-center gap-3">
+                                <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                  +{quest.points_reward} points
+                                </span>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  quest.status === 'active'
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                    : quest.status === 'completed'
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                    : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                }`}>
+                                  {quest.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Recent Activity Panel */}

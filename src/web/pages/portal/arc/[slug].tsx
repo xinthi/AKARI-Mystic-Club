@@ -16,6 +16,7 @@ import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import { isSuperAdmin } from '@/lib/permissions';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
 import { getAllTemplates, getTemplate, type CampaignTemplate } from '@/lib/arc-campaign-templates';
+import { getRankBadgeFromRank, getBadgeDisplayInfo } from '@/lib/arc-ui-helpers';
 
 // =============================================================================
 // TYPES
@@ -227,6 +228,7 @@ export default function ArcProjectHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
   const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
+  const [leaderboardView, setLeaderboardView] = useState<'score' | 'impact' | 'consistency'>('score');
 
   // CRM state
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -253,10 +255,20 @@ export default function ArcProjectHub() {
     winners_count: 100,
     status: 'draft' as 'draft' | 'live' | 'paused' | 'ended',
   });
+  const [prizesEnabled, setPrizesEnabled] = useState(false);
+  const [prizeBudget, setPrizeBudget] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [templateQuests, setTemplateQuests] = useState<Array<{ mission_id: string; title: string; points: number }>>([]);
   const [inviteForm, setInviteForm] = useState({ twitter_username: '' });
   const [utmForm, setUtmForm] = useState({ target_url: '' });
+
+  // Campaign Pulse state
+  const [pulseMetrics, setPulseMetrics] = useState<{
+    creatorsParticipating: number;
+    totalCompletions: number | null;
+    topCreatorScore: number | null;
+  } | null>(null);
+  const [pulseLoading, setPulseLoading] = useState(false);
 
   // Fetch project by slug and unified state
   useEffect(() => {
@@ -495,6 +507,34 @@ export default function ArcProjectHub() {
 
     fetchCreators();
   }, [selectedArenaId, arenas]);
+
+  // Fetch Campaign Pulse metrics
+  useEffect(() => {
+    async function fetchPulse() {
+      if (!projectId || !canWrite) {
+        // Only show pulse for founders/admins
+        return;
+      }
+
+      try {
+        setPulseLoading(true);
+        const res = await fetch(`/api/portal/arc/pulse?projectId=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (res.ok && data.ok && data.metrics) {
+          setPulseMetrics(data.metrics);
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Error fetching pulse:', err);
+      } finally {
+        setPulseLoading(false);
+      }
+    }
+
+    fetchPulse();
+  }, [projectId, canWrite]);
 
   // Track if campaigns have been loaded to avoid refetching unnecessarily
   const [campaignsLoaded, setCampaignsLoaded] = useState(false);
@@ -1228,6 +1268,32 @@ export default function ArcProjectHub() {
               {/* Overview Tab */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {/* Hero Section - Founder/Creator Positioning */}
+                  <div className="rounded-xl border border-white/10 bg-gradient-to-br from-black/60 to-black/40 p-6">
+                    {canWrite ? (
+                      <>
+                        <h2 className="text-2xl font-bold text-white mb-3">
+                          Turn campaigns into measurable Crypto Twitter signal
+                        </h2>
+                        <p className="text-sm text-akari-muted mb-2">
+                          Launch quests, rank creators, and track mindshare output in one place.
+                        </p>
+                        <p className="text-xs text-akari-muted italic">
+                          ARC creates signal, not just tracks it.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-2xl font-bold text-white mb-3">
+                          Earn status, unlock perks, and climb the ranks
+                        </h2>
+                        <p className="text-sm text-akari-muted">
+                          Transparent scoring. Every point has a reason.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
                   {/* Narrative summary */}
                   <div className="rounded-xl border border-white/10 bg-black/40 p-6">
                     <h2 className="text-lg font-semibold text-white mb-3">Campaign Overview</h2>
@@ -1247,6 +1313,155 @@ export default function ArcProjectHub() {
                     <div className="rounded-xl border border-white/10 bg-black/40 p-4">
                       <div className="text-xs text-white/60 mb-1">Total Points</div>
                       <div className="text-2xl font-bold text-white">{projectStats.totalPoints.toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  {/* Campaign Pulse Section (Founder Dashboard) */}
+                  {canWrite && (
+                    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-akari-neon-teal/10 to-black/40 p-6">
+                      <h2 className="text-lg font-semibold text-white mb-4">Campaign Pulse</h2>
+                      
+                      {pulseLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
+                        </div>
+                      ) : pulseMetrics ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+                            <div className="text-xs text-white/60 mb-1">Creators participating</div>
+                            <div className="text-2xl font-bold text-white">{pulseMetrics.creatorsParticipating.toLocaleString()}</div>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+                            <div className="text-xs text-white/60 mb-1 flex items-center gap-1">
+                              Total completions
+                              {pulseMetrics.totalCompletions === null && (
+                                <span
+                                  className="text-xs text-white/40 cursor-help"
+                                  title="Quest Leaderboard (Option 3) is not unlocked for this project"
+                                >
+                                  (Locked)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-2xl font-bold text-white">
+                              {pulseMetrics.totalCompletions !== null
+                                ? pulseMetrics.totalCompletions.toLocaleString()
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+                            <div className="text-xs text-white/60 mb-1">Top creator score</div>
+                            <div className="text-2xl font-bold text-white">
+                              {pulseMetrics.topCreatorScore !== null
+                                ? pulseMetrics.topCreatorScore.toLocaleString()
+                                : '—'}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-white/60 py-4">
+                          No active arena found for this project.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Status Perks Section */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                    <h2 className="text-lg font-semibold text-white mb-4">Perks you can unlock</h2>
+                    
+                    {/* Badges by rank */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                      {(() => {
+                        // Get user's rank if available
+                        const userRank = (() => {
+                          if (!akariUser.isLoggedIn || !userTwitterUsername) return null;
+                          const userCreator = allCreators.find(
+                            c => c.twitter_username?.toLowerCase().replace('@', '') === userTwitterUsername.toLowerCase().replace('@', '')
+                          );
+                          // Calculate rank from sorted creators
+                          if (userCreator && allCreators.length > 0) {
+                            const sorted = [...allCreators].sort((a, b) => (b.arc_points || 0) - (a.arc_points || 0));
+                            const rank = sorted.findIndex(c => 
+                              c.twitter_username?.toLowerCase().replace('@', '') === userTwitterUsername.toLowerCase().replace('@', '')
+                            ) + 1;
+                            return rank > 0 ? rank : null;
+                          }
+                          return null;
+                        })();
+
+                        const badges = [
+                          { rank: 3, name: 'Legend' as const },
+                          { rank: 20, name: 'Core Raider' as const },
+                          { rank: 50, name: 'Signal Contributor' as const },
+                          { rank: null, name: 'Verified Raider' as const },
+                        ];
+
+                        return badges.map((badge) => {
+                          const badgeInfo = getBadgeDisplayInfo(badge.name);
+                          const hasBadge = userRank ? getRankBadgeFromRank(userRank) === badge.name : false;
+                          const isExample = !userRank;
+
+                          return (
+                            <div
+                              key={badge.name}
+                              className={`rounded-lg border p-4 ${
+                                hasBadge
+                                  ? `border-${badgeInfo.color.split(' ')[0]}/50 bg-${badgeInfo.color.split(' ')[0]}/10`
+                                  : 'border-white/10 bg-black/20'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className={`w-3 h-3 rounded-full bg-gradient-to-r ${badgeInfo.color}`} />
+                                <h3 className="text-sm font-semibold text-white">{badgeInfo.name}</h3>
+                                {isExample && (
+                                  <span
+                                    className="text-xs text-white/40 cursor-help"
+                                    title="Example perks - join the leaderboard to see your actual rank"
+                                  >
+                                    (example)
+                                  </span>
+                                )}
+                                {hasBadge && (
+                                  <span className="text-xs text-green-400">✓</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-white/60">{badgeInfo.description}</p>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    {/* Perks list */}
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-white mb-3">Available Perks</h3>
+                      <ul className="space-y-2 text-sm text-white/70">
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Featured on project page</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Founder shoutout and follow</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Private alpha access</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Whitelist spots</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Special community role</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-akari-neon-teal mt-0.5">•</span>
+                          <span>Early partner deals</span>
+                        </li>
+                      </ul>
                     </div>
                   </div>
 
@@ -1321,6 +1536,38 @@ export default function ArcProjectHub() {
                           </select>
                         </div>
                       )}
+
+                      {/* View Toggle Tabs */}
+                      <div className="mb-6 flex items-center justify-end">
+                        <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
+                          <button
+                            onClick={() => setLeaderboardView('score')}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                              leaderboardView === 'score'
+                                ? 'bg-white/10 text-white'
+                                : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            Score
+                          </button>
+                          <button
+                            onClick={() => {}}
+                            disabled
+                            className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                            title="Coming soon"
+                          >
+                            Impact
+                          </button>
+                          <button
+                            onClick={() => {}}
+                            disabled
+                            className="px-3 py-1.5 text-xs font-medium rounded-md text-white/40 cursor-not-allowed relative"
+                            title="Coming soon"
+                          >
+                            Consistency
+                          </button>
+                        </div>
+                      </div>
 
                       {allCreators.length === 0 ? (
                         <p className="text-sm text-akari-muted text-center py-8">
@@ -1400,17 +1647,30 @@ export default function ArcProjectHub() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      {creator.ring && (
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRingColor(creator.ring)}`}>
-                                          {creator.ring}
-                                        </span>
-                                      )}
-                                      <div className="text-right">
-                                        <div className="text-sm font-bold text-white">
-                                          {creator.arc_points?.toLocaleString() || 0}
+                                      {leaderboardView === 'score' && (
+                                        <div className="text-right">
+                                          <div className="text-sm font-bold text-white">
+                                            {creator.arc_points?.toLocaleString() || 0}
+                                          </div>
+                                          <div className="text-xs text-white/60">Score</div>
                                         </div>
-                                        <div className="text-xs text-white/60">points</div>
-                                      </div>
+                                      )}
+                                      {leaderboardView === 'impact' && (
+                                        <div className="text-right">
+                                          <div className="text-sm font-bold text-white/40">
+                                            —
+                                          </div>
+                                          <div className="text-xs text-white/40">Coming soon</div>
+                                        </div>
+                                      )}
+                                      {leaderboardView === 'consistency' && (
+                                        <div className="text-right">
+                                          <div className="text-sm font-bold text-white/40">
+                                            —
+                                          </div>
+                                          <div className="text-xs text-white/40">Coming soon</div>
+                                        </div>
+                                      )}
                                     </div>
                                   </Link>
                                 );
@@ -2025,6 +2285,41 @@ export default function ArcProjectHub() {
                   />
                 </div>
               </div>
+              
+              {/* Prize Pool Toggle (Optional) */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="prizes-enabled"
+                    checked={prizesEnabled}
+                    onChange={(e) => setPrizesEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/20 bg-black/60 text-akari-neon-teal focus:ring-akari-neon-teal"
+                  />
+                  <label htmlFor="prizes-enabled" className="text-sm font-medium text-white">
+                    Enable prizes for this campaign (optional)
+                  </label>
+                </div>
+                
+                {prizesEnabled && (
+                  <div className="space-y-2 pl-7">
+                    <div>
+                      <label className="block text-sm text-white/60 mb-1">Prize budget (optional)</label>
+                      <input
+                        type="text"
+                        value={prizeBudget}
+                        onChange={(e) => setPrizeBudget(e.target.value)}
+                        className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                        placeholder="e.g., $10,000"
+                      />
+                    </div>
+                    <p className="text-xs text-white/50">
+                      Performance-based rewards can be awarded by rank at campaign end. No purchase required.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm text-white/60 mb-1">Reward Pool Description</label>
                 <textarea
@@ -2081,7 +2376,9 @@ export default function ArcProjectHub() {
                           end_at: new Date(campaignForm.end_at).toISOString(),
                           website_url: campaignForm.website_url || undefined,
                           docs_url: campaignForm.docs_url || undefined,
-                          reward_pool_text: campaignForm.reward_pool_text || undefined,
+                          reward_pool_text: prizesEnabled && prizeBudget 
+                            ? `Prize budget: ${prizeBudget}. ${campaignForm.reward_pool_text || ''}`.trim() || undefined
+                            : campaignForm.reward_pool_text || undefined,
                           winners_count: campaignForm.winners_count,
                           status: campaignForm.status,
                         }),
@@ -2099,10 +2396,12 @@ export default function ArcProjectHub() {
                           end_at: '',
                           website_url: '',
                           docs_url: '',
-                          reward_pool_text: '',
+                          reward_pool_text: prizesEnabled && prizeBudget ? `Prize budget: ${prizeBudget}. ${campaignForm.reward_pool_text || ''}`.trim() : campaignForm.reward_pool_text || '',
                           winners_count: 100,
                           status: 'draft',
                         });
+                        setPrizesEnabled(false);
+                        setPrizeBudget('');
                         setSelectedTemplate('');
                         setTemplateQuests([]);
                       } else {

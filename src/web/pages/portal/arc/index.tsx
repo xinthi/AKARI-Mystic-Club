@@ -325,10 +325,13 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
             ARC INFLUENCEFI TERMINAL
           </p>
           <h1 className="text-3xl font-bold md:text-4xl mb-2">
-            Where influence becomes trackable
+            Turn campaigns into measurable Crypto Twitter signal
           </h1>
-          <p className="max-w-2xl text-sm text-akari-muted">
-            Explore ARC-enabled projects, campaigns, and leaderboards.
+          <p className="max-w-2xl text-sm text-akari-muted mb-3">
+            Launch quests, rank creators, and track mindshare output in one place.
+          </p>
+          <p className="max-w-2xl text-xs text-akari-muted italic">
+            ARC creates signal, not just tracks it.
           </p>
         </section>
 
