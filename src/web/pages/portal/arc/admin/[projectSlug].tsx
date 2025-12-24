@@ -12,6 +12,9 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 import { createPortalClient } from '@/lib/portal/supabase';
 import { isSuperAdmin } from '@/lib/permissions';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { checkProjectPermissions, type ProjectPermissionCheck } from '@/lib/project-permissions';
+import { getSessionTokenFromRequest } from '@/lib/server-auth';
 
 // =============================================================================
 // TYPES
@@ -41,18 +44,53 @@ interface ArenaManagerProps {
   arenas: Arena[];
   error: string | null;
   projectSlug: string;
+  hasAccess: boolean;
+  accessError: string | null;
 }
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
-export default function ArenaManager({ project, arenas: initialArenas, error, projectSlug }: ArenaManagerProps) {
+export default function ArenaManager({ project, arenas: initialArenas, error, projectSlug, hasAccess, accessError }: ArenaManagerProps) {
   const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  const [permissions, setPermissions] = useState<ProjectPermissionCheck | null>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   const [arenas, setArenas] = useState<Arena[]>(initialArenas);
+
+  // Fetch permissions client-side to determine what actions are allowed
+  useEffect(() => {
+    async function fetchPermissions() {
+      if (!project?.id || !akariUser.isLoggedIn) {
+        setPermissionsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(project.id)}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok) {
+            setPermissions(data.permissions);
+          }
+        }
+      } catch (err) {
+        console.warn('[ArenaManager] Failed to fetch permissions:', err);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    }
+
+    fetchPermissions();
+  }, [project?.id, akariUser.isLoggedIn]);
+
+  // Compute if user can manage (create/edit arenas)
+  const canManage = userIsSuperAdmin || permissions?.canManage || false;
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingArena, setEditingArena] = useState<Arena | null>(null);
@@ -244,18 +282,26 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
   };
 
-  // Check access
-  if (!userIsSuperAdmin) {
+  // Check access (server-side check)
+  if (!hasAccess) {
     return (
       <PortalLayout title="ARC Admin">
         <div className="space-y-6">
           <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
             <p className="text-sm text-akari-danger">
-              Access denied. Super Admin privileges required.
+              {accessError || 'Access denied. You do not have permission to manage this project.'}
             </p>
+            {project?.slug && (
+              <Link
+                href={`/portal/arc/${encodeURIComponent(project.slug)}`}
+                className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+              >
+                ← Back to Project Hub
+              </Link>
+            )}
             <Link
               href="/portal/arc"
-              className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+              className="mt-2 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
             >
               ← Back to ARC Home
             </Link>
@@ -270,21 +316,40 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
         <div className="flex items-center gap-2 text-sm text-akari-muted">
-          <Link
-            href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
-          >
-            ARC Home
-          </Link>
-          <span>/</span>
-          <Link
-            href="/portal/arc/admin"
-            className="hover:text-akari-primary transition-colors"
-          >
-            Admin
-          </Link>
-          <span>/</span>
-          <span className="text-akari-text">{project?.name || 'Project'}</span>
+          {project?.slug && (
+            <>
+              <Link
+                href={`/portal/arc/${encodeURIComponent(project.slug)}`}
+                className="hover:text-akari-primary transition-colors"
+              >
+                {project.name || 'Project'}
+              </Link>
+              <span>/</span>
+            </>
+          )}
+          {!project?.slug && (
+            <>
+              <Link
+                href="/portal/arc"
+                className="hover:text-akari-primary transition-colors"
+              >
+                ARC Home
+              </Link>
+              <span>/</span>
+            </>
+          )}
+          {userIsSuperAdmin && (
+            <>
+              <Link
+                href="/portal/arc/admin"
+                className="hover:text-akari-primary transition-colors"
+              >
+                Admin
+              </Link>
+              <span>/</span>
+            </>
+          )}
+          <span className="text-akari-text">Leaderboard Dashboard</span>
         </div>
 
         {/* Error state */}
@@ -318,7 +383,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                   </p>
                 )}
               </div>
-              {userIsSuperAdmin && (
+              {canManage && (
                 <button
                   onClick={() => {
                     setFormData({
@@ -395,7 +460,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {userIsSuperAdmin && (
+                              {canManage && (
                                 <button
                                   onClick={() => openEditModal(arena)}
                                   className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
@@ -618,15 +683,54 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
         arenas: [],
         error: 'Invalid project slug',
         projectSlug: '',
+        hasAccess: false,
+        accessError: 'Invalid project slug',
       },
     };
   }
 
   try {
-    const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get session token and user ID
+    const sessionToken = getSessionTokenFromRequest(context.req);
+    if (!sessionToken) {
+      return {
+        props: {
+          project: null,
+          arenas: [],
+          error: null,
+          projectSlug,
+          hasAccess: false,
+          accessError: 'Authentication required',
+        },
+      };
+    }
+
+    // Get user ID from session
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from('akari_user_sessions')
+      .select('user_id, expires_at')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (sessionError || !session || new Date(session.expires_at) < new Date()) {
+      return {
+        props: {
+          project: null,
+          arenas: [],
+          error: null,
+          projectSlug,
+          hasAccess: false,
+          accessError: 'Invalid or expired session',
+        },
+      };
+    }
+
+    const userId = session.user_id;
 
     // Resolve project by slug
-    const { data: projectData, error: projectError } = await supabase
+    const { data: projectData, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, name, twitter_username, slug')
       .eq('slug', projectSlug)
@@ -639,12 +743,36 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           arenas: [],
           error: 'Project not found',
           projectSlug,
+          hasAccess: false,
+          accessError: 'Project not found',
+        },
+      };
+    }
+
+    // Check project permissions
+    const permissions = await checkProjectPermissions(supabaseAdmin, userId, projectData.id);
+    const hasAccess = permissions.canManage || permissions.isSuperAdmin;
+
+    if (!hasAccess) {
+      return {
+        props: {
+          project: {
+            id: projectData.id,
+            name: projectData.name,
+            twitter_username: projectData.twitter_username,
+            slug: projectData.slug,
+          },
+          arenas: [],
+          error: null,
+          projectSlug,
+          hasAccess: false,
+          accessError: 'You do not have permission to manage this project. Only project owners, admins, moderators, or super admins can access this page.',
         },
       };
     }
 
     // Load arenas for this project
-    const { data: arenasData, error: arenasError } = await supabase
+    const { data: arenasData, error: arenasError } = await supabaseAdmin
       .from('arenas')
       .select('id, project_id, slug, name, description, status, starts_at, ends_at, reward_depth')
       .eq('project_id', projectData.id)
@@ -663,6 +791,8 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           arenas: [],
           error: 'Failed to load arenas',
           projectSlug,
+          hasAccess: true,
+          accessError: null,
         },
       };
     }
@@ -690,6 +820,8 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
         arenas,
         error: null,
         projectSlug,
+        hasAccess: true,
+        accessError: null,
       },
     };
   } catch (error: any) {
@@ -700,6 +832,8 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
         arenas: [],
         error: error.message || 'Internal server error',
         projectSlug,
+        hasAccess: false,
+        accessError: error.message || 'Internal server error',
       },
     };
   }
