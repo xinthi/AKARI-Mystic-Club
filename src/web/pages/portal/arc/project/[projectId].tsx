@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getArcFeatureName, getArcFeatureDescription } from '@/lib/arc-naming';
 
 // =============================================================================
 // TYPES
@@ -733,9 +734,7 @@ export default function ArcProjectPage() {
                   {existingRequest.requested_arc_access_level && (
                     <p className="text-xs text-white/70 mt-2">
                       <span className="font-medium">Requested:</span>{' '}
-                      {existingRequest.requested_arc_access_level === 'creator_manager' && 'Creator Manager'}
-                      {existingRequest.requested_arc_access_level === 'leaderboard' && 'Campaign Leaderboard'}
-                      {existingRequest.requested_arc_access_level === 'gamified' && 'Gamified Leaderboard'}
+                      {existingRequest.requested_arc_access_level && getArcFeatureName(existingRequest.requested_arc_access_level)}
                     </p>
                   )}
                   {existingRequest.justification && (
@@ -767,14 +766,12 @@ export default function ArcProjectPage() {
                           onChange={(e) => setSelectedAccessLevel(e.target.value as 'creator_manager' | 'leaderboard' | 'gamified')}
                           className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                         >
-                          <option value="creator_manager">Creator Manager</option>
-                          <option value="leaderboard">Campaign Leaderboard</option>
-                          <option value="gamified">Gamified Leaderboard</option>
+                          <option value="creator_manager">{getArcFeatureName('creator_manager')}</option>
+                          <option value="leaderboard">{getArcFeatureName('leaderboard')}</option>
+                          <option value="gamified">{getArcFeatureName('gamified')}</option>
                         </select>
                         <p className="text-xs text-white/50 mt-1">
-                          {selectedAccessLevel === 'creator_manager' && 'Manage creator campaigns and programs'}
-                          {selectedAccessLevel === 'leaderboard' && 'Display project leaderboard with rankings'}
-                          {selectedAccessLevel === 'gamified' && 'Full gamified experience with missions and rewards'}
+                          {getArcFeatureDescription(selectedAccessLevel)}
                         </p>
                       </div>
                       <div>

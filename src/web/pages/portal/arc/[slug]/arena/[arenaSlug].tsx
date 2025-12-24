@@ -1391,7 +1391,7 @@ export default function ArenaDetailsPage() {
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
                   {!gamefiEnabled ? (
                     <div className="flex items-center justify-center py-12">
-                      <p className="text-sm text-akari-muted">Option 3 (Gamified Leaderboard) is not enabled for this project.</p>
+                      <p className="text-sm text-akari-muted">Quest Leaderboard is not enabled for this project.</p>
                     </div>
                   ) : (
                     <>

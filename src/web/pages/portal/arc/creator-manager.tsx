@@ -1,7 +1,7 @@
 /**
- * ARC Creator Manager (CRM) Page
+ * ARC Creator Hub Page
  * 
- * Campaign management interface for Option 1: CRM Creator Manager
+ * Campaign management interface for Creator Hub (formerly Option 1: CRM)
  */
 
 import React, { useState, useEffect } from 'react';

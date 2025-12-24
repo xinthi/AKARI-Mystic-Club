@@ -1,7 +1,7 @@
 /**
  * Page: /portal/arc/gamified/[projectId]
  * 
- * Option 3: Gamified Leaderboard (Minimal MVP)
+ * Quest Leaderboard (formerly Option 3: Gamified)
  * Shows leaderboard and quests for active arena
  */
 
@@ -10,6 +10,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getQuestCategory, getQuestCategoryInfo, calculateLevelFromScore } from '@/lib/arc-ui-helpers';
 
 // =============================================================================
 // TYPES
@@ -188,7 +189,7 @@ export default function GamifiedLeaderboardPage() {
 
   if (loading) {
     return (
-      <PortalLayout title="Gamified Leaderboard">
+      <PortalLayout title="Quest Leaderboard">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
@@ -201,7 +202,7 @@ export default function GamifiedLeaderboardPage() {
 
   if (error) {
     return (
-      <PortalLayout title="Gamified Leaderboard">
+      <PortalLayout title="Quest Leaderboard">
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6">
           <p className="text-red-400 text-sm mb-4">{error}</p>
           <Link
@@ -229,7 +230,7 @@ export default function GamifiedLeaderboardPage() {
 
         {/* Header */}
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Gamified Leaderboard</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Quest Leaderboard</h1>
           {arenaName && (
             <p className="text-white/60">Active Arena: {arenaName}</p>
           )}
