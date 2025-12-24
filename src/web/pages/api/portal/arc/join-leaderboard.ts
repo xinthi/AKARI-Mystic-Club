@@ -209,14 +209,27 @@ export default async function handler(
     const aid: string = arenaId;
 
     // Check if user is already in this arena
+    // Check by twitter_username (unique constraint) since profile_id might be null or different
     const { data: existingCreator, error: checkError } = await supabase
       .from('arena_creators')
-      .select('id')
+      .select('id, profile_id')
       .eq('arena_id', aid)
-      .eq('profile_id', userProfile.profileId)
+      .eq('twitter_username', userProfile.twitterUsername)
       .maybeSingle();
 
+    if (checkError) {
+      console.error('[join-leaderboard] Error checking existing creator:', checkError);
+    }
+
     if (existingCreator) {
+      // User already exists - update profile_id if it's null or different
+      if (!existingCreator.profile_id || existingCreator.profile_id !== userProfile.profileId) {
+        await supabase
+          .from('arena_creators')
+          .update({ profile_id: userProfile.profileId })
+          .eq('id', existingCreator.id);
+      }
+      
       return res.status(200).json({
         ok: true,
         arenaId: aid,
