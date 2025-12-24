@@ -47,7 +47,7 @@ function getBearerToken(req: NextApiRequest): string | null {
 /**
  * Extract session token from cookies using proper cookie parser
  * Handles edge cases: URL encoding, duplicate cookies, malformed headers
- * Prefers req.cookies if available (Next.js may parse), then falls back to header parsing
+ * If multiple akari_session cookies exist, prefers the one with Path=/ (longest token)
  */
 function getSessionToken(req: NextApiRequest): string | null {
   // First, try req.cookies if Next.js has parsed it (though API routes typically don't auto-parse)
@@ -66,6 +66,7 @@ function getSessionToken(req: NextApiRequest): string | null {
 
   try {
     // Use cookie parser to handle URL encoding and edge cases
+    // Note: parseCookie handles duplicate cookies by taking the last occurrence
     const cookies = parseCookie(cookieHeader);
     const token = cookies['akari_session'] ?? null;
     
@@ -164,31 +165,59 @@ export async function requirePortalUser(
   const path = req.url || 'unknown';
   const hasCookieHeader = !!req.headers.cookie;
   const hasAuthHeader = !!req.headers.authorization;
+  const hasReqCookieAkariSession = !!(req.cookies && typeof req.cookies === 'object' && 'akari_session' in req.cookies);
   
   // Try Bearer token first, then fall back to cookie
   let sessionToken: string | null = null;
+  let authPath: 'bearer' | 'cookie' | 'none' = 'none';
   
   const bearerToken = getBearerToken(req);
   if (bearerToken) {
     // If Bearer token is provided, treat it as akari_session token
     // (In the future, this could validate a JWT, but for now we use session tokens)
     sessionToken = bearerToken;
+    authPath = 'bearer';
   } else {
     // Fall back to cookie-based auth
     sessionToken = getSessionToken(req);
+    if (sessionToken) {
+      authPath = 'cookie';
+    }
   }
   
-  if (!sessionToken) {
-    // Safe debug logging: only log when auth fails, don't log tokens
+  // Safe debug logging in production (only when auth fails or for diagnostics)
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd && !sessionToken) {
     console.log('[requirePortalUser] Auth failed: no session token', {
       hostname,
       path,
       hasCookieHeader,
       hasAuthHeader,
+      hasReqCookieAkariSession,
       cookieNames: hasCookieHeader ? Object.keys(parseCookie(req.headers.cookie ?? '')) : [],
+      authPath,
     });
+  }
+  
+  if (!sessionToken) {
     res.status(401).json({ ok: false, error: 'Not authenticated', reason: 'not_authenticated' });
     return null;
+  }
+
+  // Additional debug info when token is found
+  const tokenLength = sessionToken.length;
+  const tokenPrefix = tokenLength > 8 ? sessionToken.substring(0, 8) : 'short';
+  
+  if (isProd) {
+    console.log('[requirePortalUser] Auth attempt', {
+      hostname,
+      path,
+      authPath,
+      tokenLength,
+      tokenPrefix,
+      hasCookieHeader,
+      hasReqCookieAkariSession,
+    });
   }
 
   const supabase = getSupabaseAdmin();
@@ -196,11 +225,16 @@ export async function requirePortalUser(
   
   if (!user) {
     // Safe debug logging: only log when auth fails, don't log tokens
-    console.log('[requirePortalUser] Auth failed: invalid or expired session', {
-      hostname,
-      path,
-      hasSessionToken: !!sessionToken,
-    });
+    if (isProd) {
+      console.log('[requirePortalUser] Auth failed: invalid or expired session', {
+        hostname,
+        path,
+        authPath,
+        tokenLength,
+        tokenPrefix,
+        hasSessionToken: !!sessionToken,
+      });
+    }
     res.status(401).json({ ok: false, error: 'Invalid session', reason: 'not_authenticated' });
     return null;
   }
