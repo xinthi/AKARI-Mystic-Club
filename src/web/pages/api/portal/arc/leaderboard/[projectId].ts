@@ -302,25 +302,28 @@ export default async function handler(
         .map(e => e.twitter_username);
 
       if (usernamesWithoutAvatars.length > 0) {
+        // Fetch all project_tweets with avatars (no .in() filter to avoid case sensitivity issues)
         const { data: tweets } = await supabase
           .from('project_tweets')
           .select('author_handle, author_profile_image_url')
           .eq('project_id', pid)
-          .in('author_handle', usernamesWithoutAvatars)
           .not('author_profile_image_url', 'is', null)
           .limit(100);
 
         if (tweets) {
+          // Build map keyed by normalized username (handles case/@ variations)
           const tweetAvatarMap = new Map<string, string | null>();
           for (const tweet of tweets) {
             const normalizedUsername = normalizeTwitterUsername(tweet.author_handle);
             if (normalizedUsername && tweet.author_profile_image_url) {
+              // Only add if not already present (first match wins)
               if (!tweetAvatarMap.has(normalizedUsername)) {
                 tweetAvatarMap.set(normalizedUsername, tweet.author_profile_image_url);
               }
             }
           }
 
+          // Fill avatars using normalized key lookup
           for (const entry of entries) {
             if (!entry.avatar_url && tweetAvatarMap.has(entry.twitter_username)) {
               entry.avatar_url = tweetAvatarMap.get(entry.twitter_username) || null;
