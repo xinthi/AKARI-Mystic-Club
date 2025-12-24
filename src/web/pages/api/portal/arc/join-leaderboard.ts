@@ -21,7 +21,7 @@ interface JoinLeaderboardBody {
 
 type JoinLeaderboardResponse =
   | { ok: true; arenaId: string; creatorId: string; message?: string }
-  | { ok: false; error: string; reason?: 'not_verified' | 'not_authenticated' | 'no_active_arena' | 'x_identity_not_found' | 'profile_not_found' | 'profile_creation_failed' };
+  | { ok: false; error: string; reason?: 'not_verified' | 'not_authenticated' | 'no_active_arena' | 'x_identity_not_found' | 'profile_not_found' | 'profile_creation_failed' | 'already_joined' | 'invalid_reference' | 'database_error' | 'verification_check_error' };
 
 // =============================================================================
 // DEV MODE BYPASS
@@ -242,9 +242,27 @@ export default async function handler(
 
     if (createError) {
       console.error('[join-leaderboard] Error creating creator:', createError);
+      // Return more specific error message for debugging
+      const errorMessage = createError.message || 'Failed to join leaderboard';
+      // Check for common constraint violations
+      if (createError.code === '23505') { // Unique violation
+        return res.status(400).json({
+          ok: false,
+          error: 'You are already in this leaderboard',
+          reason: 'already_joined',
+        });
+      }
+      if (createError.code === '23503') { // Foreign key violation
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid arena or profile',
+          reason: 'invalid_reference',
+        });
+      }
       return res.status(500).json({
         ok: false,
-        error: 'Failed to join leaderboard',
+        error: errorMessage,
+        reason: 'database_error',
       });
     }
 
