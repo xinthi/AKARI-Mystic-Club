@@ -7,6 +7,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -72,12 +74,14 @@ export default async function handler(
   try {
     // Create Supabase client (read-only with anon key)
     const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
 
-    // Look up arena by id
+    // Look up arena by id (fetch project_id for access check)
     const { data: arenaData, error: arenaError } = await supabase
       .from('arenas')
       .select(`
         id,
+        project_id,
         slug,
         name,
         description,
@@ -110,6 +114,22 @@ export default async function handler(
       return res.status(404).json({
         ok: false,
         error: 'Arena not found',
+      });
+    }
+
+    if (!arenaData.project_id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Arena missing project_id',
+      });
+    }
+
+    // Check ARC access (Option 2 = Leaderboard) - arena data is project-specific ARC data
+    const accessCheck = await requireArcAccess(supabaseAdmin, arenaData.project_id, 2);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error,
       });
     }
 

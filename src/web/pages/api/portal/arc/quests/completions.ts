@@ -6,6 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -116,6 +117,30 @@ export default async function handler(
     const { arenaId } = req.query;
     if (!arenaId || typeof arenaId !== 'string') {
       return res.status(400).json({ ok: false, error: 'arenaId is required' });
+    }
+
+    // Resolve arena.project_id for access check
+    const { data: arena, error: arenaError } = await supabase
+      .from('arenas')
+      .select('id, project_id')
+      .eq('id', arenaId)
+      .single();
+
+    if (arenaError || !arena) {
+      return res.status(404).json({ ok: false, error: 'Arena not found' });
+    }
+
+    if (!arena.project_id) {
+      return res.status(400).json({ ok: false, error: 'Arena missing project_id' });
+    }
+
+    // Check ARC access (Option 3 = Gamified) - quest completions are Option 3 feature
+    const accessCheck = await requireArcAccess(supabase, arena.project_id, 3);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error,
+      });
     }
 
     // Get current user profile

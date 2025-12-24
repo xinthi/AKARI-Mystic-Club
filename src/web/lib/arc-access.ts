@@ -126,8 +126,11 @@ export async function requireArcAccess(
   }
 
   // If features row doesn't exist, check legacy arc_access_level as fallback
+  // IMPORTANT: Even in legacy fallback, we still require arc_project_access.application_status = 'approved'
+  // This prevents bypassing the approval gate by relying only on legacy fields
   if (!features) {
     // Legacy fallback: check projects.arc_access_level
+    // But we still require approval (already checked above via 'access' variable)
     const legacyMapping: Record<ArcOption, string> = {
       1: 'creator_manager',
       2: 'leaderboard',
@@ -137,7 +140,10 @@ export async function requireArcAccess(
     const expectedLevel = legacyMapping[option];
     const hasLegacyAccess = project.arc_active && project.arc_access_level === expectedLevel;
     
-    if (hasLegacyAccess) {
+    // Only grant access if BOTH conditions are met:
+    // 1. arc_project_access.application_status = 'approved' (checked above, stored in 'access')
+    // 2. Legacy fields match the expected option
+    if (hasLegacyAccess && access) {
       return { ok: true, approved: true, optionUnlocked: true };
     }
     

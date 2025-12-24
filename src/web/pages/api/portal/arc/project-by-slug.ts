@@ -1,7 +1,11 @@
 /**
  * API Route: GET /api/portal/arc/project-by-slug?slug=<slug>
  * 
- * Resolves a slug (current or historical) to a project and returns project info.
+ * Intentionally public endpoint - minimal slug resolver for routing.
+ * Returns only: id, name, slug, twitter_username, avatar_url.
+ * Does NOT return ARC access status, features, or internal settings.
+ * ARC access is enforced by /api/portal/arc/state endpoint when needed.
+ * 
  * If the requested slug is not the canonical slug, indicates redirect needed.
  */
 
