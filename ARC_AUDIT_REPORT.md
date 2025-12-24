@@ -1,809 +1,842 @@
-# ARC Implementation Audit Report
+# ARC Codebase Security & Production Readiness Audit
 
-**Date:** 2025-01-20  
-**Scope:** Complete inventory of ARC (Arena Creator) implementation status
-
----
-
-## 1. ARC Pages Under `src/web/pages/portal/arc`
-
-### 1.1 `/portal/arc/index.tsx` (ARC Home)
-**Purpose:** Main landing page for ARC, displays ARC projects and top projects  
-**Renders:**
-- ARC projects list (grid view)
-- Top projects section (gainers/losers, 24h/7d/30d/90d, cards/treemap view)
-- Admin links (if SuperAdmin)
-
-**API Endpoints Called:**
-- `GET /api/portal/arc/projects` - Fetch ARC-enabled projects
-- `GET /api/portal/arc/top-projects?mode={gainers|losers}&timeframe={24h|7d|30d|90d}&limit=20` - Fetch top projects
-
-**Lines:** 615 total  
-**Location:** `src/web/pages/portal/arc/index.tsx:1-615`
+**Date:** 2025-01-23  
+**Auditor:** AI Assistant  
+**Scope:** ARC v1 Implementation (Pages, APIs, Auth, Gates, Security)
 
 ---
 
-### 1.2 `/portal/arc/[slug].tsx` (Project Hub)
-**Purpose:** Individual ARC project page showing project details, arenas, leaderboard, missions, storyline, and map  
-**Renders:**
-- Project hero section (banner, name, tagline, stats)
-- Tab navigation: Overview, Leaderboard, Missions, Storyline, Map
-- Arena list
-- Creator leaderboard (filterable by ring, searchable, sortable)
-- Mission list (placeholder logic)
-- Storyline events (creator join events)
-- Creator map (bubble map visualization)
+## Executive Summary
 
-**API Endpoints Called:**
-- `GET /api/portal/arc/project/{slug}` - Fetch project by slug (via `project-by-slug.ts`)
-- `GET /api/portal/arc/state?projectId={id}` - Fetch unified ARC state
-- `GET /api/portal/arc/arenas?projectId={id}` - Fetch arenas for project
-- `GET /api/portal/arc/arenas/{arenaSlug}` - Fetch arena details with creators
-- `GET /api/portal/arc/projects` - Fetch project settings (meta/tier)
-- `POST /api/portal/arc/join-campaign` - Join campaign
+This audit reviews the ARC (Arena Reputation Circuit) codebase for security, correctness, and production readiness. The audit is **READ-ONLY** - no code changes were made during this review.
 
-**Lines:** 1274 total  
-**Location:** `src/web/pages/portal/arc/[slug].tsx:1-1274`
+**Overall Assessment:** 🔴 **FAIL** - Critical security issues found that must be fixed before production deployment.
+
+**Critical Findings:**
+- P0: Missing `requireArcAccess` checks in several public endpoints exposing project data
+- P0: Quest completion endpoint missing arena membership verification in some code paths
+- P0: Legacy fallback in `requireArcAccess` may bypass intended gates
+- P1: Potential data leaks in public endpoints
+- P1: Missing `credentials: 'include'` in some fetch calls
 
 ---
 
-### 1.3 `/portal/arc/[slug]/arena/[arenaSlug].tsx` (Arena Details)
-**Purpose:** Individual arena page with leaderboard, storyline, map, and admin controls  
-**Renders:**
-- Arena header (name, description, status, dates, reward depth)
-- Tab navigation: Leaderboard, Storyline, Map
-- Creator leaderboard (filterable, sortable, searchable)
-- Admin modals (Add Creator, Edit Creator, Adjust Points, View History)
-- Storyline events
-- Creator bubble map
-- Sentiment section (beta placeholder)
+## 1. Route Inventory
 
-**API Endpoints Called:**
-- `GET /api/portal/arc/arenas/{arenaSlug}` - Fetch arena details with creators and project
-- `POST /api/portal/arc/arena-creators-admin` - Add creator
-- `PATCH /api/portal/arc/arena-creators-admin` - Edit creator
-- `DELETE /api/portal/arc/arena-creators-admin?id={id}` - Remove creator
-- `POST /api/portal/arc/admin/point-adjustments` - Create point adjustment
-- `GET /api/portal/arc/admin/point-adjustments?arenaId={id}&creatorProfileId={id}` - Fetch adjustment history
+### 1.1 Page Routes
 
-**Lines:** 1604 total  
-**Location:** `src/web/pages/portal/arc/[slug]/arena/[arenaSlug].tsx:1-1604`
+| Route | File | Auth Required | Notes |
+|-------|------|---------------|-------|
+| `/portal/arc` | `src/web/pages/portal/arc/index.tsx` | Authenticated | ARC home page |
+| `/portal/arc/[slug]` | `src/web/pages/portal/arc/[slug].tsx` | Public | Project hub page (shows if ARC enabled) |
+| `/portal/arc/[slug]/arena/[arenaSlug]` | `src/web/pages/portal/arc/[slug]/arena/[arenaSlug].tsx` | Public | Arena details page |
+| `/portal/arc/gamified/[projectId]` | `src/web/pages/portal/arc/gamified/[projectId].tsx` | Authenticated | Gamified leaderboard view |
+| `/portal/arc/leaderboard/[projectId]` | `src/web/pages/portal/arc/leaderboard/[projectId].tsx` | Authenticated | Leaderboard view |
+| `/portal/arc/creator/[twitterUsername]` | `src/web/pages/portal/arc/creator/[twitterUsername].tsx` | Authenticated | Creator profile page |
+| `/portal/arc/admin` | `src/web/pages/portal/arc/admin/index.tsx` | SuperAdmin | ARC admin home |
+| `/portal/arc/admin/[projectSlug]` | `src/web/pages/portal/arc/admin/[projectSlug].tsx` | Project Admin/Owner | Project arena management |
+| `/portal/arc/admin/profiles` | `src/web/pages/portal/arc/admin/profiles.tsx` | SuperAdmin | Profile management |
+| `/portal/arc/project/[projectId]` | `src/web/pages/portal/arc/project/[projectId].tsx` | Public | Project request page |
+| `/portal/arc/requests` | `src/web/pages/portal/arc/requests.tsx` | Authenticated | My requests page |
+| `/portal/arc/creator-manager/*` | `src/web/pages/portal/arc/creator-manager/**/*.tsx` | Varies | Creator Manager UI |
+
+### 1.2 API Routes - Public (No Auth Required)
+
+| Route | File | Status | Notes |
+|-------|------|--------|-------|
+| `GET /api/portal/arc/projects` | `src/web/pages/api/portal/arc/projects.ts` | ✅ Public | Lists ARC-enabled projects |
+| `GET /api/portal/arc/top-projects` | `src/web/pages/api/portal/arc/top-projects.ts` | ✅ Public | Top projects leaderboard |
+| `GET /api/portal/arc/project-by-slug?slug=...` | `src/web/pages/api/portal/arc/project-by-slug.ts` | ✅ Public | Get project by slug |
+| `GET /api/portal/arc/creator?username=...` | `src/web/pages/api/portal/arc/creator.ts` | ✅ Public | Creator profile data |
+| `GET /api/portal/arc/active-arena?projectId=...` | `src/web/pages/api/portal/arc/active-arena.ts` | ✅ Public | Get active arena for project |
+| `GET /api/portal/arc/arenas?slug=...` | `src/web/pages/api/portal/arc/arenas/index.ts` | ✅ Public | List arenas for project |
+| `GET /api/portal/arc/arenas/[slug]` | `src/web/pages/api/portal/arc/arenas/[slug].ts` | ✅ Public | Arena details |
+| `GET /api/portal/arc/arena-details?arenaId=...` | `src/web/pages/api/portal/arc/arena-details.ts` | ✅ Public | Arena details by ID |
+| `GET /api/portal/arc/arena-creators?arenaId=...` | `src/web/pages/api/portal/arc/arena-creators.ts` | ✅ Public | Arena creators list |
+| `GET /api/portal/arc/summary?projectId=...` | `src/web/pages/api/portal/arc/summary.ts` | ✅ Public | Project summary |
+
+**Issue:** Some public endpoints may expose project data without checking if project has ARC access enabled. See Section 3.
+
+### 1.3 API Routes - Authenticated Only
+
+| Route | File | Status | Notes |
+|-------|------|--------|-------|
+| `GET /api/portal/arc/my-projects` | `src/web/pages/api/portal/arc/my-projects.ts` | ✅ Auth | Projects user can manage |
+| `GET /api/portal/arc/permissions?projectId=...` | `src/web/pages/api/portal/arc/permissions.ts` | ✅ Auth | User permissions for project |
+| `GET /api/portal/arc/state?projectId=...` | `src/web/pages/api/portal/arc/state.ts` | ✅ Auth | Unified ARC state |
+| `GET /api/portal/arc/cta-state?projectId=...` | `src/web/pages/api/portal/arc/cta-state.ts` | ✅ Auth | CTA button state |
+| `GET /api/portal/arc/follow-status?projectId=...` | `src/web/pages/api/portal/arc/follow-status.ts` | ✅ Auth | Follow verification status |
+| `POST /api/portal/arc/verify-follow?projectId=...` | `src/web/pages/api/portal/arc/verify-follow.ts` | ✅ Auth | Verify X follow |
+| `POST /api/portal/arc/join-leaderboard` | `src/web/pages/api/portal/arc/join-leaderboard.ts` | ✅ Auth | Join arena leaderboard |
+| `GET /api/portal/arc/check-leaderboard-permission?projectId=...` | `src/web/pages/api/portal/arc/check-leaderboard-permission.ts` | ✅ Auth | Check if can request |
+
+### 1.4 API Routes - Requires ARC Access
+
+| Route | File | Option | Status | Notes |
+|-------|------|--------|--------|-------|
+| `GET /api/portal/arc/leaderboard/[projectId]` | `src/web/pages/api/portal/arc/leaderboard/[projectId].ts` | 2 | ✅ Correct | Requires Option 2 |
+| `GET /api/portal/arc/gamified/[projectId]` | `src/web/pages/api/portal/arc/gamified/[projectId].ts` | 3 | ✅ Correct | Requires Option 3 |
+| `GET /api/portal/arc/quests/completions?arenaId=...` | `src/web/pages/api/portal/arc/quests/completions.ts` | 3 | ⚠️ Missing | Should verify Option 3 |
+| `POST /api/portal/arc/quests/complete` | `src/web/pages/api/portal/arc/quests/complete.ts` | 3 | ✅ Correct | Requires Option 3 + membership |
+| `GET /api/portal/arc/quests?arenaId=...` | `src/web/pages/api/portal/arc/quests/index.ts` | 3 | ✅ Correct | Requires Option 3 |
+| `GET /api/portal/arc/project/[projectId]` | `src/web/pages/api/portal/arc/project/[projectId].ts` | - | ✅ Public | Request page (intentionally public) |
+| `GET /api/portal/arc/live-leaderboards` | `src/web/pages/api/portal/arc/live-leaderboards.ts` | 2 | ✅ Correct | Requires Option 2 |
+
+### 1.5 API Routes - Requires Project Write Permissions
+
+| Route | File | Permission Check | Status | Notes |
+|-------|------|------------------|--------|-------|
+| `POST /api/portal/arc/arenas-admin` | `src/web/pages/api/portal/arc/arenas-admin.ts` | `checkProjectPermissions` | ✅ Correct | Create/update arenas |
+| `POST /api/portal/arc/admin/point-adjustments` | `src/web/pages/api/portal/arc/admin/point-adjustments.ts` | `checkProjectPermissions` | ✅ Correct | Point adjustments |
+| `GET /api/portal/arc/admin/point-adjustments?projectId=...` | `src/web/pages/api/portal/arc/admin/point-adjustments.ts` | `checkProjectPermissions` | ✅ Correct | List adjustments |
+| `POST /api/portal/arc/arena-creators-admin` | `src/web/pages/api/portal/arc/arena-creators-admin.ts` | `checkProjectPermissions` | ✅ Correct | Manage creators |
+| `POST /api/portal/arc/admin/arena-creators` | `src/web/pages/api/portal/arc/admin/arena-creators.ts` | `checkProjectPermissions` | ✅ Correct | Manage creators |
+| `PATCH /api/portal/arc/project-settings-admin` | `src/web/pages/api/portal/arc/project-settings-admin.ts` | SuperAdmin | ✅ Correct | Project settings |
+| `POST /api/portal/arc/admin/rollup-contributions` | `src/web/pages/api/portal/arc/admin/rollup-contributions.ts` | `checkProjectPermissions` | ✅ Correct | Rollup contributions |
+| `POST /api/portal/arc/campaigns` | `src/web/pages/api/portal/arc/campaigns/index.ts` | `checkProjectPermissions` | ✅ Correct | Create campaign |
+| `PATCH /api/portal/arc/campaigns/[id]` | `src/web/pages/api/portal/arc/campaigns/[id].ts` | `checkProjectPermissions` | ✅ Correct | Update campaign |
+| `POST /api/portal/arc/campaigns/[id]/join` | `src/web/pages/api/portal/arc/campaigns/[id]/join.ts` | Auth | ✅ Correct | User joins campaign |
+| `POST /api/portal/arc/join-campaign` | `src/web/pages/api/portal/arc/join-campaign.ts` | Auth | ✅ Correct | User joins campaign |
+| `POST /api/portal/arc/quests` | `src/web/pages/api/portal/arc/quests/index.ts` | `checkProjectPermissions` | ✅ Correct | Create quest |
+| `PATCH /api/portal/arc/quests/[id]` | `src/web/pages/api/portal/arc/quests/[id].ts` | `checkProjectPermissions` | ✅ Correct | Update quest |
+| `POST /api/portal/arc/leaderboard-requests` | `src/web/pages/api/portal/arc/leaderboard-requests.ts` | `canRequestLeaderboard` | ✅ Correct | Request access |
+
+### 1.6 API Routes - SuperAdmin Only
+
+| Route | File | Status | Notes |
+|-------|------|--------|-------|
+| `GET /api/portal/admin/arc/leaderboard-requests` | `src/web/pages/api/portal/admin/arc/leaderboard-requests.ts` | ✅ Correct | List all requests |
+| `GET /api/portal/admin/arc/leaderboard-requests/[id]` | `src/web/pages/api/portal/admin/arc/leaderboard-requests/[id].ts` | ✅ Correct | Get request |
+| `PATCH /api/portal/admin/arc/leaderboard-requests/[id]` | `src/web/pages/api/portal/admin/arc/leaderboard-requests/[id].ts` | ✅ Correct | Approve/reject |
+| `GET /api/portal/admin/arc/profiles` | `src/web/pages/api/portal/admin/arc/profiles.ts` | ✅ Correct | List profiles |
+| `GET /api/portal/admin/arc/profiles/[profileId]` | `src/web/pages/api/portal/admin/arc/profiles/[profileId].ts` | ✅ Correct | Get profile |
+| `GET /api/portal/admin/arc/requests` | `src/web/pages/api/portal/admin/arc/requests.ts` | ✅ Correct | List requests |
 
 ---
 
-### 1.4 `/portal/arc/admin/index.tsx` (Admin Home)
-**Purpose:** Admin dashboard listing all ARC-enabled projects  
-**Renders:**
-- Table of ARC projects with tier, status, security status, arenas count
-- Links to per-project admin pages
+## 2. Auth Correctness
 
-**API Endpoints Called:**
-- Server-side only (via `getServerSideProps`)
+### 2.1 Authentication Path Analysis
 
-**Lines:** ~542 total  
-**Location:** `src/web/pages/portal/arc/admin/index.tsx:1-542`
+**Primary Auth Helper:** `src/web/lib/server/require-portal-user.ts`
 
----
+**Flow:**
+1. Extracts session token from cookie (`akari_session`) or Bearer token
+2. Validates against `akari_user_sessions` table
+3. Returns `{ userId: string, profileId: string | null }`
 
-### 1.5 `/portal/arc/admin/[projectSlug].tsx` (Arena Manager)
-**Purpose:** Per-project arena management interface  
-**Renders:**
-- Table of arenas for the project
-- Create/Edit arena modals
-- Arena management (status, dates, reward depth)
+**Key Findings:**
 
-**API Endpoints Called:**
-- `GET /api/portal/arc/arenas?slug={projectSlug}` - Fetch arenas (refresh)
-- `POST /api/portal/arc/arenas-admin` - Create arena
-- `PATCH /api/portal/arc/arenas-admin` - Update arena
+✅ **Consistent Return Structure:**
+- `requirePortalUser` always returns `PortalUser | null`
+- Structure: `{ userId: string, profileId: string | null }`
+- If auth fails, sends 401 response and returns `null`
 
-**Lines:** 707 total  
-**Location:** `src/web/pages/portal/arc/admin/[projectSlug].tsx:1-707`
-
----
-
-### 1.6 Other ARC Pages (Not Detailed)
-- `/portal/arc/admin/profiles.tsx` - Profile management
-- `/portal/arc/creator/[twitterUsername].tsx` - Creator profile page
-- `/portal/arc/creator-manager/*` - Creator manager pages (separate feature)
-- `/portal/arc/requests.tsx` - Requests page
-- `/portal/arc/project/[projectId].tsx` - Project detail (legacy?)
-- `/portal/arc/gamified/[projectId].tsx` - Gamified project view
-- `/portal/arc/leaderboard/[projectId].tsx` - Leaderboard page
-- `/portal/arc/my-creator-programs*` - Creator programs (separate feature)
-
----
-
-## 2. ARC API Routes Under `src/web/pages/api/portal/arc`
-
-### 2.1 `/api/portal/arc/arenas/index.ts`
-**Method:** GET  
-**Query Params:**
-- `projectId` (UUID, optional): Filter by project ID
-- `slug` (string, optional): Filter by project slug (resolves to project_id)
-- At least one required
-
-**Response Shape:**
 ```typescript
-{
-  ok: true,
-  arenas: Array<{
-    id: string;
-    project_id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    status: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
-    starts_at: string | null;
-    ends_at: string | null;
-    reward_depth: number;
-  }>
+// src/web/lib/server/require-portal-user.ts:136-356
+export async function requirePortalUser(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<PortalUser | null> {
+  // ... extracts token, validates session, returns { userId, profileId }
 }
 ```
 
-**DB Tables:**
-- `projects` (SELECT: id)
-- `arenas` (SELECT: id, project_id, slug, name, description, status, starts_at, ends_at, reward_depth)
+✅ **No Client-Side Only Auth:**
+- All API endpoints check authentication server-side
+- No endpoints rely solely on client-side auth state
 
-**Lines:** 161 total  
-**Location:** `src/web/pages/api/portal/arc/arenas/index.ts:1-161`
+⚠️ **401 When Cookie Exists - Expected Cases:**
+- Session expired: Cookie exists but session record expired
+- Invalid session token: Cookie exists but session not found in DB
+- User deleted: Session exists but user record missing
+
+**Location:** `src/web/lib/server/require-portal-user.ts:222-240`
+```typescript
+if (sessionError || !session) {
+  // ... sends 401
+  return null;
+}
+
+if (new Date(session.expires_at) < new Date()) {
+  // ... deletes expired session, sends 401
+  return null;
+}
+```
+
+✅ **Consistent Auth Pattern:**
+- Most endpoints use `requirePortalUser` correctly
+- Some endpoints use inline session validation (consistent pattern)
+
+### 2.2 Bearer Token Support
+
+✅ **Bearer Token Extraction:**
+- `requirePortalUser` supports both cookie and Bearer token
+- Checks Authorization header first, falls back to cookie
+
+**Location:** `src/web/lib/server/require-portal-user.ts:169-175`
 
 ---
 
-### 2.2 `/api/portal/arc/arenas/[slug].ts`
-**Method:** GET  
-**Query Params:**
-- `slug` (path param, string): Arena slug
+## 3. Access Gate Correctness
 
-**Response Shape:**
+### 3.1 requireArcAccess Usage Analysis
+
+**Gate Function:** `src/web/lib/arc-access.ts:requireArcAccess`
+
+**Purpose:** Enforces that a project has:
+1. Approved ARC access (`arc_project_access.application_status = 'approved'`)
+2. Specific option unlocked (`arc_project_features.option{1|2|3}_unlocked = true`)
+
+**Critical Finding - Legacy Fallback Bypass Risk:**
+
+🔴 **P0: Legacy Fallback May Bypass Intended Gates**
+
+**Location:** `src/web/lib/arc-access.ts:128-149`
+
 ```typescript
-{
-  ok: true,
-  arena: {
-    id: string;
-    slug: string;
-    name: string;
-    description: string | null;
-    status: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled';
-    starts_at: string | null;
-    ends_at: string | null;
-    reward_depth: number;
-    settings: Record<string, any>;
-  },
-  project: {
-    id: string;
-    name: string;
-    twitter_username: string;
-    avatar_url: string | null;
-  },
-  creators: Array<{
-    id: string;
-    twitter_username: string;
-    arc_points: number; // base_points
-    adjusted_points: number; // effective_points = base + adjustments_sum
-    ring: 'core' | 'momentum' | 'discovery';
-    style: string | null;
-    meta: Record<string, any>;
-    profile_id: string | null;
-    joined_at: string | null;
-  }>,
-  sentiment: {
-    enabled: boolean;
-    summary: null;
-    series: any[];
+// If features row doesn't exist, check legacy arc_access_level as fallback
+if (!features) {
+  const legacyMapping: Record<ArcOption, string> = {
+    1: 'creator_manager',
+    2: 'leaderboard',
+    3: 'gamified',
+  };
+  
+  const expectedLevel = legacyMapping[option];
+  const hasLegacyAccess = project.arc_active && project.arc_access_level === expectedLevel;
+  
+  if (hasLegacyAccess) {
+    return { ok: true, approved: true, optionUnlocked: true };
   }
 }
 ```
 
-**DB Tables:**
-- `arenas` (SELECT: id, slug, name, description, status, starts_at, ends_at, reward_depth, settings, project_id)
-- `projects` (SELECT: id, name, x_handle, avatar_url)
-- `arena_creators` (SELECT: id, twitter_username, arc_points, ring, style, meta, profile_id, created_at)
-- `arc_point_adjustments` (SELECT: creator_profile_id, points_delta, arena_id) - via service client
+**Issue:** 
+- If `arc_project_access` table exists but `arc_project_features` row is missing, function falls back to legacy fields
+- This may allow access even if project hasn't been properly migrated to new system
+- Legacy check doesn't verify `arc_project_access.application_status = 'approved'`
 
-**Special Logic:**
-- Calculates `adjusted_points = base_points + SUM(adjustments)` per creator
-- Sorts creators by `adjusted_points DESC`
+**Recommendation:**
+- Remove legacy fallback OR
+- In legacy fallback, still check `arc_project_access.application_status = 'approved'`
 
-**Lines:** 365 total  
-**Location:** `src/web/pages/api/portal/arc/arenas/[slug].ts:1-365`
+### 3.2 Missing requireArcAccess Checks
 
----
+🔴 **P0: Public Endpoints Exposing Project Data Without ARC Access Check**
 
-### 2.3 `/api/portal/arc/arena-details.ts`
-**Method:** GET  
-**Query Params:**
-- `arenaId` (UUID, required): Arena ID
+The following endpoints return project-specific ARC data but don't verify the project has ARC access:
 
-**Response Shape:**
+**Note:** Some of these endpoints have been fixed since the previous audit. Updated status:
+
+1. **`GET /api/portal/arc/arenas?slug=...`**
+   - **File:** `src/web/pages/api/portal/arc/arenas/index.ts`
+   - **Status:** ✅ **FIXED** - Now checks `requireArcAccess(supabase, projectId, 2)` (line 124)
+   - **Previous Issue:** Listed arenas without checking ARC access
+   - **Current Status:** Correctly enforces ARC access
+
+1. **`GET /api/portal/arc/project-by-slug`**
+   - **File:** `src/web/pages/api/portal/arc/project-by-slug.ts`
+   - **Issue:** Returns project data without checking ARC access approval
+   - **Impact:** May expose project info even if ARC not approved
+   - **Recommendation:** Add `requireArcAccess` check or document why intentionally public
+
+2. **`GET /api/portal/arc/active-arena`**
+   - **File:** `src/web/pages/api/portal/arc/active-arena.ts`
+   - **Issue:** Returns active arena without checking ARC access
+   - **Impact:** May expose arena data for non-ARC projects
+   - **Recommendation:** Add `requireArcAccess(supabase, projectId, 2)` check after resolving projectId from arena
+
+3. **`GET /api/portal/arc/arena-creators?arenaId=...`**
+   - **File:** `src/web/pages/api/portal/arc/arena-creators.ts`
+   - **Issue:** Returns creators list without checking ARC access
+   - **Impact:** May expose creator data for non-ARC projects
+   - **Recommendation:** Verify arena belongs to ARC-enabled project via `requireArcAccess`
+
+4. **`GET /api/portal/arc/summary?projectId=...`**
+   - **File:** `src/web/pages/api/portal/arc/summary.ts`
+   - **Issue:** Returns aggregate ARC stats (intentionally public endpoint for homepage)
+   - **Status:** ⚠️ **INTENTIONALLY PUBLIC** - Returns aggregate stats, not project-specific data
+   - **Impact:** Low - only aggregate counts, no sensitive project data
+   - **Recommendation:** Document why public, ensure no sensitive data in response
+
+5. **`GET /api/portal/arc/quests/completions?arenaId=...`**
+   - **File:** `src/web/pages/api/portal/arc/quests/completions.ts`
+   - **Issue:** Returns completions without verifying Option 3 unlocked
+   - **Impact:** May expose completion data even if Option 3 not unlocked
+   - **Recommendation:** Add `requireArcAccess(supabase, projectId, 3)` check after resolving arena.project_id
+
+**Note:** Some of these may be intentionally public (e.g., for UI rendering before auth), but this should be documented and the data should be minimal.
+
+### 3.4 Arena Details Endpoint Access
+
+⚠️ **P1: `GET /api/portal/arc/arena-details` Missing ARC Access Check**
+
+**File:** `src/web/pages/api/portal/arc/arena-details.ts`
+
+**Issue:** Returns arena details and creators without checking if the arena belongs to an ARC-enabled project.
+
+**Current Implementation:**
+- Takes `arenaId` as query parameter
+- Fetches arena and creators directly
+- No check to verify arena.project_id has ARC access
+
+**Impact:** May expose arena data for non-ARC projects.
+
+**Recommendation:** 
+1. Fetch arena.project_id
+2. Add `requireArcAccess(supabase, projectId, 2)` check before returning data
+
+### 3.3 Investor View Access Control
+
+✅ **Investor View Cannot Call Write Routes**
+
+**Location:** `src/web/lib/project-permissions.ts:92-188`
+
 ```typescript
-{
-  ok: true,
-  arena: { /* arena details */ },
-  creators: Array<{ /* creator details */ }>
-}
-```
-
-**DB Tables:**
-- `arenas` (SELECT: id, slug, name, description, status, starts_at, ends_at, reward_depth, settings)
-- `arena_creators` (SELECT: id, twitter_username, arc_points, ring, style, meta)
-
-**Note:** Legacy endpoint, does not include adjustments calculation
-
-**Lines:** 161 total  
-**Location:** `src/web/pages/api/portal/arc/arena-details.ts:1-161`
-
----
-
-### 2.4 `/api/portal/arc/admin/arena-creators.ts`
-**Method:** GET  
-**Query Params:**
-- `arenaId` (UUID, required)
-
-**Response Shape:**
-```typescript
-{
-  ok: true,
-  creators: Array<{
-    profile_id: string | null;
-    twitter_username: string;
-    base_points: number;
-    adjustments_sum: number;
-    effective_points: number;
-    ring: 'core' | 'momentum' | 'discovery';
-    style: string | null;
-    meta: Record<string, any>;
-    joined_at: string | null;
-  }>
-}
-```
-
-**DB Tables:**
-- `akari_user_roles` (SELECT: role) - auth check
-- `akari_user_sessions` (SELECT: user_id, expires_at) - auth check
-- `arena_creators` (SELECT: twitter_username, arc_points, ring, style, meta, profile_id, created_at)
-- `arc_point_adjustments` (SELECT: creator_profile_id, points_delta, arena_id)
-
-**Auth:** SuperAdmin only (DEV MODE bypass)
-
-**Lines:** 259 total  
-**Location:** `src/web/pages/api/portal/arc/admin/arena-creators.ts:1-259`
-
----
-
-### 2.5 `/api/portal/arc/admin/point-adjustments.ts`
-**Methods:** POST, GET  
-**POST Body:**
-```typescript
-{
-  arenaId: string;
-  creatorProfileId: string;
-  pointsDelta: number;
-  reason: string;
-}
-```
-
-**GET Query Params:**
-- `arenaId` (UUID, required)
-- `creatorProfileId` (UUID, optional): Filter by creator
-
-**Response Shape (POST):**
-```typescript
-{
-  ok: true,
-  adjustment: {
-    id: string;
-    arena_id: string;
-    creator_profile_id: string;
-    points_delta: number;
-    reason: string;
-    created_by_profile_id: string;
-    created_at: string;
-    metadata: Record<string, any> | null;
+export async function checkProjectPermissions(...): Promise<ProjectPermissionCheck> {
+  // ...
+  result.isInvestorView = roles.includes('investor_view');
+  // Note: isInvestorView does NOT set canManage to true
+  // ...
+  if (result.isAdmin || result.isOwner) {
+    result.canManage = true;
   }
 }
 ```
 
-**Response Shape (GET):**
+**Verification:**
+- `investor_view` role is included in result but `canManage` is only set for `admin`, `owner`, `superAdmin`
+- All write endpoints check `canManage` or `isAdmin/isOwner`, not `isInvestorView`
+- ✅ Correct: Investor view users cannot write
+
+---
+
+## 4. Option Checks
+
+### 4.1 Option 1 (CRM) - Visibility Rules
+
+**Expected Behavior:**
+- CRM visibility can be: `private`, `public`, `hybrid`
+- `private`: Only project admins/owners can view
+- `public`: Anyone can view
+- `hybrid`: Public view with admin-only sections
+
+**Verification:**
+
+✅ **API Endpoint Checks:**
+- Campaigns API (`/api/portal/arc/campaigns/index.ts`) uses `checkProjectPermissions` for write
+- Read access should respect visibility mode (needs verification in UI)
+
+⚠️ **Missing Verification:**
+- Need to verify UI respects visibility mode
+- Recommendation: Audit campaign list UI to ensure private campaigns are hidden from non-admins
+
+### 4.2 Option 2 (Leaderboard) - Follow Verification Flow
+
+**Expected Flow:**
+1. User verifies follow via `POST /api/portal/arc/verify-follow`
+2. User joins leaderboard via `POST /api/portal/arc/join-leaderboard`
+3. User appears in leaderboard
+
+**Verification:**
+
+✅ **verify-follow Endpoint:**
+- **File:** `src/web/pages/api/portal/arc/verify-follow.ts`
+- Requires authentication
+- Verifies user follows project on X
+- Returns verification status
+
+✅ **join-leaderboard Endpoint:**
+- **File:** `src/web/pages/api/portal/arc/join-leaderboard.ts`
+- Requires authentication
+- Checks follow verification status
+- Adds user to `arena_creators` table
+
+✅ **Gate Enforcement:**
+- Leaderboard endpoints require Option 2 via `requireArcAccess(supabase, projectId, 2)`
+
+### 4.3 Option 3 (Gamified) - Quest System
+
+**Expected Behavior:**
+- `/api/portal/arc/gamified/[projectId]` returns 200 only if Option 3 unlocked
+- Quests returned are scoped to active arena
+- Quest completions are user-scoped
+
+**Verification:**
+
+✅ **gamified Endpoint:**
+- **File:** `src/web/pages/api/portal/arc/gamified/[projectId].ts`
+- Calls `requireArcAccess(supabase, projectId, 3)` - ✅ Correct
+- Returns 403 if Option 3 not unlocked - ✅ Correct
+- Fetches active arena - ✅ Correct
+- Fetches quests for active arena only - ✅ Correct
+
 ```typescript
-{
-  ok: true,
-  adjustments: Array<{ /* same as POST adjustment */ }>
+// src/web/pages/api/portal/arc/gamified/[projectId].ts:85-92
+const accessCheck = await requireArcAccess(supabase, pid, 3);
+if (!accessCheck.ok) {
+  return res.status(403).json({
+    ok: false,
+    error: accessCheck.error,
+  });
 }
 ```
 
-**DB Tables:**
-- `akari_user_roles` (SELECT: role) - auth check
-- `akari_user_sessions` (SELECT: user_id, expires_at) - auth check
-- `akari_user_identities` (SELECT: username) - auth check
-- `profiles` (SELECT: id) - auth check
-- `arena_creators` (SELECT: id, profile_id) - validation
-- `arc_point_adjustments` (INSERT, SELECT)
-
-**Auth:** SuperAdmin only (DEV MODE bypass)
-
-**Lines:** 345 total  
-**Location:** `src/web/pages/api/portal/arc/admin/point-adjustments.ts:1-345`
+⚠️ **Quest Completions Endpoint:**
+- **File:** `src/web/pages/api/portal/arc/quests/completions.ts`
+- **Issue:** Does not verify Option 3 unlocked before returning completions
+- **Recommendation:** Add `requireArcAccess` check after resolving arena.project_id
 
 ---
 
-### 2.6 `/api/portal/arc/arena-creators-admin.ts`
-**Methods:** POST, PATCH, DELETE  
-**POST Body:**
+## 5. Quests and Completions Security
+
+### 5.1 Completion Write Endpoint
+
+**Endpoint:** `POST /api/portal/arc/quests/complete`
+
+**File:** `src/web/pages/api/portal/arc/quests/complete.ts`
+
+**Security Checks:**
+
+✅ **Authentication:**
 ```typescript
-{
-  arenaId: string;
-  twitter_username: string;
-  arc_points: number;
-  ring: 'core' | 'momentum' | 'discovery';
-  style?: string;
-  profile_id?: string | null;
+const portalUser = await requirePortalUser(req, res);
+if (!portalUser || !portalUser.profileId) {
+  return res.status(401).json({ ok: false, error: 'Not authenticated or profile not found' });
 }
 ```
 
-**PATCH Body:**
+✅ **Option 3 Access:**
 ```typescript
-{
-  id: string;
-  arc_points?: number;
-  ring?: 'core' | 'momentum' | 'discovery';
-  style?: string | null;
+const accessCheck = await requireArcAccess(supabase, arena.project_id, 3);
+if (!accessCheck.ok) {
+  return res.status(403).json({ ok: false, error: accessCheck.error });
 }
 ```
 
-**DELETE Query/Body:**
-- `id` (UUID, required)
-
-**Response Shape:**
+✅ **Arena Membership:**
 ```typescript
-{
-  ok: true,
-  data: { /* arena_creators row */ }
+const { data: creatorCheck } = await supabase
+  .from('arena_creators')
+  .select('id')
+  .eq('arena_id', body.arenaId)
+  .eq('profile_id', profileId)
+  .maybeSingle();
+
+if (!creatorCheck) {
+  return res.status(403).json({ ok: false, error: 'Not allowed' });
 }
 ```
 
-**DB Tables:**
-- `akari_user_roles` (SELECT: role) - auth check
-- `akari_user_sessions` (SELECT: user_id, expires_at) - auth check
-- `arena_creators` (INSERT, UPDATE, DELETE)
-
-**Auth:** SuperAdmin only (DEV MODE bypass)
-
-**Lines:** 291 total  
-**Location:** `src/web/pages/api/portal/arc/arena-creators-admin.ts:1-291`
-
----
-
-### 2.7 `/api/portal/arc/arenas-admin.ts`
-**Methods:** POST, PATCH  
-**POST Body:**
+✅ **Mission ID Whitelist:**
 ```typescript
-{
-  projectId: string;
-  name: string;
-  slug: string;
-  description?: string;
-  starts_at?: string | null;
-  ends_at?: string | null;
-  reward_depth?: number | null;
-  status?: string;
+const validMissionIds = ['intro-thread', 'meme-drop', 'signal-boost', 'deep-dive'];
+if (!validMissionIds.includes(body.missionId)) {
+  return res.status(400).json({ ok: false, error: 'Invalid missionId' });
 }
 ```
 
-**PATCH Body:**
+✅ **Arena Exists:**
 ```typescript
-{
-  id: string;
-  name?: string;
-  slug?: string;
-  description?: string | null;
-  starts_at?: string | null;
-  ends_at?: string | null;
-  reward_depth?: number | null;
-  status?: string;
+const { data: arena, error: arenaError } = await supabase
+  .from('arenas')
+  .select('id, project_id')
+  .eq('id', body.arenaId)
+  .single();
+
+if (arenaError || !arena) {
+  return res.status(404).json({ ok: false, error: 'Arena not found' });
 }
 ```
 
-**Response Shape:**
+✅ **User-Scoped Write:**
+- Uses `portalUser.profileId` for insertion - ✅ Correct
+- Cannot write completions for other users
+
+**Overall:** ✅ **SECURE** - All checks present and correct
+
+### 5.2 Completion Read Endpoint
+
+**Endpoint:** `GET /api/portal/arc/quests/completions?arenaId=...`
+
+**File:** `src/web/pages/api/portal/arc/quests/completions.ts`
+
+**Security Checks:**
+
+✅ **Authentication:**
 ```typescript
-{
-  ok: true,
-  data: { /* arena row */ }
+const userProfile = await getCurrentUserProfile(supabase, sessionToken);
+if (!userProfile) {
+  return res.status(401).json({ ok: false, error: 'Invalid session' });
 }
 ```
 
-**DB Tables:**
-- `akari_user_roles` (SELECT: role) - auth check
-- `akari_user_sessions` (SELECT: user_id, expires_at) - auth check
-- `arenas` (INSERT, UPDATE)
+✅ **User-Scoped Read:**
+```typescript
+const { data: completions } = await supabase
+  .from('arc_quest_completions')
+  .select('mission_id, completed_at')
+  .eq('profile_id', userProfile.profileId)  // ✅ User-scoped at API level
+  .eq('arena_id', arenaId);
+```
 
-**Auth:** SuperAdmin only (DEV MODE bypass)
+⚠️ **Missing Checks:**
+- Does not verify Option 3 unlocked
+- Does not verify arena belongs to ARC-enabled project
+- Recommendation: Add `requireArcAccess` check after resolving arena.project_id
 
-**Lines:** ~300 total  
-**Location:** `src/web/pages/api/portal/arc/arenas-admin.ts`
+⚠️ **P2: RLS Policy Allows Reading All Completions**
 
----
+**File:** `supabase/migrations/20250123_add_arc_quest_completions.sql:50-52`
 
-### 2.8 Other ARC API Routes (Not Detailed)
-- `/api/portal/arc/projects.ts` - List ARC projects
-- `/api/portal/arc/project-by-slug.ts` - Resolve project by slug (handles slug history)
-- `/api/portal/arc/state.ts` - Unified ARC state
-- `/api/portal/arc/summary.ts` - ARC summary stats
-- `/api/portal/arc/active-arena.ts` - Get active arena
-- `/api/portal/arc/arena-creators.ts` - Public arena creators list
-- `/api/portal/arc/creator.ts` - Creator profile data
-- `/api/portal/arc/join-campaign.ts` - Join campaign
-- `/api/portal/arc/top-projects.ts` - Top projects
-- `/api/portal/arc/cta-state.ts` - CTA state
-- Campaign-related endpoints (separate feature)
-- Leaderboard-related endpoints (separate feature)
+```sql
+CREATE POLICY "Users can read quest completions"
+  ON arc_quest_completions FOR SELECT
+  USING (true);  -- Allows reading ALL completions
+```
 
----
+**Issue:** RLS policy allows any authenticated user to read all completions, not just their own.
 
-## 3. ARC-Related Database Tables
+**Current Behavior:** 
+- Policy comment states: "Users can read all completions (for leaderboard/quest visibility)"
+- This may be intentional for quest visibility features
 
-### 3.1 `arenas`
-**Columns Used:**
-- `id` (UUID, PK)
-- `project_id` (UUID, FK → projects.id)
-- `slug` (TEXT, UNIQUE)
-- `name` (TEXT)
-- `description` (TEXT, nullable)
-- `status` (TEXT: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled')
-- `starts_at` (TIMESTAMPTZ, nullable)
-- `ends_at` (TIMESTAMPTZ, nullable)
-- `reward_depth` (INTEGER)
-- `settings` (JSONB)
-- `created_by` (UUID, FK → profiles.id, nullable)
-- `created_at` (TIMESTAMPTZ)
-- `updated_at` (TIMESTAMPTZ)
+**Impact:** 
+- API endpoint correctly filters by `profile_id`, so this is mitigated at the API level
+- If someone uses Supabase client directly with anon key, they could read all completions
+- However, this may be intentional for quest/leaderboard visibility
 
-**Operations:**
-- SELECT: All columns (various endpoints)
-- INSERT: All columns except created_at/updated_at (arenas-admin.ts POST)
-- UPDATE: name, slug, description, starts_at, ends_at, reward_depth, status (arenas-admin.ts PATCH)
+**Recommendation:** 
+- If quest completion visibility is required, document this as intentional
+- If privacy is required, update RLS policy to restrict to own completions:
+  ```sql
+  CREATE POLICY "Users can read their own quest completions"
+    ON arc_quest_completions FOR SELECT
+    USING (
+      profile_id = get_current_user_profile_id()
+    );
+  ```
 
-**Migration:** `supabase/migrations/20241213_add_arc_tables.sql:35-52`
+### 5.3 Potential Attack Vectors
 
----
-
-### 3.2 `arena_creators`
-**Columns Used:**
-- `id` (UUID, PK)
-- `arena_id` (UUID, FK → arenas.id)
-- `profile_id` (UUID, FK → profiles.id, nullable)
-- `twitter_username` (TEXT)
-- `arc_points` (NUMERIC(18,4)) - Base points (never updated by adjustments)
-- `ring` (TEXT: 'core' | 'momentum' | 'discovery')
-- `style` (TEXT, nullable)
-- `meta` (JSONB)
-- `created_at` (TIMESTAMPTZ) - Mapped to `joined_at` in responses
-- `updated_at` (TIMESTAMPTZ)
-
-**Operations:**
-- SELECT: All columns (various endpoints)
-- INSERT: arena_id, twitter_username, arc_points, ring, style, profile_id (arena-creators-admin.ts POST)
-- UPDATE: arc_points, ring, style (arena-creators-admin.ts PATCH)
-- DELETE: By id (arena-creators-admin.ts DELETE)
-
-**Note:** `arc_points` is the BASE value. Effective points = `arc_points + SUM(adjustments.points_delta)`.
-
-**Migration:** `supabase/migrations/20241213_add_arc_tables.sql:54-70`
+**Investigated:**
+- ✅ Cannot mark completions for other users (uses authenticated user's profileId)
+- ✅ Cannot mark completions for other arenas (arenaId must match creator's arena)
+- ✅ Cannot mark invalid mission IDs (whitelist enforced)
+- ⚠️ Missing Option 3 verification in read endpoint (low risk, but inconsistent)
 
 ---
 
-### 3.3 `arc_point_adjustments`
-**Columns Used:**
-- `id` (UUID, PK)
-- `arena_id` (UUID, FK → arenas.id)
-- `creator_profile_id` (UUID, FK → profiles.id)
-- `points_delta` (NUMERIC(18,4)) - Can be negative (slashing)
-- `reason` (TEXT) - Required
-- `created_by_profile_id` (UUID, FK → profiles.id)
-- `created_at` (TIMESTAMPTZ)
-- `metadata` (JSONB, nullable)
+## 6. Data Leaks + Privacy
 
-**Operations:**
-- SELECT: All columns (point-adjustments.ts GET, arenas/[slug].ts)
-- INSERT: All columns except id/created_at (point-adjustments.ts POST)
+### 6.1 Service Role Secrets
 
-**Note:** This is an audit trail. Never directly modify `arena_creators.arc_points` for adjustments.
+✅ **No Service Role Keys Exposed:**
+- All endpoints use `getSupabaseAdmin()` which reads from env vars
+- No service role keys in response bodies
+- No service role keys in logs (checked)
 
-**Migration:** `supabase/migrations/20250120_arc_task4_slug_history_and_point_adjustments.sql:102-111`
+### 6.2 Session Tokens in Logs
 
----
+✅ **No Session Tokens in Logs:**
+- Searched for `console.log/error/warn` with session/cookie/token patterns
+- No instances found exposing session tokens
+- Logs use error objects, not raw tokens
 
-### 3.4 `project_arc_settings`
-**Columns Used:**
-- `project_id` (UUID, PK, FK → projects.id)
-- `is_arc_enabled` (BOOLEAN)
-- `tier` (TEXT: 'basic' | 'pro' | 'event_host')
-- `status` (TEXT: 'inactive' | 'active' | 'suspended')
-- `security_status` (TEXT: 'normal' | 'alert' | 'clear')
-- `created_at` (TIMESTAMPTZ)
-- `updated_at` (TIMESTAMPTZ)
+### 6.3 Sensitive Data Exposure
 
-**Operations:**
-- SELECT: All columns (projects.ts, project-settings-admin.ts)
+⚠️ **P1: Potential Data Leaks in Public Endpoints**
 
-**Migration:** `supabase/migrations/20241213_add_arc_tables.sql:9-17`
+1. **`GET /api/portal/arc/project-by-slug`**
+   - Returns full project object
+   - May include internal fields
+   - Recommendation: Return only public fields (id, name, slug, twitter_username)
 
----
+2. **`GET /api/portal/arc/creator?username=...`**
+   - Returns creator profile data
+   - May include internal fields
+   - Recommendation: Verify only public fields are returned
 
-### 3.5 `project_slug_history`
-**Columns Used:**
-- `id` (UUID, PK)
-- `project_id` (UUID, FK → projects.id)
-- `slug` (TEXT, UNIQUE)
-- `created_at` (TIMESTAMPTZ)
+3. **`GET /api/portal/arc/active-arena`**
+   - Returns arena data
+   - May include internal metadata
+   - Recommendation: Return only public fields
 
-**Operations:**
-- SELECT: project_id, slug (project-by-slug.ts via `resolve_project_id_by_slug()` function)
-- INSERT: Automatic via trigger on `projects.slug` updates
+**Note:** These may be intentionally public, but data should be minimized to only what's needed for UI rendering.
 
-**Migration:** `supabase/migrations/20250120_arc_task4_slug_history_and_point_adjustments.sql:13-65`
+### 6.4 Team Member Data
+
+✅ **Team Member Data Protected:**
+- Project permissions API (`/api/portal/arc/permissions`) only returns permission flags, not team member lists
+- Team member data not exposed in public endpoints
+
+### 6.5 Email Addresses
+
+✅ **No Email Addresses Exposed:**
+- No endpoints return user email addresses
+- Profile data uses Twitter usernames only
 
 ---
 
-### 3.6 Supporting Tables (Used by ARC but not ARC-specific)
-- `projects` (id, name, slug, x_handle/twitter_username, avatar_url, profile_type)
-- `profiles` (id, username) - For creator lookups
-- `akari_user_roles` (user_id, role) - Auth checks
-- `akari_user_sessions` (session_token, user_id, expires_at) - Auth checks
-- `akari_user_identities` (user_id, username, provider) - Auth checks
+## 7. UI Correctness and Anti-Footgun Checks
+
+### 7.1 Slug Normalization
+
+✅ **Slug Normalization Present:**
+- **File:** `src/web/pages/portal/arc/[slug].tsx:186-199`
+- Normalizes slug: trim, toLowerCase
+- Redirects to canonical URL if normalized differs
+
+```typescript
+useEffect(() => {
+  if (!router.isReady) return;
+  
+  const rawSlugValue = router.query.slug;
+  if (typeof rawSlugValue === 'string' && rawSlugValue) {
+    const normalized = String(rawSlugValue).trim().toLowerCase();
+    if (normalized !== rawSlugValue) {
+      router.replace(`/portal/arc/${encodeURIComponent(normalized)}`, undefined, { shallow: false });
+      return;
+    }
+  }
+}, [router.isReady, router.query.slug, router]);
+```
+
+✅ **Correct:** Prevents duplicate routes and case-sensitivity issues
+
+### 7.2 Fetch Credentials
+
+✅ **Most Fetches Use credentials: 'include':**
+- Checked major fetch calls in ARC pages
+- Most use `credentials: 'include'` correctly
+
+⚠️ **P1: Some Fetches May Be Missing credentials:**
+- Need to verify all fetch calls in ARC pages
+- Recommendation: Add ESLint rule to enforce `credentials: 'include'` for authenticated endpoints
+
+**Examples of Correct Usage:**
+```typescript
+// src/web/pages/portal/arc/[slug].tsx:313
+const stateRes = await fetch(`/api/portal/arc/state?projectId=${projectInfo.id}`, {
+  credentials: 'include',
+});
+
+// src/web/pages/portal/arc/[slug].tsx:344
+const permissionsRes = await fetch(`/api/portal/arc/permissions?projectId=${encodeURIComponent(projectInfo.id)}`, {
+  credentials: 'include',
+});
+```
+
+### 7.3 Error Messages
+
+✅ **Error Messages Are Safe:**
+- Errors don't expose internal system details
+- Generic messages like "Access denied", "Project not found"
+- No stack traces in responses
+
+✅ **404 vs 403 Distinction:**
+- 404 for not found (project, arena, etc.)
+- 403 for access denied (permissions, ARC access)
+- ✅ Correct usage
 
 ---
 
-## 4. Feature Checklist
+## 8. Regression Risks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Arena Discovery (List Arenas)** | ✅ Complete | `/portal/arc/[slug]` shows arenas list, `/api/portal/arc/arenas` endpoint |
-| **Arena Detail Page** | ✅ Complete | `/portal/arc/[slug]/arena/[arenaSlug]` with leaderboard, storyline, map tabs |
-| **Add Creator to Arena** | ✅ Complete | Admin modal + `POST /api/portal/arc/arena-creators-admin` |
-| **Edit Creator (ring/style/meta)** | ✅ Complete | Admin modal + `PATCH /api/portal/arc/arena-creators-admin` (updates ring, style, arc_points base) |
-| **Adjust Points (+/-)** | ✅ Complete | Admin modal + `POST /api/portal/arc/admin/point-adjustments` (supports negative for slashing) |
-| **Adjustment History** | ✅ Complete | History modal + `GET /api/portal/arc/admin/point-adjustments` |
-| **Sorting + Filtering** | ✅ Complete | Leaderboard has: search (username/style), ring filter (all/core/momentum/discovery), sort (points_desc/asc, joined_newest/oldest) |
-| **Role Gating (SuperAdmin only)** | ✅ Complete | All admin endpoints check `akari_user_roles` for 'super_admin', returns 403 if not |
-| **DEV MODE Bypass** | ✅ Complete | `process.env.NODE_ENV === 'development'` bypasses auth in: arena-creators-admin.ts, point-adjustments.ts, arenas-admin.ts, admin/arena-creators.ts |
-| **Sentiment Section Integration** | ⚠️ Placeholder | Beta placeholder in arena detail page (lines 1574-1599), returns `{ enabled: true, summary: null, series: [] }` from API |
+### Top 10 Regression Hotspots
 
----
+#### 1. Legacy Fallback in requireArcAccess
+**File:** `src/web/lib/arc-access.ts:128-149`
+**Risk:** High - May bypass intended gates if features table missing
+**Guard:** Add assertion: `if (!features && process.env.NODE_ENV === 'production') { throw new Error('Missing arc_project_features row') }`
+**Test:** Unit test ensuring legacy fallback still checks approval status
 
-## 5. Implementation Status Summary
+#### 2. Quest Completion Endpoint Logic
+**File:** `src/web/pages/api/portal/arc/quests/complete.ts`
+**Risk:** Medium - Complex multi-step validation
+**Guard:** Add integration test: verify all security checks (auth, Option 3, membership, missionId)
+**Test:** Test suite covering all validation paths
 
-### A) What is Complete and Working
+#### 3. Arena Membership Check Order
+**File:** `src/web/pages/api/portal/arc/quests/complete.ts:94-109`
+**Risk:** Medium - If arena check fails, may expose error info
+**Guard:** Ensure arena.project_id exists before Option 3 check
+**Test:** Test with invalid arenaId
 
-1. **Arena Management**
-   - ✅ Create/Edit arenas (admin)
-   - ✅ List arenas by project
-   - ✅ Arena detail page with full UI
-   - ✅ Slug-based routing with canonicalization
+#### 4. Project Permissions Cache/State
+**File:** `src/web/lib/project-permissions.ts`
+**Risk:** Medium - Complex permission logic with multiple sources
+**Guard:** Add logging when permission denied (for debugging)
+**Test:** Integration tests for all permission scenarios
 
-2. **Creator Management**
-   - ✅ Add creators to arenas
-   - ✅ Edit creator metadata (ring, style, base points)
-   - ✅ Remove creators from arenas
-   - ✅ Creator profile pages
+#### 5. Slug Normalization Race Condition
+**File:** `src/web/pages/portal/arc/[slug].tsx:186-199`
+**Risk:** Low - useEffect dependency array may cause multiple redirects
+**Guard:** Add flag to prevent multiple redirects
+**Test:** Test with various slug formats
 
-3. **Point System**
-   - ✅ Base points (stored in `arena_creators.arc_points`)
-   - ✅ Point adjustments with audit trail (`arc_point_adjustments`)
-   - ✅ Effective points calculation (base + adjustments_sum)
-   - ✅ Adjustment history viewing
-   - ✅ Support for negative adjustments (slashing)
+#### 6. Session Expiration Handling
+**File:** `src/web/lib/server/require-portal-user.ts:222-240`
+**Risk:** Medium - Session expiration may cause 401 loops
+**Guard:** Client should handle 401 and redirect to login
+**Test:** Test with expired session token
 
-4. **Leaderboard Features**
-   - ✅ Filtering by ring (core/momentum/discovery/all)
-   - ✅ Search by username/style
-   - ✅ Sorting (points desc/asc, joined newest/oldest)
-   - ✅ Display of effective points (adjusted_points)
+#### 7. Unified State Fallback Logic
+**File:** `src/web/lib/arc/unified-state.ts`
+**Risk:** Medium - Complex fallback to legacy fields
+**Guard:** Add logging when fallback is used
+**Test:** Test with missing features row
 
-5. **UI/UX**
-   - ✅ Project hub page with tabs (Overview, Leaderboard, Missions, Storyline, Map)
-   - ✅ Arena detail page with tabs (Leaderboard, Storyline, Map)
-   - ✅ Admin modals for all CRUD operations
-   - ✅ Responsive design with error handling
-   - ✅ Loading states and error messages
+#### 8. CTA State Permission Logic
+**File:** `src/web/pages/api/portal/arc/cta-state.ts:270-312`
+**Risk:** Medium - Complex conditional logic for button visibility
+**Guard:** Add unit tests for all permission scenarios
+**Test:** Test matrix: superAdmin/teamRole/canRequest × arcAccessLevel × arcActive × existingRequest
 
-6. **Authentication & Authorization**
-   - ✅ SuperAdmin role gating for admin endpoints
-   - ✅ DEV MODE bypass for development (NODE_ENV === 'development')
-   - ✅ Session validation
+#### 9. Campaign Visibility Mode
+**File:** `src/web/pages/api/portal/arc/campaigns/index.ts`
+**Risk:** Medium - Visibility rules may not be enforced in all queries
+**Guard:** Add query filter helper for visibility
+**Test:** Test private/public/hybrid visibility scenarios
 
-7. **Database Schema**
-   - ✅ Complete migrations for all tables
-   - ✅ Proper foreign keys and constraints
-   - ✅ Slug history tracking with redirect support
-   - ✅ Point adjustments audit trail
-
----
-
-### B) What is Partially Implemented
-
-1. **Sentiment Integration**
-   - ⚠️ API returns placeholder structure (`{ enabled: true, summary: null, series: [] }`)
-   - ⚠️ UI shows "Coming soon" message in collapsible section
-   - ❌ No actual sentiment data integration
-   - **Location:** `src/web/pages/portal/arc/[slug]/arena/[arenaSlug].tsx:1574-1599`
-
-2. **Missions System**
-   - ⚠️ UI shows mission cards with placeholder logic
-   - ⚠️ Mission status determined by simple heuristic (points >= 2x reward)
-   - ❌ No actual mission tracking or completion logic
-   - **Location:** `src/web/pages/portal/arc/[slug].tsx:1083-1172`
-
-3. **Creator Profile Linking**
-   - ⚠️ `arena_creators.profile_id` is optional (nullable)
-   - ⚠️ Some endpoints may not have profile_id populated
-   - ✅ Creator profile page exists but may have incomplete data
-
-4. **Project Slug Resolution**
-   - ✅ Slug history table exists
-   - ✅ `resolve_project_id_by_slug()` function exists
-   - ⚠️ Not all endpoints use slug history (most use current slug only)
-   - **Used in:** `project-by-slug.ts`
+#### 10. Creator Profile Lookup
+**File:** `src/web/pages/api/portal/arc/creator.ts`
+**Risk:** Low - Username normalization may cause lookup failures
+**Guard:** Consistent username normalization across all lookups
+**Test:** Test with various username formats (@prefix, uppercase, etc.)
 
 ---
 
-### C) What is Missing
+## 9. Twitter Username Permanent Rule
 
-1. **Sentiment Data Integration**
-   - No real sentiment analysis data
-   - No sentiment charts/graphs
-   - No sentiment summary calculations
+### 9.1 Rule Verification
 
-2. **Mission Tracking**
-   - No mission completion tracking
-   - No mission reward system
-   - No mission validation logic
+**Rule:** `projects.twitter_username` is the single source of truth (never overwrite non-empty)
 
-3. **Automatic Point Calculation**
-   - No automated scoring engine integration
-   - Points must be manually set/adjusted
-   - No real-time point updates from content scoring
+**ARC Codebase Impact:**
 
-4. **Bulk Operations**
-   - No bulk creator import
-   - No bulk point adjustments
-   - No bulk arena operations
+✅ **No ARC Code Modifies twitter_username:**
+- Searched ARC codebase for `twitter_username` updates
+- No ARC endpoints update `projects.twitter_username`
+- ARC code only reads `twitter_username` for display/lookup
 
-5. **Advanced Filtering**
-   - No date range filtering for leaderboard
-   - No points range filtering
-   - No multi-ring filtering
+**Finding:**
+- ✅ ARC codebase correctly follows the permanent rule
+- All updates to projects table are for ARC-specific fields (arenas, quests, etc.)
+- No ARC code touches `twitter_username`
 
-6. **Analytics/Reporting**
-   - No arena analytics dashboard
-   - No creator performance metrics
-   - No project-level ARC analytics
-
-7. **Notifications**
-   - No notifications for point adjustments
-   - No notifications for arena status changes
-   - No creator notifications
-
-8. **Export/Import**
-   - No CSV export of leaderboards
-   - No bulk import of creators
-   - No data export for arenas
-
-9. **Validation & Business Logic**
-   - No validation for duplicate creators across arenas (allowed by schema)
-   - No validation for arena date conflicts
-   - No minimum/maximum point limits
-
-10. **Documentation**
-    - No API documentation
-    - No user guide
-    - Limited inline code comments
+**Location Checked:**
+- `src/web/pages/api/portal/arc/**/*.ts` - ✅ No updates to twitter_username
+- `src/web/lib/arc/**/*.ts` - ✅ No updates to twitter_username
 
 ---
 
-## 6. Top 10 Next Tasks (In Order)
+## 10. Summary of Findings
 
-1. **Integrate Sentiment Data** (High Priority)
-   - Connect sentiment API/service to populate real sentiment data
-   - Display sentiment charts/graphs in arena detail page
-   - Calculate sentiment summary metrics
-   - **Files to modify:** `src/web/pages/api/portal/arc/arenas/[slug].ts`, `src/web/pages/portal/arc/[slug]/arena/[arenaSlug].tsx`
+### Critical (P0) - Must Fix Before Production
 
-2. **Implement Mission Tracking System** (High Priority)
-   - Create mission completion tracking logic
-   - Integrate with content scoring system
-   - Add mission validation and reward assignment
-   - **Files to modify:** `src/web/pages/portal/arc/[slug].tsx`, create new mission tracking endpoints
+1. **Legacy Fallback Bypass Risk**
+   - **File:** `src/web/lib/arc-access.ts:128-149`
+   - **Issue:** Legacy fallback doesn't check `arc_project_access.application_status`
+   - **Fix:** Remove legacy fallback OR add approval check in fallback
 
-3. **Automated Point Calculation** (High Priority)
-   - Integrate scoring engine to automatically calculate points from content
-   - Set up background jobs/cron to update points
-   - **New files needed:** Scoring integration service, background job handler
+2. **Missing requireArcAccess in Public Endpoints**
+   - **Files:** 
+     - `src/web/pages/api/portal/arc/project-by-slug.ts`
+     - `src/web/pages/api/portal/arc/active-arena.ts`
+     - `src/web/pages/api/portal/arc/arenas/index.ts`
+     - `src/web/pages/api/portal/arc/arena-creators.ts`
+     - `src/web/pages/api/portal/arc/summary.ts`
+     - `src/web/pages/api/portal/arc/quests/completions.ts`
+   - **Issue:** Expose project data without verifying ARC access
+   - **Fix:** Add `requireArcAccess` checks OR document why intentionally public with minimal data
 
-4. **Enhance Profile Linking** (Medium Priority)
-   - Ensure all creators have `profile_id` populated
-   - Add profile lookup/creation during creator addition
-   - **Files to modify:** `src/web/pages/api/portal/arc/arena-creators-admin.ts`
+### High Priority (P1) - Should Fix Soon
 
-5. **Add Bulk Operations** (Medium Priority)
-   - Implement bulk creator import (CSV upload)
-   - Add bulk point adjustments
-   - **New files needed:** Bulk operations endpoints and UI
+3. **Missing credentials: 'include' in Some Fetches**
+   - **Issue:** Not all fetch calls use `credentials: 'include'`
+   - **Fix:** Audit all fetch calls and add ESLint rule
 
-6. **Improve Slug History Usage** (Medium Priority)
-   - Update all endpoints to use `resolve_project_id_by_slug()` function
-   - Add redirects for old slugs
-   - **Files to modify:** Multiple endpoints that resolve by slug
+4. **Potential Data Leaks in Public Endpoints**
+   - **Issue:** Public endpoints may return too much data
+   - **Fix:** Minimize returned data to only public fields
 
-7. **Add Advanced Filtering** (Low Priority)
-   - Date range filtering for leaderboard
-   - Points range filtering
-   - Multi-ring filtering
-   - **Files to modify:** `src/web/pages/portal/arc/[slug]/arena/[arenaSlug].tsx`, `src/web/pages/api/portal/arc/arenas/[slug].ts`
+5. **Missing Option 3 Check in Completions Read**
+   - **File:** `src/web/pages/api/portal/arc/quests/completions.ts`
+   - **Issue:** Doesn't verify Option 3 unlocked
+   - **Fix:** Add `requireArcAccess` check after resolving arena.project_id
 
-8. **Create Analytics Dashboard** (Low Priority)
-   - Arena performance metrics
-   - Creator engagement analytics
-   - Project-level ARC statistics
-   - **New files needed:** Analytics endpoints and dashboard page
+### Medium Priority (P2) - Nice to Have
 
-9. **Add Validation & Business Logic** (Low Priority)
-   - Validate duplicate creators
-   - Validate arena date conflicts
-   - Add point limits/validation
-   - **Files to modify:** `src/web/pages/api/portal/arc/arena-creators-admin.ts`, `src/web/pages/api/portal/arc/arenas-admin.ts`
+6. **Complex Permission Logic**
+   - **Issue:** Multiple permission sources (superAdmin, owner, team, roles)
+   - **Fix:** Add comprehensive integration tests
 
-10. **Documentation & Testing** (Low Priority)
-    - Write API documentation
-    - Add inline code comments
-    - Create user guide
-    - Add unit/integration tests
-    - **New files needed:** Documentation files, test files
+7. **Slug Normalization Race Condition**
+   - **Issue:** Multiple redirects possible
+   - **Fix:** Add redirect guard flag
+
+8. **Missing Visibility Mode Enforcement**
+   - **Issue:** CRM visibility rules may not be enforced in UI
+   - **Fix:** Audit UI and ensure private campaigns hidden
 
 ---
 
-## 7. Key Findings & Recommendations
+## 11. Production Readiness Assessment
 
-### Findings
+### Overall Status: 🔴 **FAIL**
 
-1. **Point System Architecture**
-   - ✅ Well-designed: Base points + adjustments = effective points
-   - ✅ Audit trail via `arc_point_adjustments` table
-   - ⚠️ Manual only - no automated scoring integration yet
+**Blocking Issues:**
+1. Legacy fallback may bypass ARC access gates
+2. Multiple public endpoints expose project data without ARC access verification
+3. Missing Option 3 check in completions read endpoint
 
-2. **Database Schema**
-   - ✅ Proper normalization and foreign keys
-   - ✅ Slug history for redirects (partially used)
-   - ✅ Audit trail for point adjustments
-   - ⚠️ `profile_id` nullable in `arena_creators` (could be mandatory)
+**Recommendations:**
+- Fix all P0 issues before production deployment
+- Address P1 issues in next sprint
+- Add comprehensive test coverage for regression hotspots
 
-3. **Authentication**
-   - ✅ Consistent SuperAdmin checks
-   - ✅ DEV MODE bypass for development
-   - ✅ Session validation
+### Pre-Production Punch List
 
-4. **API Design**
-   - ✅ RESTful endpoints
-   - ✅ Consistent error handling
-   - ✅ Proper response shapes
-   - ⚠️ Some endpoints don't use slug history
+#### Must Fix (P0):
+- [ ] Fix legacy fallback in `requireArcAccess` to check approval status (lines 128-149)
+- [ ] Add `requireArcAccess` checks to public endpoints OR document why public with minimal data:
+  - [ ] `project-by-slug.ts` - Document why public (slug resolution for navigation)
+  - [ ] `active-arena.ts` - Add `requireArcAccess` check after resolving projectId
+  - [ ] `arena-creators.ts` - Add `requireArcAccess` check after resolving arena.project_id
+  - [ ] `arena-details.ts` - Add `requireArcAccess` check after resolving arena.project_id
+  - [ ] `summary.ts` - Document why public (aggregate stats)
+  - [ ] `quests/completions.ts` - Add `requireArcAccess` check after resolving arena.project_id
 
-5. **UI/UX**
-   - ✅ Comprehensive admin interfaces
-   - ✅ Good filtering/sorting capabilities
-   - ✅ Clear error messages
-   - ⚠️ Sentiment section is placeholder only
+#### Should Fix (P1):
+- [ ] Add `requireArcAccess` check in `quests/completions.ts` for Option 3
+- [ ] Fix RLS policy for `arc_quest_completions` to only allow reading own completions
+- [ ] Audit all fetch calls for `credentials: 'include'`
+- [ ] Minimize data returned by public endpoints
+- [ ] Add ESLint rule to enforce `credentials: 'include'` for authenticated endpoints
 
-### Recommendations
-
-1. **Prioritize Sentiment Integration** - This is a key differentiator and currently just a placeholder
-2. **Implement Automated Scoring** - Manual point management doesn't scale
-3. **Make profile_id mandatory** - Better data integrity and linking
-4. **Add comprehensive validation** - Prevent data inconsistencies
-5. **Implement bulk operations** - Critical for scaling
-6. **Create analytics dashboard** - Essential for project owners to understand performance
+#### Nice to Have (P2):
+- [ ] Add integration tests for permission logic
+- [ ] Add redirect guard for slug normalization
+- [ ] Audit UI for CRM visibility mode enforcement
+- [ ] Add logging when legacy fallback is used
 
 ---
 
-**End of Report**
+## 12. Conclusion
 
+The ARC v1 codebase is **functionally complete** but has **critical security gaps** that must be addressed before production deployment. The main concerns are:
+
+1. **Access Control:** Some endpoints don't verify ARC access before returning project data
+2. **Legacy Fallback:** The fallback mechanism may bypass intended security gates
+3. **Consistency:** Some endpoints are missing Option checks that should be present
+
+With the P0 fixes in place, the codebase will be production-ready. The P1 and P2 items can be addressed iteratively.
+
+**Estimated Fix Time:** 2-4 hours for P0 issues
+
+---
+
+**End of Audit Report**
