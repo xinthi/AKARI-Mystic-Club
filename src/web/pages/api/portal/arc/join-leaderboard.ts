@@ -21,7 +21,7 @@ interface JoinLeaderboardBody {
 
 type JoinLeaderboardResponse =
   | { ok: true; arenaId: string; creatorId: string; message?: string }
-  | { ok: false; error: string; reason?: 'not_verified' | 'not_authenticated' | 'no_active_arena' };
+  | { ok: false; error: string; reason?: 'not_verified' | 'not_authenticated' | 'no_active_arena' | 'x_identity_not_found' | 'profile_not_found' };
 
 // =============================================================================
 // DEV MODE BYPASS
@@ -61,13 +61,14 @@ export default async function handler(
       .select('username')
       .eq('user_id', portalUser.userId)
       .eq('provider', 'x')
-      .single();
+      .maybeSingle();
 
     if (identityError || !xIdentity?.username) {
-      return res.status(401).json({
+      // User is authenticated but X identity not found - this is a data issue, not auth
+      return res.status(400).json({
         ok: false,
-        error: 'Invalid session',
-        reason: 'not_authenticated',
+        error: 'X identity not found',
+        reason: 'x_identity_not_found',
       });
     }
 
@@ -83,13 +84,14 @@ export default async function handler(
         .from('profiles')
         .select('id')
         .eq('username', cleanUsername)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
-        return res.status(401).json({
+        // User is authenticated but profile not found - this is a data issue, not auth
+        return res.status(400).json({
           ok: false,
-          error: 'Invalid session',
-          reason: 'not_authenticated',
+          error: 'Profile not found for X identity',
+          reason: 'profile_not_found',
         });
       }
 

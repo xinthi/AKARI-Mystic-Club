@@ -20,7 +20,7 @@ interface VerifyFollowBody {
 
 type VerifyFollowResponse =
   | { ok: true; verified: boolean; verifiedAt: string | null }
-  | { ok: false; error: string; reason?: 'not_following' | 'not_authenticated' | 'project_not_found' };
+  | { ok: false; error: string; reason?: 'not_following' | 'not_authenticated' | 'project_not_found' | 'x_identity_not_found' | 'profile_not_found' };
 
 // =============================================================================
 // DEV MODE BYPASS
@@ -105,13 +105,14 @@ export default async function handler(
         .from('profiles')
         .select('id')
         .eq('username', cleanUsername)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
-        return res.status(401).json({
+        // User is authenticated but profile not found - this is a data issue, not auth
+        return res.status(400).json({
           ok: false,
-          error: 'Invalid session',
-          reason: 'not_authenticated',
+          error: 'Profile not found for X identity',
+          reason: 'profile_not_found',
         });
       }
 
