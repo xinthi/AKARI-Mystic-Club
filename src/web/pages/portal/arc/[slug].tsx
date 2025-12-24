@@ -5,7 +5,7 @@
  * Shows project details, arenas, leaderboard, missions, storyline, and map
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -215,6 +215,7 @@ export default function ArcProjectHub() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [selectedArenaId, setSelectedArenaId] = useState<string | null>(null);
   const [completedMissionIds, setCompletedMissionIds] = useState<Set<string>>(new Set());
+  const [completingMissionId, setCompletingMissionId] = useState<string | null>(null);
   
   // Option 2 join flow state
   const [followVerified, setFollowVerified] = useState<boolean | null>(null);
@@ -564,38 +565,82 @@ export default function ArcProjectHub() {
   }, [project, projectId, userTwitterUsername]);
 
   // Fetch quest completions for selected arena
-  useEffect(() => {
-    async function fetchQuestCompletions() {
-      if (!selectedArenaId || !akariUser.isLoggedIn) {
-        setCompletedMissionIds(new Set());
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(selectedArenaId)}`, {
-          credentials: 'include',
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          if (data.ok && data.completions) {
-            const missionIds = new Set<string>(data.completions.map((c: { mission_id: string }) => c.mission_id));
-            setCompletedMissionIds(missionIds);
-          } else {
-            setCompletedMissionIds(new Set());
-          }
-        } else {
-          // If unauthorized or error, just clear completions
-          setCompletedMissionIds(new Set());
-        }
-      } catch (err) {
-        console.error('[ArcProjectHub] Error fetching quest completions:', err);
-        setCompletedMissionIds(new Set());
-      }
+  const fetchQuestCompletions = async () => {
+    if (!selectedArenaId || !akariUser.isLoggedIn) {
+      setCompletedMissionIds(new Set());
+      return;
     }
 
+    try {
+      const res = await fetch(`/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(selectedArenaId)}`, {
+        credentials: 'include',
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.completions) {
+          const missionIds = new Set<string>(data.completions.map((c: { mission_id: string }) => c.mission_id));
+          setCompletedMissionIds(missionIds);
+        } else {
+          setCompletedMissionIds(new Set());
+        }
+      } else {
+        // If unauthorized or error, just clear completions
+        setCompletedMissionIds(new Set());
+      }
+    } catch (err) {
+      console.error('[ArcProjectHub] Error fetching quest completions:', err);
+      setCompletedMissionIds(new Set());
+    }
+  };
+
+  useEffect(() => {
     fetchQuestCompletions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedArenaId, akariUser.isLoggedIn]);
+
+  // Handle mission completion
+  const handleCompleteMission = async (missionId: string) => {
+    if (!selectedArenaId || !akariUser.isLoggedIn || completingMissionId) {
+      return;
+    }
+
+    setCompletingMissionId(missionId);
+
+    try {
+      const res = await fetch('/api/portal/arc/quests/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          arenaId: selectedArenaId,
+          missionId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok) {
+          // Refresh completions to update UI
+          await fetchQuestCompletions();
+        } else {
+          console.error('[ArcProjectHub] Error completing mission:', data.error);
+          alert(data.error || 'Failed to mark mission as complete');
+        }
+      } else {
+        const data = await res.json();
+        console.error('[ArcProjectHub] Error completing mission:', data.error);
+        alert(data.error || 'Failed to mark mission as complete');
+      }
+    } catch (err) {
+      console.error('[ArcProjectHub] Error completing mission:', err);
+      alert('Failed to mark mission as complete');
+    } finally {
+      setCompletingMissionId(null);
+    }
+  };
 
   // Check follow verification status (read-only check)
   useEffect(() => {
@@ -1432,7 +1477,7 @@ export default function ArcProjectHub() {
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div>
+                              <div className="flex-1">
                                 <div className="text-sm font-semibold text-white">
                                   {mission.title}
                                 </div>
@@ -1443,21 +1488,32 @@ export default function ArcProjectHub() {
                                   Recommended: {mission.recommendedContent}
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1">
-                                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
-                                  +{mission.rewardPoints} pts
-                                </span>
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-[11px] ${
-                                    isLocked
-                                      ? 'bg-slate-700 text-slate-200'
-                                      : isCompleted
-                                      ? 'bg-emerald-500/20 text-emerald-300'
-                                      : 'bg-blue-500/15 text-blue-200'
-                                  }`}
-                                >
-                                  {isLocked ? 'Locked' : isCompleted ? 'Completed' : 'Available'}
-                                </span>
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
+                                    +{mission.rewardPoints} pts
+                                  </span>
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                                      isLocked
+                                        ? 'bg-slate-700 text-slate-200'
+                                        : isCompleted
+                                        ? 'bg-emerald-500/20 text-emerald-300'
+                                        : 'bg-blue-500/15 text-blue-200'
+                                    }`}
+                                  >
+                                    {isLocked ? 'Locked' : isCompleted ? 'Completed' : 'Available'}
+                                  </span>
+                                </div>
+                                {!isLocked && !isCompleted && hasJoined && akariUser.isLoggedIn && (
+                                  <button
+                                    onClick={() => handleCompleteMission(mission.id)}
+                                    disabled={completingMissionId === mission.id || !selectedArenaId}
+                                    className="px-3 py-1 text-xs font-medium bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 rounded-lg hover:bg-akari-neon-teal/30 hover:border-akari-neon-teal/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {completingMissionId === mission.id ? 'Marking...' : 'Mark Complete'}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
