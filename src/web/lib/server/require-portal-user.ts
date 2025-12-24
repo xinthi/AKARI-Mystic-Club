@@ -11,7 +11,6 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { parse as parseCookie } from 'cookie';
 import { getSupabaseAdmin } from '../supabase-admin';
 
 // =============================================================================
@@ -45,9 +44,9 @@ function getBearerToken(req: NextApiRequest): string | null {
 }
 
 /**
- * Extract session token from cookies using proper cookie parser
- * Handles edge cases: URL encoding, duplicate cookies, malformed headers
- * If multiple akari_session cookies exist, prefers the one with Path=/ (longest token)
+ * Extract session token from cookies
+ * Uses the same simple parsing logic as /api/auth/website/me.ts (which works in production)
+ * Handles duplicate cookies by taking the first match (same as /me endpoint)
  */
 function getSessionToken(req: NextApiRequest): string | null {
   // First, try req.cookies if Next.js has parsed it (though API routes typically don't auto-parse)
@@ -58,35 +57,21 @@ function getSessionToken(req: NextApiRequest): string | null {
     }
   }
 
-  // Fall back to parsing from cookie header (standard for API routes)
-  const cookieHeader = req.headers.cookie ?? '';
-  if (!cookieHeader) {
-    return null;
-  }
-
-  try {
-    // Use cookie parser to handle URL encoding and edge cases
-    // Note: parseCookie handles duplicate cookies by taking the last occurrence
-    const cookies = parseCookie(cookieHeader);
-    const token = cookies['akari_session'] ?? null;
-    
-    if (!token || typeof token !== 'string') {
-      return null;
+  // Use the same simple parsing logic as /api/auth/website/me.ts
+  const cookies = req.headers.cookie?.split(';').map((c: string) => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      const token = cookie.substring('akari_session='.length);
+      // Handle URL encoding if present
+      try {
+        return decodeURIComponent(token);
+      } catch {
+        // If decode fails, return raw token (might not be encoded)
+        return token;
+      }
     }
-    
-    // Decode URL-encoded token safely
-    try {
-      const decoded = decodeURIComponent(token);
-      return decoded.length > 0 ? decoded : null;
-    } catch (decodeError) {
-      // If decode fails, return raw token (might not be encoded)
-      return token.length > 0 ? token : null;
-    }
-  } catch (parseError) {
-    // If cookie parsing fails, log and return null
-    console.warn('[requirePortalUser] Cookie parse error:', parseError);
-    return null;
   }
+  return null;
 }
 
 /**
@@ -188,13 +173,23 @@ export async function requirePortalUser(
   // Safe debug logging in production (only when auth fails or for diagnostics)
   const isProd = process.env.NODE_ENV === 'production';
   if (isProd && !sessionToken) {
+    // Extract cookie names for debugging (without values)
+    const cookieNames: string[] = [];
+    if (hasCookieHeader) {
+      const cookies = req.headers.cookie?.split(';').map((c: string) => c.trim()) || [];
+      cookieNames.push(...cookies.map((c: string) => {
+        const eqIdx = c.indexOf('=');
+        return eqIdx > 0 ? c.substring(0, eqIdx) : c;
+      }));
+    }
+    
     console.log('[requirePortalUser] Auth failed: no session token', {
       hostname,
       path,
       hasCookieHeader,
       hasAuthHeader,
       hasReqCookieAkariSession,
-      cookieNames: hasCookieHeader ? Object.keys(parseCookie(req.headers.cookie ?? '')) : [],
+      cookieNames,
       authPath,
     });
   }
