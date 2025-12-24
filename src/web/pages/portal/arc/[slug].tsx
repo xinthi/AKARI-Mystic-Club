@@ -15,6 +15,7 @@ import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/help
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import { isSuperAdmin } from '@/lib/permissions';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
+import { getAllTemplates, getTemplate, type CampaignTemplate } from '@/lib/arc-campaign-templates';
 
 // =============================================================================
 // TYPES
@@ -252,6 +253,8 @@ export default function ArcProjectHub() {
     winners_count: 100,
     status: 'draft' as 'draft' | 'live' | 'paused' | 'ended',
   });
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [templateQuests, setTemplateQuests] = useState<Array<{ mission_id: string; title: string; points: number }>>([]);
   const [inviteForm, setInviteForm] = useState({ twitter_username: '' });
   const [utmForm, setUtmForm] = useState({ target_url: '' });
 
@@ -2100,6 +2103,8 @@ export default function ArcProjectHub() {
                           winners_count: 100,
                           status: 'draft',
                         });
+                        setSelectedTemplate('');
+                        setTemplateQuests([]);
                       } else {
                         alert(data.error || 'Failed to create campaign');
                       }
@@ -2112,7 +2117,11 @@ export default function ArcProjectHub() {
                   Create
                 </button>
                 <button
-                  onClick={() => setShowCreateCampaignModal(false)}
+                  onClick={() => {
+                    setShowCreateCampaignModal(false);
+                    setSelectedTemplate('');
+                    setTemplateQuests([]);
+                  }}
                   className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10"
                 >
                   Cancel

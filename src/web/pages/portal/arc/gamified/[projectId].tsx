@@ -5,7 +5,7 @@
  * Shows leaderboard and quests for active arena
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -34,6 +34,60 @@ interface Quest {
   status: 'active' | 'completed' | 'locked';
 }
 
+interface RecentActivityItem {
+  mission_id: string;
+  completed_at: string;
+  creator_username: string;
+  proof_url: string | null;
+}
+
+type RankBadge = 'Bronze' | 'Silver' | 'Gold' | 'Legend';
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+/**
+ * Calculate level and XP from total points
+ * Level = floor(points / 100), XP = points % 100
+ */
+function calculateLevelAndXP(points: number): { level: number; xp: number; xpForNextLevel: number } {
+  const pointsPerLevel = 100;
+  const level = Math.floor(points / pointsPerLevel);
+  const xp = points % pointsPerLevel;
+  return {
+    level: Math.max(1, level), // Minimum level 1
+    xp,
+    xpForNextLevel: pointsPerLevel,
+  };
+}
+
+/**
+ * Calculate rank badge from total points
+ */
+function calculateRankBadge(points: number): RankBadge {
+  if (points >= 10000) return 'Legend';
+  if (points >= 2000) return 'Gold';
+  if (points >= 500) return 'Silver';
+  return 'Bronze';
+}
+
+/**
+ * Get rank badge color
+ */
+function getRankBadgeColor(rank: RankBadge): string {
+  switch (rank) {
+    case 'Legend':
+      return 'from-purple-500 to-pink-500';
+    case 'Gold':
+      return 'from-yellow-400 to-yellow-600';
+    case 'Silver':
+      return 'from-gray-300 to-gray-500';
+    case 'Bronze':
+      return 'from-orange-400 to-orange-600';
+  }
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -47,8 +101,12 @@ export default function GamifiedLeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [arenaName, setArenaName] = useState<string | null>(null);
+  const [arenaId, setArenaId] = useState<string | null>(null);
+  const [userEntry, setUserEntry] = useState<LeaderboardEntry | null>(null);
+  const [userCompletions, setUserCompletions] = useState<Array<{ completed_at: string }>>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
 
-  // Fetch leaderboard and quests
+  // Fetch leaderboard, quests, user completions, and recent activity
   useEffect(() => {
     async function fetchData() {
       if (!projectId || typeof projectId !== 'string') {
@@ -60,25 +118,62 @@ export default function GamifiedLeaderboardPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch leaderboard
-        const leaderboardRes = await fetch(`/api/portal/arc/leaderboard/${projectId}`);
-        const leaderboardData = await leaderboardRes.json();
+        // Fetch gamified data (leaderboard + quests)
+        const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
+          credentials: 'include',
+        });
+        const gamifiedData = await gamifiedRes.json();
 
-        if (leaderboardRes.ok && leaderboardData.ok) {
-          setLeaderboardEntries(leaderboardData.entries || []);
-          setArenaName(leaderboardData.arenaName || null);
-        } else {
-          throw new Error(leaderboardData.error || 'Failed to load leaderboard');
-        }
+        if (gamifiedRes.ok && gamifiedData.ok) {
+          setLeaderboardEntries(gamifiedData.entries || []);
+          setArenaName(gamifiedData.arena?.name || null);
+          setArenaId(gamifiedData.arena?.id || null);
+          setQuests(gamifiedData.quests || []);
 
-        // Fetch quests for active arena
-        if (leaderboardData.arenaId) {
-          const questsRes = await fetch(`/api/portal/arc/quests?arenaId=${leaderboardData.arenaId}`);
-          const questsData = await questsRes.json();
-
-          if (questsRes.ok && questsData.ok) {
-            setQuests(questsData.quests || []);
+          // Find user's entry if logged in
+          if (akariUser.isLoggedIn && akariUser.user?.xUsername) {
+            const userUsername = akariUser.user.xUsername.toLowerCase().replace('@', '');
+            const userEntry = gamifiedData.entries?.find((e: LeaderboardEntry) =>
+              e.twitter_username?.toLowerCase().replace('@', '') === userUsername
+            );
+            setUserEntry(userEntry || null);
           }
+
+          // Fetch user completions for streak calculation
+          if (gamifiedData.arena?.id && akariUser.isLoggedIn) {
+            try {
+              const completionsRes = await fetch(
+                `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(gamifiedData.arena.id)}`,
+                { credentials: 'include' }
+              );
+              if (completionsRes.ok) {
+                const completionsData = await completionsRes.json();
+                if (completionsData.ok) {
+                  setUserCompletions(completionsData.completions || []);
+                }
+              }
+            } catch (err) {
+              console.error('[GamifiedLeaderboardPage] Error fetching completions:', err);
+            }
+
+            // Fetch recent activity
+            try {
+              const activityRes = await fetch(
+                `/api/portal/arc/quests/recent-activity?arenaId=${encodeURIComponent(gamifiedData.arena.id)}`,
+                { credentials: 'include' }
+              );
+              if (activityRes.ok) {
+                const activityData = await activityRes.json();
+                if (activityData.ok) {
+                  setRecentActivity(activityData.activities || []);
+                }
+              }
+            } catch (err) {
+              console.error('[GamifiedLeaderboardPage] Error fetching recent activity:', err);
+            }
+          }
+        } else {
+          throw new Error(gamifiedData.error || 'Failed to load gamified leaderboard');
         }
       } catch (err: any) {
         console.error('[GamifiedLeaderboardPage] Error:', err);
@@ -89,7 +184,7 @@ export default function GamifiedLeaderboardPage() {
     }
 
     fetchData();
-  }, [projectId]);
+  }, [projectId, akariUser.isLoggedIn, akariUser.user?.xUsername]);
 
   if (loading) {
     return (
@@ -139,6 +234,98 @@ export default function GamifiedLeaderboardPage() {
             <p className="text-white/60">Active Arena: {arenaName}</p>
           )}
         </div>
+
+        {/* User Progression Card */}
+        {(() => {
+          const userProgression = userEntry
+            ? {
+                level: calculateLevelAndXP(userEntry.effective_points).level,
+                xp: calculateLevelAndXP(userEntry.effective_points).xp,
+                xpForNextLevel: calculateLevelAndXP(userEntry.effective_points).xpForNextLevel,
+                rankBadge: calculateRankBadge(userEntry.effective_points),
+              }
+            : null;
+
+          // Calculate streak (consecutive days with >=1 completion in current arena)
+          const streak = (() => {
+            if (!userCompletions.length || !arenaId) return 0;
+
+            // Group completions by date (UTC date string)
+            const completionsByDate = new Map<string, number>();
+            userCompletions.forEach((c: { completed_at: string }) => {
+              const dateStr = new Date(c.completed_at).toISOString().split('T')[0];
+              completionsByDate.set(dateStr, (completionsByDate.get(dateStr) || 0) + 1);
+            });
+
+            // Calculate consecutive days from today backwards
+            let streakCount = 0;
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+
+            for (let i = 0; i < 365; i++) {
+              const checkDate = new Date(today);
+              checkDate.setUTCDate(checkDate.getUTCDate() - i);
+              const dateStr = checkDate.toISOString().split('T')[0];
+
+              if (completionsByDate.has(dateStr)) {
+                streakCount++;
+              } else {
+                break; // Streak broken
+              }
+            }
+
+            return streakCount;
+          })();
+
+          if (!userProgression) return null;
+
+          return (
+            <div className="rounded-xl border border-white/10 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Your Progress</h2>
+                <div className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getRankBadgeColor(userProgression.rankBadge)} text-white font-semibold text-sm`}>
+                  {userProgression.rankBadge}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Level & XP */}
+                <div className="bg-black/40 rounded-lg p-4 border border-white/10">
+                  <div className="text-xs text-white/60 mb-2">Level</div>
+                  <div className="text-2xl font-bold text-white mb-2">{userProgression.level}</div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-akari-neon-teal to-akari-neon-blue transition-all"
+                      style={{
+                        width: `${(userProgression.xp / userProgression.xpForNextLevel) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="text-xs text-white/60 mt-1">
+                    {userProgression.xp} / {userProgression.xpForNextLevel} XP
+                  </div>
+                </div>
+
+                {/* Total Points */}
+                <div className="bg-black/40 rounded-lg p-4 border border-white/10">
+                  <div className="text-xs text-white/60 mb-2">Total Points</div>
+                  <div className="text-2xl font-bold text-white">{userEntry!.effective_points.toLocaleString()}</div>
+                  <div className="text-xs text-white/60 mt-1">Rank #{userEntry!.rank}</div>
+                </div>
+
+                {/* Streak */}
+                <div className="bg-black/40 rounded-lg p-4 border border-white/10">
+                  <div className="text-xs text-white/60 mb-2">Streak</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🔥</span>
+                    <div className="text-2xl font-bold text-white">{streak}</div>
+                  </div>
+                  <div className="text-xs text-white/60 mt-1">consecutive days</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Leaderboard Section */}
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
@@ -267,6 +454,64 @@ export default function GamifiedLeaderboardPage() {
             </div>
           )}
         </div>
+
+        {/* Recent Activity Panel */}
+        {arenaId && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Recent Activity</h2>
+
+            {recentActivity.length === 0 ? (
+              <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
+                <div className="text-4xl mb-4">⚡</div>
+                <h3 className="text-lg font-semibold text-white mb-2">No activity yet</h3>
+                <p className="text-white/60 text-sm">
+                  Quest completions will appear here as creators complete missions.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentActivity.map((activity, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-black/20 hover:bg-black/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-akari-neon-teal/20 flex items-center justify-center text-xs font-semibold text-akari-neon-teal">
+                        ✓
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white">
+                          @{activity.creator_username}
+                        </div>
+                        <div className="text-xs text-white/60">
+                          completed <span className="font-medium">{activity.mission_id}</span>
+                        </div>
+                      </div>
+                      {activity.proof_url && (
+                        <a
+                          href={activity.proof_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-shrink-0 text-xs text-akari-neon-teal hover:text-akari-neon-blue transition-colors"
+                        >
+                          View Proof →
+                        </a>
+                      )}
+                    </div>
+                    <div className="text-xs text-white/40 ml-4">
+                      {new Date(activity.completed_at).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </PortalLayout>
   );

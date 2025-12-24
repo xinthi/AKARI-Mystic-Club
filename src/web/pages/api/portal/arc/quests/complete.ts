@@ -17,6 +17,7 @@ import { requireArcAccess } from '@/lib/arc-access';
 interface CompleteMissionBody {
   arenaId: string;
   missionId: string;
+  proofUrl?: string; // Optional proof link (tweet URL)
 }
 
 type CompleteMissionResponse =
@@ -67,6 +68,29 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Invalid missionId' });
     }
 
+    // Validate proofUrl if provided (optional but preferred if x.com/twitter.com)
+    let proofUrl: string | null = null;
+    if (body.proofUrl) {
+      if (typeof body.proofUrl !== 'string' || body.proofUrl.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'proofUrl must be a non-empty string if provided' });
+      }
+
+      const trimmedUrl = body.proofUrl.trim();
+      
+      // Basic URL validation
+      try {
+        const url = new URL(trimmedUrl);
+        // Optional: prefer x.com or twitter.com domains (but allow any valid URL)
+        const hostname = url.hostname.toLowerCase();
+        if (!hostname.includes('x.com') && !hostname.includes('twitter.com')) {
+          // Allow any URL but could warn in future - for v1, just validate it's a URL
+        }
+        proofUrl = trimmedUrl;
+      } catch (urlError) {
+        return res.status(400).json({ ok: false, error: 'proofUrl must be a valid URL' });
+      }
+    }
+
     // Verify arena exists and get project_id
     const { data: arena, error: arenaError } = await supabase
       .from('arenas')
@@ -109,19 +133,28 @@ export default async function handler(
     }
 
     // Insert or upsert completion (respects unique constraint)
+    const upsertData: {
+      profile_id: string;
+      arena_id: string;
+      mission_id: string;
+      completed_at: string;
+      proof_url?: string | null;
+    } = {
+      profile_id: profileId,
+      arena_id: body.arenaId,
+      mission_id: body.missionId,
+      completed_at: new Date().toISOString(),
+    };
+
+    if (proofUrl !== null) {
+      upsertData.proof_url = proofUrl;
+    }
+
     const { error: insertError } = await supabase
       .from('arc_quest_completions')
-      .upsert(
-        {
-          profile_id: profileId,
-          arena_id: body.arenaId,
-          mission_id: body.missionId,
-          completed_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'profile_id,mission_id,arena_id',
-        }
-      );
+      .upsert(upsertData, {
+        onConflict: 'profile_id,mission_id,arena_id',
+      });
 
     if (insertError) {
       console.error('[ARC Quest Complete] Error inserting completion:', insertError);
