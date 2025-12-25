@@ -21,6 +21,10 @@ interface DashboardStats {
   monthlyRevenue: number;
   activeArenas: number;
   activeCampaigns: number;
+  // Breakdown by type
+  activeLeaderboards: number; // Option 2: Normal Leaderboard
+  activeCRM: number; // Option 1: Creator Manager/CRM
+  activeGamified: number; // Option 3: Gamified Leaderboard
 }
 
 type DashboardStatsResponse =
@@ -148,56 +152,102 @@ export default async function handler(
       .select('id, status, starts_at, ends_at, project_id')
       .in('status', ['active', 'scheduled']);
     
-    // Filter to only count arenas that are currently live (within date range) AND have ARC access
+    // Cache project features to avoid repeated queries
+    const projectFeaturesCache = new Map<string, { option1?: boolean; option2?: boolean; option3?: boolean }>();
+    
+    // Helper to check if arena is live (within date range)
+    const isArenaLive = (arena: { starts_at: string | null; ends_at: string | null }): boolean => {
+      if (!arena.starts_at) {
+        if (arena.ends_at && new Date(arena.ends_at) < now) {
+          return false; // Ended
+        }
+        return true;
+      }
+      const startDate = new Date(arena.starts_at);
+      if (startDate > now) {
+        return false; // Upcoming
+      }
+      if (arena.ends_at) {
+        const endDate = new Date(arena.ends_at);
+        if (endDate < now) {
+          return false; // Ended
+        }
+      }
+      return true; // Live
+    };
+    
+    // Process arenas once and categorize by type
     let activeArenas = 0;
+    let activeLeaderboards = 0;
+    let activeGamified = 0;
+    
     if (activeArenasData) {
       for (const arena of activeArenasData) {
-        // Check date range first
-        let isLive = false;
-        
-        // If no start date, treat as live (unless ended)
-        if (!arena.starts_at) {
-          if (arena.ends_at && new Date(arena.ends_at) < now) {
-            continue; // Ended
-          }
-          isLive = true;
-        } else {
-          const startDate = new Date(arena.starts_at);
-          // If start date is in future, skip (upcoming, not live)
-          if (startDate > now) {
-            continue;
-          }
-          
-          // If started, check end date
-          if (arena.ends_at) {
-            const endDate = new Date(arena.ends_at);
-            // If past end date, skip (ended)
-            if (endDate < now) {
-              continue;
-            }
-          }
-          
-          // Within date range, it's live
-          isLive = true;
+        if (!isArenaLive(arena)) {
+          continue;
         }
         
-        // If within date range, check ARC access (matching getArcLiveItems logic)
-        if (isLive) {
+        // Get or cache project features
+        let features = projectFeaturesCache.get(arena.project_id);
+        if (!features) {
+          const { data: featuresData } = await supabase
+            .from('arc_project_features')
+            .select('option1_crm_unlocked, option2_normal_unlocked, option3_gamified_unlocked')
+            .eq('project_id', arena.project_id)
+            .maybeSingle();
+          
+          features = {
+            option1: featuresData?.option1_crm_unlocked || false,
+            option2: featuresData?.option2_normal_unlocked || false,
+            option3: featuresData?.option3_gamified_unlocked || false,
+          };
+          projectFeaturesCache.set(arena.project_id, features);
+        }
+        
+        // Check access for Option 2 (Leaderboard) or Option 3 (Gamified)
+        if (features.option2 && !features.option3) {
+          // Normal Leaderboard (Option 2 only)
           const accessCheck = await requireArcAccess(supabase, arena.project_id, 2);
           if (accessCheck.ok) {
             activeArenas++;
-          } else {
-            console.log(`[Dashboard Stats] Arena ${arena.id} (project ${arena.project_id}) excluded: ${accessCheck.error} (code: ${accessCheck.code})`);
+            activeLeaderboards++;
+          }
+        } else if (features.option3) {
+          // Gamified Leaderboard (Option 3)
+          const accessCheck = await requireArcAccess(supabase, arena.project_id, 3);
+          if (accessCheck.ok) {
+            activeArenas++;
+            activeGamified++;
+          }
+        } else {
+          // Check Option 2 as fallback (for legacy or mixed cases)
+          const accessCheck = await requireArcAccess(supabase, arena.project_id, 2);
+          if (accessCheck.ok) {
+            activeArenas++;
           }
         }
       }
     }
 
-    // Get active campaigns
-    const { count: activeCampaigns } = await supabase
+    // Count active CRM campaigns (Option 1: Creator Manager)
+    // These are arc_campaigns with status='live' or 'paused' and have option1_crm_unlocked
+    const { data: campaignsData } = await supabase
       .from('arc_campaigns')
-      .select('*', { count: 'exact', head: true })
+      .select('id, project_id, status')
       .in('status', ['live', 'paused']);
+    
+    let activeCRM = 0;
+    let activeCampaigns = 0;
+    
+    if (campaignsData) {
+      for (const campaign of campaignsData) {
+        activeCampaigns++;
+        const accessCheck = await requireArcAccess(supabase, campaign.project_id, 1);
+        if (accessCheck.ok) {
+          activeCRM++;
+        }
+      }
+    }
 
     const stats: DashboardStats = {
       totalProjects: totalProjects || 0,
@@ -208,6 +258,9 @@ export default async function handler(
       monthlyRevenue,
       activeArenas: activeArenas || 0,
       activeCampaigns: activeCampaigns || 0,
+      activeLeaderboards,
+      activeCRM,
+      activeGamified,
     };
 
     return res.status(200).json({ ok: true, stats });

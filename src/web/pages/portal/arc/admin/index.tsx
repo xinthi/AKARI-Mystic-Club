@@ -31,6 +31,9 @@ interface DashboardStats {
   monthlyRevenue: number;
   activeArenas: number;
   activeCampaigns: number;
+  activeLeaderboards: number;
+  activeCRM: number;
+  activeGamified: number;
 }
 
 interface ArcProject {
@@ -330,6 +333,27 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
                     <div className="text-xs text-akari-muted mt-1">{stats.activeCampaigns} campaigns</div>
                   </div>
                 </div>
+                
+                {/* Breakdown by Type */}
+                {stats && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Leaderboards</div>
+                      <div className="text-3xl font-bold text-akari-text">{stats.activeLeaderboards}</div>
+                      <div className="text-xs text-akari-muted mt-1">Normal Leaderboard (Option 2)</div>
+                    </div>
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">CRM</div>
+                      <div className="text-3xl font-bold text-akari-text">{stats.activeCRM}</div>
+                      <div className="text-xs text-akari-muted mt-1">Creator Manager (Option 1)</div>
+                    </div>
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Gamified</div>
+                      <div className="text-3xl font-bold text-akari-text">{stats.activeGamified}</div>
+                      <div className="text-xs text-akari-muted mt-1">Gamified Leaderboard (Option 3)</div>
+                    </div>
+                  </div>
+                )}
               ) : null}
 
               {/* Recent Activity */}
