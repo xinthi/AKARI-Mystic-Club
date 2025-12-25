@@ -413,7 +413,7 @@ export default function AdminLeaderboardRequestsPage() {
       {/* Approve Modal */}
       {approveModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-white mb-4">Approve Request</h2>
             <p className="text-sm text-slate-400 mb-4">
               Approve ARC leaderboard access for <span className="font-semibold text-white">{approveModal.projectName}</span>?
