@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 
 /**
- * Guard Script: Prevent Forbidden Patterns
+ * Guard Script: Prevent Exposure of Competitor Names
  * 
- * Checks for:
- * - Competitor keywords (case-insensitive): xeet, kaito, wallchain, yaps.kaito, app.wallchain, katana
+ * Prevents competitor names from appearing in the codebase to avoid discovery through:
+ * - Browser devtools inspection
+ * - GitHub code search/repository browsing
+ * - Source code analysis
+ * 
+ * Checks git-tracked files for:
+ * - Competitor names to hide (case-insensitive): xeet, kaito, wallchain, yaps.kaito, app.wallchain, katana
  * - Em dash character: —
  * - Markdown horizontal rule lines: lines matching ^\s*---\s*$
  * 
  * Exits with code 1 if any matches found, 0 if clean.
  */
 
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { readFileSync } from 'fs';
+import { execSync } from 'child_process';
+import { join } from 'path';
 
+// Competitor names that must NOT appear in codebase to prevent discovery via devtools/GitHub
 const FORBIDDEN_KEYWORDS = [
   'xeet',
   'kaito',
@@ -25,90 +32,136 @@ const FORBIDDEN_KEYWORDS = [
 
 const EMDASH_CHAR = '\u2014'; // Unicode em dash
 
-const ROOT_DIR = join(process.cwd());
-const IGNORE_DIRS = new Set([
-  'node_modules',
-  '.next',
-  '.git',
-  'dist',
-  'build',
-  '.cache',
-  '.turbo',
-  'coverage',
+const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf', '.zip',
+  '.woff', '.woff2', '.ttf', '.eot', '.mp4', '.mov', '.mp3',
 ]);
 
-const IGNORE_FILES = new Set([
-  '.gitignore',
-  '.gitattributes',
-]);
+// Paths/patterns to exclude from scanning (even if git-tracked)
+const EXCLUDED_PATTERNS = [
+  /node_modules[\/\\]/i,
+  /\.next[\/\\]/i,
+  /build[\/\\]/i,
+  /dist[\/\\]/i,
+  /\.cache[\/\\]/i,
+  /coverage[\/\\]/i,
+  /\.turbo[\/\\]/i,
+  /\.vercel[\/\\]/i,
+  /pnpm-lock\.yaml$/i,
+  /package-lock\.json$/i,
+  /yarn\.lock$/i,
+  /\.lock$/i,
+];
 
-function shouldIgnore(path) {
-  const parts = path.split(/[/\\]/);
-  return parts.some(part => IGNORE_DIRS.has(part) || part.startsWith('.'));
-}
-
-function getAllFiles(dir, fileList = []) {
+function getGitTrackedFiles() {
   try {
-    const files = readdirSync(dir);
-
-    for (const file of files) {
-      const filePath = join(dir, file);
-      
-      if (shouldIgnore(filePath)) {
-        continue;
-      }
-
-      try {
-        const stat = statSync(filePath);
-        
-        if (stat.isDirectory()) {
-          getAllFiles(filePath, fileList);
-        } else if (stat.isFile() && !IGNORE_FILES.has(file)) {
-          fileList.push(filePath);
+    const buffer = execSync('git ls-files -z', { encoding: 'buffer', cwd: process.cwd() });
+    // Split buffer by NUL bytes (0x00)
+    const files = [];
+    let start = 0;
+    for (let i = 0; i < buffer.length; i++) {
+      if (buffer[i] === 0) {
+        if (i > start) {
+          const filePath = buffer.slice(start, i).toString('utf8');
+          files.push(filePath);
         }
-      } catch (err) {
-        // Skip files we can't read (permissions, etc.)
-        continue;
+        start = i + 1;
       }
     }
+    // Handle last file if buffer doesn't end with NUL
+    if (start < buffer.length) {
+      const filePath = buffer.slice(start).toString('utf8');
+      files.push(filePath);
+    }
+    // Convert to absolute paths
+    return files.map(f => join(process.cwd(), f));
   } catch (err) {
-    // Skip directories we can't read
+    console.error('❌ Error: Could not run git ls-files. Make sure you are in a git repository.');
+    console.error(err.message);
+    process.exit(1);
   }
-
-  return fileList;
 }
 
-function checkForbiddenKeywords(content, filePath) {
+function isBinaryFile(filePath) {
+  // Check extension
+  const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+  if (BINARY_EXTENSIONS.has(ext)) {
+    return true;
+  }
+  return false;
+}
+
+function shouldExcludeFile(filePath) {
+  // Normalize path separators for pattern matching
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  // Check against exclusion patterns
+  return EXCLUDED_PATTERNS.some(pattern => pattern.test(normalizedPath));
+}
+
+function readFileSafe(filePath) {
+  try {
+    const content = readFileSync(filePath, 'utf8');
+    // Check for too many NUL bytes (indicator of binary file)
+    const nulCount = (content.match(/\0/g) || []).length;
+    if (nulCount > content.length * 0.01) { // More than 1% NUL bytes
+      return null;
+    }
+    return content;
+  } catch (err) {
+    // Skip files we can't read as UTF-8 (likely binary)
+    return null;
+  }
+}
+
+function getSnippet(content, lineNum, contextLines = 1) {
+  const lines = content.split('\n');
+  const idx = lineNum - 1;
+  const start = Math.max(0, idx - contextLines);
+  const end = Math.min(lines.length, idx + contextLines + 1);
+  return lines.slice(start, end).join('\n').trim();
+}
+
+function checkForbiddenKeywords(content, filePath, relPath) {
   const issues = [];
   const lowerContent = content.toLowerCase();
   
   for (const keyword of FORBIDDEN_KEYWORDS) {
-    const index = lowerContent.indexOf(keyword.toLowerCase());
-    if (index !== -1) {
+    let searchIndex = 0;
+    while (true) {
+      const index = lowerContent.indexOf(keyword.toLowerCase(), searchIndex);
+      if (index === -1) break;
+      
       // Find line number
       const lineNum = content.substring(0, index).split('\n').length;
+      const snippet = getSnippet(content, lineNum);
+      
       issues.push({
         type: 'forbidden_keyword',
         keyword,
-        file: filePath,
+        file: relPath,
         line: lineNum,
+        snippet,
       });
+      
+      searchIndex = index + 1;
     }
   }
   
   return issues;
 }
 
-function checkEmDash(content, filePath) {
+function checkEmDash(content, filePath, relPath) {
   const issues = [];
   const lines = content.split('\n');
   
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].includes(EMDASH_CHAR)) {
+      const snippet = getSnippet(content, i + 1);
       issues.push({
         type: 'em_dash',
-        file: filePath,
+        file: relPath,
         line: i + 1,
+        snippet,
       });
     }
   }
@@ -116,17 +169,19 @@ function checkEmDash(content, filePath) {
   return issues;
 }
 
-function checkHorizontalRule(content, filePath) {
+function checkHorizontalRule(content, filePath, relPath) {
   const issues = [];
   const lines = content.split('\n');
   const hrRegex = /^\s*---\s*$/;
   
   for (let i = 0; i < lines.length; i++) {
     if (hrRegex.test(lines[i])) {
+      const snippet = getSnippet(content, i + 1);
       issues.push({
         type: 'horizontal_rule',
-        file: filePath,
+        file: relPath,
         line: i + 1,
+        snippet,
       });
     }
   }
@@ -135,85 +190,90 @@ function checkHorizontalRule(content, filePath) {
 }
 
 function main() {
-  console.log('🔍 Scanning repository for forbidden patterns...\n');
+  console.log('🔍 Scanning git-tracked files for competitor names and forbidden patterns...\n');
   
-  const allFiles = getAllFiles(ROOT_DIR);
+  const allFiles = getGitTrackedFiles();
   const allIssues = [];
+  let scannedCount = 0;
   
   for (const filePath of allFiles) {
-    try {
-      const relPath = relative(ROOT_DIR, filePath).replace(/\\/g, '/');
-      
-      // Skip guard script itself (contains keywords in comments)
-      if (relPath === 'scripts/guard-forbidden.mjs') {
-        continue;
-      }
-      
-      const content = readFileSync(filePath, 'utf8');
-      
-      // Check for forbidden keywords
-      const keywordIssues = checkForbiddenKeywords(content, relPath);
-      allIssues.push(...keywordIssues);
-      
-      // Check for em dash
-      const emDashIssues = checkEmDash(content, relPath);
-      allIssues.push(...emDashIssues);
-      
-      // Check for horizontal rules (all files)
-      const hrIssues = checkHorizontalRule(content, relPath);
-      allIssues.push(...hrIssues);
-    } catch (err) {
-      // Skip binary files or files we can't read as UTF-8
+    // Skip guard script itself (contains keywords in comments)
+    if (filePath.replace(/\\/g, '/').endsWith('scripts/guard-forbidden.mjs')) {
       continue;
     }
+    
+    // Skip excluded paths (node_modules, build artifacts, lockfiles, etc.)
+    if (shouldExcludeFile(filePath)) {
+      continue;
+    }
+    
+    // Skip binary files by extension
+    if (isBinaryFile(filePath)) {
+      continue;
+    }
+    
+    // Try to read file as text
+    const content = readFileSafe(filePath);
+    if (content === null) {
+      continue; // Skip binary or unreadable files
+    }
+    
+    scannedCount++;
+    // Get relative path from current working directory
+    const relPath = filePath.startsWith(process.cwd())
+      ? filePath.substring(process.cwd().length).replace(/^[/\\]/, '')
+      : filePath;
+    const normalizedRelPath = relPath.replace(/\\/g, '/');
+    
+    // Check for forbidden keywords
+    const keywordIssues = checkForbiddenKeywords(content, filePath, normalizedRelPath);
+    allIssues.push(...keywordIssues);
+    
+    // Check for em dash
+    const emDashIssues = checkEmDash(content, filePath, normalizedRelPath);
+    allIssues.push(...emDashIssues);
+    
+    // Check for horizontal rules (all files)
+    const hrIssues = checkHorizontalRule(content, filePath, normalizedRelPath);
+    allIssues.push(...hrIssues);
   }
   
+  // Print summary
+  console.log(`✅ Scanned ${scannedCount} git-tracked files (excluding node_modules, build artifacts, lockfiles)`);
+  console.log(`📊 Found ${allIssues.length} violation${allIssues.length !== 1 ? 's' : ''}\n`);
+  
   if (allIssues.length === 0) {
-    console.log('✅ No forbidden patterns found. Repository is clean.\n');
+    console.log('✅ No competitor names or forbidden patterns found. Repository is clean.\n');
     process.exit(0);
   }
   
-  console.error('❌ Forbidden patterns detected:\n');
+  console.error('❌ Competitor names or forbidden patterns detected:\n');
   
-  // Group by type
-  const byType = {
-    forbidden_keyword: [],
-    em_dash: [],
-    horizontal_rule: [],
-  };
+  // Show first 50 violations with snippets
+  const displayIssues = allIssues.slice(0, 50);
   
-  for (const issue of allIssues) {
-    byType[issue.type].push(issue);
-  }
-  
-  // Print forbidden keywords
-  if (byType.forbidden_keyword.length > 0) {
-    console.error('Forbidden Keywords:');
-    for (const issue of byType.forbidden_keyword) {
-      console.error(`  ${issue.file}:${issue.line} - found "${issue.keyword}"`);
+  for (const issue of displayIssues) {
+    if (issue.type === 'forbidden_keyword') {
+      console.error(`${issue.file}:${issue.line}: found competitor name "${issue.keyword}" (must not be exposed)`);
+      console.error(`  ${issue.snippet}`);
+      console.error('');
+    } else if (issue.type === 'em_dash') {
+      console.error(`${issue.file}:${issue.line}: found em dash (—)`);
+      console.error(`  ${issue.snippet}`);
+      console.error('');
+    } else if (issue.type === 'horizontal_rule') {
+      console.error(`${issue.file}:${issue.line}: found horizontal rule (---)`);
+      console.error(`  ${issue.snippet}`);
+      console.error('');
     }
-    console.error('');
   }
   
-  // Print em dashes
-  if (byType.em_dash.length > 0) {
-    console.error('Em Dash Characters:');
-    for (const issue of byType.em_dash) {
-      console.error(`  ${issue.file}:${issue.line} - found em dash (—)`);
-    }
-    console.error('');
+  if (allIssues.length > 50) {
+    console.error(`... and ${allIssues.length - 50} more violation(s)\n`);
   }
   
-  // Print horizontal rules
-  if (byType.horizontal_rule.length > 0) {
-    console.error('Markdown Horizontal Rules:');
-    for (const issue of byType.horizontal_rule) {
-      console.error(`  ${issue.file}:${issue.line} - found horizontal rule (---)`);
-    }
-    console.error('');
-  }
-  
-  console.error(`Total issues: ${allIssues.length}\n`);
+  console.error(`Total violations: ${allIssues.length}\n`);
+  console.error('⚠️  These competitor names must be removed to prevent exposure via devtools/GitHub.\n');
   console.error('Please remove these patterns before committing.\n');
   process.exit(1);
 }
