@@ -22,10 +22,12 @@ interface LiveLeaderboard {
   projectSlug: string | null;
   xHandle: string | null;
   creatorCount: number;
+  startAt: string | null;
+  endAt: string | null;
 }
 
 type LiveLeaderboardsResponse =
-  | { ok: true; leaderboards: LiveLeaderboard[] }
+  | { ok: true; leaderboards: LiveLeaderboard[]; upcoming: LiveLeaderboard[] }
   | { ok: false; error: string };
 
 // =============================================================================
@@ -95,8 +97,24 @@ export default async function handler(
       }
     }
 
+    // Get arc_project_features for projects to check date ranges
+    const projectIds = [...new Set(arenas.map((a: any) => a.projects?.id).filter(Boolean))];
+    const { data: projectFeatures, error: featuresError } = await supabase
+      .from('arc_project_features')
+      .select('project_id, leaderboard_enabled, leaderboard_start_at, leaderboard_end_at')
+      .in('project_id', projectIds);
+
+    const featuresMap = new Map<string, any>();
+    if (projectFeatures) {
+      projectFeatures.forEach((f: any) => {
+        featuresMap.set(f.project_id, f);
+      });
+    }
+
     // Filter arenas where project has Option 2 unlocked and build response
     const leaderboards: LiveLeaderboard[] = [];
+    const upcoming: LiveLeaderboard[] = [];
+    const now = new Date();
 
     for (const arena of arenas) {
       const project = arena.projects as any;
@@ -109,7 +127,12 @@ export default async function handler(
         continue;
       }
 
-      leaderboards.push({
+      // Get date range from arc_project_features
+      const features = featuresMap.get(project.id);
+      const startAt = features?.leaderboard_start_at || null;
+      const endAt = features?.leaderboard_end_at || null;
+
+      const leaderboard: LiveLeaderboard = {
         arenaId: arena.id,
         arenaName: arena.name,
         arenaSlug: arena.slug,
@@ -118,10 +141,31 @@ export default async function handler(
         projectSlug: project.slug,
         xHandle: project.x_handle,
         creatorCount: countsMap.get(arena.id) || 0,
-      });
+        startAt,
+        endAt,
+      };
+
+      // Determine if it's live or upcoming
+      if (startAt && endAt) {
+        const startDate = new Date(startAt);
+        const endDate = new Date(endAt);
+        
+        // If start date is in future, it's upcoming
+        if (startDate > now) {
+          upcoming.push(leaderboard);
+        } 
+        // If current time is within range, it's live
+        else if (now >= startDate && now <= endDate) {
+          leaderboards.push(leaderboard);
+        }
+        // If past end date, skip (not shown)
+      } else {
+        // No dates set - treat as always active (live)
+        leaderboards.push(leaderboard);
+      }
     }
 
-    return res.status(200).json({ ok: true, leaderboards });
+    return res.status(200).json({ ok: true, leaderboards, upcoming });
   } catch (error: any) {
     console.error('[Live Leaderboards] Error:', error);
     return res.status(500).json({ ok: false, error: 'Server error' });

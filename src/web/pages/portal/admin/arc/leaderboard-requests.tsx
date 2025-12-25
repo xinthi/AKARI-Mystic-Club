@@ -159,6 +159,51 @@ export default function AdminLeaderboardRequestsPage() {
     }
   };
 
+  const handleStopCampaign = async (projectId: string, requestId: string) => {
+    if (processingIds.has(requestId)) return;
+
+    if (!confirm('Are you sure you want to stop all active campaigns for this project? This will cancel all active arenas.')) {
+      return;
+    }
+
+    setProcessingIds((prev) => new Set(prev).add(requestId));
+    setRowErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(requestId);
+      return next;
+    });
+
+    try {
+      const res = await fetch('/api/portal/admin/arc/stop-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to stop campaigns');
+      }
+
+      // Reload requests to refresh status
+      await loadRequests();
+    } catch (err: any) {
+      setRowErrors((prev) => {
+        const next = new Map(prev);
+        next.set(requestId, err.message || 'Failed to stop campaigns');
+        return next;
+      });
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  };
+
   const handleApprove = async () => {
     if (!approveModal) return;
     const requestId = approveModal.requestId;
@@ -327,7 +372,7 @@ export default function AdminLeaderboardRequestsPage() {
                             </td>
                             <td className="py-4 px-5 text-akari-text font-semibold">
                               <div>{requesterName}</div>
-                              {requesterDisplayName && requesterUsername && (
+                              {requesterUsername && (
                                 <div className="text-xs text-akari-muted">@{requesterUsername}</div>
                               )}
                             </td>
@@ -391,7 +436,17 @@ export default function AdminLeaderboardRequestsPage() {
                                     </button>
                                   </>
                                 )}
-                                {request.status !== 'pending' && (
+                                {request.status === 'approved' && (
+                                  <button
+                                    onClick={() => handleStopCampaign(request.project_id, request.id)}
+                                    disabled={isProcessing}
+                                    className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Stop all active campaigns for this project"
+                                  >
+                                    {isProcessing ? 'Stopping...' : 'Stop Campaign'}
+                                  </button>
+                                )}
+                                {request.status !== 'pending' && request.status !== 'approved' && (
                                   <span className="text-xs text-akari-muted">
                                     {request.decided_at ? formatDate(request.decided_at) : '-'}
                                   </span>

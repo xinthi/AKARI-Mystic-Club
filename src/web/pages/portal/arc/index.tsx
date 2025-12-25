@@ -47,6 +47,8 @@ interface LiveLeaderboard {
   projectSlug: string | null;
   xHandle: string | null;
   creatorCount: number;
+  startAt: string | null;
+  endAt: string | null;
 }
 
 // =============================================================================
@@ -175,6 +177,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   // Live Leaderboards state
   const [liveLeaderboards, setLiveLeaderboards] = useState<LiveLeaderboard[]>([]);
+  const [upcomingLeaderboards, setUpcomingLeaderboards] = useState<LiveLeaderboard[]>([]);
   const [liveLeaderboardsLoading, setLiveLeaderboardsLoading] = useState(false);
   const [liveLeaderboardsError, setLiveLeaderboardsError] = useState<string | null>(null);
 
@@ -269,10 +272,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         }
 
         setLiveLeaderboards(data.leaderboards || []);
+        setUpcomingLeaderboards(data.upcoming || []);
       } catch (err: any) {
         console.error('[ARC] Live leaderboards fetch error:', err);
         setLiveLeaderboardsError(err.message || 'Failed to load live leaderboards');
         setLiveLeaderboards([]);
+        setUpcomingLeaderboards([]);
       } finally {
         setLiveLeaderboardsLoading(false);
       }
@@ -496,6 +501,48 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   )}
                 </>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* Upcoming Leaderboards Section */}
+        {upcomingLeaderboards.length > 0 && (
+          <section className="w-full max-w-6xl mx-auto mb-8">
+            <h2 className="text-2xl font-semibold text-white mb-4">Upcoming Leaderboards</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {upcomingLeaderboards.map((leaderboard) => (
+                <div
+                  key={leaderboard.arenaId}
+                  className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
+                >
+                  <div className="mb-3">
+                    <h3 className="text-base font-semibold text-white mb-1 truncate">
+                      {leaderboard.arenaName}
+                    </h3>
+                    <p className="text-sm text-white/60 mb-1 truncate">
+                      {leaderboard.projectName}
+                    </p>
+                    {leaderboard.xHandle && (
+                      <p className="text-xs text-white/40 mb-2">@{leaderboard.xHandle}</p>
+                    )}
+                    {leaderboard.startAt && (
+                      <p className="text-xs text-akari-primary">
+                        Starts: {new Date(leaderboard.startAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {leaderboard.projectSlug && (
+                      <Link
+                        href={`/portal/arc/${leaderboard.projectSlug}`}
+                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors"
+                      >
+                        View Project
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
