@@ -553,28 +553,69 @@ export default async function handler(
               }
             }
           } else {
-            // Arena exists - ensure it's active and dates are updated
-            const updateData: any = {
-              status: 'active',
-            };
+            // Arena exists - check status before re-activating
+            // Only re-activate if status is 'paused' - NEVER re-activate 'ended' arenas
+            if (existingArena.status === 'ended') {
+              console.log(`[Admin Leaderboard Request Update API] Arena ${existingArena.id} is already ended. Cannot re-activate ended arenas. Skipping arena update.`);
+              // Still update dates if provided (for reference, but don't change status)
+              if (start_at || end_at) {
+                const dateUpdateData: any = {};
+                if (start_at) {
+                  dateUpdateData.starts_at = new Date(start_at).toISOString();
+                }
+                if (end_at) {
+                  dateUpdateData.ends_at = new Date(end_at).toISOString();
+                }
+                const { error: dateUpdateError } = await supabase
+                  .from('arenas')
+                  .update(dateUpdateData)
+                  .eq('id', existingArena.id);
+                if (dateUpdateError) {
+                  console.error('[Admin Leaderboard Request Update API] Error updating dates for ended arena:', dateUpdateError);
+                }
+              }
+            } else if (existingArena.status === 'paused' || existingArena.status === 'cancelled') {
+              // Re-activate paused or cancelled arenas
+              const updateData: any = {
+                status: 'active',
+              };
 
-            // Update dates if provided in approval (avoid stale dates)
-            if (start_at) {
-              updateData.starts_at = new Date(start_at).toISOString();
-            }
-            if (end_at) {
-              updateData.ends_at = new Date(end_at).toISOString();
-            }
+              // Update dates if provided in approval (avoid stale dates)
+              if (start_at) {
+                updateData.starts_at = new Date(start_at).toISOString();
+              }
+              if (end_at) {
+                updateData.ends_at = new Date(end_at).toISOString();
+              }
 
-            const { error: arenaUpdateError } = await supabase
-              .from('arenas')
-              .update(updateData)
-              .eq('id', existingArena.id);
+              const { error: arenaUpdateError } = await supabase
+                .from('arenas')
+                .update(updateData)
+                .eq('id', existingArena.id);
 
-            if (arenaUpdateError) {
-              console.error('[Admin Leaderboard Request Update API] Error updating existing arena:', arenaUpdateError);
+              if (arenaUpdateError) {
+                console.error('[Admin Leaderboard Request Update API] Error updating existing arena:', arenaUpdateError);
+              } else {
+                console.log(`[Admin Leaderboard Request Update API] Successfully re-activated arena from ${existingArena.status} to active:`, existingArena.id);
+              }
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully activated/updated existing arena:', existingArena.id);
+              // Arena is already active or scheduled - just update dates if provided
+              const updateData: any = {};
+              if (start_at) {
+                updateData.starts_at = new Date(start_at).toISOString();
+              }
+              if (end_at) {
+                updateData.ends_at = new Date(end_at).toISOString();
+              }
+              if (Object.keys(updateData).length > 0) {
+                const { error: arenaUpdateError } = await supabase
+                  .from('arenas')
+                  .update(updateData)
+                  .eq('id', existingArena.id);
+                if (arenaUpdateError) {
+                  console.error('[Admin Leaderboard Request Update API] Error updating dates for active arena:', arenaUpdateError);
+                }
+              }
             }
           }
         } catch (arenaErr: any) {

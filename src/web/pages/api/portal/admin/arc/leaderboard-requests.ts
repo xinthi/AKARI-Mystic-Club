@@ -236,14 +236,18 @@ export default async function handler(
     let requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
     
     if (allProfileIds.size > 0) {
+      const profileIdsArray = Array.from(allProfileIds);
+      console.log(`[Admin Leaderboard Requests API] Fetching ${profileIdsArray.length} profiles for requester lookup:`, profileIdsArray.slice(0, 5), profileIdsArray.length > 5 ? '...' : '');
+      
       const { data: requesters, error: requestersError } = await supabase
         .from('profiles')
         .select('id, username, display_name')
-        .in('id', Array.from(allProfileIds));
+        .in('id', profileIdsArray);
 
       if (requestersError) {
         console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
       } else if (requesters) {
+        console.log(`[Admin Leaderboard Requests API] Found ${requesters.length} profiles`);
         requesters.forEach((p: any) => {
           requesterMap.set(p.id, {
             id: p.id,
@@ -251,7 +255,11 @@ export default async function handler(
             display_name: p.display_name || null,
           });
         });
+      } else {
+        console.warn(`[Admin Leaderboard Requests API] No profiles found for ${profileIdsArray.length} profile IDs`);
       }
+    } else {
+      console.warn('[Admin Leaderboard Requests API] No profile IDs collected for requester lookup');
     }
 
     // Get campaign and arena statuses for approved requests
@@ -374,22 +382,33 @@ export default async function handler(
         // 1. requested_by profile
         // 2. decided_by profile (approver)
         // 3. project.claimed_by profile
-        // 4. null (UI will show "N/A")
+        // 4. null (UI will show "Unknown")
         
         let requester: { id: string; username: string; display_name: string | null } | undefined;
         let requestedByDisplayName: string | undefined;
         let requestedByUsername: string | undefined;
 
-        if (r.requested_by && requesterMap.has(r.requested_by)) {
-          requester = requesterMap.get(r.requested_by);
-        } else if (r.decided_by && requesterMap.has(r.decided_by)) {
-          // Fallback to approver
-          requester = requesterMap.get(r.decided_by);
-        } else if (r.projects) {
-          const claimedBy = projectClaimedByMap.get(r.project_id);
-          if (claimedBy && requesterMap.has(claimedBy)) {
-            // Fallback to project owner
-            requester = requesterMap.get(claimedBy);
+        if (r.requested_by) {
+          if (requesterMap.has(r.requested_by)) {
+            requester = requesterMap.get(r.requested_by);
+          } else {
+            console.warn(`[Admin Leaderboard Requests API] Profile not found for requested_by: ${r.requested_by} (request ID: ${r.id})`);
+          }
+        }
+        
+        // Only use fallbacks if requested_by profile not found
+        if (!requester) {
+          if (r.decided_by && requesterMap.has(r.decided_by)) {
+            // Fallback to approver
+            requester = requesterMap.get(r.decided_by);
+            console.log(`[Admin Leaderboard Requests API] Using decided_by as fallback for request ${r.id}`);
+          } else if (r.projects) {
+            const claimedBy = projectClaimedByMap.get(r.project_id);
+            if (claimedBy && requesterMap.has(claimedBy)) {
+              // Fallback to project owner
+              requester = requesterMap.get(claimedBy);
+              console.log(`[Admin Leaderboard Requests API] Using project claimed_by as fallback for request ${r.id}`);
+            }
           }
         }
 
@@ -397,6 +416,9 @@ export default async function handler(
         if (requester) {
           requestedByDisplayName = requester.display_name || requester.username || undefined;
           requestedByUsername = requester.username || undefined;
+        } else {
+          // Log when no requester found at all
+          console.warn(`[Admin Leaderboard Requests API] No requester found for request ${r.id} (requested_by: ${r.requested_by}, decided_by: ${r.decided_by})`);
         }
 
         // Get status for this specific request (matched by request ID)
