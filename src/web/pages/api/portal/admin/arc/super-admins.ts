@@ -109,7 +109,7 @@ export default async function handler(
     }
 
     // Also get super admins from akari_user_roles
-    const { data: userRoles, error: rolesError } = await supabase
+    const { data: allSuperAdminRoles, error: rolesError } = await supabase
       .from('akari_user_roles')
       .select('user_id, role')
       .eq('role', 'super_admin');
@@ -119,7 +119,7 @@ export default async function handler(
     }
 
     // Get user IDs from roles
-    const superAdminUserIds = new Set((userRoles || []).map((ur: any) => ur.user_id));
+    const superAdminUserIds = new Set((allSuperAdminRoles || []).map((ur: any) => ur.user_id));
 
     // Get profiles for these user IDs via akari_user_identities
     let additionalProfiles: any[] = [];
