@@ -389,25 +389,28 @@ export default async function handler(
 
       if (arc_access_level === 'creator_manager') {
         featuresData.option1_crm_unlocked = true;
+        featuresData.crm_enabled = true;
         if (start_at && end_at) {
-          featuresData.crm_enabled = true;
           featuresData.crm_start_at = new Date(start_at).toISOString();
           featuresData.crm_end_at = new Date(end_at).toISOString();
         }
+        // If dates are not provided, leave them as null - module will be always active
       } else if (arc_access_level === 'leaderboard') {
         featuresData.option2_normal_unlocked = true;
+        featuresData.leaderboard_enabled = true;
         if (start_at && end_at) {
-          featuresData.leaderboard_enabled = true;
           featuresData.leaderboard_start_at = new Date(start_at).toISOString();
           featuresData.leaderboard_end_at = new Date(end_at).toISOString();
         }
+        // If dates are not provided, leave them as null - module will be always active
       } else if (arc_access_level === 'gamified') {
         featuresData.option3_gamified_unlocked = true;
+        featuresData.gamefi_enabled = true;
         if (start_at && end_at) {
-          featuresData.gamefi_enabled = true;
           featuresData.gamefi_start_at = new Date(start_at).toISOString();
           featuresData.gamefi_end_at = new Date(end_at).toISOString();
         }
+        // If dates are not provided, leave them as null - module will be always active
       }
 
       // Upsert arc_project_features

@@ -64,6 +64,7 @@ interface ArcProjectFeaturesRow {
 
 /**
  * Check if module is active based on enabled flag and date range.
+ * If dates are missing, treat as always active (no date restrictions).
  */
 function isModuleActive(
   enabled: boolean,
@@ -74,9 +75,9 @@ function isModuleActive(
     return { active: false };
   }
 
-  // If enabled but dates are missing or invalid, treat as inactive
+  // If dates are missing, treat as always active (no date restrictions)
   if (!startAt || !endAt) {
-    return { active: false, reason: 'Module enabled but dates missing' };
+    return { active: true };
   }
 
   const now = new Date();
