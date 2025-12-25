@@ -14,12 +14,14 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 interface BackfillResponse {
   ok: true;
+  dryRun: boolean;
   summary: {
     totalEligible: number;
+    scannedCount: number;
     createdCount: number;
     updatedCount: number;
     skippedCount: number;
-    errors: Array<{ projectId: string; message: string }>;
+    errors: Array<{ projectId: string; slug: string; message: string }>;
   };
 }
 
@@ -120,6 +122,11 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
+  // Parse query parameters
+  const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
+  const limitParam = req.query.limit;
+  const limit = limitParam ? Math.min(Math.max(parseInt(String(limitParam), 10) || 100, 1), 500) : 100; // Max 500 for safety
+
   try {
     const supabase = getSupabaseAdmin();
 
@@ -182,8 +189,10 @@ export default async function handler(
     if (!projects || projects.length === 0) {
       return res.status(200).json({
         ok: true,
+        dryRun,
         summary: {
           totalEligible: 0,
+          scannedCount: 0,
           createdCount: 0,
           updatedCount: 0,
           skippedCount: 0,
@@ -220,8 +229,10 @@ export default async function handler(
     if (!eligibleProjects || eligibleProjects.length === 0) {
       return res.status(200).json({
         ok: true,
+        dryRun,
         summary: {
           totalEligible: 0,
+          scannedCount: 0,
           createdCount: 0,
           updatedCount: 0,
           skippedCount: 0,
@@ -230,15 +241,16 @@ export default async function handler(
       });
     }
 
-    // All eligibleProjects already have option2 unlocked and leaderboard enabled (from featuresMap filter)
-    const projectsToProcess = eligibleProjects;
+    // Apply limit
+    const projectsToProcess = eligibleProjects.slice(0, limit);
 
     const summary = {
-      totalEligible: projectsToProcess.length,
+      totalEligible: eligibleProjects.length,
+      scannedCount: projectsToProcess.length,
       createdCount: 0,
       updatedCount: 0,
       skippedCount: 0,
-      errors: [] as Array<{ projectId: string; message: string }>,
+      errors: [] as Array<{ projectId: string; slug: string; message: string }>,
     };
 
     // Step 2: Process each project
@@ -261,26 +273,33 @@ export default async function handler(
           // Create new arena
           const arenaSlug = await generateUniqueArenaSlug(supabase, project.slug);
           
-          const { error: createError } = await supabase
-            .from('arenas')
-            .insert({
-              project_id: project.id,
-              name: `${project.name} Leaderboard`,
-              slug: arenaSlug,
-              status: 'active',
-              starts_at: features?.leaderboard_start_at || null,
-              ends_at: features?.leaderboard_end_at || null,
-              created_by: adminProfileId,
-            });
-
-          if (createError) {
-            summary.errors.push({
-              projectId: project.id,
-              message: `Failed to create arena: ${createError.message}`,
-            });
-          } else {
+          if (dryRun) {
+            // Dry run: just count what would be created
             summary.createdCount++;
-            console.log(`[Backfill Arenas] Created arena for project ${project.id} (${project.slug})`);
+            console.log(`[Backfill Arenas] [DRY RUN] Would create arena for project ${project.id} (${project.slug}) -> ${arenaSlug}`);
+          } else {
+            const { error: createError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: project.id,
+                name: `${project.name} Leaderboard`,
+                slug: arenaSlug,
+                status: 'active',
+                starts_at: features?.leaderboard_start_at || null,
+                ends_at: features?.leaderboard_end_at || null,
+                created_by: adminProfileId,
+              });
+
+            if (createError) {
+              summary.errors.push({
+                projectId: project.id,
+                slug: project.slug || 'unknown',
+                message: `Failed to create arena: ${createError.message}`,
+              });
+            } else {
+              summary.createdCount++;
+              console.log(`[Backfill Arenas] Created arena for project ${project.id} (${project.slug}) -> ${arenaSlug}`);
+            }
           }
         } else {
           // Arena exists - check if it needs activation/updating
@@ -289,30 +308,37 @@ export default async function handler(
             (features?.leaderboard_end_at && !existingArena.ends_at);
 
           if (needsUpdate) {
-            const updateData: any = {
-              status: 'active',
-            };
-
-            if (features?.leaderboard_start_at && !existingArena.starts_at) {
-              updateData.starts_at = features.leaderboard_start_at;
-            }
-            if (features?.leaderboard_end_at && !existingArena.ends_at) {
-              updateData.ends_at = features.leaderboard_end_at;
-            }
-
-            const { error: updateError } = await supabase
-              .from('arenas')
-              .update(updateData)
-              .eq('id', existingArena.id);
-
-            if (updateError) {
-              summary.errors.push({
-                projectId: project.id,
-                message: `Failed to update arena: ${updateError.message}`,
-              });
-            } else {
+            if (dryRun) {
+              // Dry run: just count what would be updated
               summary.updatedCount++;
-              console.log(`[Backfill Arenas] Updated arena for project ${project.id} (${project.slug})`);
+              console.log(`[Backfill Arenas] DRY RUN: Would update arena for project ${project.id} (${project.slug})`);
+            } else {
+              const updateData: any = {
+                status: 'active',
+              };
+
+              if (features?.leaderboard_start_at && !existingArena.starts_at) {
+                updateData.starts_at = features.leaderboard_start_at;
+              }
+              if (features?.leaderboard_end_at && !existingArena.ends_at) {
+                updateData.ends_at = features.leaderboard_end_at;
+              }
+
+              const { error: updateError } = await supabase
+                .from('arenas')
+                .update(updateData)
+                .eq('id', existingArena.id);
+
+              if (updateError) {
+                summary.errors.push({
+                  projectId: project.id,
+                  slug: project.slug || 'unknown',
+                  message: `Failed to update arena: ${updateError.message}`,
+                });
+              } else {
+                summary.updatedCount++;
+                console.log(`[Backfill Arenas] Updated arena for project ${project.id} (${project.slug})`);
+              }
             }
           } else {
             summary.skippedCount++;
@@ -321,6 +347,7 @@ export default async function handler(
       } catch (projectErr: any) {
         summary.errors.push({
           projectId: project.id,
+          slug: project.slug || 'unknown',
           message: `Unexpected error: ${projectErr.message}`,
         });
       }
@@ -328,6 +355,7 @@ export default async function handler(
 
     return res.status(200).json({
       ok: true,
+      dryRun,
       summary,
     });
   } catch (error: any) {
