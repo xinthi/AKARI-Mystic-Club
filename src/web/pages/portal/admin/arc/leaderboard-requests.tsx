@@ -82,6 +82,8 @@ export default function AdminLeaderboardRequestsPage() {
   const [rowErrors, setRowErrors] = useState<Map<string, string>>(new Map());
   const [approveModal, setApproveModal] = useState<{ requestId: string; projectName: string } | null>(null);
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified' | 'creator_manager'>('leaderboard');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -178,6 +180,8 @@ export default function AdminLeaderboardRequestsPage() {
         body: JSON.stringify({
           status: 'approved',
           arc_access_level: selectedAccessLevel,
+          start_at: startDate || undefined,
+          end_at: endDate || undefined,
         }),
       });
 
@@ -190,6 +194,8 @@ export default function AdminLeaderboardRequestsPage() {
       // Close modal and reload requests
       setApproveModal(null);
       setSelectedAccessLevel('leaderboard');
+      setStartDate('');
+      setEndDate('');
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
@@ -429,6 +435,28 @@ export default function AdminLeaderboardRequestsPage() {
                     : 'Routes to project ARC leaderboard page. Sets projects.arc_active=true and projects.arc_access_level=' + selectedAccessLevel}
                 </p>
               </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Start Date</label>
+                <input
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+                <p className="text-xs text-slate-500 mt-1">When the leaderboard access should become active</p>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">End Date</label>
+                <input
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+                <p className="text-xs text-slate-500 mt-1">When the leaderboard access should expire</p>
+              </div>
             </div>
 
             <div className="flex gap-2 mt-6">
@@ -443,6 +471,8 @@ export default function AdminLeaderboardRequestsPage() {
                 onClick={() => {
                   setApproveModal(null);
                   setSelectedAccessLevel('leaderboard');
+                  setStartDate('');
+                  setEndDate('');
                 }}
                 disabled={processingIds.has(approveModal.requestId)}
                 className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition text-sm font-medium disabled:opacity-50"

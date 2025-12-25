@@ -16,6 +16,8 @@ import { createNotification } from '@/lib/notifications';
 interface UpdateRequestPayload {
   status: 'approved' | 'rejected';
   arc_access_level?: 'leaderboard' | 'gamified' | 'creator_manager';
+  start_at?: string;
+  end_at?: string;
 }
 
 type UpdateRequestResponse =
@@ -255,13 +257,40 @@ export default async function handler(
     }
 
     // Parse and validate request body
-    const { status, arc_access_level } = req.body as Partial<UpdateRequestPayload>;
+    const { status, arc_access_level, start_at, end_at } = req.body as Partial<UpdateRequestPayload>;
 
     if (!status || (status !== 'approved' && status !== 'rejected')) {
       return res.status(400).json({
         ok: false,
         error: 'status must be "approved" or "rejected"',
       });
+    }
+
+    // Validate dates if provided
+    if (status === 'approved' && start_at && end_at) {
+      const startDate = new Date(start_at);
+      const endDate = new Date(end_at);
+
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({
+          ok: false,
+          error: 'start_at must be a valid date',
+        });
+      }
+
+      if (isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          ok: false,
+          error: 'end_at must be a valid date',
+        });
+      }
+
+      if (endDate <= startDate) {
+        return res.status(400).json({
+          ok: false,
+          error: 'end_at must be after start_at',
+        });
+      }
     }
 
     // Defensive check: ensure request is in pending status before updating
@@ -349,21 +378,36 @@ export default async function handler(
         // Continue - don't fail the request
       }
 
-      // Step 3: Create/update arc_project_features with option unlocks
-      // Map arc_access_level to option unlocks:
-      // - creator_manager -> option1_crm_unlocked = true
-      // - leaderboard -> option2_normal_unlocked = true
-      // - gamified -> option3_gamified_unlocked = true
+      // Step 3: Create/update arc_project_features with option unlocks and dates
+      // Map arc_access_level to option unlocks and module enablement:
+      // - creator_manager -> option1_crm_unlocked = true, crm_enabled = true, crm_start_at, crm_end_at
+      // - leaderboard -> option2_normal_unlocked = true, leaderboard_enabled = true, leaderboard_start_at, leaderboard_end_at
+      // - gamified -> option3_gamified_unlocked = true, gamefi_enabled = true, gamefi_start_at, gamefi_end_at
       const featuresData: any = {
         project_id: request.project_id,
       };
 
       if (arc_access_level === 'creator_manager') {
         featuresData.option1_crm_unlocked = true;
+        if (start_at && end_at) {
+          featuresData.crm_enabled = true;
+          featuresData.crm_start_at = new Date(start_at).toISOString();
+          featuresData.crm_end_at = new Date(end_at).toISOString();
+        }
       } else if (arc_access_level === 'leaderboard') {
         featuresData.option2_normal_unlocked = true;
+        if (start_at && end_at) {
+          featuresData.leaderboard_enabled = true;
+          featuresData.leaderboard_start_at = new Date(start_at).toISOString();
+          featuresData.leaderboard_end_at = new Date(end_at).toISOString();
+        }
       } else if (arc_access_level === 'gamified') {
         featuresData.option3_gamified_unlocked = true;
+        if (start_at && end_at) {
+          featuresData.gamefi_enabled = true;
+          featuresData.gamefi_start_at = new Date(start_at).toISOString();
+          featuresData.gamefi_end_at = new Date(end_at).toISOString();
+        }
       }
 
       // Upsert arc_project_features
