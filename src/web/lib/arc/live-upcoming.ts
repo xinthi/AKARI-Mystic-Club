@@ -64,6 +64,7 @@ export async function getArcLiveItems(
     // Check if project has Option 2 unlocked
     const accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
     if (!accessCheck.ok) {
+      console.log(`[getArcLiveItems] Arena ${arena.id} (project ${arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
       continue;
     }
 
@@ -72,8 +73,12 @@ export async function getArcLiveItems(
     
     if (itemStatus === 'live') {
       live.push(item);
+      console.log(`[getArcLiveItems] Added live arena: ${item.title} (project: ${item.projectName})`);
     } else if (itemStatus === 'upcoming') {
       upcoming.push(item);
+      console.log(`[getArcLiveItems] Added upcoming arena: ${item.title} (project: ${item.projectName})`);
+    } else {
+      console.log(`[getArcLiveItems] Arena ${item.title} (project: ${item.projectName}) status is null (ended or invalid dates)`);
     }
   }
 
@@ -191,6 +196,7 @@ async function fetchArenas(supabase: SupabaseClient) {
       project_id,
       starts_at,
       ends_at,
+      status,
       projects:project_id (
         id,
         name,
@@ -206,7 +212,12 @@ async function fetchArenas(supabase: SupabaseClient) {
     return [];
   }
 
-  if (!arenas) return [];
+  if (!arenas) {
+    console.log('[getArcLiveItems] No arenas found with status active/scheduled');
+    return [];
+  }
+
+  console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/scheduled`);
 
   // Get creator counts
   const arenaIds = arenas.map(a => a.id);
@@ -223,16 +234,20 @@ async function fetchArenas(supabase: SupabaseClient) {
     });
   }
 
-  return arenas.map((arena: any) => ({
+  const mappedArenas = arenas.map((arena: any) => ({
     id: arena.id,
     name: arena.name,
     slug: arena.slug,
     projectId: arena.project_id,
     startsAt: arena.starts_at,
     endsAt: arena.ends_at,
+    status: arena.status,
     project: arena.projects,
     creatorCount: countsMap.get(arena.id) || 0,
   }));
+
+  console.log(`[getArcLiveItems] Mapped ${mappedArenas.length} arenas for processing`);
+  return mappedArenas;
 }
 
 /**

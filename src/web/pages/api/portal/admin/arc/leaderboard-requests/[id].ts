@@ -535,20 +535,33 @@ export default async function handler(
 
               if (arenaError) {
                 console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
+                console.error('[Admin Leaderboard Request Update API] Arena creation data:', {
+                  project_id: request.project_id,
+                  name: arenaName,
+                  slug: arenaSlug,
+                  status: 'active',
+                  starts_at: start_at ? new Date(start_at).toISOString() : null,
+                  ends_at: end_at ? new Date(end_at).toISOString() : null,
+                });
                 // Continue - don't fail the request, but log the error
               } else {
-                console.log('[Admin Leaderboard Request Update API] Successfully created arena for project:', request.project_id, 'slug:', arenaSlug);
+                console.log('[Admin Leaderboard Request Update API] Successfully created arena for project:', request.project_id, 'slug:', arenaSlug, 'name:', arenaName);
                 
-                // Regression guard: verify arena was created
-                const { data: verifyArena } = await supabase
+                // Regression guard: verify arena was created and is accessible
+                const { data: verifyArena, error: verifyError } = await supabase
                   .from('arenas')
-                  .select('id')
+                  .select('id, status, project_id, name, slug')
                   .eq('project_id', request.project_id)
                   .eq('status', 'active')
+                  .order('created_at', { ascending: false })
                   .limit(1);
                 
-                if (!verifyArena || verifyArena.length === 0) {
+                if (verifyError) {
+                  console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to verify arena creation:`, verifyError);
+                } else if (!verifyArena || verifyArena.length === 0) {
                   console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD FAILED: Project ${request.project_id} approved but no active arena found after creation attempt!`);
+                } else {
+                  console.log(`[Admin Leaderboard Request Update API] REGRESSION GUARD PASSED: Arena ${verifyArena[0].id} verified for project ${request.project_id}`);
                 }
               }
             }
