@@ -457,6 +457,85 @@ export default async function handler(
         console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_features for project:', request.project_id);
       }
 
+      // Step 4: Auto-create arena for leaderboard access level (required for Live/Upcoming visibility)
+      if (arc_access_level === 'leaderboard') {
+        // Check if arena already exists for this project
+        const { data: existingArena, error: arenaCheckError } = await supabase
+          .from('arenas')
+          .select('id, status, slug')
+          .eq('project_id', request.project_id)
+          .maybeSingle();
+
+        if (arenaCheckError && arenaCheckError.code !== 'PGRST116') {
+          // PGRST116 = no rows found, which is fine
+          console.error('[Admin Leaderboard Request Update API] Error checking existing arena:', arenaCheckError);
+        }
+
+        if (!existingArena) {
+          // Get project name and slug for arena naming
+          const { data: project, error: projectFetchError } = await supabase
+            .from('projects')
+            .select('name, slug')
+            .eq('id', request.project_id)
+            .single();
+
+          if (projectFetchError || !project) {
+            console.error('[Admin Leaderboard Request Update API] Error fetching project for arena creation:', projectFetchError);
+            // Continue - don't fail the request
+          } else {
+            // Generate unique arena slug (project-slug-leaderboard-timestamp)
+            const timestamp = Date.now();
+            const arenaSlug = `${project.slug}-leaderboard-${timestamp}`;
+            
+            // Determine arena status based on dates
+            let arenaStatus: 'active' | 'scheduled' | 'draft' = 'active';
+            if (start_at && end_at) {
+              const startDate = new Date(start_at);
+              const now = new Date();
+              if (startDate > now) {
+                arenaStatus = 'scheduled';
+              }
+            }
+
+            // Create default arena
+            const { error: arenaError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: request.project_id,
+                name: `${project.name} Leaderboard`,
+                slug: arenaSlug,
+                status: arenaStatus,
+                starts_at: start_at ? new Date(start_at).toISOString() : null,
+                ends_at: end_at ? new Date(end_at).toISOString() : null,
+                created_by: adminProfile.profileId,
+              });
+
+            if (arenaError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
+              // Continue - don't fail the request, but log the error
+            } else {
+              console.log('[Admin Leaderboard Request Update API] Successfully created arena for project:', request.project_id, 'slug:', arenaSlug);
+            }
+          }
+        } else if (existingArena.status !== 'active' && existingArena.status !== 'scheduled') {
+          // Update existing arena to active if it's in draft/ended/cancelled state
+          const { error: arenaUpdateError } = await supabase
+            .from('arenas')
+            .update({ 
+              status: 'active',
+              starts_at: start_at ? new Date(start_at).toISOString() : existingArena.starts_at || null,
+              ends_at: end_at ? new Date(end_at).toISOString() : existingArena.ends_at || null,
+            })
+            .eq('id', existingArena.id);
+
+          if (arenaUpdateError) {
+            console.error('[Admin Leaderboard Request Update API] Error updating existing arena status:', arenaUpdateError);
+          } else {
+            console.log('[Admin Leaderboard Request Update API] Successfully updated existing arena to active:', existingArena.id);
+          }
+        }
+      }
+
       if (projectData) {
         updatedProject = {
           id: projectData.id,
