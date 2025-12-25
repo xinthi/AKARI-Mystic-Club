@@ -72,7 +72,7 @@ export default async function handler(
       if (item.kind === 'arena') {
         result.arenaId = item.arenaId || item.id;
         result.arenaName = item.title;
-        result.arenaSlug = item.arenaSlug || item.slug;
+        result.arenaSlug = item.arenaSlug || item.slug || undefined;
       } else if (item.kind === 'campaign') {
         result.campaignId = item.campaignId || item.id;
       }
