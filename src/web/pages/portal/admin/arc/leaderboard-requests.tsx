@@ -84,9 +84,41 @@ export default function AdminLeaderboardRequestsPage() {
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified' | 'creator_manager'>('leaderboard');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{ summary: any } | null>(null);
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
+  // Handle backfill arenas
+  const handleBackfillArenas = async () => {
+    if (!confirm('This will create/activate arenas for all approved leaderboard projects. Continue?')) {
+      return;
+    }
+
+    setBackfillLoading(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch('/api/portal/admin/arc/backfill-arenas', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        setBackfillResult({ summary: data.summary });
+        // Reload requests to reflect any changes
+        await loadRequests();
+      } else {
+        setError(data.error || 'Failed to backfill arenas');
+      }
+    } catch (err: any) {
+      setError(`Backfill error: ${err.message}`);
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
 
   // Load requests
   useEffect(() => {
@@ -289,22 +321,54 @@ export default function AdminLeaderboardRequestsPage() {
         <div className="px-4 py-4 md:px-6 lg:px-10">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
-              <Link href="/portal/admin" className="hover:text-akari-primary transition-colors">
-                Admin
-              </Link>
-              <span>/</span>
-              <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
-                ARC
-              </Link>
-              <span>/</span>
-              <span className="text-slate-300">Leaderboard Requests</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <Link href="/portal/admin" className="hover:text-akari-primary transition-colors">
+                  Admin
+                </Link>
+                <span>/</span>
+                <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+                  ARC
+                </Link>
+                <span>/</span>
+                <span className="text-slate-300">Leaderboard Requests</span>
+              </div>
+              <button
+                onClick={handleBackfillArenas}
+                disabled={backfillLoading || !userIsSuperAdmin}
+                className="px-4 py-2 bg-akari-primary/20 hover:bg-akari-primary/30 border border-akari-primary/50 rounded-lg text-sm text-akari-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {backfillLoading ? 'Processing...' : 'Backfill Arenas'}
+              </button>
             </div>
             <h1 className="text-2xl font-semibold text-white mb-2">ARC Leaderboard Requests</h1>
             <p className="text-sm text-slate-400">
               Review and approve/reject requests for ARC leaderboard access.
             </p>
           </div>
+
+          {/* Backfill Results */}
+          {backfillResult && (
+            <div className="mb-6 p-4 rounded-lg border border-akari-primary/30 bg-akari-primary/10">
+              <h3 className="text-sm font-semibold text-akari-primary mb-2">Backfill Complete</h3>
+              <div className="text-sm text-akari-text space-y-1">
+                <p>Total Eligible: {backfillResult.summary.totalEligible}</p>
+                <p>Created: {backfillResult.summary.createdCount}</p>
+                <p>Updated: {backfillResult.summary.updatedCount}</p>
+                <p>Skipped: {backfillResult.summary.skippedCount}</p>
+                {backfillResult.summary.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-akari-danger font-semibold">Errors ({backfillResult.summary.errors.length}):</p>
+                    <ul className="list-disc list-inside text-akari-muted">
+                      {backfillResult.summary.errors.slice(0, 5).map((err: any, idx: number) => (
+                        <li key={idx}>{err.projectId}: {err.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Loading state */}
           {loading && (

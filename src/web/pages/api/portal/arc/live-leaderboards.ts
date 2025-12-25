@@ -127,10 +127,16 @@ export default async function handler(
         continue;
       }
 
-      // Get date range from arc_project_features
+      // Get date range from arc_project_features (fallback)
       const features = featuresMap.get(project.id);
-      const startAt = features?.leaderboard_start_at || null;
-      const endAt = features?.leaderboard_end_at || null;
+      const featuresStartAt = features?.leaderboard_start_at || null;
+      const featuresEndAt = features?.leaderboard_end_at || null;
+
+      // Use arena dates as primary source, fallback to features dates
+      const arenaStartAt = (arena as any).starts_at || null;
+      const arenaEndAt = (arena as any).ends_at || null;
+      const effectiveStartAt = arenaStartAt || featuresStartAt;
+      const effectiveEndAt = arenaEndAt || featuresEndAt;
 
       const leaderboard: LiveLeaderboard = {
         arenaId: arena.id,
@@ -141,14 +147,13 @@ export default async function handler(
         projectSlug: project.slug,
         xHandle: project.x_handle,
         creatorCount: countsMap.get(arena.id) || 0,
-        startAt,
-        endAt,
+        startAt: effectiveStartAt,
+        endAt: effectiveEndAt,
       };
 
-      // Determine if it's live or upcoming
-      if (startAt && endAt) {
-        const startDate = new Date(startAt);
-        const endDate = new Date(endAt);
+      if (effectiveStartAt && effectiveEndAt) {
+        const startDate = new Date(effectiveStartAt);
+        const endDate = new Date(effectiveEndAt);
         
         // If start date is in future, it's upcoming
         if (startDate > now) {
@@ -158,9 +163,10 @@ export default async function handler(
         else if (now >= startDate && now <= endDate) {
           leaderboards.push(leaderboard);
         }
-        // If past end date, skip (not shown)
+        // If past end date, skip (not shown - ended)
       } else {
-        // No dates set - treat as always active (live)
+        // No dates set - treat as always active (live by default)
+        // This handles cases where dates weren't provided during approval
         leaderboards.push(leaderboard);
       }
     }
