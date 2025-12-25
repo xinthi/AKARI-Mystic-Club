@@ -1246,13 +1246,13 @@ export default function ArcProjectHub() {
                       </Link>
                     )}
                     
-                    {unifiedState?.modules?.gamefi?.enabled && (
-                      <button
-                        disabled
-                        className="px-4 py-2 text-sm font-medium border border-white/10 text-white/50 rounded-lg cursor-not-allowed"
+                    {unifiedState?.modules?.gamefi?.enabled && projectId && (
+                      <Link
+                        href={`/portal/arc/gamified/${projectId}`}
+                        className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
                       >
-                        GameFi (Coming soon)
-                      </button>
+                        GameFi Leaderboard
+                      </Link>
                     )}
 
                     {/* Admin dashboard buttons */}
