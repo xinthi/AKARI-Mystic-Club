@@ -73,7 +73,7 @@ export default async function handler(
     }
 
     if (!arenas || arenas.length === 0) {
-      return res.status(200).json({ ok: true, leaderboards: [] });
+      return res.status(200).json({ ok: true, leaderboards: [], upcoming: [] });
     }
 
     // Get creator counts for each arena
