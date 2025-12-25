@@ -40,9 +40,10 @@ interface ArcHomeProps {
 }
 
 interface LiveLeaderboard {
-  arenaId: string;
-  arenaName: string;
-  arenaSlug: string;
+  arenaId?: string;
+  arenaName?: string;
+  arenaSlug?: string;
+  campaignId?: string;
   projectId: string;
   projectName: string;
   projectSlug: string | null;
@@ -50,6 +51,8 @@ interface LiveLeaderboard {
   creatorCount: number;
   startAt: string | null;
   endAt: string | null;
+  title: string;
+  kind: 'arena' | 'campaign' | 'gamified';
 }
 
 // =============================================================================
@@ -572,15 +575,36 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
                       : null;
                     const hoursRemaining = timeRemaining ? Math.floor(timeRemaining / (1000 * 60 * 60)) : null;
                     
+                    // Determine link URL based on item kind
+                    const getPrimaryLink = () => {
+                      if (leaderboard.kind === 'arena' && leaderboard.projectSlug && leaderboard.arenaSlug) {
+                        return `/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`;
+                      } else if (leaderboard.kind === 'campaign' && leaderboard.campaignId) {
+                        return `/portal/arc/campaigns/${leaderboard.campaignId}`;
+                      } else if (leaderboard.kind === 'gamified' && leaderboard.projectSlug) {
+                        return `/portal/arc/${leaderboard.projectSlug}`;
+                      }
+                      return null;
+                    };
+
+                    const primaryLink = getPrimaryLink();
+                    const kindLabel = leaderboard.kind === 'arena' ? 'Arena' : leaderboard.kind === 'campaign' ? 'Campaign' : 'Gamified';
+                    const displayTitle = leaderboard.arenaName || leaderboard.title;
+                    
                     return (
                       <div
-                        key={leaderboard.arenaId}
+                        key={leaderboard.arenaId || leaderboard.campaignId || leaderboard.projectId}
                         className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
                       >
                         <div className="mb-3.5">
-                          <h3 className="text-base font-semibold text-white mb-1.5 truncate">
-                            {leaderboard.arenaName}
-                          </h3>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <h3 className="text-base font-semibold text-white truncate flex-1">
+                              {displayTitle}
+                            </h3>
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 bg-white/10 border border-white/20 text-white/70 rounded uppercase">
+                              {kindLabel}
+                            </span>
+                          </div>
                           <p className="text-sm text-white/70 mb-1 truncate">
                             {leaderboard.projectName}
                           </p>
@@ -595,20 +619,22 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {leaderboard.projectSlug && (
+                          {primaryLink && (
                             <>
                               <Link
-                                href={`/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`}
+                                href={primaryLink}
                                 className="flex-1 text-center px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
                               >
-                                View Arena
+                                View {kindLabel}
                               </Link>
-                              <Link
-                                href={`/portal/arc/${leaderboard.projectSlug}`}
-                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
-                              >
-                                Project
-                              </Link>
+                              {leaderboard.projectSlug && (
+                                <Link
+                                  href={`/portal/arc/${leaderboard.projectSlug}`}
+                                  className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                                >
+                                  Project
+                                </Link>
+                              )}
                             </>
                           )}
                         </div>
@@ -667,17 +693,38 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
                   {filteredUpcoming.map((leaderboard) => {
                     const startDate = leaderboard.startAt ? new Date(leaderboard.startAt) : null;
                     const timeUntilStart = startDate ? Math.max(0, startDate.getTime() - Date.now()) : null;
+                    
+                    // Determine link URL based on item kind
+                    const getPrimaryLink = () => {
+                      if (leaderboard.kind === 'arena' && leaderboard.projectSlug && leaderboard.arenaSlug) {
+                        return `/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`;
+                      } else if (leaderboard.kind === 'campaign' && leaderboard.campaignId) {
+                        return `/portal/arc/campaigns/${leaderboard.campaignId}`;
+                      } else if (leaderboard.kind === 'gamified' && leaderboard.projectSlug) {
+                        return `/portal/arc/${leaderboard.projectSlug}`;
+                      }
+                      return null;
+                    };
+
+                    const primaryLink = getPrimaryLink();
+                    const kindLabel = leaderboard.kind === 'arena' ? 'Arena' : leaderboard.kind === 'campaign' ? 'Campaign' : 'Gamified';
+                    const displayTitle = leaderboard.arenaName || leaderboard.title;
                     const daysUntilStart = timeUntilStart ? Math.floor(timeUntilStart / (1000 * 60 * 60 * 24)) : null;
                     
                     return (
                       <div
-                        key={leaderboard.arenaId}
+                        key={leaderboard.arenaId || leaderboard.campaignId || leaderboard.projectId}
                         className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
                       >
                         <div className="mb-3.5">
-                          <h3 className="text-base font-semibold text-white mb-1.5 truncate">
-                            {leaderboard.arenaName}
-                          </h3>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <h3 className="text-base font-semibold text-white truncate flex-1">
+                              {displayTitle}
+                            </h3>
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 bg-white/10 border border-white/20 text-white/70 rounded uppercase">
+                              {kindLabel}
+                            </span>
+                          </div>
                           <p className="text-sm text-white/70 mb-1 truncate">
                             {leaderboard.projectName}
                           </p>
@@ -698,13 +745,23 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {leaderboard.projectSlug && (
-                            <Link
-                              href={`/portal/arc/${leaderboard.projectSlug}`}
-                              className="flex-1 text-center px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
-                            >
-                              View Details
-                            </Link>
+                          {primaryLink && (
+                            <>
+                              <Link
+                                href={primaryLink}
+                                className="flex-1 text-center px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                              >
+                                View {kindLabel}
+                              </Link>
+                              {leaderboard.projectSlug && (
+                                <Link
+                                  href={`/portal/arc/${leaderboard.projectSlug}`}
+                                  className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                                >
+                                  Project
+                                </Link>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>

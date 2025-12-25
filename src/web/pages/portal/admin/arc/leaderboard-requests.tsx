@@ -39,6 +39,8 @@ interface LeaderboardRequest {
     username: string;
     display_name: string | null;
   };
+  requestedByDisplayName?: string;
+  requestedByUsername?: string;
 }
 
 // =============================================================================
@@ -90,15 +92,17 @@ export default function AdminLeaderboardRequestsPage() {
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
-  // Handle backfill arenas (dry run)
-  const handleBackfillArenasDryRun = async () => {
+  // Handle backfill live items (dry run)
+  const handleBackfillLiveItemsDryRun = async () => {
     setBackfillLoading(true);
     setBackfillResult(null);
     setError(null);
     try {
-      const res = await fetch('/api/portal/admin/arc/backfill-arenas?dryRun=1', {
+      const res = await fetch('/api/portal/admin/arc/backfill-live-items', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ dryRun: true, limit: 100 }),
       });
 
       const data = await res.json();
@@ -115,9 +119,9 @@ export default function AdminLeaderboardRequestsPage() {
     }
   };
 
-  // Handle backfill arenas (real run)
-  const handleBackfillArenas = async () => {
-    if (!confirm('This will create/activate arenas for all approved leaderboard projects. Continue?')) {
+  // Handle backfill live items (real run)
+  const handleBackfillLiveItems = async () => {
+    if (!confirm('This will create/activate arenas and ensure required records exist for all approved requests. Continue?')) {
       return;
     }
 
@@ -125,9 +129,11 @@ export default function AdminLeaderboardRequestsPage() {
     setBackfillResult(null);
     setError(null);
     try {
-      const res = await fetch('/api/portal/admin/arc/backfill-arenas', {
+      const res = await fetch('/api/portal/admin/arc/backfill-live-items', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ dryRun: false, limit: 100 }),
       });
 
       const data = await res.json();
@@ -139,7 +145,7 @@ export default function AdminLeaderboardRequestsPage() {
           await loadRequests();
         }
       } else {
-        setError(data.error || 'Failed to backfill arenas');
+        setError(data.error || 'Failed to backfill live items');
       }
     } catch (err: any) {
       setError(`Backfill error: ${err.message}`);
@@ -363,18 +369,18 @@ export default function AdminLeaderboardRequestsPage() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleBackfillArenasDryRun}
+                  onClick={handleBackfillLiveItemsDryRun}
                   disabled={backfillLoading || !userIsSuperAdmin}
                   className="px-4 py-2 bg-akari-primary/10 hover:bg-akari-primary/20 border border-akari-primary/30 rounded-lg text-sm text-akari-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {backfillLoading ? 'Processing...' : 'Backfill Arenas (Dry Run)'}
+                  {backfillLoading ? 'Processing...' : 'Backfill Live Items (Dry Run)'}
                 </button>
                 <button
-                  onClick={handleBackfillArenas}
+                  onClick={handleBackfillLiveItems}
                   disabled={backfillLoading || !userIsSuperAdmin}
                   className="px-4 py-2 bg-akari-primary/20 hover:bg-akari-primary/30 border border-akari-primary/50 rounded-lg text-sm text-akari-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {backfillLoading ? 'Processing...' : 'Backfill Arenas (Run)'}
+                  {backfillLoading ? 'Processing...' : 'Backfill Live Items (Run)'}
                 </button>
               </div>
             </div>
@@ -459,9 +465,10 @@ export default function AdminLeaderboardRequestsPage() {
                         const isProcessing = processingIds.has(request.id);
                         const rowError = rowErrors.get(request.id);
                         const projectName = request.project?.display_name || request.project?.name || 'Unknown Project';
-                        const requesterDisplayName = request.requester?.display_name;
-                        const requesterUsername = request.requester?.username;
-                        const requesterName = requesterDisplayName || requesterUsername || 'Unknown';
+                        // Use API-provided fallback fields first, then fallback to requester object
+                        const requesterDisplayName = request.requestedByDisplayName || request.requester?.display_name;
+                        const requesterUsername = request.requestedByUsername || request.requester?.username;
+                        const requesterName = requesterDisplayName || requesterUsername || 'N/A';
 
                         return (
                           <tr

@@ -583,6 +583,55 @@ export default async function handler(
         }
       }
 
+      // Step 5: Regression guards for all option types
+      // Get project slug for better error messages
+      const { data: projectForSlug } = await supabase
+        .from('projects')
+        .select('slug')
+        .eq('id', request.project_id)
+        .single();
+
+      const projectSlug = projectForSlug?.slug || request.project_id;
+
+      // Regression guard: Option 1 (CRM) - Check if campaign exists
+      if (arc_access_level === 'creator_manager') {
+        const { data: campaigns, error: campaignsCheckError } = await supabase
+          .from('arc_campaigns')
+          .select('id')
+          .eq('project_id', request.project_id)
+          .in('status', ['live', 'paused'])
+          .limit(1);
+
+        if (campaignsCheckError) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to check campaigns for project ${projectSlug} (${request.project_id}):`, campaignsCheckError);
+        } else if (!campaigns || campaigns.length === 0) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD WARNING: Project ${projectSlug} (${request.project_id}) approved for Option 1 (CRM) but no live/paused campaigns found. Campaigns must be created manually. Request ID: ${request.id}`);
+        }
+      }
+
+      // Regression guard: Option 3 (Gamified) - Check if quest exists or arena is linked
+      if (arc_access_level === 'gamified') {
+        const { data: quests, error: questsCheckError } = await supabase
+          .from('arc_quests')
+          .select('id')
+          .eq('project_id', request.project_id)
+          .in('status', ['active', 'paused'])
+          .limit(1);
+
+        const { data: gamifiedArenas, error: arenasCheckError } = await supabase
+          .from('arenas')
+          .select('id')
+          .eq('project_id', request.project_id)
+          .in('status', ['active', 'scheduled'])
+          .limit(1);
+
+        if (questsCheckError || arenasCheckError) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to check gamified items for project ${projectSlug} (${request.project_id}):`, questsCheckError || arenasCheckError);
+        } else if ((!quests || quests.length === 0) && (!gamifiedArenas || gamifiedArenas.length === 0)) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD WARNING: Project ${projectSlug} (${request.project_id}) approved for Option 3 (Gamified) but no active quests or arenas found. Request ID: ${request.id}`);
+        }
+      }
+
       if (projectData) {
         updatedProject = {
           id: projectData.id,

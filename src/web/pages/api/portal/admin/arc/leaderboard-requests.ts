@@ -34,6 +34,8 @@ interface LeaderboardRequest {
     username: string;
     display_name: string | null;
   };
+  requestedByDisplayName?: string;
+  requestedByUsername?: string;
 }
 
 type LeaderboardRequestsResponse =
@@ -200,27 +202,45 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
     }
 
-    // Fetch requester profiles (requested_by is a profile ID)
-    // First, log all requested_by values to debug "Unknown" issue
-    const allRequestedBy = (requests || []).map((r: any) => ({ id: r.id, requested_by: r.requested_by }));
-    if (allRequestedBy.some(r => !r.requested_by)) {
-      console.warn('[Admin Leaderboard Requests API] Found requests with NULL requested_by:', 
-        allRequestedBy.filter(r => !r.requested_by).map(r => r.id));
-    }
+    // Fetch requester profiles with fallback logic
+    // Priority: requested_by > decided_by > project.claimed_by > "N/A"
     
-    const requesterIds = [...new Set((requests || []).map((r: any) => r.requested_by).filter(Boolean))];
+    // Collect all possible profile IDs for fallback lookup
+    const allProfileIds = new Set<string>();
+    (requests || []).forEach((r: any) => {
+      if (r.requested_by) allProfileIds.add(r.requested_by);
+      if (r.decided_by) allProfileIds.add(r.decided_by);
+      if (r.projects?.claimed_by) allProfileIds.add(r.projects.claimed_by);
+    });
+
+    // Get project claimed_by values
+    const projectIds = [...new Set((requests || []).map((r: any) => r.project_id).filter(Boolean))];
+    const { data: projectsWithClaimedBy } = await supabase
+      .from('projects')
+      .select('id, claimed_by')
+      .in('id', projectIds);
+
+    const projectClaimedByMap = new Map<string, string>();
+    if (projectsWithClaimedBy) {
+      projectsWithClaimedBy.forEach((p: any) => {
+        if (p.claimed_by) {
+          allProfileIds.add(p.claimed_by);
+          projectClaimedByMap.set(p.id, p.claimed_by);
+        }
+      });
+    }
+
+    // Fetch all potential requester profiles
     let requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
     
-    if (requesterIds.length > 0) {
+    if (allProfileIds.size > 0) {
       const { data: requesters, error: requestersError } = await supabase
         .from('profiles')
         .select('id, username, display_name')
-        .in('id', requesterIds);
+        .in('id', Array.from(allProfileIds));
 
       if (requestersError) {
-        console.error('[Admin Leaderboard Requests API] Error fetching requesters:', requestersError);
-        // Log which profile IDs were requested to help debug
-        console.error('[Admin Leaderboard Requests API] Requested profile IDs:', requesterIds);
+        console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
       } else if (requesters) {
         requesters.forEach((p: any) => {
           requesterMap.set(p.id, {
@@ -229,39 +249,63 @@ export default async function handler(
             display_name: p.display_name || null,
           });
         });
-        // Log if some profiles were not found
-        const foundIds = new Set(requesters.map((p: any) => p.id));
-        const missingIds = requesterIds.filter(id => !foundIds.has(id));
-        if (missingIds.length > 0) {
-          console.warn('[Admin Leaderboard Requests API] Some requester profiles not found. Profile IDs:', missingIds);
-          console.warn('[Admin Leaderboard Requests API] These requests will show "Unknown" requester');
-        }
       }
-    } else {
-      console.warn('[Admin Leaderboard Requests API] No valid requester IDs found in any requests');
     }
 
-    // Format response
-    const formattedRequests: LeaderboardRequest[] = (requests || []).map((r: any) => ({
-      id: r.id,
-      project_id: r.project_id,
-      requested_by: r.requested_by,
-      justification: r.justification,
-      requested_arc_access_level: r.requested_arc_access_level,
-      status: r.status,
-      decided_by: r.decided_by,
-      decided_at: r.decided_at,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
-      project: r.projects ? {
-        id: r.projects.id,
-        name: r.projects.name,
-        display_name: r.projects.display_name,
-        slug: r.projects.slug,
-        twitter_username: r.projects.twitter_username,
-      } : undefined,
-      requester: r.requested_by ? requesterMap.get(r.requested_by) : undefined,
-    }));
+    // Format response with fallback requester logic
+    const formattedRequests: LeaderboardRequest[] = (requests || []).map((r: any) => {
+      // Determine requester with fallback priority:
+      // 1. requested_by profile
+      // 2. decided_by profile (approver)
+      // 3. project.claimed_by profile
+      // 4. null (UI will show "N/A")
+      
+      let requester: { id: string; username: string; display_name: string | null } | undefined;
+      let requestedByDisplayName: string | undefined;
+      let requestedByUsername: string | undefined;
+
+      if (r.requested_by && requesterMap.has(r.requested_by)) {
+        requester = requesterMap.get(r.requested_by);
+      } else if (r.decided_by && requesterMap.has(r.decided_by)) {
+        // Fallback to approver
+        requester = requesterMap.get(r.decided_by);
+      } else if (r.projects) {
+        const claimedBy = projectClaimedByMap.get(r.project_id);
+        if (claimedBy && requesterMap.has(claimedBy)) {
+          // Fallback to project owner
+          requester = requesterMap.get(claimedBy);
+        }
+      }
+
+      // Set display fields for UI
+      if (requester) {
+        requestedByDisplayName = requester.display_name || requester.username || undefined;
+        requestedByUsername = requester.username || undefined;
+      }
+
+      return {
+        id: r.id,
+        project_id: r.project_id,
+        requested_by: r.requested_by,
+        justification: r.justification,
+        requested_arc_access_level: r.requested_arc_access_level,
+        status: r.status,
+        decided_by: r.decided_by,
+        decided_at: r.decided_at,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        project: r.projects ? {
+          id: r.projects.id,
+          name: r.projects.name,
+          display_name: r.projects.display_name,
+          slug: r.projects.slug,
+          twitter_username: r.projects.twitter_username,
+        } : undefined,
+        requester,
+        requestedByDisplayName,
+        requestedByUsername,
+      };
+    });
 
     return res.status(200).json({
       ok: true,

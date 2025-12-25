@@ -1,22 +1,23 @@
 /**
  * API Route: GET /api/portal/arc/live-leaderboards
  * 
- * Returns active arenas (live leaderboards) with project information.
+ * Returns live and upcoming ARC items (arenas, campaigns, gamified) with project information.
  * Limited to 10-20 results.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireArcAccess } from '@/lib/arc-access';
+import { getArcLiveItems, ArcLiveItem } from '@/lib/arc/live-upcoming';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
 interface LiveLeaderboard {
-  arenaId: string;
-  arenaName: string;
-  arenaSlug: string;
+  arenaId?: string;
+  arenaName?: string;
+  arenaSlug?: string;
+  campaignId?: string;
   projectId: string;
   projectName: string;
   projectSlug: string | null;
@@ -24,6 +25,8 @@ interface LiveLeaderboard {
   creatorCount: number;
   startAt: string | null;
   endAt: string | null;
+  title: string;
+  kind: 'arena' | 'campaign' | 'gamified';
 }
 
 type LiveLeaderboardsResponse =
@@ -48,133 +51,39 @@ export default async function handler(
     // Get limit from query (default 15)
     const limit = Math.min(parseInt(req.query.limit as string) || 15, 20);
 
-    // Get active arenas with project info
-    const { data: arenas, error: arenasError } = await supabase
-      .from('arenas')
-      .select(`
-        id,
-        name,
-        slug,
-        project_id,
-        projects:project_id (
-          id,
-          name,
-          slug,
-          x_handle
-        )
-      `)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    // Get all live and upcoming items using unified helper
+    const { live, upcoming } = await getArcLiveItems(supabase, limit);
 
-    if (arenasError) {
-      console.error('[Live Leaderboards] Error fetching arenas:', arenasError);
-      return res.status(500).json({ ok: false, error: 'Failed to fetch leaderboards' });
-    }
-
-    if (!arenas || arenas.length === 0) {
-      return res.status(200).json({ ok: true, leaderboards: [], upcoming: [] });
-    }
-
-    // Get creator counts for each arena
-    const arenaIds = arenas.map(a => a.id);
-    const { data: creatorCounts, error: countsError } = await supabase
-      .from('arena_creators')
-      .select('arena_id')
-      .in('arena_id', arenaIds);
-
-    if (countsError) {
-      console.error('[Live Leaderboards] Error fetching creator counts:', countsError);
-      // Continue without counts
-    }
-
-    // Build counts map
-    const countsMap = new Map<string, number>();
-    if (creatorCounts) {
-      for (const cc of creatorCounts) {
-        const current = countsMap.get(cc.arena_id) || 0;
-        countsMap.set(cc.arena_id, current + 1);
-      }
-    }
-
-    // Get arc_project_features for projects to check date ranges
-    const projectIds = [...new Set(arenas.map((a: any) => a.projects?.id).filter(Boolean))];
-    const { data: projectFeatures, error: featuresError } = await supabase
-      .from('arc_project_features')
-      .select('project_id, leaderboard_enabled, leaderboard_start_at, leaderboard_end_at')
-      .in('project_id', projectIds);
-
-    const featuresMap = new Map<string, any>();
-    if (projectFeatures) {
-      projectFeatures.forEach((f: any) => {
-        featuresMap.set(f.project_id, f);
-      });
-    }
-
-    // Filter arenas where project has Option 2 unlocked and build response
-    const leaderboards: LiveLeaderboard[] = [];
-    const upcoming: LiveLeaderboard[] = [];
-    const now = new Date();
-
-    for (const arena of arenas) {
-      const project = arena.projects as any;
-      if (!project || !project.id) continue;
-
-      // Check if project has Option 2 (Leaderboard) or Option 3 (Gamified) unlocked
-      // Both types of leaderboards should show in the live section
-      const leaderboardCheck = await requireArcAccess(supabase, project.id, 2);
-      const gamifiedCheck = await requireArcAccess(supabase, project.id, 3);
-      
-      if (!leaderboardCheck.ok && !gamifiedCheck.ok) {
-        // Skip if neither Option 2 nor Option 3 is unlocked
-        continue;
-      }
-
-      // Get date range from arc_project_features (fallback)
-      const features = featuresMap.get(project.id);
-      const featuresStartAt = features?.leaderboard_start_at || null;
-      const featuresEndAt = features?.leaderboard_end_at || null;
-
-      // Use arena dates as primary source, fallback to features dates
-      const arenaStartAt = (arena as any).starts_at || null;
-      const arenaEndAt = (arena as any).ends_at || null;
-      const effectiveStartAt = arenaStartAt || featuresStartAt;
-      const effectiveEndAt = arenaEndAt || featuresEndAt;
-
-      const leaderboard: LiveLeaderboard = {
-        arenaId: arena.id,
-        arenaName: arena.name,
-        arenaSlug: arena.slug,
-        projectId: project.id,
-        projectName: project.name || 'Unknown',
-        projectSlug: project.slug,
-        xHandle: project.x_handle,
-        creatorCount: countsMap.get(arena.id) || 0,
-        startAt: effectiveStartAt,
-        endAt: effectiveEndAt,
+    // Convert ArcLiveItem to LiveLeaderboard format (backward compatible)
+    const convertToLiveLeaderboard = (item: ArcLiveItem): LiveLeaderboard => {
+      const result: LiveLeaderboard = {
+        projectId: item.projectId,
+        projectName: item.projectName,
+        projectSlug: item.projectSlug,
+        xHandle: item.xHandle,
+        creatorCount: item.creatorCount || 0,
+        startAt: item.startsAt,
+        endAt: item.endsAt,
+        title: item.title,
+        kind: item.kind,
       };
 
-      if (effectiveStartAt && effectiveEndAt) {
-        const startDate = new Date(effectiveStartAt);
-        const endDate = new Date(effectiveEndAt);
-        
-        // If start date is in future, it's upcoming
-        if (startDate > now) {
-          upcoming.push(leaderboard);
-        } 
-        // If current time is within range, it's live
-        else if (now >= startDate && now <= endDate) {
-          leaderboards.push(leaderboard);
-        }
-        // If past end date, skip (not shown - ended)
-      } else {
-        // No dates set - treat as always active (live by default)
-        // This handles cases where dates weren't provided during approval
-        leaderboards.push(leaderboard);
+      // Add kind-specific fields for backward compatibility
+      if (item.kind === 'arena') {
+        result.arenaId = item.arenaId || item.id;
+        result.arenaName = item.title;
+        result.arenaSlug = item.arenaSlug || item.slug;
+      } else if (item.kind === 'campaign') {
+        result.campaignId = item.campaignId || item.id;
       }
-    }
 
-    return res.status(200).json({ ok: true, leaderboards, upcoming });
+      return result;
+    };
+
+    const leaderboards = live.map(convertToLiveLeaderboard);
+    const upcomingFormatted = upcoming.map(convertToLiveLeaderboard);
+
+    return res.status(200).json({ ok: true, leaderboards, upcoming: upcomingFormatted });
   } catch (error: any) {
     console.error('[Live Leaderboards] Error:', error);
     return res.status(500).json({ ok: false, error: 'Server error' });
