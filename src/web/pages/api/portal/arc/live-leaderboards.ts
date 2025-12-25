@@ -120,10 +120,13 @@ export default async function handler(
       const project = arena.projects as any;
       if (!project || !project.id) continue;
 
-      // Check if project has Option 2 unlocked
-      const accessCheck = await requireArcAccess(supabase, project.id, 2);
-      if (!accessCheck.ok) {
-        // Skip if Option 2 not unlocked
+      // Check if project has Option 2 (Leaderboard) or Option 3 (Gamified) unlocked
+      // Both types of leaderboards should show in the live section
+      const leaderboardCheck = await requireArcAccess(supabase, project.id, 2);
+      const gamifiedCheck = await requireArcAccess(supabase, project.id, 3);
+      
+      if (!leaderboardCheck.ok && !gamifiedCheck.ok) {
+        // Skip if neither Option 2 nor Option 3 is unlocked
         continue;
       }
 

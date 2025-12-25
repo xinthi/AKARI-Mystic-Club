@@ -457,8 +457,9 @@ export default async function handler(
         console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_features for project:', request.project_id);
       }
 
-      // Step 4: Auto-create/activate arena for leaderboard access level (required for Live/Upcoming visibility)
-      if (arc_access_level === 'leaderboard') {
+      // Step 4: Auto-create/activate arena for leaderboard access levels (required for Live/Upcoming visibility)
+      // Both 'leaderboard' and 'gamified' need arenas to show in live leaderboards section
+      if (arc_access_level === 'leaderboard' || arc_access_level === 'gamified') {
         try {
           // Check if arena already exists for this project
           const { data: existingArenas, error: arenaCheckError } = await supabase
@@ -487,7 +488,9 @@ export default async function handler(
               // Continue - don't fail the request
             } else {
               // Generate stable arena slug with numeric suffix if needed
-              let baseSlug = `${project.slug}-leaderboard`;
+              // Use different base slugs for different access levels
+              const baseSlugName = arc_access_level === 'gamified' ? 'gamified' : 'leaderboard';
+              let baseSlug = `${project.slug}-${baseSlugName}`;
               let arenaSlug = baseSlug;
               let suffix = 2;
 
@@ -512,12 +515,17 @@ export default async function handler(
                 }
               }
 
+              // Generate appropriate arena name
+              const arenaName = arc_access_level === 'gamified' 
+                ? `${project.name} Gamified Leaderboard`
+                : `${project.name} Leaderboard`;
+
               // Always create arena with status 'active' (API will use dates to determine Live vs Upcoming)
               const { error: arenaError } = await supabase
                 .from('arenas')
                 .insert({
                   project_id: request.project_id,
-                  name: `${project.name} Leaderboard`,
+                  name: arenaName,
                   slug: arenaSlug,
                   status: 'active',
                   starts_at: start_at ? new Date(start_at).toISOString() : null,

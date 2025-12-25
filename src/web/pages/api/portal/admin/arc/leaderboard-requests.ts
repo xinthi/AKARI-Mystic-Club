@@ -201,6 +201,13 @@ export default async function handler(
     }
 
     // Fetch requester profiles (requested_by is a profile ID)
+    // First, log all requested_by values to debug "Unknown" issue
+    const allRequestedBy = (requests || []).map((r: any) => ({ id: r.id, requested_by: r.requested_by }));
+    if (allRequestedBy.some(r => !r.requested_by)) {
+      console.warn('[Admin Leaderboard Requests API] Found requests with NULL requested_by:', 
+        allRequestedBy.filter(r => !r.requested_by).map(r => r.id));
+    }
+    
     const requesterIds = [...new Set((requests || []).map((r: any) => r.requested_by).filter(Boolean))];
     let requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
     
@@ -226,9 +233,12 @@ export default async function handler(
         const foundIds = new Set(requesters.map((p: any) => p.id));
         const missingIds = requesterIds.filter(id => !foundIds.has(id));
         if (missingIds.length > 0) {
-          console.warn('[Admin Leaderboard Requests API] Some requester profiles not found:', missingIds);
+          console.warn('[Admin Leaderboard Requests API] Some requester profiles not found. Profile IDs:', missingIds);
+          console.warn('[Admin Leaderboard Requests API] These requests will show "Unknown" requester');
         }
       }
+    } else {
+      console.warn('[Admin Leaderboard Requests API] No valid requester IDs found in any requests');
     }
 
     // Format response
