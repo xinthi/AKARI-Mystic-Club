@@ -602,14 +602,11 @@ function PricingRow({ config, onUpdate }: PricingRowProps) {
 
 export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async (context) => {
   // Check super admin access
+  // requireSuperAdmin returns null if authorized, or redirect object if not
   const superAdminCheck = await requireSuperAdmin(context);
-  if (!superAdminCheck.ok) {
-    return {
-      redirect: {
-        destination: '/portal/arc',
-        permanent: false,
-      },
-    };
+  if (superAdminCheck !== null) {
+    // Not authorized - return redirect
+    return superAdminCheck;
   }
 
   try {
