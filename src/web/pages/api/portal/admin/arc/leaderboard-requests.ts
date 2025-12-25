@@ -292,7 +292,7 @@ export default async function handler(
           const projectCampaigns = (campaigns || []).filter((c: any) => c.project_id === req.project_id);
           if (projectCampaigns.length > 0) {
             // Find campaign created closest to decided_at (within 1 hour window)
-            let closestCampaign = null;
+            let closestCampaign: { id: string; project_id: string; status: 'live' | 'paused' | 'ended'; created_at: string } | null = null;
             let minTimeDiff = Infinity;
             
             projectCampaigns.forEach((c: any) => {
@@ -320,7 +320,7 @@ export default async function handler(
           const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
           if (projectArenas.length > 0) {
             // Find arena created closest to decided_at (within 1 hour window)
-            let closestArena = null;
+            let closestArena: { id: string; project_id: string; status: 'active' | 'cancelled' | 'ended'; created_at: string } | null = null;
             let minTimeDiff = Infinity;
             
             projectArenas.forEach((a: any) => {
