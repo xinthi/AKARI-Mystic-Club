@@ -36,6 +36,8 @@ interface LeaderboardRequest {
   };
   requestedByDisplayName?: string;
   requestedByUsername?: string;
+  campaignStatus?: 'live' | 'paused' | 'ended' | null;
+  arenaStatus?: 'active' | 'cancelled' | 'ended' | null;
 }
 
 type LeaderboardRequestsResponse =
@@ -252,6 +254,48 @@ export default async function handler(
       }
     }
 
+    // Get campaign and arena statuses for approved requests
+    const approvedProjectIds = (requests || [])
+      .filter((r: any) => r.status === 'approved')
+      .map((r: any) => r.project_id);
+
+    const campaignStatusMap = new Map<string, 'live' | 'paused' | 'ended' | null>();
+    const arenaStatusMap = new Map<string, 'active' | 'cancelled' | 'ended' | null>();
+
+    if (approvedProjectIds.length > 0) {
+      // Get campaign statuses
+      const { data: campaigns } = await supabase
+        .from('arc_campaigns')
+        .select('project_id, status')
+        .in('project_id', approvedProjectIds)
+        .in('status', ['live', 'paused', 'ended'])
+        .order('created_at', { ascending: false });
+
+      if (campaigns) {
+        campaigns.forEach((c: any) => {
+          if (!campaignStatusMap.has(c.project_id)) {
+            campaignStatusMap.set(c.project_id, c.status);
+          }
+        });
+      }
+
+      // Get arena statuses
+      const { data: arenas } = await supabase
+        .from('arenas')
+        .select('project_id, status')
+        .in('project_id', approvedProjectIds)
+        .in('status', ['active', 'cancelled', 'ended'])
+        .order('created_at', { ascending: false });
+
+      if (arenas) {
+        arenas.forEach((a: any) => {
+          if (!arenaStatusMap.has(a.project_id)) {
+            arenaStatusMap.set(a.project_id, a.status);
+          }
+        });
+      }
+    }
+
     // Format response with fallback requester logic
     const formattedRequests: LeaderboardRequest[] = (requests || []).map((r: any) => {
       // Determine requester with fallback priority:
@@ -304,6 +348,8 @@ export default async function handler(
         requester,
         requestedByDisplayName,
         requestedByUsername,
+        campaignStatus: r.status === 'approved' ? (campaignStatusMap.get(r.project_id) || null) : null,
+        arenaStatus: r.status === 'approved' ? (arenaStatusMap.get(r.project_id) || null) : null,
       };
     });
 

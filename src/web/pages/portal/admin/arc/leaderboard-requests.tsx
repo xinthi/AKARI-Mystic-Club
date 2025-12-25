@@ -41,6 +41,8 @@ interface LeaderboardRequest {
   };
   requestedByDisplayName?: string;
   requestedByUsername?: string;
+  campaignStatus?: 'live' | 'paused' | 'ended' | null;
+  arenaStatus?: 'active' | 'cancelled' | 'ended' | null;
 }
 
 // =============================================================================
@@ -228,7 +230,7 @@ export default function AdminLeaderboardRequestsPage() {
   const handleStopCampaign = async (projectId: string, requestId: string) => {
     if (processingIds.has(requestId)) return;
 
-    if (!confirm('Are you sure you want to stop all active campaigns for this project? This will cancel all active arenas.')) {
+    if (!confirm('Are you sure you want to end all campaigns for this project? This action cannot be undone.')) {
       return;
     }
 
@@ -250,7 +252,7 @@ export default function AdminLeaderboardRequestsPage() {
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to stop campaigns');
+        throw new Error(data.error || 'Failed to end campaigns');
       }
 
       // Reload requests to refresh status
@@ -258,7 +260,52 @@ export default function AdminLeaderboardRequestsPage() {
     } catch (err: any) {
       setRowErrors((prev) => {
         const next = new Map(prev);
-        next.set(requestId, err.message || 'Failed to stop campaigns');
+        next.set(requestId, err.message || 'Failed to end campaigns');
+        return next;
+      });
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  };
+
+  const handlePauseCampaign = async (projectId: string, requestId: string) => {
+    if (processingIds.has(requestId)) return;
+
+    if (!confirm('Are you sure you want to pause all active campaigns for this project?')) {
+      return;
+    }
+
+    setProcessingIds((prev) => new Set(prev).add(requestId));
+    setRowErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(requestId);
+      return next;
+    });
+
+    try {
+      const res = await fetch('/api/portal/admin/arc/pause-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to pause campaigns');
+      }
+
+      // Reload requests to refresh status
+      await loadRequests();
+    } catch (err: any) {
+      setRowErrors((prev) => {
+        const next = new Map(prev);
+        next.set(requestId, err.message || 'Failed to pause campaigns');
         return next;
       });
     } finally {
@@ -444,13 +491,13 @@ export default function AdminLeaderboardRequestsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Project</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Requester</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Requested Access</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Justification</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Created</th>
-                      <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Actions</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-gradient-teal">Project</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Requester</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Access</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Justification</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Status</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Created</th>
+                      <th className="text-left py-3 px-4 text-[10px] uppercase tracking-wider font-semibold text-akari-muted">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -475,57 +522,91 @@ export default function AdminLeaderboardRequestsPage() {
                             key={request.id}
                             className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
                           >
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              <div>{projectName}</div>
+                            <td className="py-3 px-4 text-akari-text font-semibold text-sm">
+                              <div className="truncate max-w-[150px]">{projectName}</div>
                               {request.project?.twitter_username && (
-                                <div className="text-xs text-akari-muted">@{request.project.twitter_username}</div>
+                                <div className="text-[10px] text-akari-muted truncate">@{request.project.twitter_username}</div>
                               )}
                             </td>
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              <div>{requesterName}</div>
-                              {requesterUsername && (
-                                <div className="text-xs text-akari-muted">@{requesterUsername}</div>
+                            <td className="py-3 px-4 text-akari-text text-xs">
+                              {requesterName !== 'N/A' ? (
+                                <>
+                                  <div className="font-medium truncate max-w-[120px]">{requesterName}</div>
+                                  {requesterUsername && (
+                                    <div className="text-[10px] text-akari-muted truncate">@{requesterUsername}</div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-akari-muted/60 italic text-xs">Unknown</span>
                               )}
                             </td>
-                            <td className="py-4 px-5 text-akari-muted text-sm">
+                            <td className="py-3 px-4 text-akari-muted">
                               {request.requested_arc_access_level ? (
-                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
                                   request.requested_arc_access_level === 'gamified' 
                                     ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
                                     : request.requested_arc_access_level === 'leaderboard'
                                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
                                     : 'bg-green-500/20 text-green-400 border border-green-500/50'
                                 }`}>
-                                  {request.requested_arc_access_level === 'creator_manager' && 'Creator Manager'}
-                                  {request.requested_arc_access_level === 'leaderboard' && 'Campaign Leaderboard'}
-                                  {request.requested_arc_access_level === 'gamified' && 'Gamified Leaderboard'}
+                                  {request.requested_arc_access_level === 'creator_manager' && 'CRM'}
+                                  {request.requested_arc_access_level === 'leaderboard' && 'Leaderboard'}
+                                  {request.requested_arc_access_level === 'gamified' && 'Gamified'}
                                 </span>
                               ) : (
-                                <span className="text-akari-muted/60">-</span>
+                                <span className="text-akari-muted/60 text-xs">-</span>
                               )}
                             </td>
-                            <td className="py-4 px-5 text-akari-muted text-sm max-w-xs">
+                            <td className="py-3 px-4 text-akari-muted text-xs max-w-[200px]">
                               {request.justification ? (
                                 <div className="truncate" title={request.justification}>
                                   {request.justification}
                                 </div>
                               ) : (
-                                <span className="text-akari-muted/60">-</span>
+                                <span className="text-akari-muted/60 text-xs">-</span>
                               )}
                             </td>
-                            <td className="py-4 px-5">
-                              <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadgeColor(request.status)}`}>
-                                {request.status}
-                              </span>
+                            <td className="py-3 px-4">
+                              {(() => {
+                                // Show campaign/arena status for approved requests
+                                if (request.status === 'approved') {
+                                  const campaignStatus = request.campaignStatus;
+                                  const arenaStatus = request.arenaStatus;
+                                  
+                                  // Determine effective status
+                                  let displayStatus: string = request.status;
+                                  let statusColor = getStatusBadgeColor('approved');
+                                  
+                                  if (campaignStatus === 'ended' || arenaStatus === 'ended' || arenaStatus === 'cancelled') {
+                                    displayStatus = 'ended';
+                                    statusColor = 'bg-gray-500/20 text-gray-400 border-gray-500/50';
+                                  } else if (campaignStatus === 'paused') {
+                                    displayStatus = 'paused';
+                                    statusColor = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+                                  }
+                                  
+                                  return (
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border uppercase ${statusColor}`}>
+                                      {displayStatus}
+                                    </span>
+                                  );
+                                }
+                                
+                                return (
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border uppercase ${getStatusBadgeColor(request.status)}`}>
+                                    {request.status}
+                                  </span>
+                                );
+                              })()}
                             </td>
-                            <td className="py-4 px-5 text-akari-muted text-xs">
+                            <td className="py-3 px-4 text-akari-muted text-[10px]">
                               {formatDate(request.created_at)}
                             </td>
-                            <td className="py-4 px-5">
+                            <td className="py-3 px-4">
                               {rowError && (
-                                <div className="text-xs text-red-400 mb-2">{rowError}</div>
+                                <div className="text-xs text-red-400 mb-1.5 truncate">{rowError}</div>
                               )}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 {request.status === 'pending' && (
                                   <>
                                     <button
@@ -534,31 +615,66 @@ export default function AdminLeaderboardRequestsPage() {
                                         setApproveModal({ requestId: request.id, projectName });
                                       }}
                                       disabled={isProcessing}
-                                      className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="px-2.5 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       Approve
                                     </button>
                                     <button
                                       onClick={() => handleReject(request.id)}
                                       disabled={isProcessing}
-                                      className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="px-2.5 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                      {isProcessing ? 'Processing...' : 'Reject'}
+                                      {isProcessing ? '...' : 'Reject'}
                                     </button>
                                   </>
                                 )}
-                                {request.status === 'approved' && (
-                                  <button
-                                    onClick={() => handleStopCampaign(request.project_id, request.id)}
-                                    disabled={isProcessing}
-                                    className="px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/50 transition-all duration-300 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Stop all active campaigns for this project"
-                                  >
-                                    {isProcessing ? 'Stopping...' : 'Stop Campaign'}
-                                  </button>
-                                )}
+                                {request.status === 'approved' && (() => {
+                                  // Check for ended first (cancelled arenas count as ended)
+                                  const isEnded = request.campaignStatus === 'ended' || request.arenaStatus === 'ended' || request.arenaStatus === 'cancelled';
+                                  // Only check paused if not ended
+                                  const isPaused = !isEnded && (request.campaignStatus === 'paused');
+                                  const isActive = !isEnded && !isPaused;
+
+                                  if (isEnded) {
+                                    return (
+                                      <span className="px-2 py-0.5 rounded bg-gray-500/10 text-gray-400 text-[10px] font-medium">
+                                        ENDED
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <>
+                                      {isActive && (
+                                        <button
+                                          onClick={() => handlePauseCampaign(request.project_id, request.id)}
+                                          disabled={isProcessing}
+                                          className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          title="Pause campaigns"
+                                        >
+                                          {isProcessing ? '...' : 'Pause'}
+                                        </button>
+                                      )}
+                                      {isPaused && (
+                                        <span className="px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 text-[10px] font-medium">
+                                          PAUSED
+                                        </span>
+                                      )}
+                                      {userIsSuperAdmin && (
+                                        <button
+                                          onClick={() => handleStopCampaign(request.project_id, request.id)}
+                                          disabled={isProcessing}
+                                          className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          title="End all campaigns"
+                                        >
+                                          {isProcessing ? '...' : 'End'}
+                                        </button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                                 {request.status !== 'pending' && request.status !== 'approved' && (
-                                  <span className="text-xs text-akari-muted">
+                                  <span className="text-[10px] text-akari-muted">
                                     {request.decided_at ? formatDate(request.decided_at) : '-'}
                                   </span>
                                 )}
