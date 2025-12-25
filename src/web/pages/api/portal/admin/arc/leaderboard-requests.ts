@@ -37,7 +37,7 @@ interface LeaderboardRequest {
   requestedByDisplayName?: string;
   requestedByUsername?: string;
   campaignStatus?: 'live' | 'paused' | 'ended' | null;
-  arenaStatus?: 'active' | 'cancelled' | 'ended' | null;
+  arenaStatus?: 'active' | 'scheduled' | 'cancelled' | 'ended' | null;
 }
 
 type LeaderboardRequestsResponse =
@@ -263,7 +263,7 @@ export default async function handler(
 
     // Map: request_id -> status (for specific matching)
     const campaignStatusMap = new Map<string, 'live' | 'paused' | 'ended' | null>();
-    const arenaStatusMap = new Map<string, 'active' | 'cancelled' | 'ended' | null>();
+    const arenaStatusMap = new Map<string, 'active' | 'scheduled' | 'cancelled' | 'ended' | null>();
 
     if (uniqueProjectIds.length > 0) {
       // Get all campaigns for these projects
@@ -279,7 +279,7 @@ export default async function handler(
         .from('arenas')
         .select('id, project_id, status, created_at')
         .in('project_id', uniqueProjectIds)
-        .in('status', ['active', 'cancelled', 'ended'])
+        .in('status', ['active', 'scheduled', 'cancelled', 'ended'])
         .order('created_at', { ascending: false });
 
       // Match each approved request to its specific campaign/arena
@@ -333,7 +333,7 @@ export default async function handler(
             interface ArenaItem {
               id: string;
               project_id: string;
-              status: 'active' | 'cancelled' | 'ended';
+              status: 'active' | 'scheduled' | 'cancelled' | 'ended';
               created_at: string;
             }
             let closestArena: ArenaItem | null = null;
