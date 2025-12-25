@@ -72,7 +72,7 @@ export default async function handler(
       return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
-    const { projectId } = req.body;
+    const { projectId, requestId } = req.body;
 
     if (!projectId || typeof projectId !== 'string') {
       return res.status(400).json({ ok: false, error: 'projectId is required' });
@@ -80,6 +80,125 @@ export default async function handler(
 
     const supabase = getSupabaseAdmin();
 
+    // If requestId is provided, pause only the specific arena/campaign for that request
+    if (requestId && typeof requestId === 'string') {
+      // Get request details to find the specific arena/campaign
+      const { data: request, error: requestError } = await supabase
+        .from('arc_leaderboard_requests')
+        .select('id, project_id, requested_arc_access_level, decided_at')
+        .eq('id', requestId)
+        .single();
+
+      if (requestError || !request) {
+        return res.status(404).json({ ok: false, error: 'Request not found' });
+      }
+
+      if (request.requested_arc_access_level === 'creator_manager') {
+        // For CRM: Find and pause the specific campaign
+        const { data: campaigns } = await supabase
+          .from('arc_campaigns')
+          .select('id, created_at')
+          .eq('project_id', request.project_id)
+          .in('status', ['live'])
+          .order('created_at', { ascending: false });
+
+        if (campaigns && campaigns.length > 0 && request.decided_at) {
+          const decidedAt = new Date(request.decided_at).getTime();
+          let targetCampaign = null;
+          let minTimeDiff = Infinity;
+
+          campaigns.forEach((c: any) => {
+            const campaignTime = new Date(c.created_at).getTime();
+            const timeDiff = Math.abs(campaignTime - decidedAt);
+            if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+              minTimeDiff = timeDiff;
+              targetCampaign = c;
+            }
+          });
+
+          if (!targetCampaign && campaigns.length > 0) {
+            targetCampaign = campaigns[0]; // Fallback to most recent
+          }
+
+          if (targetCampaign) {
+            const { error: updateError } = await supabase
+              .from('arc_campaigns')
+              .update({ status: 'paused' })
+              .eq('id', targetCampaign.id);
+
+            if (updateError) {
+              console.error('[Pause Campaign API] Error pausing campaign:', updateError);
+              return res.status(500).json({ ok: false, error: 'Failed to pause campaign' });
+            }
+
+            return res.status(200).json({
+              ok: true,
+              message: 'Campaign paused',
+              pausedCount: 1,
+            });
+          }
+        }
+
+        return res.status(200).json({
+          ok: true,
+          message: 'No active campaign found for this request',
+          pausedCount: 0,
+        });
+      } else {
+        // For Leaderboard/Gamified: Find and pause the specific arena (use cancelled as pause)
+        const { data: arenas } = await supabase
+          .from('arenas')
+          .select('id, created_at')
+          .eq('project_id', request.project_id)
+          .in('status', ['draft', 'scheduled', 'active'])
+          .order('created_at', { ascending: false });
+
+        if (arenas && arenas.length > 0 && request.decided_at) {
+          const decidedAt = new Date(request.decided_at).getTime();
+          let targetArena = null;
+          let minTimeDiff = Infinity;
+
+          arenas.forEach((a: any) => {
+            const arenaTime = new Date(a.created_at).getTime();
+            const timeDiff = Math.abs(arenaTime - decidedAt);
+            if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+              minTimeDiff = timeDiff;
+              targetArena = a;
+            }
+          });
+
+          if (!targetArena && arenas.length > 0) {
+            targetArena = arenas[0]; // Fallback to most recent
+          }
+
+          if (targetArena) {
+            const { error: updateError } = await supabase
+              .from('arenas')
+              .update({ status: 'cancelled' })
+              .eq('id', targetArena.id);
+
+            if (updateError) {
+              console.error('[Pause Campaign API] Error pausing arena:', updateError);
+              return res.status(500).json({ ok: false, error: 'Failed to pause arena' });
+            }
+
+            return res.status(200).json({
+              ok: true,
+              message: 'Arena paused',
+              pausedCount: 1,
+            });
+          }
+        }
+
+        return res.status(200).json({
+          ok: true,
+          message: 'No active arena found for this request',
+          pausedCount: 0,
+        });
+      }
+    }
+
+    // Legacy: If no requestId, pause all for project (backward compatibility)
     // Pause arenas (use 'cancelled' as temporary pause status since 'paused' isn't in enum yet)
     const { data: activeArenas, error: arenasFetchError } = await supabase
       .from('arenas')

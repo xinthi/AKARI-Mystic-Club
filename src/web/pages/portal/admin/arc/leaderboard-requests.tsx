@@ -230,7 +230,7 @@ export default function AdminLeaderboardRequestsPage() {
   const handleStopCampaign = async (projectId: string, requestId: string) => {
     if (processingIds.has(requestId)) return;
 
-    if (!confirm('Are you sure you want to end all campaigns for this project? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to end this campaign/arena? This action cannot be undone.')) {
       return;
     }
 
@@ -246,7 +246,7 @@ export default function AdminLeaderboardRequestsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, requestId }),
       });
 
       const data = await res.json();
@@ -275,7 +275,7 @@ export default function AdminLeaderboardRequestsPage() {
   const handlePauseCampaign = async (projectId: string, requestId: string) => {
     if (processingIds.has(requestId)) return;
 
-    if (!confirm('Are you sure you want to pause all active campaigns for this project?')) {
+    if (!confirm('Are you sure you want to pause this campaign/arena?')) {
       return;
     }
 
@@ -291,7 +291,7 @@ export default function AdminLeaderboardRequestsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, requestId }),
       });
 
       const data = await res.json();

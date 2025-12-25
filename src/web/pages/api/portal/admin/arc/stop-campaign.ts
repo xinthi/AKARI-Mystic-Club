@@ -72,7 +72,7 @@ export default async function handler(
       return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
-    const { projectId } = req.body;
+    const { projectId, requestId } = req.body;
 
     if (!projectId || typeof projectId !== 'string') {
       return res.status(400).json({ ok: false, error: 'projectId is required' });
@@ -80,7 +80,141 @@ export default async function handler(
 
     const supabase = getSupabaseAdmin();
 
-    // Get all active arenas for this project
+    // If requestId is provided, end only the specific arena/campaign for that request
+    if (requestId && typeof requestId === 'string') {
+      // Get request details to find the specific arena/campaign
+      const { data: request, error: requestError } = await supabase
+        .from('arc_leaderboard_requests')
+        .select('id, project_id, requested_arc_access_level, decided_at')
+        .eq('id', requestId)
+        .single();
+
+      if (requestError || !request) {
+        return res.status(404).json({ ok: false, error: 'Request not found' });
+      }
+
+      if (!request.decided_at) {
+        return res.status(400).json({ ok: false, error: 'Request has no decided_at timestamp' });
+      }
+
+      if (request.requested_arc_access_level === 'creator_manager') {
+        // For CRM: Find and end the specific campaign
+        // Match by: same project_id AND created_at closest to request decided_at (within 1 hour window)
+        const { data: campaigns } = await supabase
+          .from('arc_campaigns')
+          .select('id, created_at, status')
+          .eq('project_id', request.project_id)
+          .in('status', ['live', 'paused'])
+          .order('created_at', { ascending: false });
+
+        if (!campaigns || campaigns.length === 0) {
+          return res.status(200).json({
+            ok: true,
+            message: 'No active campaign found for this request',
+            stoppedCount: 0,
+          });
+        }
+
+        const decidedAt = new Date(request.decided_at).getTime();
+        let targetCampaign = null;
+        let minTimeDiff = Infinity;
+
+        // Find campaign created closest to decided_at (within 1 hour window)
+        campaigns.forEach((c: any) => {
+          const campaignTime = new Date(c.created_at).getTime();
+          const timeDiff = Math.abs(campaignTime - decidedAt);
+          // Match if created within 1 hour of approval
+          if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            targetCampaign = c;
+          }
+        });
+
+        // If no campaign found near approval time, don't fallback - this ensures we only end the specific one
+        if (!targetCampaign) {
+          return res.status(404).json({
+            ok: false,
+            error: 'No campaign found that matches this request (created within 1 hour of approval). This request may not have an associated campaign.',
+          });
+        }
+
+        // End only this specific campaign
+        const { error: updateError } = await supabase
+          .from('arc_campaigns')
+          .update({ status: 'ended' })
+          .eq('id', targetCampaign.id);
+
+        if (updateError) {
+          console.error('[Stop Campaign API] Error ending campaign:', updateError);
+          return res.status(500).json({ ok: false, error: 'Failed to end campaign' });
+        }
+
+        return res.status(200).json({
+          ok: true,
+          message: 'Campaign ended',
+          stoppedCount: 1,
+        });
+      } else {
+        // For Leaderboard/Gamified: Find and end the specific arena
+        // Match by: same project_id AND created_at closest to request decided_at (within 1 hour window)
+        const { data: arenas } = await supabase
+          .from('arenas')
+          .select('id, created_at, status')
+          .eq('project_id', request.project_id)
+          .in('status', ['draft', 'scheduled', 'active'])
+          .order('created_at', { ascending: false });
+
+        if (!arenas || arenas.length === 0) {
+          return res.status(200).json({
+            ok: true,
+            message: 'No active arena found for this request',
+            stoppedCount: 0,
+          });
+        }
+
+        const decidedAt = new Date(request.decided_at).getTime();
+        let targetArena = null;
+        let minTimeDiff = Infinity;
+
+        // Find arena created closest to decided_at (within 1 hour window)
+        arenas.forEach((a: any) => {
+          const arenaTime = new Date(a.created_at).getTime();
+          const timeDiff = Math.abs(arenaTime - decidedAt);
+          // Match if created within 1 hour of approval
+          if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            targetArena = a;
+          }
+        });
+
+        // If no arena found near approval time, don't fallback - this ensures we only end the specific one
+        if (!targetArena) {
+          return res.status(404).json({
+            ok: false,
+            error: 'No arena found that matches this request (created within 1 hour of approval). This request may not have an associated arena.',
+          });
+        }
+
+        // End only this specific arena (use 'ended' status for consistency with campaigns)
+        const { error: updateError } = await supabase
+          .from('arenas')
+          .update({ status: 'ended' })
+          .eq('id', targetArena.id);
+
+        if (updateError) {
+          console.error('[Stop Campaign API] Error ending arena:', updateError);
+          return res.status(500).json({ ok: false, error: 'Failed to end arena' });
+        }
+
+        return res.status(200).json({
+          ok: true,
+          message: 'Arena ended',
+          stoppedCount: 1,
+        });
+      }
+    }
+
+    // Legacy: If no requestId, end all arenas for project (backward compatibility)
     const { data: activeArenas, error: fetchError } = await supabase
       .from('arenas')
       .select('id, name')

@@ -255,45 +255,96 @@ export default async function handler(
     }
 
     // Get campaign and arena statuses for approved requests
-    const approvedProjectIds = (requests || [])
-      .filter((r: any) => r.status === 'approved')
-      .map((r: any) => r.project_id);
+    // Match each request to its specific arena/campaign by timing (created around decided_at)
+    const approvedRequests = (requests || []).filter((r: any) => r.status === 'approved' && r.decided_at);
+    
+    const approvedProjectIds = approvedRequests.map((r: any) => r.project_id);
+    const uniqueProjectIds = [...new Set(approvedProjectIds)];
 
+    // Map: request_id -> status (for specific matching)
     const campaignStatusMap = new Map<string, 'live' | 'paused' | 'ended' | null>();
     const arenaStatusMap = new Map<string, 'active' | 'cancelled' | 'ended' | null>();
 
-    if (approvedProjectIds.length > 0) {
-      // Get campaign statuses
+    if (uniqueProjectIds.length > 0) {
+      // Get all campaigns for these projects
       const { data: campaigns } = await supabase
         .from('arc_campaigns')
-        .select('project_id, status')
-        .in('project_id', approvedProjectIds)
+        .select('id, project_id, status, created_at')
+        .in('project_id', uniqueProjectIds)
         .in('status', ['live', 'paused', 'ended'])
         .order('created_at', { ascending: false });
 
-      if (campaigns) {
-        campaigns.forEach((c: any) => {
-          if (!campaignStatusMap.has(c.project_id)) {
-            campaignStatusMap.set(c.project_id, c.status);
-          }
-        });
-      }
-
-      // Get arena statuses
+      // Get all arenas for these projects
       const { data: arenas } = await supabase
         .from('arenas')
-        .select('project_id, status')
-        .in('project_id', approvedProjectIds)
+        .select('id, project_id, status, created_at')
+        .in('project_id', uniqueProjectIds)
         .in('status', ['active', 'cancelled', 'ended'])
         .order('created_at', { ascending: false });
 
-      if (arenas) {
-        arenas.forEach((a: any) => {
-          if (!arenaStatusMap.has(a.project_id)) {
-            arenaStatusMap.set(a.project_id, a.status);
+      // Match each approved request to its specific campaign/arena
+      // Match by: same project_id AND created_at closest to request decided_at
+      approvedRequests.forEach((req: any) => {
+        const decidedAt = new Date(req.decided_at).getTime();
+        
+        if (req.requested_arc_access_level === 'creator_manager') {
+          // For CRM: Find campaign created closest to approval time
+          const projectCampaigns = (campaigns || []).filter((c: any) => c.project_id === req.project_id);
+          if (projectCampaigns.length > 0) {
+            // Find campaign created closest to decided_at (within 1 hour window)
+            let closestCampaign = null;
+            let minTimeDiff = Infinity;
+            
+            projectCampaigns.forEach((c: any) => {
+              const campaignTime = new Date(c.created_at).getTime();
+              const timeDiff = Math.abs(campaignTime - decidedAt);
+              // Match if created within 1 hour of approval
+              if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+                minTimeDiff = timeDiff;
+                closestCampaign = c;
+              }
+            });
+            
+            if (closestCampaign) {
+              campaignStatusMap.set(req.id, closestCampaign.status);
+            } else {
+              // No campaign found near approval time - check if any active campaign exists
+              const activeCampaign = projectCampaigns.find((c: any) => c.status === 'live' || c.status === 'paused');
+              if (activeCampaign) {
+                campaignStatusMap.set(req.id, activeCampaign.status);
+              }
+            }
           }
-        });
-      }
+        } else if (req.requested_arc_access_level === 'leaderboard' || req.requested_arc_access_level === 'gamified') {
+          // For Leaderboard/Gamified: Find arena created closest to approval time
+          const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
+          if (projectArenas.length > 0) {
+            // Find arena created closest to decided_at (within 1 hour window)
+            let closestArena = null;
+            let minTimeDiff = Infinity;
+            
+            projectArenas.forEach((a: any) => {
+              const arenaTime = new Date(a.created_at).getTime();
+              const timeDiff = Math.abs(arenaTime - decidedAt);
+              // Match if created within 1 hour of approval
+              if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+                minTimeDiff = timeDiff;
+                closestArena = a;
+              }
+            });
+            
+            if (closestArena) {
+              arenaStatusMap.set(req.id, closestArena.status);
+            } else {
+              // No arena found near approval time - check if any active arena exists
+              const activeArena = projectArenas.find((a: any) => a.status === 'active' || a.status === 'scheduled');
+              if (activeArena) {
+                arenaStatusMap.set(req.id, activeArena.status);
+              }
+            }
+          }
+        }
+      });
     }
 
     // Format response with fallback requester logic
@@ -328,8 +379,9 @@ export default async function handler(
           requestedByUsername = requester.username || undefined;
         }
 
-        const campaignStatus = r.status === 'approved' ? (campaignStatusMap.get(r.project_id) || null) : null;
-        const arenaStatus = r.status === 'approved' ? (arenaStatusMap.get(r.project_id) || null) : null;
+        // Get status for this specific request (matched by request ID)
+        const campaignStatus = r.status === 'approved' ? (campaignStatusMap.get(r.id) || null) : null;
+        const arenaStatus = r.status === 'approved' ? (arenaStatusMap.get(r.id) || null) : null;
 
         return {
           id: r.id,
@@ -356,21 +408,21 @@ export default async function handler(
           arenaStatus,
         };
       })
-      // Filter out approved requests where campaign/arena has been ended/cancelled
+      // Filter out approved requests where the specific campaign/arena has been ended/cancelled
       .filter((req: LeaderboardRequest) => {
         // Keep all pending/rejected requests
         if (req.status !== 'approved') {
           return true;
         }
         // For approved requests, check status based on requested access level
-        // Hide if the relevant campaign/arena is ended/cancelled
+        // Hide if the specific campaign/arena matched to this request is ended/cancelled
         const accessLevel = req.requested_arc_access_level;
         
         if (accessLevel === 'creator_manager') {
-          // For CRM requests, check campaign status
+          // For CRM requests, hide if campaign is ended
           return req.campaignStatus !== 'ended';
         } else if (accessLevel === 'leaderboard' || accessLevel === 'gamified') {
-          // For leaderboard/gamified requests, check arena status
+          // For leaderboard/gamified requests, hide if arena is ended/cancelled
           return req.arenaStatus !== 'ended' && req.arenaStatus !== 'cancelled';
         }
         
