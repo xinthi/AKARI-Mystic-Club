@@ -18,6 +18,8 @@ interface UpdateRequestPayload {
   arc_access_level?: 'leaderboard' | 'gamified' | 'creator_manager';
   start_at?: string;
   end_at?: string;
+  discount_percent?: number;
+  discount_notes?: string;
 }
 
 type UpdateRequestResponse =
@@ -257,7 +259,7 @@ export default async function handler(
     }
 
     // Parse and validate request body
-    const { status, arc_access_level, start_at, end_at } = req.body as Partial<UpdateRequestPayload>;
+    const { status, arc_access_level, start_at, end_at, discount_percent, discount_notes } = req.body as Partial<UpdateRequestPayload>;
 
     if (!status || (status !== 'approved' && status !== 'rejected')) {
       return res.status(400).json({
@@ -473,23 +475,31 @@ export default async function handler(
           // Continue without billing record if pricing not found (table might not exist yet)
         } else if (pricing) {
           const basePrice = Number(pricing.base_price_usd || 0);
-          const discountPercent = 0; // Can be added later for discounts
+          // Get discount from request body (0-100), default to 0
+          const discountPercent = Math.max(0, Math.min(100, Number(discount_percent || 0)));
           const finalPrice = basePrice * (1 - discountPercent / 100);
 
           // Create billing record
+          const billingRecordData: any = {
+            request_id: id,
+            project_id: request.project_id,
+            access_level: arc_access_level,
+            base_price_usd: basePrice,
+            discount_percent: discountPercent,
+            final_price_usd: finalPrice,
+            currency: pricing.currency || 'USD',
+            payment_status: 'pending', // Default to pending, can be updated later
+            created_by: adminProfile.profileId,
+          };
+
+          // Add notes if discount was applied
+          if (discountPercent > 0 && discount_notes) {
+            billingRecordData.notes = discount_notes.trim();
+          }
+
           const { error: billingError } = await supabase
             .from('arc_billing_records')
-            .insert({
-              request_id: id,
-              project_id: request.project_id,
-              access_level: arc_access_level,
-              base_price_usd: basePrice,
-              discount_percent: discountPercent,
-              final_price_usd: finalPrice,
-              currency: pricing.currency || 'USD',
-              payment_status: 'pending', // Default to pending, can be updated later
-              created_by: adminProfile.profileId,
-            });
+            .insert(billingRecordData);
 
           if (billingError) {
             console.error('[Admin Leaderboard Request Update API] Error creating billing record:', billingError);

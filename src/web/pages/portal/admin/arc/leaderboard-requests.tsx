@@ -88,11 +88,46 @@ export default function AdminLeaderboardRequestsPage() {
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<'leaderboard' | 'gamified' | 'creator_manager'>('leaderboard');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [discountNotes, setDiscountNotes] = useState<string>('');
+  const [basePrice, setBasePrice] = useState<number | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ summary: any; dryRun?: boolean } | null>(null);
 
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
+  // Fetch pricing when access level changes
+  useEffect(() => {
+    if (!approveModal || !selectedAccessLevel) return;
+
+    async function fetchPricing() {
+      setPricingLoading(true);
+      try {
+        const res = await fetch('/api/portal/admin/arc/pricing', {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (data.ok && data.pricing) {
+          const pricing = data.pricing.find((p: any) => p.access_level === selectedAccessLevel);
+          if (pricing) {
+            setBasePrice(pricing.base_price_usd);
+          }
+        }
+      } catch (err) {
+        console.error('[Approve Modal] Error fetching pricing:', err);
+      } finally {
+        setPricingLoading(false);
+      }
+    }
+
+    fetchPricing();
+  }, [approveModal, selectedAccessLevel]);
+
+  // Calculate final price
+  const finalPrice = basePrice !== null ? basePrice * (1 - discountPercent / 100) : null;
 
   // Handle backfill live items (dry run)
   const handleBackfillLiveItemsDryRun = async () => {
@@ -340,6 +375,8 @@ export default function AdminLeaderboardRequestsPage() {
           arc_access_level: selectedAccessLevel,
           start_at: startDate || undefined,
           end_at: endDate || undefined,
+          discount_percent: discountPercent || 0,
+          discount_notes: discountNotes.trim() || undefined,
         }),
       });
 
@@ -354,6 +391,9 @@ export default function AdminLeaderboardRequestsPage() {
       setSelectedAccessLevel('leaderboard');
       setStartDate('');
       setEndDate('');
+      setDiscountPercent(0);
+      setDiscountNotes('');
+      setBasePrice(null);
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
@@ -741,6 +781,73 @@ export default function AdminLeaderboardRequestsPage() {
                 />
                 <p className="text-xs text-slate-500 mt-1">When the leaderboard access should expire</p>
               </div>
+
+              {/* Pricing and Discount Section */}
+              <div className="border-t border-slate-700 pt-4 mt-4">
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs text-slate-400">Base Price</label>
+                    {pricingLoading ? (
+                      <span className="text-xs text-slate-500">Loading...</span>
+                    ) : basePrice !== null ? (
+                      <span className="text-sm font-semibold text-white">${basePrice.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-xs text-slate-500">Not set</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-slate-400">Discount (%)</label>
+                    <span className="text-xs text-slate-500">Super Admin Only</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={discountPercent}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                      setDiscountPercent(val);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Enter discount percentage (0-100)</p>
+                </div>
+
+                {discountPercent > 0 && (
+                  <div className="mt-3">
+                    <label className="block text-xs text-slate-400 mb-1">Discount Notes (Optional)</label>
+                    <textarea
+                      value={discountNotes}
+                      onChange={(e) => setDiscountNotes(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary resize-none"
+                      rows={2}
+                      placeholder="Reason for discount (e.g., partnership, early adopter, etc.)"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Internal notes about why this discount was applied</p>
+                  </div>
+                )}
+
+                {basePrice !== null && (
+                  <div className="mt-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">Final Price</span>
+                      <span className="text-lg font-bold text-green-400">
+                        ${finalPrice !== null ? finalPrice.toFixed(2) : '0.00'}
+                      </span>
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="mt-1 text-xs text-slate-500">
+                        Savings: ${(basePrice - (finalPrice || 0)).toFixed(2)} ({discountPercent}%)
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 mt-6">
@@ -757,6 +864,9 @@ export default function AdminLeaderboardRequestsPage() {
                   setSelectedAccessLevel('leaderboard');
                   setStartDate('');
                   setEndDate('');
+                  setDiscountPercent(0);
+                  setDiscountNotes('');
+                  setBasePrice(null);
                 }}
                 disabled={processingIds.has(approveModal.requestId)}
                 className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition text-sm font-medium disabled:opacity-50"
