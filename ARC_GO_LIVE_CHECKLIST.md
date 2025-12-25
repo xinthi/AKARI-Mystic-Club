@@ -2,9 +2,24 @@
 
 **Purpose:** Verification steps to ensure approved leaderboard projects appear in Live/Upcoming sections
 
+## Pre-Flight Checks
+
+Before deploying, verify repository is clean:
+
+```bash
+# Check for forbidden patterns
+pnpm guard:forbidden
+
+# Full verification (guard + lint + build)
+pnpm verify
+```
+
 ## Quick Start
 
 ### 1. Run Backfill (One-Time Fix)
+
+**Recommended Strategy:**
+Run backfill in production with `limit=50` until `createdCount` and `updatedCount` are both 0. See detailed steps in the "Via API (curl)" section below.
 
 **Via Admin UI:**
 1. Navigate to `/portal/admin/arc/leaderboard-requests`
@@ -12,22 +27,31 @@
 3. Review the summary (eligible projects, what would be created/updated)
 4. Click "Backfill Arenas (Run)" to execute
 5. Verify summary shows created/updated counts
+6. If counts > 0, repeat step 4 until all are processed
 
 **Via API (curl):**
 
+Use your production domain for `<PROD_DOMAIN>` and your session token for `<SESSION_TOKEN>`.
+
 Dry run (preview only):
 ```bash
-curl -X POST "https://your-domain.com/api/portal/admin/arc/backfill-arenas?dryRun=1&limit=50" \
-  -H "Cookie: akari_session=YOUR_SESSION_TOKEN" \
+curl -X POST "https://<PROD_DOMAIN>/api/portal/admin/arc/backfill-arenas?dryRun=1&limit=50" \
+  -b "akari_session=<SESSION_TOKEN>" \
   -H "Content-Type: application/json"
 ```
 
 Real run:
 ```bash
-curl -X POST "https://your-domain.com/api/portal/admin/arc/backfill-arenas?limit=50" \
-  -H "Cookie: akari_session=YOUR_SESSION_TOKEN" \
+curl -X POST "https://<PROD_DOMAIN>/api/portal/admin/arc/backfill-arenas?limit=50" \
+  -b "akari_session=<SESSION_TOKEN>" \
   -H "Content-Type: application/json"
 ```
+
+**Recommended Backfill Strategy:**
+1. Run dry-run with `limit=50` to preview changes
+2. Run real execution with `limit=50`
+3. Check response: if `createdCount > 0` or `updatedCount > 0`, repeat step 2
+4. Continue until both `createdCount` and `updatedCount` are 0
 
 **Response Format:**
 ```json
@@ -80,9 +104,11 @@ ORDER BY a.created_at DESC;
 - Arena `starts_at` and `ends_at` set (if dates provided)
 
 **API Verification:**
+Use your production domain for `<PROD_DOMAIN>` and your session token for `<SESSION_TOKEN>`.
+
 ```bash
-curl "https://your-domain.com/api/portal/arc/live-leaderboards" \
-  -H "Cookie: akari_session=YOUR_SESSION_TOKEN"
+curl "https://<PROD_DOMAIN>/api/portal/arc/live-leaderboards" \
+  -b "akari_session=<SESSION_TOKEN>"
 ```
 
 **Expected Response:**
@@ -119,9 +145,11 @@ LIMIT 1;
 - Dates match approval form (if provided)
 
 **API Check:**
+Use your production domain for `<PROD_DOMAIN>` and your session token for `<SESSION_TOKEN>`.
+
 ```bash
-curl "https://your-domain.com/api/portal/arc/live-leaderboards" \
-  -H "Cookie: akari_session=YOUR_SESSION_TOKEN"
+curl "https://<PROD_DOMAIN>/api/portal/arc/live-leaderboards" \
+  -b "akari_session=<SESSION_TOKEN>"
 ```
 
 **Expected:**

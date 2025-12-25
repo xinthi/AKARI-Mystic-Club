@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "guard:forbidden": "node ../../scripts/guard-forbidden.mjs",
+    "verify": "pnpm guard:forbidden && pnpm lint && pnpm build",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
