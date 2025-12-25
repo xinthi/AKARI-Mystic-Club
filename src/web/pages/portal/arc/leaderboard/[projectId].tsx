@@ -29,7 +29,9 @@ export default function LegacyLeaderboardPage() {
         setError(null);
 
         // Check ARC state
-        const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(projectId)}`);
+        const stateRes = await fetch(`/api/portal/arc/state?projectId=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
         const stateData = await stateRes.json();
 
         if (!stateData.ok) {
@@ -46,7 +48,9 @@ export default function LegacyLeaderboardPage() {
         }
 
         // Get active arena
-        const arenaRes = await fetch(`/api/portal/arc/active-arena?projectId=${encodeURIComponent(projectId)}`);
+        const arenaRes = await fetch(`/api/portal/arc/active-arena?projectId=${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
         const arenaData = await arenaRes.json();
 
         if (!arenaData.ok || !arenaData.arena) {
@@ -56,7 +60,9 @@ export default function LegacyLeaderboardPage() {
         }
 
         // Get project slug
-        const projectRes = await fetch(`/api/portal/arc/project/${encodeURIComponent(projectId)}`);
+        const projectRes = await fetch(`/api/portal/arc/project/${encodeURIComponent(projectId)}`, {
+          credentials: 'include',
+        });
         const projectData = await projectRes.json();
 
         if (!projectData.ok || !projectData.project) {

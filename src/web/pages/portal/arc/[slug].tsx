@@ -310,7 +310,7 @@ export default function ArcProjectHub() {
           });
         }
         
-        const projectRes = await fetch(projectUrl);
+        const projectRes = await fetch(projectUrl, { credentials: 'include' });
         
         // Debug logging (development only)
         if (process.env.NODE_ENV === 'development') {

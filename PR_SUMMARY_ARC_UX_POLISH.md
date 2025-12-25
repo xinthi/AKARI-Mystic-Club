@@ -1,7 +1,7 @@
 # PR Summary: ARC UX + Product Polish
 
 ## Overview
-This PR implements UX polish for ARC to make it a creator-friendly "signal engine" that competes with KaitoAI / Wallchain-style InfoFi leaderboards.
+This PR implements UX polish for ARC to make it a creator-friendly signal engine for InfoFi leaderboards.
 
 **Status:** ⚠️ **PARTIAL** - Core naming complete, major UI enhancements in progress
 

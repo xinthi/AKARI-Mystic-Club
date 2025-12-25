@@ -65,7 +65,7 @@ export default function ArcAdminProfilesPage() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch('/api/portal/admin/arc/profiles');
+      const res = await fetch('/api/portal/admin/arc/profiles', { credentials: 'include' });
       const data = await res.json();
 
       if (!data.ok) {
@@ -149,6 +149,7 @@ export default function ArcAdminProfilesPage() {
       const res = await fetch(`/api/portal/admin/arc/profiles/${profileId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           arc_active: rowState.arc_active,
           arc_access_level: rowState.arc_access_level,

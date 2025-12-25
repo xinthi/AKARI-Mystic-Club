@@ -113,7 +113,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     if (!projectSlug) return;
 
     try {
-      const res = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(projectSlug)}`);
+      const res = await fetch(`/api/portal/arc/arenas?slug=${encodeURIComponent(projectSlug)}`, { credentials: 'include' });
       if (!res.ok) return;
 
       const data = await res.json();
@@ -139,6 +139,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
       const res = await fetch('/api/portal/arc/arenas-admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           projectId: project.id,
           name: formData.name.trim(),
@@ -187,6 +188,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
       const res = await fetch('/api/portal/arc/arenas-admin', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           id: editingArena.id,
           name: formData.name.trim(),

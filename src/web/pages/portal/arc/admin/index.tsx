@@ -334,6 +334,7 @@ function ProjectSettingsModal({
       const res = await fetch('/api/portal/arc/project-settings-admin', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           projectId: project.project_id,
           meta: {

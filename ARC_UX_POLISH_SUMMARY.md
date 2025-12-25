@@ -2,7 +2,7 @@
 
 ## Status: IN PROGRESS
 
-This document tracks the implementation of UX polish for ARC to make it a creator-friendly "signal engine" that competes with KaitoAI / Wallchain-style InfoFi leaderboards.
+This document tracks the implementation of UX polish for ARC to make it a creator-friendly signal engine for InfoFi leaderboards.
 
 ---
 

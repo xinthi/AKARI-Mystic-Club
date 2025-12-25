@@ -7,7 +7,7 @@
 
 ## A) ARC TABLE MAP
 
-### Module A: Leaderboard (Public Contribution, Kaito-style X tracking)
+### Module A: Leaderboard (Public Contribution, X tracking)
 
 #### `arenas`
 - **Primary Key:** `id` (UUID)

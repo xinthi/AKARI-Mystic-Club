@@ -3,8 +3,6 @@
 **Date:** 2025-01-23  
 **Purpose:** Document all leaderboard types in the ARC system
 
----
-
 ## ARC System Overview
 
 ARC (Akari Reputation Circuit) has **3 main modules/options**, each with their own leaderboard implementations:
@@ -47,8 +45,6 @@ ARC (Akari Reputation Circuit) has **3 main modules/options**, each with their o
   - Rank badges (Bronze ≥0, Silver ≥500, Gold ≥2000, Legend ≥10000)
   - Aggregated across all programs for a project
 
----
-
 ## Summary
 
 **ARC has 3 distinct leaderboard types:**
@@ -68,8 +64,6 @@ ARC (Akari Reputation Circuit) has **3 main modules/options**, each with their o
    - XP and level system
    - Rank badges and RPG mechanics
 
----
-
 ## Additional Context
 
 ### Non-ARC Leaderboards (Platform-level)
@@ -87,8 +81,6 @@ The platform also has non-ARC leaderboards:
 - **Platform leaderboards** are global and don't require ARC access
 - **Arena leaderboards** (Option 2) are the ones shown in `/portal/arc` Live/Upcoming sections
 - **Gamified leaderboards** (Option 3) are shown in `/portal/arc/gamified/[projectId]` pages
-
----
 
 ## Technical Implementation
 
