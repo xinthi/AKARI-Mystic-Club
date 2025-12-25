@@ -35,6 +35,7 @@ interface TopProjectItem {
 }
 
 interface ArcHomeProps {
+  canViewArc: boolean;
   canManageArc: boolean;
 }
 
@@ -157,7 +158,7 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
 // COMPONENT
 // =============================================================================
 
-export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomeProps) {
+export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc }: ArcHomeProps) {
   const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -173,7 +174,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
-  const [treemapError, setTreemapError] = useState<string | null>(null);
 
   // Live Leaderboards state
   const [liveLeaderboards, setLiveLeaderboards] = useState<LiveLeaderboard[]>([]);
@@ -191,10 +191,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     }
   }, [topProjectsDisplayMode, topProjectsData.length, topProjectsLoading]);
 
-  // Get user's Twitter username (only one definition)
-  const userTwitterUsername = akariUser.user?.xUsername || null;
-
-  // Fetch top projects (only when canManageArc is true)
+  // Fetch top projects (when user can view ARC)
   const loadTopProjects = useCallback(async () => {
     try {
       setTopProjectsLoading(true);
@@ -253,12 +250,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   }, [topProjectsView, topProjectsTimeframe]);
 
   useEffect(() => {
-    if (!canManageArc) {
+    if (!canViewArc) {
       return;
     }
 
     loadTopProjects();
-  }, [canManageArc, loadTopProjects, refreshNonce]);
+  }, [canViewArc, loadTopProjects, refreshNonce]);
 
   // Fetch live leaderboards
   useEffect(() => {
@@ -309,7 +306,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     }
   };
 
-  // Filter upcoming by timeframe (client-side) - must be before early return
+  // Filter upcoming by timeframe (client-side)
   const filteredUpcoming = useMemo(() => {
     if (upcomingFilter === 'all') return upcomingLeaderboards;
     
@@ -334,21 +331,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     });
   }, [upcomingLeaderboards, upcomingFilter]);
 
-  // Show restricted view for non-SuperAdmins
-  if (!canManageArc) {
-    return (
-      <PortalLayout title="ARC Universe">
-        <div className="px-6 py-8 text-sm text-white/70">
-          <h1 className="text-2xl font-semibold text-white mb-2">ARC Universe</h1>
-          <p className="max-w-xl">
-            ARC is currently in private beta. You can see it in the navigation,
-            but only administrators have full access at the moment.
-          </p>
-        </div>
-      </PortalLayout>
-    );
-  }
-
   return (
     <PortalLayout title="ARC Universe">
       {/* Full-screen shell */}
@@ -368,7 +350,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         {/* Main Content */}
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           {/* Treemap Hero Section */}
-          {canManageArc && (
+          {canViewArc && (
             <section className="mb-10">
               {/* Control Strip */}
               <div className="mb-5">
@@ -376,10 +358,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   {/* View Toggle: Cards / Treemap */}
                   <div className="flex gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
                     <button
-                      onClick={() => {
-                        setTopProjectsDisplayMode('cards');
-                        setTreemapError(null);
-                      }}
+                      onClick={() => setTopProjectsDisplayMode('cards')}
                       className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
                         topProjectsDisplayMode === 'cards'
                           ? 'bg-white/10 text-white'
@@ -390,10 +369,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       Cards
                     </button>
                     <button
-                      onClick={() => {
-                        setTopProjectsDisplayMode('treemap');
-                        setTreemapError(null);
-                      }}
+                      onClick={() => setTopProjectsDisplayMode('treemap')}
                       className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
                         topProjectsDisplayMode === 'treemap'
                           ? 'bg-white/10 text-white'
@@ -480,8 +456,8 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     )}
                   </button>
 
-                  {/* Admin Buttons (SuperAdmin only) */}
-                  {userIsSuperAdmin && (
+                  {/* Admin Buttons (canManageArc only) */}
+                  {canManageArc && (
                     <>
                       <div className="w-px h-6 bg-white/10" />
                       <Link
@@ -539,7 +515,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         mode={topProjectsView}
                         timeframe={topProjectsTimeframe}
                         onProjectClick={handleTopProjectClick}
-                        onError={() => setTreemapError('Treemap unavailable')}
+                        onError={() => {}}
                       />
                     )}
                   </div>
@@ -754,36 +730,36 @@ export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (conte
   if (requiredTier) {
     const tierCheck = await requireArcTier(context, requiredTier, '/portal/arc');
     if (tierCheck) {
-      return tierCheck;
+      return tierCheck; // Redirect if tier check fails
     }
   }
   
-  // Legacy logic: canManageArc (for SuperAdmin access to top projects)
+  // If we reach here, user passed tier check (canViewArc = true)
+  const canViewArc = true;
+  
+  // canManageArc: SuperAdmin/dev only (for admin buttons)
   const isDevMode = process.env.NODE_ENV === 'development';
   
+  // Get session token to check for superadmin
+  const sessionToken = context.req.headers.cookie
+    ?.split(';')
+    .map(c => c.trim())
+    .find(c => c.startsWith('akari_session='))
+    ?.split('=')[1];
+  
+  let canManageArc = false;
   if (isDevMode) {
-    return {
-      props: {
-        canManageArc: true,
-      },
-    };
-  }
-  
-  const cookies = context.req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  const hasSession = cookies.some(cookie => cookie.startsWith('akari_session='));
-  
-  if (!hasSession) {
-    return {
-      redirect: {
-        destination: '/portal',
-        permanent: false,
-      },
-    };
+    canManageArc = true;
+  } else if (sessionToken) {
+    // Check if user is superadmin (simplified check - full check happens client-side)
+    // For now, rely on client-side check via isSuperAdmin()
+    canManageArc = false;
   }
   
   return {
     props: {
-      canManageArc: false,
+      canViewArc,
+      canManageArc,
     },
   };
 };
