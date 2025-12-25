@@ -564,17 +564,29 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
               
               {liveLeaderboardsLoading ? (
-                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                  <span className="ml-3 text-white/60 text-sm">Loading leaderboards...</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-xl border border-white/10 bg-black/40 p-5 animate-pulse">
+                      <div className="h-5 bg-white/10 rounded mb-3 w-3/4"></div>
+                      <div className="h-4 bg-white/5 rounded mb-2 w-1/2"></div>
+                      <div className="h-3 bg-white/5 rounded mb-4 w-2/3"></div>
+                      <div className="h-9 bg-white/5 rounded"></div>
+                    </div>
+                  ))}
                 </div>
               ) : liveLeaderboardsError ? (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
                   <p className="text-red-400 text-sm">{liveLeaderboardsError}</p>
                 </div>
               ) : liveLeaderboards.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
-                  <p className="text-white/60 text-sm">No active leaderboards right now</p>
+                <div className="rounded-xl border border-white/10 bg-black/40 p-16 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 mb-4">
+                    <svg className="w-6 h-6 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <p className="text-white/70 text-sm font-medium mb-1">No active leaderboards</p>
+                  <p className="text-white/50 text-xs">Check back later for new campaigns</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -654,13 +666,25 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
               </div>
 
               {liveLeaderboardsLoading ? (
-                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                  <span className="ml-3 text-white/60 text-sm">Loading...</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-xl border border-white/10 bg-black/40 p-5 animate-pulse">
+                      <div className="h-5 bg-white/10 rounded mb-3 w-3/4"></div>
+                      <div className="h-4 bg-white/5 rounded mb-2 w-1/2"></div>
+                      <div className="h-3 bg-white/5 rounded mb-4 w-2/3"></div>
+                      <div className="h-9 bg-white/5 rounded"></div>
+                    </div>
+                  ))}
                 </div>
               ) : filteredUpcoming.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
-                  <p className="text-white/60 text-sm">No upcoming leaderboards</p>
+                <div className="rounded-xl border border-white/10 bg-black/40 p-16 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 mb-4">
+                    <svg className="w-6 h-6 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-white/70 text-sm font-medium mb-1">No upcoming leaderboards</p>
+                  <p className="text-white/50 text-xs">Scheduled campaigns will appear here</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
