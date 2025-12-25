@@ -2199,11 +2199,11 @@ export default function ArcProjectHub() {
                                 onClick={() => {
                                   setSelectedCampaign(campaign);
                                   // Fetch participants and submissions
-                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/participants`)
+                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/participants`, { credentials: 'include' })
                                     .then(r => r.json())
                                     .then(d => d.ok && setParticipants(d.participants || []))
                                     .catch(console.error);
-                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/external-submissions`)
+                                  fetch(`/api/portal/arc/campaigns/${campaign.id}/external-submissions`, { credentials: 'include' })
                                     .then(r => r.json())
                                     .then(d => d.ok && setExternalSubmissions(d.submissions || []))
                                     .catch(console.error);
@@ -2314,6 +2314,7 @@ export default function ArcProjectHub() {
                                               fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
                                                 method: 'PATCH',
                                                 headers: { 'Content-Type': 'application/json' },
+                                                credentials: 'include',
                                                 body: JSON.stringify({ participant_id: p.id, status: 'accepted' }),
                                               })
                                                 .then(r => r.json())
@@ -2333,6 +2334,7 @@ export default function ArcProjectHub() {
                                               fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
                                                 method: 'PATCH',
                                                 headers: { 'Content-Type': 'application/json' },
+                                                credentials: 'include',
                                                 body: JSON.stringify({ participant_id: p.id, status: 'declined' }),
                                               })
                                                 .then(r => r.json())
@@ -2406,6 +2408,7 @@ export default function ArcProjectHub() {
                                             fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/external-submissions/${sub.id}/review`, {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
+                                              credentials: 'include',
                                               body: JSON.stringify({ action: 'approve' }),
                                             })
                                               .then(r => r.json())
@@ -2425,6 +2428,7 @@ export default function ArcProjectHub() {
                                             fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/external-submissions/${sub.id}/review`, {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
+                                              credentials: 'include',
                                               body: JSON.stringify({ action: 'reject' }),
                                             })
                                               .then(r => r.json())
@@ -2661,6 +2665,7 @@ export default function ArcProjectHub() {
                       const res = await fetch('/api/portal/arc/campaigns', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
                         body: JSON.stringify({
                           project_id: projectId,
                           name: campaignForm.name,
@@ -2788,6 +2793,7 @@ export default function ArcProjectHub() {
                       const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
                         body: JSON.stringify({
                           twitter_username: inviteForm.twitter_username,
                           status: 'invited',
@@ -2849,6 +2855,7 @@ export default function ArcProjectHub() {
                       const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign.id}/participants/${selectedParticipant.id}/link`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
                         body: JSON.stringify({
                           target_url: utmForm.target_url,
                         }),

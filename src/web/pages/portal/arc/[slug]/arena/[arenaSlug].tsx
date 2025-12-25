@@ -838,6 +838,7 @@ export default function ArenaDetailsPage() {
       const res = await fetch(`/api/portal/arc/arena-creators-admin?id=${encodeURIComponent(creatorId)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
 
       // Check if response is JSON
