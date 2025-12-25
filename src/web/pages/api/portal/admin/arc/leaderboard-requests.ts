@@ -297,61 +297,86 @@ export default async function handler(
     }
 
     // Format response with fallback requester logic
-    const formattedRequests: LeaderboardRequest[] = (requests || []).map((r: any) => {
-      // Determine requester with fallback priority:
-      // 1. requested_by profile
-      // 2. decided_by profile (approver)
-      // 3. project.claimed_by profile
-      // 4. null (UI will show "N/A")
-      
-      let requester: { id: string; username: string; display_name: string | null } | undefined;
-      let requestedByDisplayName: string | undefined;
-      let requestedByUsername: string | undefined;
+    const formattedRequests: LeaderboardRequest[] = (requests || [])
+      .map((r: any) => {
+        // Determine requester with fallback priority:
+        // 1. requested_by profile
+        // 2. decided_by profile (approver)
+        // 3. project.claimed_by profile
+        // 4. null (UI will show "N/A")
+        
+        let requester: { id: string; username: string; display_name: string | null } | undefined;
+        let requestedByDisplayName: string | undefined;
+        let requestedByUsername: string | undefined;
 
-      if (r.requested_by && requesterMap.has(r.requested_by)) {
-        requester = requesterMap.get(r.requested_by);
-      } else if (r.decided_by && requesterMap.has(r.decided_by)) {
-        // Fallback to approver
-        requester = requesterMap.get(r.decided_by);
-      } else if (r.projects) {
-        const claimedBy = projectClaimedByMap.get(r.project_id);
-        if (claimedBy && requesterMap.has(claimedBy)) {
-          // Fallback to project owner
-          requester = requesterMap.get(claimedBy);
+        if (r.requested_by && requesterMap.has(r.requested_by)) {
+          requester = requesterMap.get(r.requested_by);
+        } else if (r.decided_by && requesterMap.has(r.decided_by)) {
+          // Fallback to approver
+          requester = requesterMap.get(r.decided_by);
+        } else if (r.projects) {
+          const claimedBy = projectClaimedByMap.get(r.project_id);
+          if (claimedBy && requesterMap.has(claimedBy)) {
+            // Fallback to project owner
+            requester = requesterMap.get(claimedBy);
+          }
         }
-      }
 
-      // Set display fields for UI
-      if (requester) {
-        requestedByDisplayName = requester.display_name || requester.username || undefined;
-        requestedByUsername = requester.username || undefined;
-      }
+        // Set display fields for UI
+        if (requester) {
+          requestedByDisplayName = requester.display_name || requester.username || undefined;
+          requestedByUsername = requester.username || undefined;
+        }
 
-      return {
-        id: r.id,
-        project_id: r.project_id,
-        requested_by: r.requested_by,
-        justification: r.justification,
-        requested_arc_access_level: r.requested_arc_access_level,
-        status: r.status,
-        decided_by: r.decided_by,
-        decided_at: r.decided_at,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-        project: r.projects ? {
-          id: r.projects.id,
-          name: r.projects.name,
-          display_name: r.projects.display_name,
-          slug: r.projects.slug,
-          twitter_username: r.projects.twitter_username,
-        } : undefined,
-        requester,
-        requestedByDisplayName,
-        requestedByUsername,
-        campaignStatus: r.status === 'approved' ? (campaignStatusMap.get(r.project_id) || null) : null,
-        arenaStatus: r.status === 'approved' ? (arenaStatusMap.get(r.project_id) || null) : null,
-      };
-    });
+        const campaignStatus = r.status === 'approved' ? (campaignStatusMap.get(r.project_id) || null) : null;
+        const arenaStatus = r.status === 'approved' ? (arenaStatusMap.get(r.project_id) || null) : null;
+
+        return {
+          id: r.id,
+          project_id: r.project_id,
+          requested_by: r.requested_by,
+          justification: r.justification,
+          requested_arc_access_level: r.requested_arc_access_level,
+          status: r.status,
+          decided_by: r.decided_by,
+          decided_at: r.decided_at,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+          project: r.projects ? {
+            id: r.projects.id,
+            name: r.projects.name,
+            display_name: r.projects.display_name,
+            slug: r.projects.slug,
+            twitter_username: r.projects.twitter_username,
+          } : undefined,
+          requester,
+          requestedByDisplayName,
+          requestedByUsername,
+          campaignStatus,
+          arenaStatus,
+        };
+      })
+      // Filter out approved requests where campaign/arena has been ended/cancelled
+      .filter((req: LeaderboardRequest) => {
+        // Keep all pending/rejected requests
+        if (req.status !== 'approved') {
+          return true;
+        }
+        // For approved requests, check status based on requested access level
+        // Hide if the relevant campaign/arena is ended/cancelled
+        const accessLevel = req.requested_arc_access_level;
+        
+        if (accessLevel === 'creator_manager') {
+          // For CRM requests, check campaign status
+          return req.campaignStatus !== 'ended';
+        } else if (accessLevel === 'leaderboard' || accessLevel === 'gamified') {
+          // For leaderboard/gamified requests, check arena status
+          return req.arenaStatus !== 'ended' && req.arenaStatus !== 'cancelled';
+        }
+        
+        // If access level is null or unknown, show the request
+        return true;
+      });
 
     return res.status(200).json({
       ok: true,
