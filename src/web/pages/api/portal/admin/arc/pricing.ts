@@ -73,7 +73,12 @@ export default async function handler(
       .eq('user_id', userId)
       .eq('role', 'super_admin');
 
-    if (!userRoles || userRoles.length === 0) {
+    let currentProfileId: string | null = null;
+    let isSuperAdmin = false;
+
+    if (userRoles && userRoles.length > 0) {
+      isSuperAdmin = true;
+    } else {
       // Also check profiles.real_roles
       const { data: xIdentity } = await supabase
         .from('akari_user_identities')
@@ -85,49 +90,21 @@ export default async function handler(
       if (xIdentity?.username) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('real_roles')
+          .select('id, real_roles')
           .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
           .single();
 
-        if (!profile?.real_roles?.includes('super_admin')) {
-          return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
-        }
-      } else {
-        return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
-      }
-    }
-
-    // Get current user profile for updated_by
-    const sessionToken = req.headers.cookie?.split(';').find(c => c.trim().startsWith('akari_session='))?.split('=')[1];
-    let currentProfileId: string | null = null;
-
-    if (sessionToken) {
-      const { data: session } = await supabase
-        .from('akari_user_sessions')
-        .select('user_id')
-        .eq('session_token', sessionToken)
-        .single();
-
-      if (session?.user_id) {
-        const { data: identity } = await supabase
-          .from('akari_user_identities')
-          .select('username')
-          .eq('user_id', session.user_id)
-          .eq('provider', 'x')
-          .single();
-
-        if (identity?.username) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('username', identity.username.toLowerCase().replace('@', ''))
-            .single();
-
-          if (profile) {
-            currentProfileId = profile.id;
+        if (profile) {
+          currentProfileId = profile.id;
+          if (profile.real_roles?.includes('super_admin')) {
+            isSuperAdmin = true;
           }
         }
       }
+    }
+
+    if (!isSuperAdmin) {
+      return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
     if (req.method === 'GET') {
