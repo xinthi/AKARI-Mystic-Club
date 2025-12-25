@@ -342,7 +342,7 @@ export default function CreatorDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-lg border border-akari-border bg-akari-card p-4">
             <div className="text-sm text-akari-muted mb-1">Rank</div>
-            <div className="text-2xl font-bold text-akari-primary">#{data.creator.rank || '—'}</div>
+            <div className="text-2xl font-bold text-akari-primary">#{data.creator.rank || 'N/A'}</div>
           </div>
           <div className="rounded-lg border border-akari-border bg-akari-card p-4">
             <div className="text-sm text-akari-muted mb-1">Level</div>
@@ -471,14 +471,14 @@ export default function CreatorDetailPage() {
                         ) : progress.post_tweet_id ? (
                           <span className="text-akari-muted text-sm">Tweet ID: {progress.post_tweet_id}</span>
                         ) : (
-                          <span className="text-akari-muted text-sm">—</span>
+                          <span className="text-akari-muted text-sm">N/A</span>
                         )}
                       </td>
                       <td className="p-3">
                         {progress.notes ? (
                           <span className="text-akari-text text-sm italic">&quot;{progress.notes}&quot;</span>
                         ) : (
-                          <span className="text-akari-muted text-sm">—</span>
+                          <span className="text-akari-muted text-sm">N/A</span>
                         )}
                       </td>
                       <td className="p-3 text-akari-muted text-sm">

@@ -409,7 +409,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                                 {arena.arc_points.toLocaleString()}
                               </td>
                               <td className="px-4 py-3 text-sm text-akari-muted">
-                                {formatDate(arena.joined_at) || '—'}
+                                {formatDate(arena.joined_at) || 'N/A'}
                               </td>
                             </tr>
                           );

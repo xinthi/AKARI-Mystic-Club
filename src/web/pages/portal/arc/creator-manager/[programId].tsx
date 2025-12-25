@@ -857,7 +857,7 @@ export default function CreatorManagerProgramDetail() {
                       >
                         <div className="flex items-center gap-3 flex-1">
                           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-akari-primary/20 text-akari-primary font-bold text-sm">
-                            {creator.rank || '—'}
+                            {creator.rank || 'N/A'}
                           </div>
                           {creator.profile?.profile_image_url && (
                             <img

@@ -94,7 +94,7 @@ export const WhaleHeatmapCard: React.FC<Props> = ({ recentEntries, lastAnyEntry 
         <div className="text-sm text-slate-400 pt-2 space-y-2">
           <p>No whale entries in the recent window.</p>
           <p className="text-xs text-slate-500">
-            Last detected activity was {timeAgo(lastAnyEntry.occurredAt)} — {lastAnyEntry.tokenSymbol} on {lastAnyEntry.chain} ({formatUsd(lastAnyEntry.amountUsd)}).
+            Last detected activity was {timeAgo(lastAnyEntry.occurredAt)} - {lastAnyEntry.tokenSymbol} on {lastAnyEntry.chain} ({formatUsd(lastAnyEntry.amountUsd)}).
           </p>
         </div>
       ) : (

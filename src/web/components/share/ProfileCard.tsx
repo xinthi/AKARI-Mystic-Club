@@ -334,7 +334,7 @@ export function ProfileCard({
               textShadow: '0 0 20px rgba(59, 244, 255, 0.5)',
             }}
           >
-            {score !== null ? score : '—'}
+            {score !== null ? score : 'N/A'}
           </div>
         </div>
       </div>

@@ -1444,7 +1444,7 @@ export default function ArcProjectHub() {
                             <div className="text-2xl font-bold text-white">
                               {pulseMetrics.totalCompletions !== null
                                 ? pulseMetrics.totalCompletions.toLocaleString()
-                                : '—'}
+                                : 'N/A'}
                             </div>
                           </div>
                           <div className="rounded-lg border border-white/10 bg-black/40 p-4">
@@ -1452,7 +1452,7 @@ export default function ArcProjectHub() {
                             <div className="text-2xl font-bold text-white">
                               {pulseMetrics.topCreatorScore !== null
                                 ? pulseMetrics.topCreatorScore.toLocaleString()
-                                : '—'}
+                                : 'N/A'}
                             </div>
                           </div>
                         </div>
@@ -1951,7 +1951,7 @@ export default function ArcProjectHub() {
                                           {leaderboardView === 'impact' && (
                                             <div className="text-right">
                                               <div className="text-sm font-bold text-white/40">
-                                                —
+                                                -
                                               </div>
                                               <div className="text-xs text-white/40">Coming soon</div>
                                             </div>
@@ -1959,7 +1959,7 @@ export default function ArcProjectHub() {
                                           {leaderboardView === 'consistency' && (
                                             <div className="text-right">
                                               <div className="text-sm font-bold text-white/40">
-                                                —
+                                                -
                                               </div>
                                               <div className="text-xs text-white/40">Coming soon</div>
                                             </div>
