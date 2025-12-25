@@ -116,22 +116,28 @@ export default async function handler(
         }
 
         const decidedAt = new Date(request.decided_at).getTime();
-        let targetCampaign = null;
+        interface CampaignItem {
+          id: string;
+          created_at: string;
+          status: 'live' | 'paused';
+        }
+        let targetCampaign: CampaignItem | null = null;
         let minTimeDiff = Infinity;
 
         // Find campaign created closest to decided_at (within 1 hour window)
-        campaigns.forEach((c: any) => {
-          const campaignTime = new Date(c.created_at).getTime();
+        for (const c of campaigns) {
+          const campaign = c as CampaignItem;
+          const campaignTime = new Date(campaign.created_at).getTime();
           const timeDiff = Math.abs(campaignTime - decidedAt);
           // Match if created within 1 hour of approval
           if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
             minTimeDiff = timeDiff;
-            targetCampaign = c;
+            targetCampaign = campaign;
           }
-        });
+        }
 
         // If no campaign found near approval time, don't fallback - this ensures we only end the specific one
-        if (!targetCampaign) {
+        if (targetCampaign === null) {
           return res.status(404).json({
             ok: false,
             error: 'No campaign found that matches this request (created within 1 hour of approval). This request may not have an associated campaign.',
@@ -173,22 +179,28 @@ export default async function handler(
         }
 
         const decidedAt = new Date(request.decided_at).getTime();
-        let targetArena = null;
+        interface ArenaItem {
+          id: string;
+          created_at: string;
+          status: 'draft' | 'scheduled' | 'active';
+        }
+        let targetArena: ArenaItem | null = null;
         let minTimeDiff = Infinity;
 
         // Find arena created closest to decided_at (within 1 hour window)
-        arenas.forEach((a: any) => {
-          const arenaTime = new Date(a.created_at).getTime();
+        for (const a of arenas) {
+          const arena = a as ArenaItem;
+          const arenaTime = new Date(arena.created_at).getTime();
           const timeDiff = Math.abs(arenaTime - decidedAt);
           // Match if created within 1 hour of approval
           if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
             minTimeDiff = timeDiff;
-            targetArena = a;
+            targetArena = arena;
           }
-        });
+        }
 
         // If no arena found near approval time, don't fallback - this ensures we only end the specific one
-        if (!targetArena) {
+        if (targetArena === null) {
           return res.status(404).json({
             ok: false,
             error: 'No arena found that matches this request (created within 1 hour of approval). This request may not have an associated arena.',

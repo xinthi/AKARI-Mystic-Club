@@ -104,23 +104,29 @@ export default async function handler(
 
         if (campaigns && campaigns.length > 0 && request.decided_at) {
           const decidedAt = new Date(request.decided_at).getTime();
-          let targetCampaign = null;
+          interface CampaignItem {
+            id: string;
+            created_at: string;
+            status: 'live';
+          }
+          let targetCampaign: CampaignItem | null = null;
           let minTimeDiff = Infinity;
 
-          campaigns.forEach((c: any) => {
-            const campaignTime = new Date(c.created_at).getTime();
+          for (const c of campaigns) {
+            const campaign = c as CampaignItem;
+            const campaignTime = new Date(campaign.created_at).getTime();
             const timeDiff = Math.abs(campaignTime - decidedAt);
             if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
               minTimeDiff = timeDiff;
-              targetCampaign = c;
+              targetCampaign = campaign;
             }
-          });
-
-          if (!targetCampaign && campaigns.length > 0) {
-            targetCampaign = campaigns[0]; // Fallback to most recent
           }
 
-          if (targetCampaign) {
+          if (targetCampaign === null && campaigns.length > 0) {
+            targetCampaign = campaigns[0] as CampaignItem; // Fallback to most recent
+          }
+
+          if (targetCampaign !== null) {
             const { error: updateError } = await supabase
               .from('arc_campaigns')
               .update({ status: 'paused' })
@@ -155,23 +161,29 @@ export default async function handler(
 
         if (arenas && arenas.length > 0 && request.decided_at) {
           const decidedAt = new Date(request.decided_at).getTime();
-          let targetArena = null;
+          interface ArenaItem {
+            id: string;
+            created_at: string;
+            status: 'draft' | 'scheduled' | 'active';
+          }
+          let targetArena: ArenaItem | null = null;
           let minTimeDiff = Infinity;
 
-          arenas.forEach((a: any) => {
-            const arenaTime = new Date(a.created_at).getTime();
+          for (const a of arenas) {
+            const arena = a as ArenaItem;
+            const arenaTime = new Date(arena.created_at).getTime();
             const timeDiff = Math.abs(arenaTime - decidedAt);
             if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
               minTimeDiff = timeDiff;
-              targetArena = a;
+              targetArena = arena;
             }
-          });
-
-          if (!targetArena && arenas.length > 0) {
-            targetArena = arenas[0]; // Fallback to most recent
           }
 
-          if (targetArena) {
+          if (targetArena === null && arenas.length > 0) {
+            targetArena = arenas[0] as ArenaItem; // Fallback to most recent
+          }
+
+          if (targetArena !== null) {
             const { error: updateError } = await supabase
               .from('arenas')
               .update({ status: 'cancelled' })
