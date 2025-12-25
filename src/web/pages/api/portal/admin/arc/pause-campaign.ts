@@ -122,8 +122,12 @@ export default async function handler(
             }
           }
 
-          if (targetCampaign === null && campaigns.length > 0) {
-            targetCampaign = campaigns[0] as CampaignItem; // Fallback to most recent
+          // If no campaign found near approval time, don't fallback - this ensures we only pause the specific one
+          if (targetCampaign === null) {
+            return res.status(404).json({
+              ok: false,
+              error: 'No campaign found that matches this request (created within 1 hour of approval). This request may not have an associated campaign.',
+            });
           }
 
           if (targetCampaign !== null) {
@@ -151,12 +155,12 @@ export default async function handler(
           pausedCount: 0,
         });
       } else {
-        // For Leaderboard/Gamified: Find and pause the specific arena (use cancelled as pause)
+        // For Leaderboard/Gamified: Find and pause the specific arena
         const { data: arenas } = await supabase
           .from('arenas')
           .select('id, created_at')
           .eq('project_id', request.project_id)
-          .in('status', ['draft', 'scheduled', 'active'])
+          .in('status', ['draft', 'scheduled', 'active', 'paused'])
           .order('created_at', { ascending: false });
 
         if (arenas && arenas.length > 0 && request.decided_at) {
@@ -164,7 +168,7 @@ export default async function handler(
           interface ArenaItem {
             id: string;
             created_at: string;
-            status: 'draft' | 'scheduled' | 'active';
+            status: 'draft' | 'scheduled' | 'active' | 'paused';
           }
           let targetArena: ArenaItem | null = null;
           let minTimeDiff = Infinity;
@@ -179,14 +183,18 @@ export default async function handler(
             }
           }
 
-          if (targetArena === null && arenas.length > 0) {
-            targetArena = arenas[0] as ArenaItem; // Fallback to most recent
+          // If no arena found near approval time, don't fallback - this ensures we only pause the specific one
+          if (targetArena === null) {
+            return res.status(404).json({
+              ok: false,
+              error: 'No arena found that matches this request (created within 1 hour of approval). This request may not have an associated arena.',
+            });
           }
 
           if (targetArena !== null) {
             const { error: updateError } = await supabase
               .from('arenas')
-              .update({ status: 'cancelled' })
+              .update({ status: 'paused' })
               .eq('id', targetArena.id);
 
             if (updateError) {

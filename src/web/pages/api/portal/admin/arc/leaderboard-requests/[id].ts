@@ -643,8 +643,8 @@ export default async function handler(
                   console.error('[Admin Leaderboard Request Update API] Error updating dates for ended arena:', dateUpdateError);
                 }
               }
-            } else if (existingArena.status === 'paused' || existingArena.status === 'cancelled') {
-              // Re-activate paused or cancelled arenas
+            } else if (existingArena.status === 'paused') {
+              // Re-activate paused arenas (cancelled arenas cannot be re-instated)
               const updateData: any = {
                 status: 'active',
               };
