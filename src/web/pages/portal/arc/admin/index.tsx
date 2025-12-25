@@ -306,37 +306,37 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
                 </div>
               ) : stats ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                    <div className="text-sm text-akari-muted mb-1">Total Projects</div>
-                    <div className="text-3xl font-bold text-akari-text">{stats.totalProjects}</div>
-                    <div className="text-xs text-akari-muted mt-1">{stats.activeProjects} active</div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Total Projects</div>
+                      <div className="text-3xl font-bold text-akari-text">{stats.totalProjects}</div>
+                      <div className="text-xs text-akari-muted mt-1">{stats.activeProjects} active</div>
+                    </div>
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Pending Requests</div>
+                      <div className="text-3xl font-bold text-yellow-400">{stats.pendingRequests}</div>
+                      <Link
+                        href="/portal/admin/arc/leaderboard-requests"
+                        className="text-xs text-akari-neon-teal hover:underline mt-1 inline-block"
+                      >
+                        Review requests →
+                      </Link>
+                    </div>
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Total Revenue</div>
+                      <div className="text-3xl font-bold text-green-400">${stats.totalRevenue.toLocaleString()}</div>
+                      <div className="text-xs text-akari-muted mt-1">${stats.monthlyRevenue.toLocaleString()} this month</div>
+                    </div>
+                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+                      <div className="text-sm text-akari-muted mb-1">Active Arenas</div>
+                      <div className="text-3xl font-bold text-akari-text">{stats.activeArenas}</div>
+                      <div className="text-xs text-akari-muted mt-1">{stats.activeCampaigns} campaigns</div>
+                    </div>
                   </div>
-                  <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                    <div className="text-sm text-akari-muted mb-1">Pending Requests</div>
-                    <div className="text-3xl font-bold text-yellow-400">{stats.pendingRequests}</div>
-                    <Link
-                      href="/portal/admin/arc/leaderboard-requests"
-                      className="text-xs text-akari-neon-teal hover:underline mt-1 inline-block"
-                    >
-                      Review requests →
-                    </Link>
-                  </div>
-                  <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                    <div className="text-sm text-akari-muted mb-1">Total Revenue</div>
-                    <div className="text-3xl font-bold text-green-400">${stats.totalRevenue.toLocaleString()}</div>
-                    <div className="text-xs text-akari-muted mt-1">${stats.monthlyRevenue.toLocaleString()} this month</div>
-                  </div>
-                  <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                    <div className="text-sm text-akari-muted mb-1">Active Arenas</div>
-                    <div className="text-3xl font-bold text-akari-text">{stats.activeArenas}</div>
-                    <div className="text-xs text-akari-muted mt-1">{stats.activeCampaigns} campaigns</div>
-                  </div>
-                </div>
-                
-                {/* Breakdown by Type */}
-                {stats && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  
+                  {/* Breakdown by Type */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
                       <div className="text-sm text-akari-muted mb-1">Leaderboards</div>
                       <div className="text-3xl font-bold text-akari-text">{stats.activeLeaderboards}</div>
@@ -353,7 +353,7 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
                       <div className="text-xs text-akari-muted mt-1">Gamified Leaderboard (Option 3)</div>
                     </div>
                   </div>
-                )}
+                </>
               ) : null}
 
               {/* Recent Activity */}
