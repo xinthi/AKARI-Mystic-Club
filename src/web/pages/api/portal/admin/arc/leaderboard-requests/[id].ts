@@ -359,23 +359,52 @@ export default async function handler(
       }
 
       // Step 2: Create/update arc_project_access
-      const accessData = {
+      // Check if a row exists for this project (any status)
+      const { data: existingAccessRows, error: checkError } = await supabase
+        .from('arc_project_access')
+        .select('id, application_status')
+        .eq('project_id', request.project_id);
+
+      if (checkError) {
+        console.error('[Admin Leaderboard Request Update API] Error checking existing access:', checkError);
+      }
+
+      const accessData: any = {
         project_id: request.project_id,
         application_status: 'approved' as const,
         approved_at: new Date().toISOString(),
         approved_by: adminProfile.profileId,
       };
 
-      // Upsert arc_project_access
-      const { error: accessError } = await supabase
-        .from('arc_project_access')
-        .upsert(accessData, {
-          onConflict: 'project_id',
-        });
+      let accessError: any = null;
+      if (existingAccessRows && existingAccessRows.length > 0) {
+        // Update all existing rows for this project to approved
+        // This ensures consistency even if multiple rows exist
+        const { error: updateError } = await supabase
+          .from('arc_project_access')
+          .update({
+            application_status: 'approved' as const,
+            approved_at: new Date().toISOString(),
+            approved_by: adminProfile.profileId,
+          })
+          .eq('project_id', request.project_id);
+
+        accessError = updateError;
+      } else {
+        // Insert new row if none exists
+        const { error: insertError } = await supabase
+          .from('arc_project_access')
+          .insert(accessData);
+
+        accessError = insertError;
+      }
 
       if (accessError) {
         console.error('[Admin Leaderboard Request Update API] Error updating arc_project_access:', accessError);
-        // Continue - don't fail the request
+        console.error('[Admin Leaderboard Request Update API] Access data:', JSON.stringify(accessData, null, 2));
+        // Continue - don't fail the request, but log the error
+      } else {
+        console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_access for project:', request.project_id);
       }
 
       // Step 3: Create/update arc_project_features with option unlocks and dates
@@ -413,7 +442,7 @@ export default async function handler(
         // If dates are not provided, leave them as null - module will be always active
       }
 
-      // Upsert arc_project_features
+      // Upsert arc_project_features (this table has UNIQUE constraint on project_id, so upsert works)
       const { error: featuresError } = await supabase
         .from('arc_project_features')
         .upsert(featuresData, {
@@ -422,7 +451,10 @@ export default async function handler(
 
       if (featuresError) {
         console.error('[Admin Leaderboard Request Update API] Error updating arc_project_features:', featuresError);
-        // Continue - don't fail the request
+        console.error('[Admin Leaderboard Request Update API] Features data:', JSON.stringify(featuresData, null, 2));
+        // Continue - don't fail the request, but log the error
+      } else {
+        console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_features for project:', request.project_id);
       }
 
       if (projectData) {
