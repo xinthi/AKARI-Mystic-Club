@@ -53,6 +53,9 @@ export default async function handler(
 
     // Get all live and upcoming items using unified helper
     const { live, upcoming } = await getArcLiveItems(supabase, limit);
+    
+    // Log summary for debugging
+    console.log(`[Live Leaderboards API] Returning ${live.length} live and ${upcoming.length} upcoming items`);
 
     // Convert ArcLiveItem to LiveLeaderboard format (backward compatible)
     const convertToLiveLeaderboard = (item: ArcLiveItem): LiveLeaderboard => {
