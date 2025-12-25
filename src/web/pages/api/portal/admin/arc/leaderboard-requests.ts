@@ -292,24 +292,34 @@ export default async function handler(
           const projectCampaigns = (campaigns || []).filter((c: any) => c.project_id === req.project_id);
           if (projectCampaigns.length > 0) {
             // Find campaign created closest to decided_at (within 1 hour window)
-            let closestCampaign: { id: string; project_id: string; status: 'live' | 'paused' | 'ended'; created_at: string } | null = null;
+            interface CampaignItem {
+              id: string;
+              project_id: string;
+              status: 'live' | 'paused' | 'ended';
+              created_at: string;
+            }
+            let closestCampaign: CampaignItem | null = null;
             let minTimeDiff = Infinity;
             
-            projectCampaigns.forEach((c: any) => {
-              const campaignTime = new Date(c.created_at).getTime();
+            for (const c of projectCampaigns) {
+              const campaign = c as CampaignItem;
+              const campaignTime = new Date(campaign.created_at).getTime();
               const timeDiff = Math.abs(campaignTime - decidedAt);
               // Match if created within 1 hour of approval
               if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
                 minTimeDiff = timeDiff;
-                closestCampaign = c;
+                closestCampaign = campaign;
               }
-            });
+            }
             
-            if (closestCampaign) {
+            if (closestCampaign !== null) {
               campaignStatusMap.set(req.id, closestCampaign.status);
             } else {
               // No campaign found near approval time - check if any active campaign exists
-              const activeCampaign = projectCampaigns.find((c: any) => c.status === 'live' || c.status === 'paused');
+              const activeCampaign = projectCampaigns.find((c: any) => {
+                const campaign = c as CampaignItem;
+                return campaign.status === 'live' || campaign.status === 'paused';
+              }) as CampaignItem | undefined;
               if (activeCampaign) {
                 campaignStatusMap.set(req.id, activeCampaign.status);
               }
@@ -320,24 +330,34 @@ export default async function handler(
           const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
           if (projectArenas.length > 0) {
             // Find arena created closest to decided_at (within 1 hour window)
-            let closestArena: { id: string; project_id: string; status: 'active' | 'cancelled' | 'ended'; created_at: string } | null = null;
+            interface ArenaItem {
+              id: string;
+              project_id: string;
+              status: 'active' | 'cancelled' | 'ended';
+              created_at: string;
+            }
+            let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
             
-            projectArenas.forEach((a: any) => {
-              const arenaTime = new Date(a.created_at).getTime();
+            for (const a of projectArenas) {
+              const arena = a as ArenaItem;
+              const arenaTime = new Date(arena.created_at).getTime();
               const timeDiff = Math.abs(arenaTime - decidedAt);
               // Match if created within 1 hour of approval
               if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
                 minTimeDiff = timeDiff;
-                closestArena = a;
+                closestArena = arena;
               }
-            });
+            }
             
-            if (closestArena) {
+            if (closestArena !== null) {
               arenaStatusMap.set(req.id, closestArena.status);
             } else {
               // No arena found near approval time - check if any active arena exists
-              const activeArena = projectArenas.find((a: any) => a.status === 'active' || a.status === 'scheduled');
+              const activeArena = projectArenas.find((a: any) => {
+                const arena = a as ArenaItem;
+                return arena.status === 'active' || arena.status === 'scheduled';
+              }) as ArenaItem | undefined;
               if (activeArena) {
                 arenaStatusMap.set(req.id, activeArena.status);
               }
