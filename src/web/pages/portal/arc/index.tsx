@@ -181,6 +181,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
   const [liveLeaderboardsLoading, setLiveLeaderboardsLoading] = useState(false);
   const [liveLeaderboardsError, setLiveLeaderboardsError] = useState<string | null>(null);
 
+  // Upcoming filter state (must be before early return)
+  const [upcomingFilter, setUpcomingFilter] = useState<'today' | 'thisweek' | 'all'>('all');
+
   // Auto-switch to cards if data is empty and treemap is selected
   useEffect(() => {
     if (topProjectsDisplayMode === 'treemap' && topProjectsData.length === 0 && !topProjectsLoading) {
@@ -306,6 +309,31 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
     }
   };
 
+  // Filter upcoming by timeframe (client-side) - must be before early return
+  const filteredUpcoming = useMemo(() => {
+    if (upcomingFilter === 'all') return upcomingLeaderboards;
+    
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+    
+    return upcomingLeaderboards.filter(lb => {
+      if (!lb.startAt) return false;
+      const startDate = new Date(lb.startAt);
+      
+      if (upcomingFilter === 'today') {
+        return startDate >= todayStart && startDate < new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      }
+      if (upcomingFilter === 'thisweek') {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        return startDate >= weekStart && startDate < weekEnd;
+      }
+      return true;
+    });
+  }, [upcomingLeaderboards, upcomingFilter]);
+
   // Show restricted view for non-SuperAdmins
   if (!canManageArc) {
     return (
@@ -323,292 +351,369 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
   return (
     <PortalLayout title="ARC Universe">
-      <div className="space-y-8 px-6 py-8">
-        {/* Header - Matching Sentiment Terminal style */}
-        <section className="mb-6">
-          <p className="mb-2 text-xs uppercase tracking-[0.25em] text-akari-muted">
-            ARC INFLUENCEFI TERMINAL
-          </p>
-          <h1 className="text-3xl font-bold md:text-4xl mb-2">
-            Turn campaigns into measurable Crypto Twitter signal
-          </h1>
-          <p className="max-w-2xl text-sm text-akari-muted mb-3">
-            Launch quests, rank creators, and track mindshare output in one place.
-          </p>
-          <p className="max-w-2xl text-xs text-akari-muted italic">
-            ARC creates signal, not just tracks it.
-          </p>
-        </section>
+      {/* Full-screen shell */}
+      <div className="min-h-screen w-full">
+        {/* Compact Header */}
+        <div className="border-b border-white/10 bg-black/40 backdrop-blur-sm sticky top-0 z-10">
+          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl font-bold text-white">ARC</h1>
+              <p className="text-sm text-white/60">
+                Turn campaigns into measurable signal
+              </p>
+            </div>
+          </div>
+        </div>
 
-        {/* Top Projects Section */}
-        {canManageArc && (
-          <section className="w-full max-w-6xl mx-auto">
-            {/* Section Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-              <h2 className="text-2xl font-semibold text-white">TOP Profiles</h2>
-              
-              <div className="flex items-center gap-3 flex-wrap">
-                {userIsSuperAdmin && (
-                  <>
-                    <Link
-                      href="/portal/arc/admin"
-                      className="pill-neon inline-flex items-center justify-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 h-10 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      ARC Admin
-                    </Link>
-                    <Link
-                      href="/portal/admin/arc/leaderboard-requests"
-                      className="pill-neon inline-flex items-center justify-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 h-10 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Review Requests
-                    </Link>
+        {/* Main Content */}
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+          {/* Treemap Hero Section */}
+          {canManageArc && (
+            <section className="mb-12">
+              {/* Control Strip */}
+              <div className="mb-4">
+                <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+                  {/* View Toggle: Cards / Treemap */}
+                  <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
                     <button
-                      onClick={handleRefresh}
-                      disabled={topProjectsLoading}
-                      className="pill-neon inline-flex items-center justify-center gap-2 bg-akari-neon-teal/10 border border-akari-neon-teal/50 px-4 h-10 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 hover:shadow-soft-glow disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {topProjectsLoading ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-akari-neon-teal border-t-transparent" />
-                          Refreshing...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          Refresh
-                        </>
-                      )}
-                    </button>
-                  </>
-                )}
-                
-                {/* View Toggle: Cards / Treemap */}
-                <div className="flex gap-2 bg-white/5 border border-white/10 rounded-lg p-1">
-                  <button
-                    onClick={() => {
-                      setTopProjectsDisplayMode('cards');
-                      setTreemapError(null);
-                    }}
-                    className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
-                      topProjectsDisplayMode === 'cards'
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    Cards
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTopProjectsDisplayMode('treemap');
-                      setTreemapError(null);
-                    }}
-                    className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
-                      topProjectsDisplayMode === 'treemap'
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/60 hover:text-white'
-                    }`}
-                  >
-                    Treemap
-                  </button>
-                </div>
-                
-                {/* Mode buttons */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTopProjectsView('gainers')}
-                    className={`inline-flex items-center justify-center px-4 h-10 text-sm font-medium rounded-lg transition-colors ${
-                      topProjectsView === 'gainers'
-                        ? 'bg-akari-primary text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    }`}
-                  >
-                    Top Gainers
-                  </button>
-                  <button
-                    onClick={() => setTopProjectsView('losers')}
-                    className={`inline-flex items-center justify-center px-4 h-10 text-sm font-medium rounded-lg transition-colors ${
-                      topProjectsView === 'losers'
-                        ? 'bg-akari-primary text-white'
-                        : 'bg-white/5 text-white/60 hover:bg-white/10'
-                    }`}
-                  >
-                    Top Losers
-                  </button>
-                </div>
-                {/* Timeframe buttons */}
-                <div className="flex gap-2">
-                  {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
-                    <button
-                      key={tf}
-                      onClick={() => setTopProjectsTimeframe(tf)}
-                      className={`inline-flex items-center justify-center px-3 h-10 text-xs font-medium rounded-lg transition-colors ${
-                        topProjectsTimeframe === tf
-                          ? 'bg-white/10 text-white border border-white/20'
-                          : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                      onClick={() => {
+                        setTopProjectsDisplayMode('cards');
+                        setTreemapError(null);
+                      }}
+                      className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
+                        topProjectsDisplayMode === 'cards'
+                          ? 'bg-white/10 text-white'
+                          : 'text-white/60 hover:text-white'
                       }`}
+                      aria-label="View as cards"
                     >
-                      {tf}
+                      Cards
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTopProjectsDisplayMode('treemap');
+                        setTreemapError(null);
+                      }}
+                      className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
+                        topProjectsDisplayMode === 'treemap'
+                          ? 'bg-white/10 text-white'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                      aria-label="View as treemap"
+                    >
+                      Treemap
+                    </button>
+                  </div>
+
+                  {/* Mode Toggle: Gainers / Losers */}
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setTopProjectsView('gainers')}
+                      className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
+                        topProjectsView === 'gainers'
+                          ? 'bg-akari-primary text-white'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      }`}
+                      aria-label="Top gainers"
+                    >
+                      Top Gainers
+                    </button>
+                    <button
+                      onClick={() => setTopProjectsView('losers')}
+                      className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
+                        topProjectsView === 'losers'
+                          ? 'bg-akari-primary text-white'
+                          : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      }`}
+                      aria-label="Top losers"
+                    >
+                      Top Losers
+                    </button>
+                  </div>
+
+                  {/* Timeframe Pills */}
+                  <div className="flex gap-1">
+                    {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
+                      <button
+                        key={tf}
+                        onClick={() => setTopProjectsTimeframe(tf)}
+                        className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
+                          topProjectsTimeframe === tf
+                            ? 'bg-white/10 text-white border border-white/20'
+                            : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                        }`}
+                        aria-label={`Timeframe ${tf}`}
+                      >
+                        {tf}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={handleRefresh}
+                    disabled={topProjectsLoading}
+                    className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Refresh data"
+                  >
+                    {topProjectsLoading ? (
+                      <>
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+                        <span className="hidden sm:inline">Refreshing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="hidden sm:inline">Refresh</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Admin Buttons (SuperAdmin only) */}
+                  {userIsSuperAdmin && (
+                    <>
+                      <div className="hidden sm:block w-px h-6 bg-white/10" />
+                      <Link
+                        href="/portal/arc/admin"
+                        className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
+                        aria-label="ARC Admin"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="hidden sm:inline">Admin</span>
+                      </Link>
+                      <Link
+                        href="/portal/admin/arc/leaderboard-requests"
+                        className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
+                        aria-label="Review Requests"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="hidden sm:inline">Requests</span>
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Hero Content Panel */}
+              <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm">
+                {topProjectsLoading ? (
+                  <div className="flex items-center justify-center py-24">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <span className="ml-3 text-white/60">Loading projects...</span>
+                  </div>
+                ) : topProjectsError ? (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+                    <p className="text-sm text-red-400">{topProjectsError}</p>
+                  </div>
+                ) : topProjectsData.length === 0 ? (
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
+                    <p className="text-sm text-white/60">No projects available</p>
+                  </div>
+                ) : (
+                  <div className="p-4 sm:p-6">
+                    {topProjectsDisplayMode === 'cards' ? (
+                      <ArcTopProjectsCards
+                        items={topProjectsData as any}
+                        onClickItem={handleTopProjectClick as any}
+                      />
+                    ) : (
+                      <TreemapWrapper
+                        key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
+                        items={topProjectsData}
+                        mode={topProjectsView}
+                        timeframe={topProjectsTimeframe}
+                        onProjectClick={handleTopProjectClick}
+                        onError={() => setTreemapError('Treemap unavailable')}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Below Treemap Sections */}
+          <div className="space-y-12">
+            {/* Live Leaderboards Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Live</h2>
+                <span className="inline-flex items-center gap-2 px-2.5 py-1 text-xs font-medium bg-red-500/20 border border-red-500/30 text-red-400 rounded-full">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-400"></span>
+                  </span>
+                  Active
+                </span>
+              </div>
+              
+              {liveLeaderboardsLoading ? (
+                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60 text-sm">Loading leaderboards...</span>
+                </div>
+              ) : liveLeaderboardsError ? (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                  <p className="text-red-400 text-sm">{liveLeaderboardsError}</p>
+                </div>
+              ) : liveLeaderboards.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
+                  <p className="text-white/60 text-sm">No active leaderboards right now</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {liveLeaderboards.map((leaderboard) => {
+                    const timeRemaining = leaderboard.endAt 
+                      ? Math.max(0, new Date(leaderboard.endAt).getTime() - Date.now())
+                      : null;
+                    const hoursRemaining = timeRemaining ? Math.floor(timeRemaining / (1000 * 60 * 60)) : null;
+                    
+                    return (
+                      <div
+                        key={leaderboard.arenaId}
+                        className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
+                      >
+                        <div className="mb-4">
+                          <h3 className="text-base font-semibold text-white mb-1.5 truncate">
+                            {leaderboard.arenaName}
+                          </h3>
+                          <p className="text-sm text-white/70 mb-1 truncate">
+                            {leaderboard.projectName}
+                          </p>
+                          {leaderboard.xHandle && (
+                            <p className="text-xs text-white/50 mb-2">@{leaderboard.xHandle}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-white/60">
+                            <span>{leaderboard.creatorCount} {leaderboard.creatorCount === 1 ? 'creator' : 'creators'}</span>
+                            {hoursRemaining !== null && hoursRemaining > 0 && (
+                              <span>{hoursRemaining}h remaining</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {leaderboard.projectSlug && (
+                            <>
+                              <Link
+                                href={`/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`}
+                                className="flex-1 text-center px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                              >
+                                View Arena
+                              </Link>
+                              <Link
+                                href={`/portal/arc/${leaderboard.projectSlug}`}
+                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                              >
+                                Project
+                              </Link>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Upcoming Section */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Upcoming</h2>
+                <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
+                  {(['today', 'thisweek', 'all'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setUpcomingFilter(filter)}
+                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                        upcomingFilter === filter
+                          ? 'bg-white/10 text-white'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                      aria-label={`Filter: ${filter}`}
+                    >
+                      {filter === 'today' ? 'Today' : filter === 'thisweek' ? 'This Week' : 'All'}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Content Panel */}
-            <div className="rounded-2xl border border-white/10 bg-black/30 backdrop-blur p-6">
-              {topProjectsLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-                  <span className="ml-3 text-white/60">Loading top projects...</span>
+              {liveLeaderboardsLoading ? (
+                <div className="flex items-center justify-center py-12 rounded-xl border border-white/10 bg-black/40">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60 text-sm">Loading...</span>
                 </div>
-              ) : topProjectsError ? (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                  <p className="text-sm text-red-400">{topProjectsError}</p>
-                </div>
-              ) : topProjectsData.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                  <p className="text-sm text-white/60">No top projects available</p>
+              ) : filteredUpcoming.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
+                  <p className="text-white/60 text-sm">No upcoming leaderboards</p>
                 </div>
               ) : (
-                <>
-                  {topProjectsDisplayMode === 'cards' ? (
-                    <ArcTopProjectsCards
-                      items={topProjectsData as any}
-                      onClickItem={handleTopProjectClick as any}
-                    />
-                  ) : topProjectsData.length === 0 ? (
-                    <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
-                      <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
-                    </div>
-                  ) : (
-                    <TreemapWrapper
-                      key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
-                      items={topProjectsData}
-                      mode={topProjectsView}
-                      timeframe={topProjectsTimeframe}
-                      onProjectClick={handleTopProjectClick}
-                      onError={() => setTreemapError('Treemap unavailable')}
-                    />
-                  )}
-                </>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredUpcoming.map((leaderboard) => {
+                    const startDate = leaderboard.startAt ? new Date(leaderboard.startAt) : null;
+                    const timeUntilStart = startDate ? Math.max(0, startDate.getTime() - Date.now()) : null;
+                    const daysUntilStart = timeUntilStart ? Math.floor(timeUntilStart / (1000 * 60 * 60 * 24)) : null;
+                    
+                    return (
+                      <div
+                        key={leaderboard.arenaId}
+                        className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
+                      >
+                        <div className="mb-4">
+                          <h3 className="text-base font-semibold text-white mb-1.5 truncate">
+                            {leaderboard.arenaName}
+                          </h3>
+                          <p className="text-sm text-white/70 mb-1 truncate">
+                            {leaderboard.projectName}
+                          </p>
+                          {leaderboard.xHandle && (
+                            <p className="text-xs text-white/50 mb-2">@{leaderboard.xHandle}</p>
+                          )}
+                          <div className="text-xs text-white/60">
+                            {startDate ? (
+                              <>
+                                <div>Starts {startDate.toLocaleDateString()}</div>
+                                {daysUntilStart !== null && daysUntilStart > 0 && (
+                                  <div>{daysUntilStart} {daysUntilStart === 1 ? 'day' : 'days'} until start</div>
+                                )}
+                              </>
+                            ) : (
+                              <div>Scheduled</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {leaderboard.projectSlug && (
+                            <Link
+                              href={`/portal/arc/${leaderboard.projectSlug}`}
+                              className="flex-1 text-center px-4 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
+                            >
+                              View Details
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </div>
-          </section>
-        )}
+            </section>
 
-        {/* Upcoming Leaderboards Section */}
-        {upcomingLeaderboards.length > 0 && (
-          <section className="w-full max-w-6xl mx-auto mb-8">
-            <h2 className="text-2xl font-semibold text-white mb-4">Upcoming Leaderboards</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upcomingLeaderboards.map((leaderboard) => (
-                <div
-                  key={leaderboard.arenaId}
-                  className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
-                >
-                  <div className="mb-3">
-                    <h3 className="text-base font-semibold text-white mb-1 truncate">
-                      {leaderboard.arenaName}
-                    </h3>
-                    <p className="text-sm text-white/60 mb-1 truncate">
-                      {leaderboard.projectName}
-                    </p>
-                    {leaderboard.xHandle && (
-                      <p className="text-xs text-white/40 mb-2">@{leaderboard.xHandle}</p>
-                    )}
-                    {leaderboard.startAt && (
-                      <p className="text-xs text-akari-primary">
-                        Starts: {new Date(leaderboard.startAt).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {leaderboard.projectSlug && (
-                      <Link
-                        href={`/portal/arc/${leaderboard.projectSlug}`}
-                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors"
-                      >
-                        View Project
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Live Leaderboards Section */}
-        <section className="w-full max-w-6xl mx-auto mb-8">
-          <h2 className="text-2xl font-semibold text-white mb-4">Live Leaderboards</h2>
-          
-          {liveLeaderboardsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-              <span className="ml-3 text-white/60">Loading leaderboards...</span>
-            </div>
-          ) : liveLeaderboardsError ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-              <p className="text-red-400 text-sm">{liveLeaderboardsError}</p>
-            </div>
-          ) : liveLeaderboards.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-              <p className="text-white/60 text-sm">No active leaderboards at the moment.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {liveLeaderboards.map((leaderboard) => (
-                <div
-                  key={leaderboard.arenaId}
-                  className="rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
-                >
-                  <div className="mb-3">
-                    <h3 className="text-base font-semibold text-white mb-1 truncate">
-                      {leaderboard.arenaName}
-                    </h3>
-                    <p className="text-sm text-white/60 mb-1 truncate">
-                      {leaderboard.projectName}
-                    </p>
-                    {leaderboard.xHandle && (
-                      <p className="text-xs text-white/40 mb-2">@{leaderboard.xHandle}</p>
-                    )}
-                    <p className="text-xs text-white/40">
-                      {leaderboard.creatorCount} {leaderboard.creatorCount === 1 ? 'creator' : 'creators'}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {leaderboard.projectSlug && (
-                      <Link
-                        href={`/portal/arc/${leaderboard.projectSlug}`}
-                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors"
-                      >
-                        View Project
-                      </Link>
-                    )}
-                    {leaderboard.projectSlug && (
-                      <Link
-                        href={`/portal/arc/${leaderboard.projectSlug}/arena/${leaderboard.arenaSlug}`}
-                        className="flex-1 text-center px-3 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-                      >
-                        View Arena
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
+            {/* Recently Ended Section (Optional) */}
+            <section>
+              <h2 className="text-xl font-semibold text-white mb-4">Recently Ended</h2>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
+                <p className="text-white/60 text-sm">No recently ended leaderboards</p>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </PortalLayout>
   );
