@@ -140,11 +140,45 @@ export default async function handler(
     ) || [];
     const monthlyRevenue = monthlyBilling.reduce((sum, record) => sum + Number(record.final_price_usd || 0), 0);
 
-    // Get active arenas
-    const { count: activeArenas } = await supabase
+    // Get active arenas (matching logic from getArcLiveItems)
+    // Only count arenas that are: status='active' or 'scheduled' (not 'paused'), and within date range
+    const { data: activeArenasData } = await supabase
       .from('arenas')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
+      .select('id, status, starts_at, ends_at')
+      .in('status', ['active', 'scheduled']);
+    
+    // Filter to only count arenas that are currently live (within date range)
+    let activeArenas = 0;
+    if (activeArenasData) {
+      for (const arena of activeArenasData) {
+        // If no start date, treat as live (unless ended)
+        if (!arena.starts_at) {
+          if (arena.ends_at && new Date(arena.ends_at) < now) {
+            continue; // Ended
+          }
+          activeArenas++;
+          continue;
+        }
+        
+        const startDate = new Date(arena.starts_at);
+        // If start date is in future, skip (upcoming, not live)
+        if (startDate > now) {
+          continue;
+        }
+        
+        // If started, check end date
+        if (arena.ends_at) {
+          const endDate = new Date(arena.ends_at);
+          // If past end date, skip (ended)
+          if (endDate < now) {
+            continue;
+          }
+        }
+        
+        // Within date range, it's live
+        activeArenas++;
+      }
+    }
 
     // Get active campaigns
     const { count: activeCampaigns } = await supabase
