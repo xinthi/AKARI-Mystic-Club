@@ -338,6 +338,7 @@ export default async function handler(
     // 1. Update projects.arc_active and projects.arc_access_level (legacy support)
     // 2. Create/update arc_project_access with application_status='approved'
     // 3. Create/update arc_project_features with appropriate option unlocks
+    // 4. Create billing record with pricing
     let updatedProject = null;
     if (status === 'approved' && arc_access_level) {
       // Step 1: Update legacy project fields
@@ -457,7 +458,52 @@ export default async function handler(
         console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_features for project:', request.project_id);
       }
 
-      // Step 4: Auto-create/activate arena for leaderboard access levels (required for Live/Upcoming visibility)
+      // Step 4: Create billing record with pricing
+      try {
+        // Get current pricing for this access level
+        const { data: pricing, error: pricingError } = await supabase
+          .from('arc_pricing')
+          .select('base_price_usd, currency')
+          .eq('access_level', arc_access_level)
+          .eq('is_active', true)
+          .single();
+
+        if (pricingError) {
+          console.error('[Admin Leaderboard Request Update API] Error fetching pricing:', pricingError);
+          // Continue without billing record if pricing not found (table might not exist yet)
+        } else if (pricing) {
+          const basePrice = Number(pricing.base_price_usd || 0);
+          const discountPercent = 0; // Can be added later for discounts
+          const finalPrice = basePrice * (1 - discountPercent / 100);
+
+          // Create billing record
+          const { error: billingError } = await supabase
+            .from('arc_billing_records')
+            .insert({
+              request_id: id,
+              project_id: request.project_id,
+              access_level: arc_access_level,
+              base_price_usd: basePrice,
+              discount_percent: discountPercent,
+              final_price_usd: finalPrice,
+              currency: pricing.currency || 'USD',
+              payment_status: 'pending', // Default to pending, can be updated later
+              created_by: adminProfile.profileId,
+            });
+
+          if (billingError) {
+            console.error('[Admin Leaderboard Request Update API] Error creating billing record:', billingError);
+            // Continue - don't fail approval if billing record creation fails
+          } else {
+            console.log('[Admin Leaderboard Request Update API] Successfully created billing record for request:', id, 'price:', finalPrice);
+          }
+        }
+      } catch (billingErr: any) {
+        // Catch any unexpected errors in billing logic - never fail approval
+        console.error('[Admin Leaderboard Request Update API] Unexpected error in billing creation:', billingErr);
+      }
+
+      // Step 5: Auto-create/activate arena for leaderboard access levels (required for Live/Upcoming visibility)
       // Both 'leaderboard' and 'gamified' need arenas to show in live leaderboards section
       if (arc_access_level === 'leaderboard' || arc_access_level === 'gamified') {
         try {
@@ -637,7 +683,7 @@ export default async function handler(
         }
       }
 
-      // Step 5: Regression guards for all option types
+      // Step 6: Regression guards for all option types
       // Get project slug for better error messages
       const { data: projectForSlug } = await supabase
         .from('projects')
