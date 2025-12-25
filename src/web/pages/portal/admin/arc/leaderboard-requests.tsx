@@ -310,7 +310,9 @@ export default function AdminLeaderboardRequestsPage() {
                         const isProcessing = processingIds.has(request.id);
                         const rowError = rowErrors.get(request.id);
                         const projectName = request.project?.display_name || request.project?.name || 'Unknown Project';
-                        const requesterName = request.requester?.display_name || request.requester?.username || 'Unknown';
+                        const requesterDisplayName = request.requester?.display_name;
+                        const requesterUsername = request.requester?.username;
+                        const requesterName = requesterDisplayName || requesterUsername || 'Unknown';
 
                         return (
                           <tr
@@ -323,10 +325,10 @@ export default function AdminLeaderboardRequestsPage() {
                                 <div className="text-xs text-akari-muted">@{request.project.twitter_username}</div>
                               )}
                             </td>
-                            <td className="py-4 px-5 text-akari-muted">
+                            <td className="py-4 px-5 text-akari-text font-semibold">
                               <div>{requesterName}</div>
-                              {request.requester?.username && (
-                                <div className="text-xs text-akari-muted/60">@{request.requester.username}</div>
+                              {requesterDisplayName && requesterUsername && (
+                                <div className="text-xs text-akari-muted">@{requesterUsername}</div>
                               )}
                             </td>
                             <td className="py-4 px-5 text-akari-muted text-sm">

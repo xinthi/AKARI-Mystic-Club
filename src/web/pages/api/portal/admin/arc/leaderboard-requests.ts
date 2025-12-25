@@ -212,14 +212,22 @@ export default async function handler(
 
       if (requestersError) {
         console.error('[Admin Leaderboard Requests API] Error fetching requesters:', requestersError);
+        // Log which profile IDs were requested to help debug
+        console.error('[Admin Leaderboard Requests API] Requested profile IDs:', requesterIds);
       } else if (requesters) {
         requesters.forEach((p: any) => {
           requesterMap.set(p.id, {
             id: p.id,
-            username: p.username,
-            display_name: p.display_name,
+            username: p.username || null,
+            display_name: p.display_name || null,
           });
         });
+        // Log if some profiles were not found
+        const foundIds = new Set(requesters.map((p: any) => p.id));
+        const missingIds = requesterIds.filter(id => !foundIds.has(id));
+        if (missingIds.length > 0) {
+          console.warn('[Admin Leaderboard Requests API] Some requester profiles not found:', missingIds);
+        }
       }
     }
 
