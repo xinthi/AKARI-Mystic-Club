@@ -441,7 +441,7 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
                   </Link>
                 </div>
                 <p className="text-sm text-akari-muted">
-                  Manage and approve leaderboard access requests. Click "View All Requests" to see the full management interface.
+                  Manage and approve leaderboard access requests. Click &quot;View All Requests&quot; to see the full management interface.
                 </p>
               </div>
             </div>
