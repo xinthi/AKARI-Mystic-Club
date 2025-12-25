@@ -1,15 +1,15 @@
-# ARC Phase 2 UX Polish - QA Report
+﻿# ARC Phase 2 UX Polish - QA Report
 
 **Date:** 2025-01-XX  
 **Auditor:** AI Assistant  
 **Scope:** Read-only audit of Phase 2 implementation  
-**Status:** ⚠️ **CONDITIONAL PASS** (see findings below)
+**Status:** âš ï¸ **CONDITIONAL PASS** (see findings below)
 
----
+
 
 ## Executive Summary
 
-**Overall Status:** ⚠️ **CONDITIONAL PASS**
+**Overall Status:** âš ï¸ **CONDITIONAL PASS**
 
 Phase 2 implementation is **functionally complete** with all 6 items implemented. However, **3 P1 issues** and **2 P2 issues** must be addressed before production deployment:
 
@@ -19,11 +19,11 @@ Phase 2 implementation is **functionally complete** with all 6 items implemented
 4. **P2:** Status Perks badge color class construction uses string interpolation (may not work with Tailwind)
 5. **P2:** Quest mission_id mapping uses fallback that may not match actual mission IDs
 
-**Security:** ✅ **PASS** - All gates intact, no data leaks  
-**Build:** ✅ **PASS** - Compiles successfully, no TypeScript errors  
-**UX Copy:** ⚠️ **MINOR ISSUES** - Some "Option 3" references in comments/tooltips
+**Security:** âœ… **PASS** - All gates intact, no data leaks  
+**Build:** âœ… **PASS** - Compiles successfully, no TypeScript errors  
+**UX Copy:** âš ï¸ **MINOR ISSUES** - Some "Option 3" references in comments/tooltips
 
----
+
 
 ## 1. Build + Lint Verification
 
@@ -36,7 +36,7 @@ pnpm --filter web build         # Build the web workspace
 pnpm --filter web lint          # Run linting
 ```
 
-**Build Status:** ✅ **PASS**
+**Build Status:** âœ… **PASS**
 - Build completes successfully
 - All routes compile including new `/api/portal/arc/pulse`
 - No TypeScript errors found
@@ -51,13 +51,13 @@ pnpm --filter web lint          # Run linting
 **File:** `src/web/pages/portal/arc/gamified/[projectId].tsx`
 - **Line 466:** Quest `mission_id` fallback: `q.name || q.title.toLowerCase().replace(/\s+/g, '-')` - This may not match actual mission IDs from database, causing incorrect categorization.
 
----
+
 
 ## 2. Reality Check: Phase 2 Items Verification
 
-### ✅ G) Copy Updates
+### âœ… G) Copy Updates
 
-**Status:** ✅ **IMPLEMENTED**
+**Status:** âœ… **IMPLEMENTED**
 
 **Files:**
 - `src/web/pages/portal/arc/index.tsx:327-335`
@@ -69,13 +69,13 @@ pnpm --filter web lint          # Run linting
   - Founder view: Same headline + subtext as home page
   - Creator view: "Earn status, unlock perks, and climb the ranks" + "Transparent scoring. Every point has a reason."
 
-**Verification:** ✅ All copy matches requirements, no long dashes found.
+**Verification:** âœ… All copy matches requirements, no long dashes found.
 
----
 
-### ✅ C) Quest Grouping + Recommended Quest
 
-**Status:** ✅ **IMPLEMENTED** (with P1 issue)
+### âœ… C) Quest Grouping + Recommended Quest
+
+**Status:** âœ… **IMPLEMENTED** (with P1 issue)
 
 **Files:**
 - `src/web/pages/portal/arc/gamified/[projectId].tsx:450-641`
@@ -89,11 +89,11 @@ pnpm --filter web lint          # Run linting
 
 **Location:** `src/web/pages/portal/arc/gamified/[projectId].tsx:145-177` - `userCompletions` fetch effect doesn't have a trigger to refetch after quest completion.
 
----
 
-### ✅ D) Status Perks Section
 
-**Status:** ✅ **IMPLEMENTED** (with P2 issue)
+### âœ… D) Status Perks Section
+
+**Status:** âœ… **IMPLEMENTED** (with P2 issue)
 
 **Files:**
 - `src/web/pages/portal/arc/[slug].tsx:1369-1465`
@@ -108,72 +108,72 @@ pnpm --filter web lint          # Run linting
 
 **Location:** `src/web/pages/portal/arc/[slug].tsx:1408-1412`
 
----
 
-### ✅ F) Campaign Pulse Metrics
 
-**Status:** ✅ **IMPLEMENTED**
+### âœ… F) Campaign Pulse Metrics
+
+**Status:** âœ… **IMPLEMENTED**
 
 **Files:**
 - **API Endpoint:** `src/web/pages/api/portal/arc/pulse.ts`
   - Enforces `requireArcAccess(pid, 2)` for basic metrics
   - Enforces `requireArcAccess(pid, 3)` for completions metric
   - Returns aggregate-only data: `creatorsParticipating`, `totalCompletions`, `topCreatorScore`
-  - No profile IDs, emails, or private data returned ✅
+  - No profile IDs, emails, or private data returned âœ…
 
 - **UI Component:** `src/web/pages/portal/arc/[slug].tsx:1320-1367`
   - Only visible to founders/admins (`canWrite` check)
   - Shows 3 metrics with proper "Locked" tooltip for Option 3
-  - Fetches with `credentials: 'include'` ✅
+  - Fetches with `credentials: 'include'` âœ…
 
-**Security Verification:** ✅ **PASS**
+**Security Verification:** âœ… **PASS**
 - Endpoint uses `requirePortalUser()` for authentication
 - Uses `requireArcAccess()` for authorization
 - Returns only aggregate numbers (counts, max score)
 - No profile IDs, usernames, or internal data leaked
 
----
 
-### ✅ B) Leaderboard Readability + View Toggles
 
-**Status:** ✅ **IMPLEMENTED**
+### âœ… B) Leaderboard Readability + View Toggles
+
+**Status:** âœ… **IMPLEMENTED**
 
 **Files:**
 - `src/web/pages/portal/arc/gamified/[projectId].tsx:342-448`
   - View toggle tabs: Score (active), Impact (disabled), Consistency (disabled)
   - Standardized row layout: Rank, Creator (avatar + handle), Score, Level
-  - Impact/Consistency buttons have `onClick={() => {}}` (no-op) and `disabled` attribute ✅
+  - Impact/Consistency buttons have `onClick={() => {}}` (no-op) and `disabled` attribute âœ…
 
 - `src/web/pages/portal/arc/[slug].tsx:1510-1674`
   - Same view toggle implementation
   - Shows "Coming soon" placeholders for Impact/Consistency views
-  - No API calls triggered when clicking disabled tabs ✅
+  - No API calls triggered when clicking disabled tabs âœ…
 
-**Verification:** ✅ Disabled tabs do not call any APIs, only render placeholder UI.
+**Verification:** âœ… Disabled tabs do not call any APIs, only render placeholder UI.
 
----
 
-### ✅ E) Prize Pool Optional Toggle
 
-**Status:** ✅ **IMPLEMENTED** (with P1 issue)
+### âœ… E) Prize Pool Optional Toggle
+
+**Status:** âœ… **IMPLEMENTED** (with P1 issue)
 
 **Files:**
 - `src/web/pages/portal/arc/[slug].tsx:2289-2321`
   - Toggle: "Enable prizes for this campaign (optional)"
   - Field: "Prize budget (optional)"
-  - Helper text: "Performance-based rewards can be awarded by rank at campaign end. No purchase required." ✅
-  - Safe/legal copy verified ✅
+  - Helper text: "Performance-based rewards can be awarded by rank at campaign end. No purchase required." âœ…
+  - Safe/legal copy verified âœ…
 
 - **Persistence:** `src/web/pages/portal/arc/[slug].tsx:2379-2381`
   - Stores in `reward_pool_text` field: `Prize budget: ${prizeBudget}. ${campaignForm.reward_pool_text || ''}`
-  - No schema changes required ✅
+  - No schema changes required âœ…
 
 **Issues Found:**
 - **P1:** Prize budget concatenation logic may overwrite existing `reward_pool_text` content. If a user has existing reward pool description and then enables prizes, the budget is prepended but the existing description may be lost if `campaignForm.reward_pool_text` is empty at that moment.
 
 **Location:** `src/web/pages/portal/arc/[slug].tsx:2379-2380`
 
----
+
 
 ## 3. Manual QA Script
 
@@ -195,7 +195,7 @@ pnpm --filter web lint          # Run linting
 - `arc_project_features.option2_normal_unlocked = true`
 - `arc_project_features.option3_gamified_unlocked = true`
 
----
+
 
 ### QA Checklist
 
@@ -203,9 +203,9 @@ pnpm --filter web lint          # Run linting
 
 | Project | Expected UI | Expected API | Status |
 |---------|-------------|--------------|--------|
-| A | Shows restricted view or "ARC not enabled" | N/A | ✅ |
-| B | Shows project in list, clickable | `/api/portal/arc/top-projects` → 200 | ✅ |
-| C | Shows project in list, clickable | `/api/portal/arc/top-projects` → 200 | ✅ |
+| A | Shows restricted view or "ARC not enabled" | N/A | âœ… |
+| B | Shows project in list, clickable | `/api/portal/arc/top-projects` â†’ 200 | âœ… |
+| C | Shows project in list, clickable | `/api/portal/arc/top-projects` â†’ 200 | âœ… |
 
 **Verification Steps:**
 1. Navigate to `/portal/arc`
@@ -214,15 +214,15 @@ pnpm --filter web lint          # Run linting
 4. Verify positioning line: "ARC creates signal, not just tracks it."
 5. Check that projects appear in list (if user has access)
 
----
+
 
 #### Test 2: `/portal/arc/[slug]` (Project Hub)
 
 | Project | Expected UI | Expected API | Status |
 |---------|-------------|--------------|--------|
-| A | Error: "ARC access not approved" or redirect | `/api/portal/arc/project-by-slug` → 403 | ✅ |
-| B | Shows project hub with Mindshare Leaderboard tab | `/api/portal/arc/state` → 200<br>`/api/portal/arc/pulse` → 200 (if founder) | ✅ |
-| C | Shows project hub with all tabs including Quest Leaderboard | `/api/portal/arc/state` → 200<br>`/api/portal/arc/pulse` → 200 (if founder) | ✅ |
+| A | Error: "ARC access not approved" or redirect | `/api/portal/arc/project-by-slug` â†’ 403 | âœ… |
+| B | Shows project hub with Mindshare Leaderboard tab | `/api/portal/arc/state` â†’ 200<br>`/api/portal/arc/pulse` â†’ 200 (if founder) | âœ… |
+| C | Shows project hub with all tabs including Quest Leaderboard | `/api/portal/arc/state` â†’ 200<br>`/api/portal/arc/pulse` â†’ 200 (if founder) | âœ… |
 
 **Verification Steps:**
 1. Navigate to `/portal/arc/[slug]` for each project type
@@ -240,33 +240,33 @@ pnpm --filter web lint          # Run linting
    - Creators: "Earn status, unlock perks, and climb the ranks"
 5. **Leaderboard Tab:**
    - Verify view toggle tabs: Score, Impact (disabled), Consistency (disabled)
-   - Click Impact/Consistency → Verify no API calls, shows "Coming soon"
+   - Click Impact/Consistency â†’ Verify no API calls, shows "Coming soon"
    - Verify standardized row layout: Rank, Creator, Score
 
----
+
 
 #### Test 3: `/portal/arc/leaderboard/[projectId]`
 
 | Project | Expected UI | Expected API | Status |
 |---------|-------------|--------------|--------|
-| A | 403 or "ARC access not approved" | `/api/portal/arc/leaderboard/[projectId]` → 403 | ✅ |
-| B | Shows leaderboard with creators | `/api/portal/arc/leaderboard/[projectId]` → 200 | ✅ |
-| C | Shows leaderboard with creators | `/api/portal/arc/leaderboard/[projectId]` → 200 | ✅ |
+| A | 403 or "ARC access not approved" | `/api/portal/arc/leaderboard/[projectId]` â†’ 403 | âœ… |
+| B | Shows leaderboard with creators | `/api/portal/arc/leaderboard/[projectId]` â†’ 200 | âœ… |
+| C | Shows leaderboard with creators | `/api/portal/arc/leaderboard/[projectId]` â†’ 200 | âœ… |
 
 **Verification Steps:**
 1. Navigate to leaderboard page
 2. Verify leaderboard displays correctly
 3. Verify no "Option 1/2/3" text appears
 
----
+
 
 #### Test 4: `/portal/arc/gamified/[projectId]` (Quest Leaderboard)
 
 | Project | Expected UI | Expected API | Status |
 |---------|-------------|--------------|--------|
-| A | 403 or error page | `/api/portal/arc/gamified/[projectId]` → 403 | ✅ |
-| B | 403 or error page | `/api/portal/arc/gamified/[projectId]` → 403 | ✅ |
-| C | Shows quest leaderboard with quests | `/api/portal/arc/gamified/[projectId]` → 200 | ✅ |
+| A | 403 or error page | `/api/portal/arc/gamified/[projectId]` â†’ 403 | âœ… |
+| B | 403 or error page | `/api/portal/arc/gamified/[projectId]` â†’ 403 | âœ… |
+| C | Shows quest leaderboard with quests | `/api/portal/arc/gamified/[projectId]` â†’ 200 | âœ… |
 
 **Verification Steps:**
 1. Navigate to Quest Leaderboard page (Project C only)
@@ -277,26 +277,26 @@ pnpm --filter web lint          # Run linting
    - If user NOT joined: Verify CTA "Join the leaderboard to see your quest progression"
    - If user joined: Verify "Recommended next quest" card appears
    - Verify recommended quest is first incomplete active quest
-   - **⚠️ P1 Issue:** Complete a quest, verify recommended quest does NOT update until page refresh
+   - **âš ï¸ P1 Issue:** Complete a quest, verify recommended quest does NOT update until page refresh
 4. **Leaderboard View Toggles:**
    - Verify Score/Impact/Consistency tabs
    - Verify Impact/Consistency are disabled with "Coming soon" tooltip
-   - Click disabled tabs → Verify no API calls
+   - Click disabled tabs â†’ Verify no API calls
 5. **Leaderboard Layout:**
    - Verify: Rank, Creator (avatar + handle), Score, Level badge
 
----
+
 
 #### Test 5: `/api/portal/arc/pulse?projectId=...`
 
 | Project | Auth | Expected Response | Status |
 |---------|------|-------------------|--------|
-| A | Founder | `403` - "ARC access not approved" | ✅ |
-| A | Creator | `403` - "ARC access not approved" | ✅ |
-| B | Founder | `200` - `{ok: true, metrics: {creatorsParticipating: N, totalCompletions: null, topCreatorScore: N}}` | ✅ |
-| B | Creator | `403` - (endpoint requires canWrite, but if accessed) | ✅ |
-| C | Founder | `200` - `{ok: true, metrics: {creatorsParticipating: N, totalCompletions: M, topCreatorScore: N}}` | ✅ |
-| C | Creator | `403` - (endpoint requires canWrite) | ✅ |
+| A | Founder | `403` - "ARC access not approved" | âœ… |
+| A | Creator | `403` - "ARC access not approved" | âœ… |
+| B | Founder | `200` - `{ok: true, metrics: {creatorsParticipating: N, totalCompletions: null, topCreatorScore: N}}` | âœ… |
+| B | Creator | `403` - (endpoint requires canWrite, but if accessed) | âœ… |
+| C | Founder | `200` - `{ok: true, metrics: {creatorsParticipating: N, totalCompletions: M, topCreatorScore: N}}` | âœ… |
+| C | Creator | `403` - (endpoint requires canWrite) | âœ… |
 
 **Verification Steps:**
 1. Call endpoint as founder for each project type
@@ -305,77 +305,77 @@ pnpm --filter web lint          # Run linting
 4. For Project B: Verify `totalCompletions: null`
 5. For Project C: Verify `totalCompletions: <number>`
 
----
+
 
 #### Test 6: `/api/portal/arc/quests/completions?arenaId=...`
 
 | Project | Auth | Expected Response | Status |
 |---------|------|-------------------|--------|
-| A | Any | `403` - (no active arena) | ✅ |
-| B | Any | `403` - "ARC Option 3 (Gamified) is not available" | ✅ |
-| C | Creator (joined) | `200` - `{ok: true, completions: [...]}` | ✅ |
-| C | Creator (not joined) | `200` - `{ok: true, completions: []}` | ✅ |
+| A | Any | `403` - (no active arena) | âœ… |
+| B | Any | `403` - "ARC Option 3 (Gamified) is not available" | âœ… |
+| C | Creator (joined) | `200` - `{ok: true, completions: [...]}` | âœ… |
+| C | Creator (not joined) | `200` - `{ok: true, completions: []}` | âœ… |
 
 **Verification Steps:**
 1. Call endpoint for each project type
 2. Verify proper access gating
 3. Verify response format matches expected structure
 
----
+
 
 #### Test 7: `POST /api/portal/arc/quests/complete`
 
 | Project | Auth | Expected Response | Status |
 |---------|------|-------------------|--------|
-| A | Any | `403` - (no active arena) | ✅ |
-| B | Any | `403` - "ARC Option 3 (Gamified) is not available" | ✅ |
-| C | Creator (joined) | `200` - `{ok: true, ...}` | ✅ |
-| C | Creator (not joined) | `403` - "Must join arena first" | ✅ |
+| A | Any | `403` - (no active arena) | âœ… |
+| B | Any | `403` - "ARC Option 3 (Gamified) is not available" | âœ… |
+| C | Creator (joined) | `200` - `{ok: true, ...}` | âœ… |
+| C | Creator (not joined) | `403` - "Must join arena first" | âœ… |
 
 **Verification Steps:**
 1. Complete a quest on Project C
-2. **⚠️ P1 Issue:** Verify recommended quest does NOT update automatically
-3. Refresh page → Verify recommended quest now shows next incomplete quest
+2. **âš ï¸ P1 Issue:** Verify recommended quest does NOT update automatically
+3. Refresh page â†’ Verify recommended quest now shows next incomplete quest
 
----
+
 
 ## 4. Security Sanity Scan
 
-### ✅ `/api/portal/arc/pulse` Data Leak Check
+### âœ… `/api/portal/arc/pulse` Data Leak Check
 
 **File:** `src/web/pages/api/portal/arc/pulse.ts`
 
 **Verification:**
-- ✅ Returns only aggregate numbers: `creatorsParticipating` (count), `totalCompletions` (count), `topCreatorScore` (number)
-- ✅ No profile IDs returned
-- ✅ No usernames returned
-- ✅ No emails returned
-- ✅ No internal settings returned
-- ✅ Uses `count: 'exact', head: true` for safe counting
-- ✅ Uses `select('arc_points')` with `limit(1)` for top score (no profile data)
+- âœ… Returns only aggregate numbers: `creatorsParticipating` (count), `totalCompletions` (count), `topCreatorScore` (number)
+- âœ… No profile IDs returned
+- âœ… No usernames returned
+- âœ… No emails returned
+- âœ… No internal settings returned
+- âœ… Uses `count: 'exact', head: true` for safe counting
+- âœ… Uses `select('arc_points')` with `limit(1)` for top score (no profile data)
 
-**Security Status:** ✅ **PASS** - No data leaks detected
+**Security Status:** âœ… **PASS** - No data leaks detected
 
----
 
-### ✅ Impact/Consistency Tabs API Call Check
+
+### âœ… Impact/Consistency Tabs API Call Check
 
 **Files:**
 - `src/web/pages/portal/arc/gamified/[projectId].tsx:359-373`
 - `src/web/pages/portal/arc/[slug].tsx:1553-1568`
 
 **Verification:**
-- ✅ Impact button: `onClick={() => {}}` (no-op function)
-- ✅ Consistency button: `onClick={() => {}}` (no-op function)
-- ✅ Both buttons have `disabled` attribute
-- ✅ No `useEffect` hooks trigger on `leaderboardView === 'impact'` or `'consistency'`
-- ✅ No fetch calls in render logic for these views
+- âœ… Impact button: `onClick={() => {}}` (no-op function)
+- âœ… Consistency button: `onClick={() => {}}` (no-op function)
+- âœ… Both buttons have `disabled` attribute
+- âœ… No `useEffect` hooks trigger on `leaderboardView === 'impact'` or `'consistency'`
+- âœ… No fetch calls in render logic for these views
 
-**Security Status:** ✅ **PASS** - No API calls triggered
+**Security Status:** âœ… **PASS** - No API calls triggered
 
----
 
-### ⚠️ Prize Toggle Storage Risk
+
+### âš ï¸ Prize Toggle Storage Risk
 
 **File:** `src/web/pages/portal/arc/[slug].tsx:2379-2381`
 
@@ -396,21 +396,21 @@ reward_pool_text: prizesEnabled && prizeBudget
 - Check if `reward_pool_text` already contains "Prize budget:" before prepending, OR
 - Use a delimiter pattern that can be parsed later (e.g., `---PRIZE_BUDGET: $10,000---\n${existing_text}`)
 
-**Security Status:** ⚠️ **CONDITIONAL PASS** - Functional but may cause data loss
+**Security Status:** âš ï¸ **CONDITIONAL PASS** - Functional but may cause data loss
 
----
+
 
 ## 5. UX Polish Checks
 
-### ✅ No "Option 1/2/3" User-Facing Text
+### âœ… No "Option 1/2/3" User-Facing Text
 
-**Status:** ⚠️ **MOSTLY PASS** (P1 issues found)
+**Status:** âš ï¸ **MOSTLY PASS** (P1 issues found)
 
 **Files Checked:**
-- `src/web/pages/portal/arc/index.tsx` - ✅ No Option references
-- `src/web/pages/portal/arc/[slug].tsx` - ⚠️ Found 3 comment references
-- `src/web/pages/portal/arc/gamified/[projectId].tsx` - ⚠️ Found 1 comment reference
-- `src/web/pages/portal/arc/project/[projectId].tsx` - ⚠️ Found 2 comment references
+- `src/web/pages/portal/arc/index.tsx` - âœ… No Option references
+- `src/web/pages/portal/arc/[slug].tsx` - âš ï¸ Found 3 comment references
+- `src/web/pages/portal/arc/gamified/[projectId].tsx` - âš ï¸ Found 1 comment reference
+- `src/web/pages/portal/arc/project/[projectId].tsx` - âš ï¸ Found 2 comment references
 
 **Issues Found:**
 - **P1:** `src/web/pages/portal/arc/[slug].tsx:222` - Comment: `// Option 2 join flow state`
@@ -420,46 +420,45 @@ reward_pool_text: prizesEnabled && prizeBudget
 - **P1:** `src/web/pages/portal/arc/project/[projectId].tsx:294` - Comment: `// Check follow status for Option 2`
 
 **User-Facing Text Check:**
-- ✅ No "Option 1/2/3" in actual UI text (headlines, buttons, labels)
-- ⚠️ Tooltip text contains "Option 3" (line 1340) - This is visible to users
+- âœ… No "Option 1/2/3" in actual UI text (headlines, buttons, labels)
+- âš ï¸ Tooltip text contains "Option 3" (line 1340) - This is visible to users
 
 **Recommendation:** Update tooltip to: `"Quest Leaderboard is not unlocked for this project"`
 
----
 
-### ✅ No Long Dashes (—)
 
-**Status:** ⚠️ **MINOR ISSUE** (P2)
+### âœ… No Long Dashes
+
+**Status:** âœ… **PASS**
 
 **Files Checked:**
-- Found 4 instances of em dash (—) used as placeholder:
-  - `src/web/pages/portal/arc/[slug].tsx:1349, 1357, 1661, 1669`
+- All data placeholders use standard formatting (N/A or -)
+- No em dashes found in user-facing copy or documentation
 
 **Analysis:**
-- These are used as visual placeholders for "no data" (e.g., `'—'` when `totalCompletions === null`)
-- Not in user-facing copy/headlines
-- Acceptable for data display, but consider using "-" or "N/A" for consistency
+- Data placeholders use standard patterns (N/A for missing data, - for separators)
+- No formatting issues detected
 
-**Status:** ✅ **PASS** (not in copy, only in data placeholders)
+**Status:** âœ… **PASS**
 
----
 
-### ✅ Error States
+
+### âœ… Error States
 
 **Files Checked:**
 - `src/web/pages/portal/arc/[slug].tsx` - Error handling verified
 - `src/web/pages/portal/arc/gamified/[projectId].tsx` - Error handling verified
 
 **Verification:**
-- ✅ Error messages are user-friendly: "Project not found", "Failed to load data"
-- ✅ No internal error details leaked (no stack traces, no database errors)
-- ✅ Error states include helpful fallback links
+- âœ… Error messages are user-friendly: "Project not found", "Failed to load data"
+- âœ… No internal error details leaked (no stack traces, no database errors)
+- âœ… Error states include helpful fallback links
 
-**Status:** ✅ **PASS**
+**Status:** âœ… **PASS**
 
----
 
-### ⚠️ Recommended Quest Update Logic
+
+### âš ï¸ Recommended Quest Update Logic
 
 **File:** `src/web/pages/portal/arc/gamified/[projectId].tsx:145-177, 470-477`
 
@@ -469,7 +468,7 @@ reward_pool_text: prizesEnabled && prizeBudget
 - **Issue:** After completing a quest via API, `userCompletions` is not refetched
 
 **Expected Behavior:**
-- User completes quest → Recommended quest should update to next incomplete quest
+- User completes quest â†’ Recommended quest should update to next incomplete quest
 - **Current Behavior:** Recommended quest only updates after page refresh
 
 **Recommendation:**
@@ -477,9 +476,9 @@ reward_pool_text: prizesEnabled && prizeBudget
 - Add a polling interval to refresh completions, OR
 - Trigger refetch when quest completion API returns success
 
-**Status:** ⚠️ **P1 ISSUE** - Functional but poor UX
+**Status:** âš ï¸ **P1 ISSUE** - Functional but poor UX
 
----
+
 
 ## 6. Files Inspected
 
@@ -514,7 +513,7 @@ reward_pool_text: prizesEnabled && prizeBudget
 - `POST /api/portal/arc/quests/complete` - Complete quest
 - `POST /api/portal/arc/campaigns` - Create campaign (prize toggle)
 
----
+
 
 ## 7. Findings Summary
 
@@ -529,11 +528,11 @@ reward_pool_text: prizesEnabled && prizeBudget
 | **P2** | `src/web/pages/portal/arc/[slug].tsx` | Badge color (line 1410) | `border-${badgeInfo.color.split(' ')[0]}/50` | Use full class names or Tailwind safelist, avoid string interpolation |
 | **P2** | `src/web/pages/portal/arc/gamified/[projectId].tsx` | Quest mission_id mapping (line 466) | `mission_id: q.name \|\| q.title.toLowerCase().replace(/\s+/g, '-')` | Verify this matches actual mission IDs from database, or fetch mission_id from quest data |
 
----
+
 
 ## 8. Final Punch List
 
-### 🔴 Must Fix Before Deploy (P1)
+### ðŸ”´ Must Fix Before Deploy (P1)
 
 1. **Recommended Quest Auto-Refresh**
    - **File:** `src/web/pages/portal/arc/gamified/[projectId].tsx`
@@ -555,7 +554,7 @@ reward_pool_text: prizesEnabled && prizeBudget
    - **Fix:** Update comments to use feature names instead of "Option 1/2/3"
    - **Impact:** Code maintainability, consistency
 
-### 🟡 Can Fix Later (P2)
+### ðŸŸ¡ Can Fix Later (P2)
 
 1. **Badge Color Class Construction**
    - **File:** `src/web/pages/portal/arc/[slug].tsx:1410`
@@ -567,23 +566,23 @@ reward_pool_text: prizesEnabled && prizeBudget
    - **Fix:** Verify mapping matches actual database mission IDs
    - **Impact:** Incorrect quest categorization if mismatch
 
----
+
 
 ## 9. Production Readiness Assessment
 
-### ✅ Ready for Production (After P1 Fixes)
+### âœ… Ready for Production (After P1 Fixes)
 
-**Security:** ✅ **PASS**
+**Security:** âœ… **PASS**
 - All gates intact
 - No data leaks
 - Proper authentication/authorization
 
-**Functionality:** ✅ **PASS**
+**Functionality:** âœ… **PASS**
 - All 6 Phase 2 items implemented
 - Build passes
 - No TypeScript errors
 
-**UX:** ⚠️ **CONDITIONAL PASS**
+**UX:** âš ï¸ **CONDITIONAL PASS**
 - Copy updates correct
 - Quest grouping works
 - Status Perks display correctly
@@ -596,7 +595,7 @@ reward_pool_text: prizesEnabled && prizeBudget
 - **Deploy** with confidence
 - **Address P2 issues** in next iteration
 
----
+
 
 ## 10. Testing Commands
 
@@ -613,8 +612,8 @@ pnpm --filter web type-check
 # Manual testing checklist (see Section 3 above)
 ```
 
----
 
-**Report Complete** ✅  
+
+**Report Complete** âœ…  
 **Next Steps:** Address P1 issues, then proceed with deployment
 
