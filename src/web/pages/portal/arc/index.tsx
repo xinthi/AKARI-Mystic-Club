@@ -355,7 +355,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
       <div className="min-h-screen w-full">
         {/* Compact Header */}
         <div className="border-b border-white/10 bg-black/40 backdrop-blur-sm sticky top-0 z-10">
-          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
             <div className="flex flex-col gap-2">
               <h1 className="text-2xl font-bold text-white">ARC</h1>
               <p className="text-sm text-white/60">
@@ -369,12 +369,12 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           {/* Treemap Hero Section */}
           {canManageArc && (
-            <section className="mb-12">
+            <section className="mb-10">
               {/* Control Strip */}
-              <div className="mb-4">
-                <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+              <div className="mb-5">
+                <div className="flex flex-wrap items-center gap-2.5 overflow-x-auto pb-2 -mx-1 px-1">
                   {/* View Toggle: Cards / Treemap */}
-                  <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
+                  <div className="flex gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
                     <button
                       onClick={() => {
                         setTopProjectsDisplayMode('cards');
@@ -405,6 +405,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </button>
                   </div>
 
+                  {/* Divider */}
+                  <div className="w-px h-6 bg-white/10" />
+
                   {/* Mode Toggle: Gainers / Losers */}
                   <div className="flex gap-1">
                     <button
@@ -431,6 +434,9 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     </button>
                   </div>
 
+                  {/* Divider */}
+                  <div className="w-px h-6 bg-white/10" />
+
                   {/* Timeframe Pills */}
                   <div className="flex gap-1">
                     {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
@@ -449,11 +455,14 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                     ))}
                   </div>
 
+                  {/* Divider */}
+                  <div className="w-px h-6 bg-white/10" />
+
                   {/* Refresh Button */}
                   <button
                     onClick={handleRefresh}
                     disabled={topProjectsLoading}
-                    className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 h-8 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     aria-label="Refresh data"
                   >
                     {topProjectsLoading ? (
@@ -474,10 +483,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   {/* Admin Buttons (SuperAdmin only) */}
                   {userIsSuperAdmin && (
                     <>
-                      <div className="hidden sm:block w-px h-6 bg-white/10" />
+                      <div className="w-px h-6 bg-white/10" />
                       <Link
                         href="/portal/arc/admin"
-                        className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
                         aria-label="ARC Admin"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -488,7 +497,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                       </Link>
                       <Link
                         href="/portal/admin/arc/leaderboard-requests"
-                        className="inline-flex items-center justify-center gap-2 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 h-8 text-xs font-medium bg-akari-neon-teal/10 border border-akari-neon-teal/50 text-akari-neon-teal rounded-lg hover:bg-akari-neon-teal/20 transition-colors"
                         aria-label="Review Requests"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -540,10 +549,10 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
           )}
 
           {/* Below Treemap Sections */}
-          <div className="space-y-12">
+          <div className="space-y-10">
             {/* Live Leaderboards Section */}
             <section>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-5">
                 <h2 className="text-xl font-semibold text-white">Live</h2>
                 <span className="inline-flex items-center gap-2 px-2.5 py-1 text-xs font-medium bg-red-500/20 border border-red-500/30 text-red-400 rounded-full">
                   <span className="relative flex h-2 w-2">
@@ -580,7 +589,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         key={leaderboard.arenaId}
                         className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
                       >
-                        <div className="mb-4">
+                        <div className="mb-3.5">
                           <h3 className="text-base font-semibold text-white mb-1.5 truncate">
                             {leaderboard.arenaName}
                           </h3>
@@ -590,7 +599,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                           {leaderboard.xHandle && (
                             <p className="text-xs text-white/50 mb-2">@{leaderboard.xHandle}</p>
                           )}
-                          <div className="flex items-center gap-4 text-xs text-white/60">
+                          <div className="flex items-center gap-3 text-xs text-white/60">
                             <span>{leaderboard.creatorCount} {leaderboard.creatorCount === 1 ? 'creator' : 'creators'}</span>
                             {hoursRemaining !== null && hoursRemaining > 0 && (
                               <span>{hoursRemaining}h remaining</span>
@@ -624,7 +633,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
 
             {/* Upcoming Section */}
             <section>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-5">
                 <h2 className="text-xl font-semibold text-white">Upcoming</h2>
                 <div className="flex gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
                   {(['today', 'thisweek', 'all'] as const).map((filter) => (
@@ -665,7 +674,7 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                         key={leaderboard.arenaId}
                         className="group rounded-xl border border-white/10 bg-black/40 p-5 hover:border-white/20 hover:bg-white/5 transition-all"
                       >
-                        <div className="mb-4">
+                        <div className="mb-3.5">
                           <h3 className="text-base font-semibold text-white mb-1.5 truncate">
                             {leaderboard.arenaName}
                           </h3>
@@ -703,14 +712,6 @@ export default function ArcHome({ canManageArc: initialCanManageArc }: ArcHomePr
                   })}
                 </div>
               )}
-            </section>
-
-            {/* Recently Ended Section (Optional) */}
-            <section>
-              <h2 className="text-xl font-semibold text-white mb-4">Recently Ended</h2>
-              <div className="rounded-xl border border-white/10 bg-black/40 p-12 text-center">
-                <p className="text-white/60 text-sm">No recently ended leaderboards</p>
-              </div>
             </section>
           </div>
         </div>
