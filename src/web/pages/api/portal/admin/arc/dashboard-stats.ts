@@ -6,7 +6,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireSuperAdmin } from '@/lib/server-auth';
 
 // =============================================================================
 // TYPES
@@ -40,13 +39,65 @@ export default async function handler(
   }
 
   try {
-    // Check super admin access
-    const superAdminCheck = await requireSuperAdmin(req, res);
-    if (!superAdminCheck.ok) {
-      return; // requireSuperAdmin already sent response
+    const supabase = getSupabaseAdmin();
+
+    // Get session token
+    const sessionToken = req.headers.cookie?.split(';').find(c => c.trim().startsWith('akari_session='))?.split('=')[1];
+    if (!sessionToken) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
-    const supabase = getSupabaseAdmin();
+    // Validate session and get user ID
+    const { data: session, error: sessionError } = await supabase
+      .from('akari_user_sessions')
+      .select('user_id, expires_at')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (sessionError || !session) {
+      return res.status(401).json({ ok: false, error: 'Invalid session' });
+    }
+
+    if (new Date(session.expires_at) < new Date()) {
+      await supabase
+        .from('akari_user_sessions')
+        .delete()
+        .eq('session_token', sessionToken);
+      return res.status(401).json({ ok: false, error: 'Session expired' });
+    }
+
+    const userId = session.user_id;
+
+    // Check super admin
+    const { data: userRoles } = await supabase
+      .from('akari_user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin');
+
+    if (!userRoles || userRoles.length === 0) {
+      // Also check profiles.real_roles
+      const { data: xIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', userId)
+        .eq('provider', 'x')
+        .single();
+
+      if (xIdentity?.username) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('real_roles')
+          .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+          .single();
+
+        if (!profile?.real_roles?.includes('super_admin')) {
+          return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
+        }
+      } else {
+        return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
+      }
+    }
 
     // Get total projects with ARC enabled
     const { count: totalProjects } = await supabase
