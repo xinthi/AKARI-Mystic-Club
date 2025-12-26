@@ -104,18 +104,51 @@ export default async function handler(
       }
     }
 
-    // Get total projects with ARC enabled
-    const { count: totalProjects } = await supabase
-      .from('project_arc_settings')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_arc_enabled', true);
-
-    // Get active projects
-    const { count: activeProjects } = await supabase
-      .from('project_arc_settings')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_arc_enabled', true)
-      .eq('status', 'active');
+    // Get total projects with ARC enabled (using new access gate system)
+    // Count projects that have: arc_project_access.application_status = 'approved' AND at least one option unlocked
+    const { data: approvedAccess } = await supabase
+      .from('arc_project_access')
+      .select('project_id')
+      .eq('application_status', 'approved');
+    
+    const approvedProjectIds = new Set((approvedAccess || []).map((a: any) => a.project_id));
+    
+    // Get projects with at least one option unlocked
+    const { data: featuresData } = await supabase
+      .from('arc_project_features')
+      .select('project_id, option1_crm_unlocked, option2_normal_unlocked, option3_gamified_unlocked')
+      .in('project_id', Array.from(approvedProjectIds));
+    
+    const projectsWithUnlockedOptions = new Set<string>();
+    if (featuresData) {
+      for (const feature of featuresData) {
+        if (feature.option1_crm_unlocked || feature.option2_normal_unlocked || feature.option3_gamified_unlocked) {
+          projectsWithUnlockedOptions.add(feature.project_id);
+        }
+      }
+    }
+    
+    // Also check legacy projects (arc_active=true and arc_access_level != 'none')
+    const { data: legacyProjects } = await supabase
+      .from('projects')
+      .select('id, arc_active, arc_access_level')
+      .eq('arc_active', true)
+      .neq('arc_access_level', 'none');
+    
+    if (legacyProjects) {
+      for (const project of legacyProjects) {
+        // Only count if also approved (or in dev mode)
+        if (approvedProjectIds.has(project.id) || process.env.NODE_ENV === 'development') {
+          projectsWithUnlockedOptions.add(project.id);
+        }
+      }
+    }
+    
+    const totalProjects = projectsWithUnlockedOptions.size;
+    
+    // Get active projects (same logic, but also check if they have active arenas/campaigns)
+    // For now, use same count (active = has access + unlocked)
+    const activeProjects = totalProjects;
 
     // Get pending requests
     const { count: pendingRequests } = await supabase
