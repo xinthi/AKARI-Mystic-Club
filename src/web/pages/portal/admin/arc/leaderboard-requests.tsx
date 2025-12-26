@@ -405,10 +405,12 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to pause campaigns');
       }
 
+      console.log('[UI] Campaign/arena paused successfully, waiting for DB propagation...');
       // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Reload requests to refresh status (with cache-busting)
+      console.log('[UI] Reloading requests after pausing campaign/arena');
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
