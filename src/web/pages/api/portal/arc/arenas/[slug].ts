@@ -300,6 +300,40 @@ export default async function handler(
       }
     }
 
+    // Fetch profile images for creators
+    const profileImageMap = new Map<string, string | null>();
+    if (creatorProfileIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, profile_image_url')
+        .in('id', creatorProfileIds);
+
+      if (profiles) {
+        for (const profile of profiles) {
+          profileImageMap.set(profile.id, profile.profile_image_url || null);
+        }
+      }
+    }
+
+    // Also fetch by username for creators without profile_id
+    const usernamesWithoutProfile = (creatorsData || [])
+      .filter((c: any) => !c.profile_id && c.twitter_username)
+      .map((c: any) => c.twitter_username.replace(/^@+/, '').toLowerCase());
+    
+    if (usernamesWithoutProfile.length > 0) {
+      const { data: profilesByUsername } = await supabase
+        .from('profiles')
+        .select('username, profile_image_url')
+        .in('username', usernamesWithoutProfile);
+
+      if (profilesByUsername) {
+        for (const profile of profilesByUsername) {
+          const normalizedUsername = profile.username.toLowerCase().replace(/^@+/, '');
+          profileImageMap.set(normalizedUsername, profile.profile_image_url || null);
+        }
+      }
+    }
+
     // Build response with effective points calculation
     // base_points = arena_creators.arc_points (base value, not updated by adjustments)
     // adjustments_sum = SUM(arc_point_adjustments.points_delta) for that arena_id + creator_profile_id
@@ -311,6 +345,16 @@ export default async function handler(
       const adjustmentsSum = creator.profile_id ? (adjustmentsMap[creator.profile_id] || 0) : 0;
       // effective_points = base_points + COALESCE(adjustments_sum, 0)
       const effectivePoints = basePoints + adjustmentsSum;
+
+      // Get avatar URL
+      let avatarUrl: string | null = null;
+      if (creator.profile_id) {
+        avatarUrl = profileImageMap.get(creator.profile_id) || null;
+      }
+      if (!avatarUrl && creator.twitter_username) {
+        const normalizedUsername = creator.twitter_username.replace(/^@+/, '').toLowerCase();
+        avatarUrl = profileImageMap.get(normalizedUsername) || null;
+      }
 
       // Debug logging for all creators to verify calculation
       console.log(`[API /portal/arc/arenas/[slug]] Creator ${creator.profile_id || 'no-profile'}: base=${basePoints}, adjustments_sum=${adjustmentsSum}, effective=${effectivePoints}`);
@@ -325,6 +369,7 @@ export default async function handler(
         meta: creator.meta || {},
         profile_id: creator.profile_id || null,
         joined_at: creator.created_at || null, // Map created_at to joined_at for frontend compatibility
+        avatar_url: avatarUrl,
       };
     });
 

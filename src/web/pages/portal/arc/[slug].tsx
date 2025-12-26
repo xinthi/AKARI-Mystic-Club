@@ -27,6 +27,7 @@ interface ArcProject {
   slug: string | null;
   name: string | null;
   twitter_username: string | null;
+  avatar_url?: string | null;
   arc_tier: 'basic' | 'pro' | 'event_host';
   arc_status: 'inactive' | 'active' | 'suspended';
   security_status: 'normal' | 'alert' | 'clear';
@@ -95,6 +96,7 @@ interface Creator {
   style?: string | null;
   meta?: Record<string, any>;
   joined_at?: string | null;
+  avatar_url?: string | null;
 }
 
 interface MindshareLeaderboardEntry {
@@ -406,6 +408,7 @@ export default function ArcProjectHub() {
           slug: projectInfo.slug,
           name: projectInfo.name || projectInfo.display_name || 'Unnamed Project',
           twitter_username: projectInfo.twitter_username || projectInfo.x_handle,
+          avatar_url: projectInfo.avatar_url || null,
           arc_tier: 'basic', // Default, will be updated if we have project_arc_settings
           arc_status: 'active', // Default
           security_status: 'normal', // Default
@@ -1274,9 +1277,26 @@ export default function ArcProjectHub() {
               <div className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 {/* Left: logo + name + tagline */}
                 <div className="flex items-start gap-4 flex-1">
-                  {/* Project logo/avatar placeholder */}
+                  {/* Project logo/avatar */}
+                  {project.avatar_url ? (
+                    <img
+                      src={project.avatar_url}
+                      alt={project.name || 'Project'}
+                      className="flex-shrink-0 w-16 h-16 rounded-xl border-2 object-cover"
+                      style={{
+                        borderColor: accentColor,
+                      }}
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const placeholder = target.nextElementSibling as HTMLElement;
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
                   <div 
-                    className="flex-shrink-0 w-16 h-16 rounded-xl border-2 flex items-center justify-center text-2xl font-bold"
+                    className={`flex-shrink-0 w-16 h-16 rounded-xl border-2 flex items-center justify-center text-2xl font-bold ${project.avatar_url ? 'hidden' : ''}`}
                     style={{
                       borderColor: accentColor,
                       backgroundColor: `${accentColor}10`,
@@ -2089,7 +2109,20 @@ export default function ArcProjectHub() {
                                         <div className="text-lg font-bold text-white/60 w-8 text-center">
                                           #{rank}
                                         </div>
-                                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-semibold text-white">
+                                        {creator.avatar_url ? (
+                                          <img
+                                            src={creator.avatar_url}
+                                            alt={creator.twitter_username || 'Creator'}
+                                            className="flex-shrink-0 w-10 h-10 rounded-full border border-white/20 object-cover"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              const placeholder = target.nextElementSibling as HTMLElement;
+                                              if (placeholder) placeholder.style.display = 'flex';
+                                            }}
+                                          />
+                                        ) : null}
+                                        <div className={`flex-shrink-0 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-semibold text-white ${creator.avatar_url ? 'hidden' : ''}`}>
                                           {creator.twitter_username?.charAt(0).toUpperCase() || '?'}
                                         </div>
                                         <div className="flex-1 min-w-0">
