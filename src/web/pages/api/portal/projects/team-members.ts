@@ -24,6 +24,7 @@ interface AddTeamMemberRequest {
   projectId: string;
   profileId: string; // profiles.id (Twitter profile)
   role: 'owner' | 'admin' | 'moderator' | 'investor_view';
+  affiliate_title?: string | null;
 }
 
 interface RemoveTeamMemberRequest {
