@@ -78,7 +78,7 @@ export default async function handler(
         )
       `)
       .eq('project_id', arenaData.project_id)
-      .order('affiliate_title', { ascending: true, nullsLast: true });
+      .order('affiliate_title', { ascending: true, nullsFirst: false });
 
     if (teamError) {
       console.error('[ARC Arena Team API] Error:', teamError);
