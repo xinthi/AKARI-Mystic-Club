@@ -383,6 +383,7 @@ export default async function handler(
             let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
             
+            // First, try to match by created_at within 1 hour of approval
             for (const a of projectArenas) {
               const arena = a as ArenaItem;
               const arenaTime = new Date(arena.created_at).getTime();
@@ -394,43 +395,25 @@ export default async function handler(
               }
             }
             
+            // If no match within 1 hour, use the most recent arena for this project as fallback
+            // This handles cases where arena was created much later than approval
+            if (closestArena === null && projectArenas.length > 0) {
+              // Sort by created_at descending to get most recent
+              const sortedArenas = [...projectArenas].sort((a: any, b: any) => {
+                const aTime = new Date(a.created_at).getTime();
+                const bTime = new Date(b.created_at).getTime();
+                return bTime - aTime;
+              });
+              closestArena = sortedArenas[0] as ArenaItem;
+              console.log(`[Admin Leaderboard Requests API] No arena found within 1 hour of approval for request ${req.id}, using most recent arena: ${closestArena.id} (created: ${closestArena.created_at})`);
+            }
+            
             if (closestArena !== null) {
               arenaStatusMap.set(req.id, closestArena.status);
               // Store end date: use updated_at if status is 'ended' or 'cancelled' (when it was ended), otherwise use ends_at
               if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
                 arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
-              }
-            } else {
-              // No arena found near approval time - check for any arena (including ended ones)
-              // Priority: active/scheduled > paused > ended/cancelled
-              const activeArena = projectArenas.find((a: any) => {
-                const arena = a as ArenaItem;
-                return arena.status === 'active' || arena.status === 'scheduled';
-              }) as ArenaItem | undefined;
-              
-              if (activeArena) {
-                arenaStatusMap.set(req.id, activeArena.status);
-              } else {
-                // Check for paused
-                const pausedArena = projectArenas.find((a: any) => {
-                  const arena = a as ArenaItem;
-                  return arena.status === 'paused';
-                }) as ArenaItem | undefined;
-                
-                if (pausedArena) {
-                  arenaStatusMap.set(req.id, pausedArena.status);
-                } else {
-                  // Check for ended/cancelled (most recent one)
-                  const endedArena = projectArenas.find((a: any) => {
-                    const arena = a as ArenaItem;
-                    return arena.status === 'ended' || arena.status === 'cancelled';
-                  }) as ArenaItem | undefined;
-                  
-                  if (endedArena) {
-                    arenaStatusMap.set(req.id, endedArena.status);
-                    arenaEndedAtMap.set(req.id, endedArena.updated_at || endedArena.ends_at || null);
-                  }
-                }
+                console.log(`[Admin Leaderboard Requests API] Request ${req.id} matched to ended arena ${closestArena.id}, ended at: ${closestArena.updated_at || closestArena.ends_at || 'N/A'}`);
               }
             }
           }

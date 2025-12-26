@@ -136,11 +136,23 @@ export default async function handler(
           }
         }
 
-        // If no campaign found near approval time, don't fallback - this ensures we only end the specific one
+        // If no campaign found near approval time, use the most recent campaign as fallback
+        // This ensures we can end campaigns even if they were created much later than approval
+        if (targetCampaign === null && campaigns.length > 0) {
+          // Sort by created_at descending to get most recent
+          const sortedCampaigns = [...campaigns].sort((a: any, b: any) => {
+            const aTime = new Date(a.created_at).getTime();
+            const bTime = new Date(b.created_at).getTime();
+            return bTime - aTime;
+          });
+          targetCampaign = sortedCampaigns[0] as CampaignItem;
+          console.log(`[Stop Campaign API] No campaign found within 1 hour of approval for request ${request.id}, using most recent campaign: ${targetCampaign.id} (created: ${targetCampaign.created_at})`);
+        }
+        
         if (targetCampaign === null) {
           return res.status(404).json({
             ok: false,
-            error: 'No campaign found that matches this request (created within 1 hour of approval). This request may not have an associated campaign.',
+            error: 'No campaign found for this request. This request may not have an associated campaign.',
           });
         }
 
@@ -207,11 +219,23 @@ export default async function handler(
           }
         }
 
-        // If no arena found near approval time, don't fallback - this ensures we only end the specific one
+        // If no arena found near approval time, use the most recent arena as fallback
+        // This ensures we can end arenas even if they were created much later than approval
+        if (targetArena === null && arenas.length > 0) {
+          // Sort by created_at descending to get most recent
+          const sortedArenas = [...arenas].sort((a: any, b: any) => {
+            const aTime = new Date(a.created_at).getTime();
+            const bTime = new Date(b.created_at).getTime();
+            return bTime - aTime;
+          });
+          targetArena = sortedArenas[0] as ArenaItem;
+          console.log(`[Stop Campaign API] No arena found within 1 hour of approval for request ${request.id}, using most recent arena: ${targetArena.id} (created: ${targetArena.created_at})`);
+        }
+        
         if (targetArena === null) {
           return res.status(404).json({
             ok: false,
-            error: 'No arena found that matches this request (created within 1 hour of approval). This request may not have an associated arena.',
+            error: 'No arena found for this request. This request may not have an associated arena.',
           });
         }
 
