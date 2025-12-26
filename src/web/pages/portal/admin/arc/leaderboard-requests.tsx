@@ -355,10 +355,12 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to resume leaderboard');
       }
 
+      console.log('[UI] Campaign/arena resumed successfully, waiting for DB propagation...');
       // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Reload requests to refresh status (with cache-busting)
+      console.log('[UI] Reloading requests after resuming campaign/arena');
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
@@ -775,7 +777,7 @@ export default function AdminLeaderboardRequestsPage() {
                                     );
                                   }
 
-                                  // PAUSED: Show PAUSED badge and Resume button (can be re-instated)
+                                  // PAUSED: Show PAUSED badge and Start button (can be re-instated)
                                   if (isPaused) {
                                     return (
                                       <>
@@ -786,9 +788,9 @@ export default function AdminLeaderboardRequestsPage() {
                                           onClick={() => handleResumeCampaign(request.project_id, request.id)}
                                           disabled={isProcessing}
                                           className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          title="Restart this leaderboard"
+                                          title="Start this leaderboard"
                                         >
-                                          {isProcessing ? '...' : 'Restart'}
+                                          {isProcessing ? '...' : 'Start'}
                                         </button>
                                         {userIsSuperAdmin && (
                                           <button
