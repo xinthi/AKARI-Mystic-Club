@@ -513,183 +513,221 @@ export default async function handler(
         console.error('[Admin Leaderboard Request Update API] Unexpected error in billing creation:', billingErr);
       }
 
-      // Step 5: Auto-create/activate arena for leaderboard access levels (required for Live/Upcoming visibility)
-      // Both 'leaderboard' and 'gamified' need arenas to show in live leaderboards section
-      if (arc_access_level === 'leaderboard' || arc_access_level === 'gamified') {
+      // Step 5: Auto-create entities for each request type
+      // CRITICAL: Each approval creates a NEW entity - never reuse existing ones
+      // This ensures each request operates independently
+      
+      if (arc_access_level === 'leaderboard') {
+        // Leaderboard: Create a new arena for this specific request
         try {
-          // Check if arena already exists for this project
-          const { data: existingArenas, error: arenaCheckError } = await supabase
-            .from('arenas')
-            .select('id, status, slug, starts_at, ends_at')
-            .eq('project_id', request.project_id)
-            .order('created_at', { ascending: false });
+          const { data: project, error: projectFetchError } = await supabase
+            .from('projects')
+            .select('name, slug')
+            .eq('id', request.project_id)
+            .single();
 
-          if (arenaCheckError) {
-            console.error('[Admin Leaderboard Request Update API] Error checking existing arenas:', arenaCheckError);
-            // Continue - don't fail approval
-          }
+          if (projectFetchError || !project) {
+            console.error('[Admin Leaderboard Request Update API] Error fetching project for arena creation:', projectFetchError);
+          } else {
+            // Generate unique arena slug based on request ID to ensure uniqueness
+            const requestIdShort = id.substring(0, 8);
+            let baseSlug = `${project.slug}-leaderboard-${requestIdShort}`;
+            let arenaSlug = baseSlug;
+            let suffix = 2;
 
-          const existingArena = existingArenas && existingArenas.length > 0 ? existingArenas[0] : null;
+            // Check if slug exists and find next available
+            const { data: slugCheck } = await supabase
+              .from('arenas')
+              .select('slug')
+              .eq('slug', arenaSlug)
+              .maybeSingle();
 
-          if (!existingArena) {
-            // Get project name and slug for arena naming
-            const { data: project, error: projectFetchError } = await supabase
-              .from('projects')
-              .select('name, slug')
-              .eq('id', request.project_id)
-              .single();
-
-            if (projectFetchError || !project) {
-              console.error('[Admin Leaderboard Request Update API] Error fetching project for arena creation:', projectFetchError);
-              // Continue - don't fail the request
-            } else {
-              // Generate stable arena slug with numeric suffix if needed
-              // Use different base slugs for different access levels
-              const baseSlugName = arc_access_level === 'gamified' ? 'gamified' : 'leaderboard';
-              let baseSlug = `${project.slug}-${baseSlugName}`;
-              let arenaSlug = baseSlug;
-              let suffix = 2;
-
-              // Check if base slug exists and find next available
-              const { data: slugCheck } = await supabase
-                .from('arenas')
-                .select('slug')
-                .eq('slug', arenaSlug)
-                .maybeSingle();
-
-              if (slugCheck) {
-                // Base slug exists, find next available numeric suffix
-                while (true) {
-                  arenaSlug = `${baseSlug}-${suffix}`;
-                  const { data: nextCheck } = await supabase
-                    .from('arenas')
-                    .select('slug')
-                    .eq('slug', arenaSlug)
-                    .maybeSingle();
-                  if (!nextCheck) break;
-                  suffix++;
-                }
-              }
-
-              // Generate appropriate arena name
-              const arenaName = arc_access_level === 'gamified' 
-                ? `${project.name} Gamified Leaderboard`
-                : `${project.name} Leaderboard`;
-
-              // Always create arena with status 'active' (API will use dates to determine Live vs Upcoming)
-              const { error: arenaError } = await supabase
-                .from('arenas')
-                .insert({
-                  project_id: request.project_id,
-                  name: arenaName,
-                  slug: arenaSlug,
-                  status: 'active',
-                  starts_at: start_at ? new Date(start_at).toISOString() : null,
-                  ends_at: end_at ? new Date(end_at).toISOString() : null,
-                  created_by: adminProfile.profileId,
-                });
-
-              if (arenaError) {
-                console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
-                console.error('[Admin Leaderboard Request Update API] Arena creation data:', {
-                  project_id: request.project_id,
-                  name: arenaName,
-                  slug: arenaSlug,
-                  status: 'active',
-                  starts_at: start_at ? new Date(start_at).toISOString() : null,
-                  ends_at: end_at ? new Date(end_at).toISOString() : null,
-                });
-                // Continue - don't fail the request, but log the error
-              } else {
-                console.log('[Admin Leaderboard Request Update API] Successfully created arena for project:', request.project_id, 'slug:', arenaSlug, 'name:', arenaName);
-                
-                // Regression guard: verify arena was created and is accessible
-                const { data: verifyArena, error: verifyError } = await supabase
+            if (slugCheck) {
+              while (true) {
+                arenaSlug = `${baseSlug}-${suffix}`;
+                const { data: nextCheck } = await supabase
                   .from('arenas')
-                  .select('id, status, project_id, name, slug')
-                  .eq('project_id', request.project_id)
-                  .eq('status', 'active')
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-                
-                if (verifyError) {
-                  console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to verify arena creation:`, verifyError);
-                } else if (!verifyArena || verifyArena.length === 0) {
-                  console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD FAILED: Project ${request.project_id} approved but no active arena found after creation attempt!`);
-                } else {
-                  console.log(`[Admin Leaderboard Request Update API] REGRESSION GUARD PASSED: Arena ${verifyArena[0].id} verified for project ${request.project_id}`);
-                }
+                  .select('slug')
+                  .eq('slug', arenaSlug)
+                  .maybeSingle();
+                if (!nextCheck) break;
+                suffix++;
               }
             }
-          } else {
-            // Arena exists - check status before re-activating
-            // Only re-activate if status is 'paused' - NEVER re-activate 'ended' arenas
-            if (existingArena.status === 'ended') {
-              console.log(`[Admin Leaderboard Request Update API] Arena ${existingArena.id} is already ended. Cannot re-activate ended arenas. Skipping arena update.`);
-              // Still update dates if provided (for reference, but don't change status)
-              if (start_at || end_at) {
-                const dateUpdateData: any = {};
-                if (start_at) {
-                  dateUpdateData.starts_at = new Date(start_at).toISOString();
-                }
-                if (end_at) {
-                  dateUpdateData.ends_at = new Date(end_at).toISOString();
-                }
-                const { error: dateUpdateError } = await supabase
-                  .from('arenas')
-                  .update(dateUpdateData)
-                  .eq('id', existingArena.id);
-                if (dateUpdateError) {
-                  console.error('[Admin Leaderboard Request Update API] Error updating dates for ended arena:', dateUpdateError);
-                }
-              }
-            } else if (existingArena.status === 'paused') {
-              // Re-activate paused arenas (cancelled arenas cannot be re-instated)
-              const updateData: any = {
+
+            const arenaName = `${project.name} Leaderboard`;
+
+            const { error: arenaError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: request.project_id,
+                name: arenaName,
+                slug: arenaSlug,
                 status: 'active',
-              };
+                starts_at: start_at ? new Date(start_at).toISOString() : null,
+                ends_at: end_at ? new Date(end_at).toISOString() : null,
+                created_by: adminProfile.profileId,
+              });
 
-              // Update dates if provided in approval (avoid stale dates)
-              if (start_at) {
-                updateData.starts_at = new Date(start_at).toISOString();
-              }
-              if (end_at) {
-                updateData.ends_at = new Date(end_at).toISOString();
-              }
-
-              const { error: arenaUpdateError } = await supabase
-                .from('arenas')
-                .update(updateData)
-                .eq('id', existingArena.id);
-
-              if (arenaUpdateError) {
-                console.error('[Admin Leaderboard Request Update API] Error updating existing arena:', arenaUpdateError);
-              } else {
-                console.log(`[Admin Leaderboard Request Update API] Successfully re-activated arena from ${existingArena.status} to active:`, existingArena.id);
-              }
+            if (arenaError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
             } else {
-              // Arena is already active or scheduled - just update dates if provided
-              const updateData: any = {};
-              if (start_at) {
-                updateData.starts_at = new Date(start_at).toISOString();
-              }
-              if (end_at) {
-                updateData.ends_at = new Date(end_at).toISOString();
-              }
-              if (Object.keys(updateData).length > 0) {
-                const { error: arenaUpdateError } = await supabase
-                  .from('arenas')
-                  .update(updateData)
-                  .eq('id', existingArena.id);
-                if (arenaUpdateError) {
-                  console.error('[Admin Leaderboard Request Update API] Error updating dates for active arena:', arenaUpdateError);
-                }
-              }
+              console.log('[Admin Leaderboard Request Update API] Successfully created arena for request:', id, 'slug:', arenaSlug);
             }
           }
         } catch (arenaErr: any) {
-          // Catch any unexpected errors in arena logic - never fail approval
-          console.error('[Admin Leaderboard Request Update API] Unexpected error in arena creation/activation:', arenaErr);
+          console.error('[Admin Leaderboard Request Update API] Unexpected error in arena creation:', arenaErr);
+        }
+      } else if (arc_access_level === 'gamified') {
+        // Gamified: Create a new arena AND a creator_manager_program (as quest)
+        try {
+          const { data: project, error: projectFetchError } = await supabase
+            .from('projects')
+            .select('name, slug')
+            .eq('id', request.project_id)
+            .single();
+
+          if (projectFetchError || !project) {
+            console.error('[Admin Leaderboard Request Update API] Error fetching project for gamified creation:', projectFetchError);
+          } else {
+            // Create arena for gamified
+            const requestIdShort = id.substring(0, 8);
+            let baseSlug = `${project.slug}-gamified-${requestIdShort}`;
+            let arenaSlug = baseSlug;
+            let suffix = 2;
+
+            const { data: slugCheck } = await supabase
+              .from('arenas')
+              .select('slug')
+              .eq('slug', arenaSlug)
+              .maybeSingle();
+
+            if (slugCheck) {
+              while (true) {
+                arenaSlug = `${baseSlug}-${suffix}`;
+                const { data: nextCheck } = await supabase
+                  .from('arenas')
+                  .select('slug')
+                  .eq('slug', arenaSlug)
+                  .maybeSingle();
+                if (!nextCheck) break;
+                suffix++;
+              }
+            }
+
+            const arenaName = `${project.name} Gamified Leaderboard`;
+
+            const { error: arenaError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: request.project_id,
+                name: arenaName,
+                slug: arenaSlug,
+                status: 'active',
+                starts_at: start_at ? new Date(start_at).toISOString() : null,
+                ends_at: end_at ? new Date(end_at).toISOString() : null,
+                created_by: adminProfile.profileId,
+              });
+
+            if (arenaError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating gamified arena:', arenaError);
+            } else {
+              console.log('[Admin Leaderboard Request Update API] Successfully created gamified arena for request:', id, 'slug:', arenaSlug);
+            }
+
+            // Also create creator_manager_program as a quest for gamified
+            const programTitle = `${project.name} Quest Program`;
+            const { error: programError } = await supabase
+              .from('creator_manager_programs')
+              .insert({
+                project_id: request.project_id,
+                title: programTitle,
+                description: `Quest program for ${project.name} gamified leaderboard`,
+                visibility: 'public', // Gamified quests are public
+                status: 'active',
+                start_at: start_at ? new Date(start_at).toISOString() : null,
+                end_at: end_at ? new Date(end_at).toISOString() : null,
+                created_by: adminProfile.profileId,
+              });
+
+            if (programError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating creator_manager_program for gamified:', programError);
+            } else {
+              console.log('[Admin Leaderboard Request Update API] Successfully created creator_manager_program for gamified request:', id);
+            }
+          }
+        } catch (gamifiedErr: any) {
+          console.error('[Admin Leaderboard Request Update API] Unexpected error in gamified creation:', gamifiedErr);
+        }
+      } else if (arc_access_level === 'creator_manager') {
+        // Creator Manager: Create arc_campaign and optionally creator_manager_program
+        try {
+          const { data: project, error: projectFetchError } = await supabase
+            .from('projects')
+            .select('name, slug')
+            .eq('id', request.project_id)
+            .single();
+
+          if (projectFetchError || !project) {
+            console.error('[Admin Leaderboard Request Update API] Error fetching project for campaign creation:', projectFetchError);
+          } else {
+            // Create arc_campaign for CRM
+            // Note: start_at and end_at are REQUIRED (NOT NULL) in arc_campaigns
+            const campaignName = `${project.name} Campaign`;
+            const now = new Date();
+            const defaultStartDate = start_at ? new Date(start_at) : now;
+            const defaultEndDate = end_at ? new Date(end_at) : new Date(now);
+            // Ensure end_at is at least 1 day after start_at
+            if (defaultEndDate <= defaultStartDate) {
+              defaultEndDate.setDate(defaultStartDate.getDate() + 1);
+            }
+
+            const { error: campaignError } = await supabase
+              .from('arc_campaigns')
+              .insert({
+                project_id: request.project_id,
+                type: 'crm',
+                participation_mode: 'invite_only',
+                leaderboard_visibility: 'private', // Default to private, can be changed to public later
+                name: campaignName,
+                brief_objective: `Creator Manager campaign for ${project.name}`,
+                start_at: defaultStartDate.toISOString(),
+                end_at: defaultEndDate.toISOString(),
+                status: 'live',
+                created_by_profile_id: adminProfile.profileId,
+              });
+
+            if (campaignError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating arc_campaign:', campaignError);
+            } else {
+              console.log('[Admin Leaderboard Request Update API] Successfully created arc_campaign for request:', id);
+            }
+
+            // Also create creator_manager_program for CRM (supports public/private visibility)
+            // Default to private - admins can change to public later if needed
+            // Note: created_by is REQUIRED (NOT NULL) in creator_manager_programs
+            const programTitle = `${project.name} Creator Program`;
+            const { error: programError } = await supabase
+              .from('creator_manager_programs')
+              .insert({
+                project_id: request.project_id,
+                title: programTitle,
+                description: `Creator Manager program for ${project.name}`,
+                visibility: 'private', // Default to private, can be changed to public later
+                status: 'active',
+                start_at: start_at ? new Date(start_at).toISOString() : null,
+                end_at: end_at ? new Date(end_at).toISOString() : null,
+                created_by: adminProfile.profileId, // Required field
+              });
+
+            if (programError) {
+              console.error('[Admin Leaderboard Request Update API] Error creating creator_manager_program for CRM:', programError);
+            } else {
+              console.log('[Admin Leaderboard Request Update API] Successfully created creator_manager_program for CRM request:', id);
+            }
+          }
+        } catch (crmErr: any) {
+          console.error('[Admin Leaderboard Request Update API] Unexpected error in CRM creation:', crmErr);
         }
       }
 
