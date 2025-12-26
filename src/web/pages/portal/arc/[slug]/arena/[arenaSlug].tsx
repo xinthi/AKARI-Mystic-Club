@@ -408,6 +408,89 @@ export default function ArenaDetailsPage() {
     fetchArenaDetails();
   }, [router.isReady, arenaSlug, akariUser.user, projectSlug, rawArenaSlug, router]);
 
+  // Fetch team members
+  useEffect(() => {
+    async function fetchTeamMembers() {
+      if (!arenaSlug || typeof arenaSlug !== 'string') return;
+      
+      setTeamLoading(true);
+      try {
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}/team`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.members) {
+            setTeamMembers(data.members);
+          }
+        }
+      } catch (err) {
+        console.error('[ArenaDetailsPage] Error fetching team members:', err);
+      } finally {
+        setTeamLoading(false);
+      }
+    }
+    
+    if (arenaSlug) {
+      fetchTeamMembers();
+    }
+  }, [arenaSlug]);
+
+  // Fetch paginated leaderboard
+  useEffect(() => {
+    async function fetchLeaderboard() {
+      if (!arenaSlug || typeof arenaSlug !== 'string') return;
+      
+      setLeaderboardLoading(true);
+      try {
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}/leaderboard?page=${leaderboardPage}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok) {
+            setLeaderboardEntries(data.entries || []);
+            setLeaderboardTotal(data.total || 0);
+            setLeaderboardTotalPages(data.totalPages || 0);
+          }
+        }
+      } catch (err) {
+        console.error('[ArenaDetailsPage] Error fetching leaderboard:', err);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    }
+    
+    if (arenaSlug) {
+      fetchLeaderboard();
+    }
+  }, [arenaSlug, leaderboardPage]);
+
+  // Fetch CRM status
+  useEffect(() => {
+    async function fetchCrmStatus() {
+      if (!arenaSlug || typeof arenaSlug !== 'string') return;
+      
+      try {
+        const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}/status`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.status) {
+            setCrmStatus(data.status);
+          }
+        }
+      } catch (err) {
+        console.error('[ArenaDetailsPage] Error fetching CRM status:', err);
+      }
+    }
+    
+    if (arenaSlug) {
+      fetchCrmStatus();
+    }
+  }, [arenaSlug]);
+
   // Fetch quest leaderboards
   const fetchQuestLeaderboards = async (questsList: any[]) => {
     const leaderboardMap = new Map<string, any[]>();
