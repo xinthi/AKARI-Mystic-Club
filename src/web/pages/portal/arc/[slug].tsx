@@ -229,6 +229,16 @@ export default function ArcProjectHub() {
   const [userStatus, setUserStatus] = useState<UserCampaignStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Edit project state
+  const [editingProject, setEditingProject] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    slug: '',
+    x_handle: '',
+    header_image_url: '',
+  });
+  const [savingProject, setSavingProject] = useState(false);
   const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -773,6 +783,33 @@ export default function ArcProjectHub() {
     checkFollowVerification();
   }, [projectId, akariUser.user, permissions?.isInvestorView]);
 
+  // Handle save project edit
+  const handleSaveProject = async () => {
+    if (!projectId) return;
+
+    setSavingProject(true);
+    try {
+      const res = await fetch(`/api/portal/admin/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(editForm),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to update project');
+      }
+
+      // Reload page to show updated data
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update project');
+      setSavingProject(false);
+    }
+  };
+
   // Check if user is already in creators list
   const userIsInCreators = useMemo(() => {
     if (!userTwitterUsername || !allCreators.length) return false;
@@ -1179,15 +1216,61 @@ export default function ArcProjectHub() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h1 
-                      className="text-2xl font-bold mb-1"
-                      style={{
-                        color: accentColor,
-                        textShadow: `0 0 10px ${accentColor}40`,
-                      }}
-                    >
-                      {project.name || 'Unnamed Project'}
-                    </h1>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h1 
+                        className="text-2xl font-bold"
+                        style={{
+                          color: accentColor,
+                          textShadow: `0 0 10px ${accentColor}40`,
+                        }}
+                      >
+                        {project.name || 'Unnamed Project'}
+                      </h1>
+                      {canWrite && (
+                        <button
+                          onClick={async () => {
+                            // Fetch current project data including header_image_url
+                            try {
+                              const res = await fetch(`/api/portal/admin/projects/${projectId}`, {
+                                credentials: 'include',
+                              });
+                              const data = await res.json();
+                              if (res.ok && data.ok && data.project) {
+                                setEditForm({
+                                  name: data.project.name || project.name || '',
+                                  slug: data.project.slug || project.slug || '',
+                                  x_handle: data.project.x_handle || project.twitter_username?.replace(/^@+/, '') || '',
+                                  header_image_url: data.project.header_image_url || project.meta?.banner_url || '',
+                                });
+                              } else {
+                                // Fallback to current project data
+                                setEditForm({
+                                  name: project.name || '',
+                                  slug: project.slug || '',
+                                  x_handle: project.twitter_username?.replace(/^@+/, '') || '',
+                                  header_image_url: project.meta?.banner_url || '',
+                                });
+                              }
+                            } catch (err) {
+                              // Fallback to current project data
+                              setEditForm({
+                                name: project.name || '',
+                                slug: project.slug || '',
+                                x_handle: project.twitter_username?.replace(/^@+/, '') || '',
+                                header_image_url: project.meta?.banner_url || '',
+                              });
+                            }
+                            setEditingProject(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                          title="Edit Project"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     {project.twitter_username && (
                       <p className="text-sm text-akari-muted mb-2">
                         @{project.twitter_username}
@@ -2883,6 +2966,91 @@ export default function ArcProjectHub() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold text-white mb-4">Edit Project</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Slug</label>
+                <input
+                  type="text"
+                  value={editForm.slug}
+                  onChange={(e) => setEditForm({ ...editForm, slug: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">X Handle</label>
+                <input
+                  type="text"
+                  value={editForm.x_handle}
+                  onChange={(e) => setEditForm({ ...editForm, x_handle: e.target.value.replace('@', '') })}
+                  placeholder="handle (without @)"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Header Image URL</label>
+                <input
+                  type="url"
+                  value={editForm.header_image_url}
+                  onChange={(e) => setEditForm({ ...editForm, header_image_url: e.target.value })}
+                  placeholder="https://example.com/header-image.jpg"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  URL to the project header image (displayed on leaderboard pages)
+                </p>
+                {editForm.header_image_url && (
+                  <div className="mt-2">
+                    <img
+                      src={editForm.header_image_url}
+                      alt="Header preview"
+                      className="w-full h-32 object-cover rounded-lg border border-slate-700"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleSaveProject}
+                disabled={savingProject}
+                className="flex-1 px-4 py-2 rounded-lg bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingProject ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditingProject(false)}
+                disabled={savingProject}
+                className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
