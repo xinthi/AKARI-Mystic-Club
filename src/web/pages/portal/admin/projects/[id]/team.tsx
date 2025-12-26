@@ -476,6 +476,7 @@ export default function ProjectTeamPage() {
                     >
                       {removing.has(`${member.profile_id}-${member.role}`) ? 'Removing...' : 'Remove'}
                     </button>
+                  </div>
                 </div>
               ))}
             </div>
