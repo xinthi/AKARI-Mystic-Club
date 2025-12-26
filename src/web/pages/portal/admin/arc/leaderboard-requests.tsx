@@ -200,6 +200,48 @@ export default function AdminLeaderboardRequestsPage() {
     }
   };
 
+  // Handle fix single request
+  const handleFixSingleRequest = async (requestId: string) => {
+    if (processingIds.has(requestId)) return;
+
+    setProcessingIds((prev) => new Set(prev).add(requestId));
+    setRowErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(requestId);
+      return next;
+    });
+
+    try {
+      const res = await fetch('/api/portal/admin/arc/backfill-live-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ dryRun: false, requestId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to fix request');
+      }
+
+      // Reload requests to reflect changes
+      await loadRequests();
+    } catch (err: any) {
+      setRowErrors((prev) => {
+        const next = new Map(prev);
+        next.set(requestId, err.message || 'Failed to fix request');
+        return next;
+      });
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  };
+
   // Load requests
   useEffect(() => {
     if (!userIsSuperAdmin) {
@@ -729,10 +771,10 @@ export default function AdminLeaderboardRequestsPage() {
                                         </span>
                                         <button
                                           type="button"
-                                          onClick={() => handleBackfillLiveItems()}
+                                          onClick={() => handleFixSingleRequest(request.id)}
                                           disabled={backfillLoading}
                                           className="px-2 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          title="Fix missing item"
+                                          title="Fix missing item for this request only"
                                         >
                                           {backfillLoading ? '...' : 'Fix'}
                                         </button>

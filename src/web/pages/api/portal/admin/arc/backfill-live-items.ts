@@ -87,7 +87,7 @@ export default async function handler(
       return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
-    const { dryRun = false, limit = 100 } = req.body as { dryRun?: boolean; limit?: number };
+    const { dryRun = false, limit = 100, requestId } = req.body as { dryRun?: boolean; limit?: number; requestId?: string };
     const maxLimit = Math.min(limit || 100, 500);
     const isDryRun = dryRun === true;
 
@@ -108,8 +108,8 @@ export default async function handler(
       errors: [] as Array<{ projectSlug: string; projectId: string; requestId: string; message: string }>,
     };
 
-    // Get all approved requests with project info
-    const { data: approvedRequests, error: requestsError } = await supabase
+    // Build query for approved requests
+    let requestsQuery = supabase
       .from('arc_leaderboard_requests')
       .select(`
         id,
@@ -122,9 +122,17 @@ export default async function handler(
           slug
         )
       `)
-      .eq('status', 'approved')
-      .order('decided_at', { ascending: false })
-      .limit(maxLimit);
+      .eq('status', 'approved');
+
+    // If requestId is provided, only process that specific request
+    if (requestId && typeof requestId === 'string') {
+      requestsQuery = requestsQuery.eq('id', requestId);
+    } else {
+      requestsQuery = requestsQuery.order('decided_at', { ascending: false }).limit(maxLimit);
+    }
+
+    // Get approved requests with project info
+    const { data: approvedRequests, error: requestsError } = await requestsQuery;
 
     if (requestsError) {
       console.error('[Backfill Live Items] Error fetching approved requests:', requestsError);
@@ -154,14 +162,52 @@ export default async function handler(
       try {
         if (accessLevel === 'leaderboard') {
           // Option 2: Ensure arena exists and is active
-          const { data: existingArenas } = await supabase
-            .from('arenas')
-            .select('id, status')
-            .eq('project_id', request.project_id)
-            .in('status', ['active', 'scheduled'])
-            .limit(1);
+          // For single request fix, we need to match by timing to find the specific arena
+          // For bulk backfill, we'll create/activate if needed
+          let targetArenaId: string | null = null;
+          
+          if (requestId && request.decided_at) {
+            // Single request fix: find arena created closest to this request's decided_at
+            const decidedAt = new Date(request.decided_at).getTime();
+            const { data: allArenas } = await supabase
+              .from('arenas')
+              .select('id, status, created_at')
+              .eq('project_id', request.project_id)
+              .order('created_at', { ascending: false });
 
-          if (!existingArenas || existingArenas.length === 0) {
+            if (allArenas && allArenas.length > 0) {
+              // Find arena created closest to decided_at
+              let closestArena: any = null;
+              let minTimeDiff = Infinity;
+              
+              for (const arena of allArenas) {
+                const arenaTime = new Date(arena.created_at).getTime();
+                const timeDiff = Math.abs(arenaTime - decidedAt);
+                if (timeDiff < minTimeDiff) {
+                  minTimeDiff = timeDiff;
+                  closestArena = arena;
+                }
+              }
+              
+              if (closestArena) {
+                targetArenaId = closestArena.id;
+              }
+            }
+          } else {
+            // Bulk backfill: check for any active/scheduled arena
+            const { data: existingArenas } = await supabase
+              .from('arenas')
+              .select('id, status')
+              .eq('project_id', request.project_id)
+              .in('status', ['active', 'scheduled'])
+              .limit(1);
+
+            if (existingArenas && existingArenas.length > 0) {
+              targetArenaId = existingArenas[0].id;
+            }
+          }
+
+          if (!targetArenaId) {
             // Create arena
             if (!isDryRun) {
               const { data: projectData } = await supabase
@@ -228,29 +274,38 @@ export default async function handler(
             } else {
               summary.createdCount++;
             }
-          } else if (existingArenas[0].status !== 'active') {
-            // Update to active
-            if (!isDryRun) {
-              const { error: updateError } = await supabase
-                .from('arenas')
-                .update({ status: 'active' })
-                .eq('id', existingArenas[0].id);
+          } else {
+            // Check if arena needs activation
+            const { data: arena } = await supabase
+              .from('arenas')
+              .select('status')
+              .eq('id', targetArenaId)
+              .single();
 
-              if (updateError) {
-                summary.errors.push({
-                  projectSlug,
-                  projectId: request.project_id,
-                  requestId: request.id,
-                  message: `Failed to activate arena: ${updateError.message}`,
-                });
+            if (arena && arena.status !== 'active') {
+              // Update to active
+              if (!isDryRun) {
+                const { error: updateError } = await supabase
+                  .from('arenas')
+                  .update({ status: 'active' })
+                  .eq('id', targetArenaId);
+
+                if (updateError) {
+                  summary.errors.push({
+                    projectSlug,
+                    projectId: request.project_id,
+                    requestId: request.id,
+                    message: `Failed to activate arena: ${updateError.message}`,
+                  });
+                } else {
+                  summary.updatedCount++;
+                }
               } else {
                 summary.updatedCount++;
               }
             } else {
-              summary.updatedCount++;
+              summary.skippedCount++;
             }
-          } else {
-            summary.skippedCount++;
           }
         } else if (accessLevel === 'gamified') {
           // Option 3: Check for creator_manager_programs first, then arenas as fallback
