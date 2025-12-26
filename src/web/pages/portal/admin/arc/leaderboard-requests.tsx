@@ -43,6 +43,8 @@ interface LeaderboardRequest {
   requestedByUsername?: string;
   campaignStatus?: 'live' | 'paused' | 'ended' | null;
   arenaStatus?: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null;
+  campaignEndedAt?: string | null;
+  arenaEndedAt?: string | null;
 }
 
 // =============================================================================
@@ -732,12 +734,20 @@ export default function AdminLeaderboardRequestsPage() {
                                   // Active/live if not ended and not paused
                                   const isActive = !isEnded && !isPaused;
 
-                                  // ENDED: Show only ENDED badge, no action buttons
+                                  // ENDED: Show ENDED badge with end date, no action buttons
                                   if (isEnded) {
+                                    const endDate = request.campaignEndedAt || request.arenaEndedAt;
                                     return (
-                                      <span className="px-2 py-0.5 rounded bg-gray-500/10 text-gray-400 text-[10px] font-medium">
-                                        ENDED
-                                      </span>
+                                      <div className="flex flex-col gap-1">
+                                        <span className="px-2 py-0.5 rounded bg-gray-500/10 text-gray-400 text-[10px] font-medium">
+                                          ENDED
+                                        </span>
+                                        {endDate && (
+                                          <span className="text-[9px] text-akari-muted">
+                                            {formatDate(endDate)}
+                                          </span>
+                                        )}
+                                      </div>
                                     );
                                   }
 
@@ -752,9 +762,9 @@ export default function AdminLeaderboardRequestsPage() {
                                           onClick={() => handleResumeCampaign(request.project_id, request.id)}
                                           disabled={isProcessing}
                                           className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          title="Resume this leaderboard"
+                                          title="Restart this leaderboard"
                                         >
-                                          {isProcessing ? '...' : 'Resume'}
+                                          {isProcessing ? '...' : 'Restart'}
                                         </button>
                                         {userIsSuperAdmin && (
                                           <button

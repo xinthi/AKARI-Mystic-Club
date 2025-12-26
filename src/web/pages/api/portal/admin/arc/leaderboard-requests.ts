@@ -38,6 +38,8 @@ interface LeaderboardRequest {
   requestedByUsername?: string;
   campaignStatus?: 'live' | 'paused' | 'ended' | null;
   arenaStatus?: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null;
+  campaignEndedAt?: string | null;
+  arenaEndedAt?: string | null;
 }
 
 type LeaderboardRequestsResponse =
@@ -272,12 +274,15 @@ export default async function handler(
     // Map: request_id -> status (for specific matching)
     const campaignStatusMap = new Map<string, 'live' | 'paused' | 'ended' | null>();
     const arenaStatusMap = new Map<string, 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null>();
+    // Map: request_id -> end date (for ended campaigns/arenas)
+    const campaignEndedAtMap = new Map<string, string | null>();
+    const arenaEndedAtMap = new Map<string, string | null>();
 
     if (uniqueProjectIds.length > 0) {
       // Get all campaigns for these projects
       const { data: campaigns } = await supabase
         .from('arc_campaigns')
-        .select('id, project_id, status, created_at')
+        .select('id, project_id, status, created_at, end_at, updated_at')
         .in('project_id', uniqueProjectIds)
         .in('status', ['live', 'paused', 'ended'])
         .order('created_at', { ascending: false });
@@ -285,7 +290,7 @@ export default async function handler(
       // Get all arenas for these projects
       const { data: arenas } = await supabase
         .from('arenas')
-        .select('id, project_id, status, created_at')
+        .select('id, project_id, status, created_at, ends_at, updated_at')
         .in('project_id', uniqueProjectIds)
         .in('status', ['active', 'scheduled', 'paused', 'cancelled', 'ended'])
         .order('created_at', { ascending: false });
@@ -305,6 +310,8 @@ export default async function handler(
               project_id: string;
               status: 'live' | 'paused' | 'ended';
               created_at: string;
+              end_at?: string | null;
+              updated_at?: string | null;
             }
             let closestCampaign: CampaignItem | null = null;
             let minTimeDiff = Infinity;
@@ -322,6 +329,10 @@ export default async function handler(
             
             if (closestCampaign !== null) {
               campaignStatusMap.set(req.id, closestCampaign.status);
+              // Store end date: use updated_at if status is 'ended' (when it was ended), otherwise use end_at
+              if (closestCampaign.status === 'ended') {
+                campaignEndedAtMap.set(req.id, closestCampaign.updated_at || closestCampaign.end_at || null);
+              }
             } else {
               // No campaign found near approval time - check if any active campaign exists
               const activeCampaign = projectCampaigns.find((c: any) => {
@@ -330,6 +341,9 @@ export default async function handler(
               }) as CampaignItem | undefined;
               if (activeCampaign) {
                 campaignStatusMap.set(req.id, activeCampaign.status);
+                if (activeCampaign.status === 'ended') {
+                  campaignEndedAtMap.set(req.id, activeCampaign.updated_at || activeCampaign.end_at || null);
+                }
               }
             }
           }
@@ -343,6 +357,8 @@ export default async function handler(
               project_id: string;
               status: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended';
               created_at: string;
+              ends_at?: string | null;
+              updated_at?: string | null;
             }
             let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
@@ -360,6 +376,10 @@ export default async function handler(
             
             if (closestArena !== null) {
               arenaStatusMap.set(req.id, closestArena.status);
+              // Store end date: use updated_at if status is 'ended' or 'cancelled' (when it was ended), otherwise use ends_at
+              if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
+                arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
+              }
             } else {
               // No arena found near approval time - check if any active arena exists
               const activeArena = projectArenas.find((a: any) => {
@@ -368,6 +388,9 @@ export default async function handler(
               }) as ArenaItem | undefined;
               if (activeArena) {
                 arenaStatusMap.set(req.id, activeArena.status);
+                if (activeArena.status === 'ended' || activeArena.status === 'cancelled') {
+                  arenaEndedAtMap.set(req.id, activeArena.updated_at || activeArena.ends_at || null);
+                }
               }
             }
           }
@@ -424,6 +447,9 @@ export default async function handler(
         // Get status for this specific request (matched by request ID)
         const campaignStatus = r.status === 'approved' ? (campaignStatusMap.get(r.id) || null) : null;
         const arenaStatus = r.status === 'approved' ? (arenaStatusMap.get(r.id) || null) : null;
+        // Get end dates for ended campaigns/arenas
+        const campaignEndedAt = campaignStatus === 'ended' ? (campaignEndedAtMap.get(r.id) || null) : null;
+        const arenaEndedAt = (arenaStatus === 'ended' || arenaStatus === 'cancelled') ? (arenaEndedAtMap.get(r.id) || null) : null;
 
         return {
           id: r.id,
@@ -448,6 +474,8 @@ export default async function handler(
           requestedByUsername,
           campaignStatus,
           arenaStatus,
+          campaignEndedAt,
+          arenaEndedAt,
         };
       })
       // Filter out approved requests where the specific campaign/arena has been ended/cancelled
