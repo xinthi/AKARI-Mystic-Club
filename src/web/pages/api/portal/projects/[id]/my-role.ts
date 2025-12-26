@@ -1,5 +1,5 @@
 /**
- * API Route: GET /api/portal/projects/[projectId]/my-role
+ * API Route: GET /api/portal/projects/[id]/my-role
  * 
  * Returns the current user's role for a specific project.
  * Used as a fallback to check admin/moderator permissions.
@@ -79,7 +79,7 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const { projectId } = req.query;
+  const { id: projectId } = req.query;
   if (!projectId || typeof projectId !== 'string') {
     return res.status(400).json({ ok: false, error: 'projectId is required' });
   }
