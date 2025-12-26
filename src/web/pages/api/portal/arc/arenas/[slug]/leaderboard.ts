@@ -361,45 +361,65 @@ export default async function handler(
 
     // Build leaderboard entries from auto-tracked points
     const entries: LeaderboardEntry[] = [];
-    const profileMap = new Map<string, { avatar_url: string | null }>();
+    const profileMap = new Map<string, string | null>();
 
     // Extract profile images from joined creators (already fetched via join query)
-    if (creators) {
+    if (creators && creators.length > 0) {
       for (const creator of creators) {
         const normalizedUsername = normalizeTwitterUsername(creator.twitter_username);
         if (normalizedUsername) {
           // Extract profile_image_url from the joined profiles relation
+          // Supabase returns relations as an object or array depending on cardinality
           const profile = (creator as any).profiles;
           if (profile) {
             // Handle both single object and array cases
-            const profileData = Array.isArray(profile) ? profile[0] : profile;
+            const profileData = Array.isArray(profile) ? (profile.length > 0 ? profile[0] : null) : profile;
             if (profileData?.profile_image_url) {
-              profileMap.set(normalizedUsername, { avatar_url: profileData.profile_image_url });
-            }
-            // Also map by profile_id if available
-            if (creator.profile_id && profileData?.profile_image_url) {
-              profileMap.set(creator.profile_id, { avatar_url: profileData.profile_image_url });
+              profileMap.set(normalizedUsername, profileData.profile_image_url);
+              // Also map by profile_id if available
+              if (creator.profile_id) {
+                profileMap.set(creator.profile_id, profileData.profile_image_url);
+              }
             }
           }
         }
       }
     }
 
-    // Get profile images for all creators (by username) - for those not already joined
+    // Get profile images for ALL creators in the leaderboard (by username)
+    // This includes both joined and auto-tracked creators
     const allUsernames = Array.from(autoTrackedPoints.keys());
     const usernamesNeedingImages = allUsernames.filter(username => !profileMap.has(username));
     
     if (usernamesNeedingImages.length > 0) {
+      // Fetch profiles - use .in() for exact match, Supabase should handle case-insensitive if needed
+      // If that doesn't work, we'll fetch all and filter client-side
       const { data: profiles } = await supabase
         .from('profiles')
         .select('username, profile_image_url')
         .in('username', usernamesNeedingImages);
 
-      if (profiles) {
+      // If no results with .in(), try fetching all and filtering client-side
+      if (!profiles || profiles.length === 0) {
+        const { data: allProfiles } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .limit(10000); // Reasonable limit
+
+        if (allProfiles) {
+          for (const profile of allProfiles) {
+            const normalized = normalizeTwitterUsername(profile.username);
+            if (normalized && usernamesNeedingImages.includes(normalized) && !profileMap.has(normalized)) {
+              profileMap.set(normalized, profile.profile_image_url || null);
+            }
+          }
+        }
+      } else {
+        // Use results from .in() query
         for (const profile of profiles) {
           const normalized = normalizeTwitterUsername(profile.username);
-          if (normalized && !profileMap.has(normalized)) {
-            profileMap.set(normalized, { avatar_url: profile.profile_image_url || null });
+          if (normalized && usernamesNeedingImages.includes(normalized) && !profileMap.has(normalized)) {
+            profileMap.set(normalized, profile.profile_image_url || null);
           }
         }
       }
@@ -417,14 +437,9 @@ export default async function handler(
 
       // Get avatar URL - try by username first, then by profile_id if joined
       let avatarUrl: string | null = null;
-      const profileByUsername = profileMap.get(username);
-      if (profileByUsername?.avatar_url) {
-        avatarUrl = profileByUsername.avatar_url;
-      } else if (joined?.profile_id) {
-        const profileById = profileMap.get(joined.profile_id);
-        if (profileById?.avatar_url) {
-          avatarUrl = profileById.avatar_url;
-        }
+      avatarUrl = profileMap.get(username) || null;
+      if (!avatarUrl && joined?.profile_id) {
+        avatarUrl = profileMap.get(joined.profile_id) || null;
       }
 
       entries.push({
