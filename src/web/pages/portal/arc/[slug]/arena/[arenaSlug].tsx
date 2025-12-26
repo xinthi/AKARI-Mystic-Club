@@ -35,6 +35,7 @@ interface ProjectInfo {
   name: string;
   twitter_username: string;
   avatar_url: string | null;
+  header_image_url: string | null;
   slug?: string | null;
   arc_access_level?: string | null;
 }
@@ -155,6 +156,17 @@ export default function ArenaDetailsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [ringFilter, setRingFilter] = useState<'all' | 'core' | 'momentum' | 'discovery'>('all');
   const [sortBy, setSortBy] = useState<'points_desc' | 'points_asc' | 'joined_newest' | 'joined_oldest'>('points_desc');
+  
+  // Paginated leaderboard state
+  const [leaderboardEntries, setLeaderboardEntries] = useState<any[]>([]);
+  const [leaderboardPage, setLeaderboardPage] = useState(1);
+  const [leaderboardTotal, setLeaderboardTotal] = useState(0);
+  const [leaderboardTotalPages, setLeaderboardTotalPages] = useState(0);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  
+  // Team members state
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
 
   // Admin modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1048,6 +1060,79 @@ export default function ArenaDetailsPage() {
         {/* Arena content */}
         {!loading && !error && arena && (
           <>
+            {/* Project Header with Image */}
+            {project && (
+              <div className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card">
+                {project.header_image_url && (
+                  <div className="w-full h-48 md:h-64 bg-gradient-to-br from-akari-neon-teal/20 to-akari-neon-blue/20 relative">
+                    <img
+                      src={project.header_image_url}
+                      alt={`${project.name} header`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="p-6">
+                  <div className="flex items-start gap-4">
+                    {project.avatar_url && (
+                      <img
+                        src={project.avatar_url}
+                        alt={project.name}
+                        className="w-16 h-16 rounded-full border-2 border-akari-border"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <h1 className="text-2xl font-bold text-akari-text mb-1">
+                        {project.name}
+                      </h1>
+                      {project.twitter_username && (
+                        <p className="text-sm text-akari-muted">
+                          @{project.twitter_username.replace(/^@/, '')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Project Team Profiles */}
+            {teamMembers.length > 0 && (
+              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                <h2 className="text-lg font-semibold text-akari-text mb-4">Project Team</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {teamMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30"
+                    >
+                      {member.profile?.profile_image_url ? (
+                        <img
+                          src={member.profile.profile_image_url}
+                          alt={member.profile.username}
+                          className="w-12 h-12 rounded-full"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
+                          {member.profile?.username?.[0]?.toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-akari-text truncate">
+                          @{member.profile?.username || 'Unknown'}
+                        </p>
+                        {member.affiliate_title && (
+                          <p className="text-xs text-akari-muted truncate">
+                            {member.affiliate_title}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Arena header card */}
             <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
               <div className="flex items-start justify-between mb-4">
@@ -1170,83 +1255,144 @@ export default function ArenaDetailsPage() {
               {/* Leaderboard Tab Content */}
               {activeTab === 'leaderboard' && (
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                  {creators.length === 0 ? (
-                  <p className="text-sm text-akari-muted">
-                    No creators have joined this arena yet.
-                  </p>
-                ) : (
-                  <>
-                    {/* Controls Bar */}
-                    <div className="mb-6 space-y-4">
-                      {/* Search and Filters Row */}
-                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                        {/* Search Input */}
-                        <input
-                          type="text"
-                          placeholder="Search creators…"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="flex-1 min-w-0 px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-                        />
-
-                        {/* Ring Filter Buttons */}
-                        <div className="flex gap-2 flex-wrap">
-                          {(['all', 'core', 'momentum', 'discovery'] as const).map((ring) => (
-                            <button
-                              key={ring}
-                              onClick={() => setRingFilter(ring)}
-                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                                ringFilter === ring
-                                  ? ring === 'all'
-                                    ? 'bg-akari-primary/20 border-akari-primary/50 text-akari-primary'
-                                    : getRingColor(ring) + ' border-opacity-50'
-                                  : 'bg-akari-cardSoft/30 border-akari-border/30 text-akari-muted hover:border-akari-border/50'
-                              }`}
-                            >
-                              {ring.charAt(0).toUpperCase() + ring.slice(1)}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Sort Dropdown */}
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="sort-select" className="text-xs text-akari-muted">
-                            Sort:
-                          </label>
-                          <select
-                            id="sort-select"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                            className="px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-                          >
-                            <option value="points_desc">Top points</option>
-                            <option value="points_asc">Lowest points</option>
-                            <option value="joined_newest">Newest joined</option>
-                            <option value="joined_oldest">Oldest joined</option>
-                          </select>
-                        </div>
-                      </div>
+                  {leaderboardLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                      <span className="ml-3 text-akari-muted">Loading leaderboard…</span>
                     </div>
+                  ) : leaderboardEntries.length === 0 ? (
+                    <p className="text-sm text-akari-muted">
+                      No contributors found yet. Be the first to contribute!
+                    </p>
+                  ) : (
+                    <>
+                      {/* Leaderboard Header */}
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold text-akari-text mb-2">
+                          Top Contributors
+                        </h3>
+                        <p className="text-sm text-akari-muted">
+                          Showing {((leaderboardPage - 1) * 100) + 1} - {Math.min(leaderboardPage * 100, leaderboardTotal)} of {leaderboardTotal} contributors
+                        </p>
+                      </div>
 
-                    {/* Creators List */}
-                    {visibleCreators.length === 0 ? (
-                      <p className="text-sm text-akari-muted">
-                        No creators match your filters.
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {visibleCreators.map((creator, index) => {
-                          const rank = index + 1;
-                          const creatorUrl = `/portal/arc/creator/${encodeURIComponent((creator.twitter_username || '').toLowerCase())}`;
+                      {/* Creators List */}
+                      <div className="space-y-3 mb-6">
+                        {leaderboardEntries.map((entry) => {
+                          const creatorUrl = `/portal/arc/creator/${encodeURIComponent(entry.twitter_username.replace(/^@/, '').toLowerCase())}`;
                           return (
                             <div
-                              key={creator.id || `creator-${index}`}
+                              key={entry.twitter_username}
                               className="group relative flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:bg-akari-cardSoft/50 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all duration-200"
                             >
                               <Link
                                 href={creatorUrl}
                                 className="flex-1 flex items-center gap-4 min-w-0 cursor-pointer"
                               >
+                                <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
+                                  #{entry.rank}
+                                </span>
+                                {entry.avatar_url ? (
+                                  <img
+                                    src={entry.avatar_url}
+                                    alt={entry.twitter_username}
+                                    className="w-10 h-10 rounded-full border border-akari-border/30"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
+                                    {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                  <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                    {entry.twitter_username}
+                                  </span>
+                                  {entry.ring && (
+                                    <span
+                                      className={`px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(
+                                        entry.ring
+                                      )}`}
+                                    >
+                                      {entry.ring}
+                                    </span>
+                                  )}
+                                  {entry.is_joined && entry.follow_verified && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 border border-green-500/30 text-green-400 flex-shrink-0">
+                                      Verified
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="ml-auto flex items-center gap-2">
+                                  {entry.multiplier > 1 && (
+                                    <span className="text-xs text-akari-muted">
+                                      {entry.multiplier}x
+                                    </span>
+                                  )}
+                                  <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                    {Math.floor(entry.score).toLocaleString()} pts
+                                  </span>
+                                </div>
+                              </Link>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pagination */}
+                      {leaderboardTotalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6 pt-6 border-t border-akari-border/30">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setLeaderboardPage(prev => Math.max(1, prev - 1))}
+                              disabled={leaderboardPage === 1}
+                              className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Previous
+                            </button>
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: Math.min(5, leaderboardTotalPages) }, (_, i) => {
+                                let pageNum: number;
+                                if (leaderboardTotalPages <= 5) {
+                                  pageNum = i + 1;
+                                } else if (leaderboardPage <= 3) {
+                                  pageNum = i + 1;
+                                } else if (leaderboardPage >= leaderboardTotalPages - 2) {
+                                  pageNum = leaderboardTotalPages - 4 + i;
+                                } else {
+                                  pageNum = leaderboardPage - 2 + i;
+                                }
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => setLeaderboardPage(pageNum)}
+                                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                      leaderboardPage === pageNum
+                                        ? 'bg-akari-primary/20 border-akari-primary/50 text-akari-primary'
+                                        : 'bg-akari-cardSoft/30 border-akari-border/30 text-akari-text hover:bg-akari-cardSoft/50'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              onClick={() => setLeaderboardPage(prev => Math.min(leaderboardTotalPages, prev + 1))}
+                              disabled={leaderboardPage >= leaderboardTotalPages}
+                              className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Next
+                            </button>
+                          </div>
+                          <p className="text-sm text-akari-muted">
+                            Page {leaderboardPage} of {leaderboardTotalPages}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
                                 <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
                                   {rank}
                                 </span>
