@@ -136,6 +136,32 @@ export default async function handler(
     let canViewLeaderboard = true;
     let visibilityInfo: { visibility: string; isInvited: boolean; isApproved: boolean; utmLink: string | null } | null = null;
 
+    // Get current user's profile (optional - don't require auth for visibility check)
+    // Declare outside if/else so it's available in both branches
+    let userProfileId: string | null = null;
+    try {
+      // Try to get user, but don't fail if not authenticated
+      const sessionToken = req.headers.cookie?.split('akari_session=')[1]?.split(';')[0] || null;
+      if (sessionToken) {
+        const { data: session } = await supabase
+          .from('akari_user_sessions')
+          .select('user_id, expires_at')
+          .eq('session_token', sessionToken)
+          .maybeSingle();
+        
+        if (session && new Date(session.expires_at) > new Date()) {
+          const { data: profile } = await supabase
+            .from('akari_user_identities')
+            .select('profile_id')
+            .eq('user_id', session.user_id)
+            .single();
+          userProfileId = profile?.profile_id || null;
+        }
+      }
+    } catch (err) {
+      // User not authenticated, continue with null
+    }
+
     if (isCRM) {
       // Find associated campaign or creator_manager_program
       // First try to find arc_campaign linked to this arena/project
@@ -156,31 +182,6 @@ export default async function handler(
           isApproved: false,
           utmLink: null,
         };
-
-        // Get current user's profile (optional - don't require auth for visibility check)
-        let userProfileId: string | null = null;
-        try {
-          // Try to get user, but don't fail if not authenticated
-          const sessionToken = req.headers.cookie?.split('akari_session=')[1]?.split(';')[0] || null;
-          if (sessionToken) {
-            const { data: session } = await supabase
-              .from('akari_user_sessions')
-              .select('user_id, expires_at')
-              .eq('session_token', sessionToken)
-              .maybeSingle();
-            
-            if (session && new Date(session.expires_at) > new Date()) {
-              const { data: profile } = await supabase
-                .from('akari_user_identities')
-                .select('profile_id')
-                .eq('user_id', session.user_id)
-                .single();
-              userProfileId = profile?.profile_id || null;
-            }
-          }
-        } catch (err) {
-          // User not authenticated, continue with null
-        }
 
           if (userProfileId) {
             // Check if user is a participant
@@ -234,7 +235,7 @@ export default async function handler(
             utmLink: null,
           };
 
-          // Get current user's profile (reuse userProfileId from above)
+          // Check user participation (userProfileId already fetched above)
           if (userProfileId) {
             // Check if user is a creator in the program
             const { data: creator } = await supabase
