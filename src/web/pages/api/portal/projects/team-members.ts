@@ -343,6 +343,7 @@ export default async function handler(
         project_id,
         profile_id,
         role,
+        affiliate_title,
         created_at,
         profiles:profile_id (
           id,
@@ -361,6 +362,7 @@ export default async function handler(
         project_id: m.project_id,
         profile_id: m.profile_id,
         role: m.role,
+        affiliate_title: m.affiliate_title,
         created_at: m.created_at,
         profile: m.profiles ? {
           id: m.profiles.id,
@@ -418,6 +420,7 @@ export default async function handler(
         project_id,
         profile_id,
         role,
+        affiliate_title,
         created_at,
         profiles:profile_id (
           id,
@@ -436,6 +439,7 @@ export default async function handler(
         project_id: m.project_id,
         profile_id: m.profile_id,
         role: m.role,
+        affiliate_title: m.affiliate_title,
         created_at: m.created_at,
         profile: m.profiles ? {
           id: m.profiles.id,
