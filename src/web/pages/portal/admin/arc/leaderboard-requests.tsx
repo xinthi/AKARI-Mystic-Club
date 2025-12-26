@@ -209,7 +209,9 @@ export default function AdminLeaderboardRequestsPage() {
 
     try {
       // Force refresh by adding cache-busting timestamp
-      const res = await fetch(`/api/portal/admin/arc/leaderboard-requests?t=${Date.now()}`, {
+      const timestamp = Date.now();
+      console.log(`[UI] Loading requests with cache-bust timestamp: ${timestamp}`);
+      const res = await fetch(`/api/portal/admin/arc/leaderboard-requests?t=${timestamp}`, {
         cache: 'no-store',
       });
       const data = await res.json();
@@ -217,6 +219,14 @@ export default function AdminLeaderboardRequestsPage() {
       if (!data.ok) {
         throw new Error(data.error || 'Failed to load requests');
       }
+
+      console.log(`[UI] Loaded ${data.requests?.length || 0} requests`);
+      // Log status of each request for debugging
+      data.requests?.forEach((req: any) => {
+        if (req.status === 'approved') {
+          console.log(`[UI] Request ${req.id}: campaignStatus=${req.campaignStatus}, arenaStatus=${req.arenaStatus}, campaignEndedAt=${req.campaignEndedAt}, arenaEndedAt=${req.arenaEndedAt}`);
+        }
+      });
 
       setRequests(data.requests || []);
     } catch (err: any) {
@@ -295,10 +305,12 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to end campaigns');
       }
 
+      console.log('[UI] Campaign/arena ended successfully, waiting for DB propagation...');
       // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Reload requests to refresh status (with cache-busting)
+      console.log('[UI] Reloading requests after ending campaign/arena');
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {

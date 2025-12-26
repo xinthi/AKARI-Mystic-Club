@@ -146,11 +146,12 @@ export default async function handler(
 
         // End only this specific campaign
         // Also update updated_at to track when it was ended
+        const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from('arc_campaigns')
           .update({ 
             status: 'ended',
-            updated_at: new Date().toISOString()
+            updated_at: now
           })
           .eq('id', targetCampaign.id);
 
@@ -159,6 +160,8 @@ export default async function handler(
           return res.status(500).json({ ok: false, error: 'Failed to end campaign' });
         }
 
+        console.log(`[Stop Campaign API] Successfully ended campaign ${targetCampaign.id} for project ${request.project_id} at ${now}`);
+        
         return res.status(200).json({
           ok: true,
           message: 'Campaign ended',
@@ -214,11 +217,12 @@ export default async function handler(
 
         // End only this specific arena (use 'ended' status for consistency with campaigns)
         // Also update updated_at to track when it was ended
+        const now = new Date().toISOString();
         const { error: updateError } = await supabase
           .from('arenas')
           .update({ 
             status: 'ended',
-            updated_at: new Date().toISOString()
+            updated_at: now
           })
           .eq('id', targetArena.id);
 
@@ -227,6 +231,8 @@ export default async function handler(
           return res.status(500).json({ ok: false, error: 'Failed to end arena' });
         }
 
+        console.log(`[Stop Campaign API] Successfully ended arena ${targetArena.id} for project ${request.project_id} at ${now}`);
+        
         return res.status(200).json({
           ok: true,
           message: 'Arena ended',

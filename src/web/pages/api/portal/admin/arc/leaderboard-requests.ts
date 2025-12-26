@@ -334,15 +334,35 @@ export default async function handler(
                 campaignEndedAtMap.set(req.id, closestCampaign.updated_at || closestCampaign.end_at || null);
               }
             } else {
-              // No campaign found near approval time - check if any active campaign exists
-              const activeCampaign = projectCampaigns.find((c: any) => {
+              // No campaign found near approval time - check for any campaign (including ended ones)
+              // Priority: live > paused > ended
+              const liveCampaign = projectCampaigns.find((c: any) => {
                 const campaign = c as CampaignItem;
-                return campaign.status === 'live' || campaign.status === 'paused';
+                return campaign.status === 'live';
               }) as CampaignItem | undefined;
-              if (activeCampaign) {
-                campaignStatusMap.set(req.id, activeCampaign.status);
-                if (activeCampaign.status === 'ended') {
-                  campaignEndedAtMap.set(req.id, activeCampaign.updated_at || activeCampaign.end_at || null);
+              
+              if (liveCampaign) {
+                campaignStatusMap.set(req.id, liveCampaign.status);
+              } else {
+                // Check for paused
+                const pausedCampaign = projectCampaigns.find((c: any) => {
+                  const campaign = c as CampaignItem;
+                  return campaign.status === 'paused';
+                }) as CampaignItem | undefined;
+                
+                if (pausedCampaign) {
+                  campaignStatusMap.set(req.id, pausedCampaign.status);
+                } else {
+                  // Check for ended (most recent one)
+                  const endedCampaign = projectCampaigns.find((c: any) => {
+                    const campaign = c as CampaignItem;
+                    return campaign.status === 'ended';
+                  }) as CampaignItem | undefined;
+                  
+                  if (endedCampaign) {
+                    campaignStatusMap.set(req.id, endedCampaign.status);
+                    campaignEndedAtMap.set(req.id, endedCampaign.updated_at || endedCampaign.end_at || null);
+                  }
                 }
               }
             }
@@ -381,15 +401,35 @@ export default async function handler(
                 arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
               }
             } else {
-              // No arena found near approval time - check if any active arena exists
+              // No arena found near approval time - check for any arena (including ended ones)
+              // Priority: active/scheduled > paused > ended/cancelled
               const activeArena = projectArenas.find((a: any) => {
                 const arena = a as ArenaItem;
                 return arena.status === 'active' || arena.status === 'scheduled';
               }) as ArenaItem | undefined;
+              
               if (activeArena) {
                 arenaStatusMap.set(req.id, activeArena.status);
-                if (activeArena.status === 'ended' || activeArena.status === 'cancelled') {
-                  arenaEndedAtMap.set(req.id, activeArena.updated_at || activeArena.ends_at || null);
+              } else {
+                // Check for paused
+                const pausedArena = projectArenas.find((a: any) => {
+                  const arena = a as ArenaItem;
+                  return arena.status === 'paused';
+                }) as ArenaItem | undefined;
+                
+                if (pausedArena) {
+                  arenaStatusMap.set(req.id, pausedArena.status);
+                } else {
+                  // Check for ended/cancelled (most recent one)
+                  const endedArena = projectArenas.find((a: any) => {
+                    const arena = a as ArenaItem;
+                    return arena.status === 'ended' || arena.status === 'cancelled';
+                  }) as ArenaItem | undefined;
+                  
+                  if (endedArena) {
+                    arenaStatusMap.set(req.id, endedArena.status);
+                    arenaEndedAtMap.set(req.id, endedArena.updated_at || endedArena.ends_at || null);
+                  }
                 }
               }
             }
