@@ -2251,6 +2251,8 @@ export default function ArenaDetailsPage() {
                             ends_at: '',
                             reward_desc: '',
                             status: 'draft',
+                            quest_type: 'normal',
+                            crm_program_id: '',
                           });
                         } else {
                           alert(data.error || 'Failed to create quest');
