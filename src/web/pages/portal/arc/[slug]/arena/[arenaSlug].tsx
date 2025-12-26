@@ -1410,138 +1410,139 @@ export default function ArenaDetailsPage() {
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
                       <span className="ml-3 text-akari-muted">Loading leaderboard…</span>
                     </div>
-                  ) : !crmStatus?.isCRM || crmStatus.canViewLeaderboard ? (
+                  ) : (!crmStatus?.isCRM || crmStatus.canViewLeaderboard) ? (
                     leaderboardEntries.length === 0 ? (
                       <p className="text-sm text-akari-muted">
                         No contributors found yet. Be the first to contribute!
                       </p>
                     ) : (
-                    <>
-                      {/* Leaderboard Header */}
-                      <div className="mb-6">
-                        <h3 className="text-lg font-semibold text-akari-text mb-2">
-                          Top Contributors
-                        </h3>
-                        <p className="text-sm text-akari-muted">
-                          Showing {((leaderboardPage - 1) * 100) + 1} - {Math.min(leaderboardPage * 100, leaderboardTotal)} of {leaderboardTotal} contributors
-                        </p>
-                      </div>
-
-                      {/* Creators List */}
-                      <div className="space-y-3 mb-6">
-                        {leaderboardEntries.map((entry) => {
-                          const creatorUrl = `/portal/arc/creator/${encodeURIComponent(entry.twitter_username.replace(/^@/, '').toLowerCase())}`;
-                          return (
-                            <div
-                              key={entry.twitter_username}
-                              className="group relative flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:bg-akari-cardSoft/50 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all duration-200"
-                            >
-                              <Link
-                                href={creatorUrl}
-                                className="flex-1 flex items-center gap-4 min-w-0 cursor-pointer"
-                              >
-                                <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
-                                  #{entry.rank}
-                                </span>
-                                {entry.avatar_url ? (
-                                  <img
-                                    src={entry.avatar_url}
-                                    alt={entry.twitter_username}
-                                    className="w-10 h-10 rounded-full border border-akari-border/30"
-                                  />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
-                                    {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                                  <span className="text-sm font-medium text-akari-text whitespace-nowrap">
-                                    {entry.twitter_username}
-                                  </span>
-                                  {entry.ring && (
-                                    <span
-                                      className={`px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(
-                                        entry.ring
-                                      )}`}
-                                    >
-                                      {entry.ring}
-                                    </span>
-                                  )}
-                                  {entry.is_joined && entry.follow_verified && (
-                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 border border-green-500/30 text-green-400 flex-shrink-0">
-                                      Verified
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="ml-auto flex items-center gap-2">
-                                  {entry.multiplier > 1 && (
-                                    <span className="text-xs text-akari-muted">
-                                      {entry.multiplier}x
-                                    </span>
-                                  )}
-                                  <span className="text-sm font-medium text-akari-text whitespace-nowrap">
-                                    {Math.floor(entry.score).toLocaleString()} pts
-                                  </span>
-                                </div>
-                              </Link>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Pagination */}
-                      {leaderboardTotalPages > 1 && (
-                        <div className="flex items-center justify-between mt-6 pt-6 border-t border-akari-border/30">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setLeaderboardPage(prev => Math.max(1, prev - 1))}
-                              disabled={leaderboardPage === 1}
-                              className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              Previous
-                            </button>
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: Math.min(5, leaderboardTotalPages) }, (_, i) => {
-                                let pageNum: number;
-                                if (leaderboardTotalPages <= 5) {
-                                  pageNum = i + 1;
-                                } else if (leaderboardPage <= 3) {
-                                  pageNum = i + 1;
-                                } else if (leaderboardPage >= leaderboardTotalPages - 2) {
-                                  pageNum = leaderboardTotalPages - 4 + i;
-                                } else {
-                                  pageNum = leaderboardPage - 2 + i;
-                                }
-                                return (
-                                  <button
-                                    key={pageNum}
-                                    onClick={() => setLeaderboardPage(pageNum)}
-                                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                                      leaderboardPage === pageNum
-                                        ? 'bg-akari-primary/20 border-akari-primary/50 text-akari-primary'
-                                        : 'bg-akari-cardSoft/30 border-akari-border/30 text-akari-text hover:bg-akari-cardSoft/50'
-                                    }`}
-                                  >
-                                    {pageNum}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <button
-                              onClick={() => setLeaderboardPage(prev => Math.min(leaderboardTotalPages, prev + 1))}
-                              disabled={leaderboardPage >= leaderboardTotalPages}
-                              className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              Next
-                            </button>
-                          </div>
+                      <>
+                        {/* Leaderboard Header */}
+                        <div className="mb-6">
+                          <h3 className="text-lg font-semibold text-akari-text mb-2">
+                            Top Contributors
+                          </h3>
                           <p className="text-sm text-akari-muted">
-                            Page {leaderboardPage} of {leaderboardTotalPages}
+                            Showing {((leaderboardPage - 1) * 100) + 1} - {Math.min(leaderboardPage * 100, leaderboardTotal)} of {leaderboardTotal} contributors
                           </p>
                         </div>
-                      )}
-                    </>
-                  )}
+
+                        {/* Creators List */}
+                        <div className="space-y-3 mb-6">
+                          {leaderboardEntries.map((entry) => {
+                            const creatorUrl = `/portal/arc/creator/${encodeURIComponent(entry.twitter_username.replace(/^@/, '').toLowerCase())}`;
+                            return (
+                              <div
+                                key={entry.twitter_username}
+                                className="group relative flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:bg-akari-cardSoft/50 hover:border-akari-neon-teal/40 hover:shadow-[0_0_10px_rgba(0,246,162,0.1)] transition-all duration-200"
+                              >
+                                <Link
+                                  href={creatorUrl}
+                                  className="flex-1 flex items-center gap-4 min-w-0 cursor-pointer"
+                                >
+                                  <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
+                                    #{entry.rank}
+                                  </span>
+                                  {entry.avatar_url ? (
+                                    <img
+                                      src={entry.avatar_url}
+                                      alt={entry.twitter_username}
+                                      className="w-10 h-10 rounded-full border border-akari-border/30"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
+                                      {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                                    <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                      {entry.twitter_username}
+                                    </span>
+                                    {entry.ring && (
+                                      <span
+                                        className={`px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(
+                                          entry.ring
+                                        )}`}
+                                      >
+                                        {entry.ring}
+                                      </span>
+                                    )}
+                                    {entry.is_joined && entry.follow_verified && (
+                                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 border border-green-500/30 text-green-400 flex-shrink-0">
+                                        Verified
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="ml-auto flex items-center gap-2">
+                                    {entry.multiplier > 1 && (
+                                      <span className="text-xs text-akari-muted">
+                                        {entry.multiplier}x
+                                      </span>
+                                    )}
+                                    <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                      {Math.floor(entry.score).toLocaleString()} pts
+                                    </span>
+                                  </div>
+                                </Link>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Pagination */}
+                        {leaderboardTotalPages > 1 && (
+                          <div className="flex items-center justify-between mt-6 pt-6 border-t border-akari-border/30">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setLeaderboardPage(prev => Math.max(1, prev - 1))}
+                                disabled={leaderboardPage === 1}
+                                className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Previous
+                              </button>
+                              <div className="flex items-center gap-1">
+                                {Array.from({ length: Math.min(5, leaderboardTotalPages) }, (_, i) => {
+                                  let pageNum: number;
+                                  if (leaderboardTotalPages <= 5) {
+                                    pageNum = i + 1;
+                                  } else if (leaderboardPage <= 3) {
+                                    pageNum = i + 1;
+                                  } else if (leaderboardPage >= leaderboardTotalPages - 2) {
+                                    pageNum = leaderboardTotalPages - 4 + i;
+                                  } else {
+                                    pageNum = leaderboardPage - 2 + i;
+                                  }
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setLeaderboardPage(pageNum)}
+                                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                        leaderboardPage === pageNum
+                                          ? 'bg-akari-primary/20 border-akari-primary/50 text-akari-primary'
+                                          : 'bg-akari-cardSoft/30 border-akari-border/30 text-akari-text hover:bg-akari-cardSoft/50'
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                onClick={() => setLeaderboardPage(prev => Math.min(leaderboardTotalPages, prev + 1))}
+                                disabled={leaderboardPage >= leaderboardTotalPages}
+                                className="px-3 py-2 text-sm font-medium bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Next
+                              </button>
+                            </div>
+                            <p className="text-sm text-akari-muted">
+                              Page {leaderboardPage} of {leaderboardTotalPages}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )
+                  ) : null}
                 </div>
               )}
 

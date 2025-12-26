@@ -470,12 +470,12 @@ export default function ProjectTeamPage() {
                       Edit Title
                     </button>
                     <button
-                    onClick={() => handleRemoveMember(member.profile_id, member.role)}
-                    disabled={removing.has(`${member.profile_id}-${member.role}`)}
-                    className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {removing.has(`${member.profile_id}-${member.role}`) ? 'Removing...' : 'Remove'}
-                  </button>
+                      onClick={() => handleRemoveMember(member.profile_id, member.role)}
+                      disabled={removing.has(`${member.profile_id}-${member.role}`)}
+                      className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {removing.has(`${member.profile_id}-${member.role}`) ? 'Removing...' : 'Remove'}
+                    </button>
                 </div>
               ))}
             </div>
