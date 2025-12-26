@@ -141,6 +141,8 @@ export default function ArenaDetailsPage() {
   // Quests state (Quest Leaderboard)
   const [quests, setQuests] = useState<any[]>([]);
   const [questsLoading, setQuestsLoading] = useState(false);
+  const [questLeaderboards, setQuestLeaderboards] = useState<Map<string, any[]>>(new Map());
+  const [questLeaderboardsLoading, setQuestLeaderboardsLoading] = useState<Set<string>>(new Set());
   const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
   const [questForm, setQuestForm] = useState({
     name: '',
@@ -149,6 +151,8 @@ export default function ArenaDetailsPage() {
     ends_at: '',
     reward_desc: '',
     status: 'draft' as 'draft' | 'active' | 'paused' | 'ended',
+    quest_type: 'normal' as 'normal' | 'crm', // New field for quest type
+    crm_program_id: '' as string | '', // For CRM quests
   });
   const [gamefiEnabled, setGamefiEnabled] = useState(false);
 
@@ -167,6 +171,17 @@ export default function ArenaDetailsPage() {
   // Team members state
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
+  
+  // CRM visibility state
+  const [crmStatus, setCrmStatus] = useState<{
+    isCRM: boolean;
+    visibility: 'public' | 'private' | 'hybrid' | null;
+    isInvited: boolean;
+    isApproved: boolean;
+    utmLink: string | null;
+    canViewLeaderboard: boolean;
+    canApply: boolean;
+  } | null>(null);
 
   // Admin modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -366,6 +381,8 @@ export default function ArenaDetailsPage() {
                     const questsData = await questsRes.json();
                     if (questsData.ok && questsData.quests) {
                       setQuests(questsData.quests);
+                      // Fetch leaderboards for all quests
+                      fetchQuestLeaderboards(questsData.quests);
                     }
                   }
                 } catch (err) {
@@ -390,6 +407,36 @@ export default function ArenaDetailsPage() {
 
     fetchArenaDetails();
   }, [router.isReady, arenaSlug, akariUser.user, projectSlug, rawArenaSlug, router]);
+
+  // Fetch quest leaderboards
+  const fetchQuestLeaderboards = async (questsList: any[]) => {
+    const leaderboardMap = new Map<string, any[]>();
+    const loadingSet = new Set<string>();
+
+    for (const quest of questsList) {
+      if (quest.status === 'ended' || quest.status === 'active') {
+        loadingSet.add(quest.id);
+        try {
+          const res = await fetch(`/api/portal/arc/quests/${quest.id}/leaderboard`, {
+            credentials: 'include',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.entries) {
+              leaderboardMap.set(quest.id, data.entries);
+            }
+          }
+        } catch (err) {
+          console.error(`[ArenaDetailsPage] Error fetching leaderboard for quest ${quest.id}:`, err);
+        } finally {
+          loadingSet.delete(quest.id);
+        }
+      }
+    }
+
+    setQuestLeaderboards(leaderboardMap);
+    setQuestLeaderboardsLoading(loadingSet);
+  };
 
   // Helper function to get arena status badge color
   const getArenaStatusColor = (status: string) => {
@@ -1255,16 +1302,120 @@ export default function ArenaDetailsPage() {
               {/* Leaderboard Tab Content */}
               {activeTab === 'leaderboard' && (
                 <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  {/* CRM Private Placeholder */}
+                  {crmStatus?.isCRM && crmStatus.visibility === 'private' && !crmStatus.canViewLeaderboard && (
+                    <div className="text-center py-12">
+                      <div className="mb-4">
+                        <svg className="w-16 h-16 mx-auto text-akari-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-akari-text mb-2">Private Creator Program</h3>
+                      <p className="text-sm text-akari-muted mb-4">
+                        This leaderboard is private. Only invited participants can view it.
+                      </p>
+                      {crmStatus.isInvited && !crmStatus.isApproved && (
+                        <p className="text-xs text-akari-muted">
+                          Your invitation is pending approval.
+                        </p>
+                      )}
+                      {!crmStatus.isInvited && (
+                        <p className="text-xs text-akari-muted">
+                          Contact the project admin to request access.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* CRM Public with Apply Button */}
+                  {crmStatus?.isCRM && crmStatus.visibility === 'public' && !crmStatus.isApproved && crmStatus.canApply && (
+                    <div className="mb-6 p-4 rounded-lg bg-akari-primary/10 border border-akari-primary/30">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-akari-text mb-1">Join This Creator Program</h4>
+                          <p className="text-xs text-akari-muted">
+                            Apply to participate and track your contributions on the leaderboard.
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!arenaSlug) return;
+                            
+                            try {
+                              const res = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}/apply`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                              });
+                              
+                              const data = await res.json();
+                              
+                              if (res.ok && data.ok) {
+                                alert(data.message || 'Application submitted successfully!');
+                                // Refresh status
+                                const statusRes = await fetch(`/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}/status`, {
+                                  credentials: 'include',
+                                });
+                                if (statusRes.ok) {
+                                  const statusData = await statusRes.json();
+                                  if (statusData.ok) {
+                                    setCrmStatus(statusData.status);
+                                  }
+                                }
+                              } else {
+                                alert(data.error || 'Failed to apply');
+                              }
+                            } catch (err) {
+                              console.error('Error applying:', err);
+                              alert('Failed to submit application. Please try again.');
+                            }
+                          }}
+                          className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                        >
+                          Apply to Join
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* UTM Link for Participants */}
+                  {crmStatus?.isCRM && crmStatus.isApproved && crmStatus.utmLink && (
+                    <div className="mb-6 p-4 rounded-lg bg-akari-cardSoft/50 border border-akari-border/30">
+                      <h4 className="text-sm font-semibold text-akari-text mb-2">Your Tracking Link</h4>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={crmStatus.utmLink}
+                          readOnly
+                          className="flex-1 px-3 py-2 text-sm bg-akari-card/50 border border-akari-border/30 rounded-lg text-akari-text"
+                        />
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}${crmStatus.utmLink}`);
+                            alert('Link copied to clipboard!');
+                          }}
+                          className="px-3 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-xs text-akari-muted mt-2">
+                        Use this link to track your contributions and referrals.
+                      </p>
+                    </div>
+                  )}
+
                   {leaderboardLoading ? (
                     <div className="flex items-center justify-center py-12">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
                       <span className="ml-3 text-akari-muted">Loading leaderboard…</span>
                     </div>
-                  ) : leaderboardEntries.length === 0 ? (
-                    <p className="text-sm text-akari-muted">
-                      No contributors found yet. Be the first to contribute!
-                    </p>
-                  ) : (
+                  ) : !crmStatus?.isCRM || crmStatus.canViewLeaderboard ? (
+                    leaderboardEntries.length === 0 ? (
+                      <p className="text-sm text-akari-muted">
+                        No contributors found yet. Be the first to contribute!
+                      </p>
+                    ) : (
                     <>
                       {/* Leaderboard Header */}
                       <div className="mb-6">
@@ -1475,6 +1626,8 @@ export default function ArenaDetailsPage() {
                                 ends_at: '',
                                 reward_desc: '',
                                 status: 'draft',
+                                quest_type: 'normal',
+                                crm_program_id: '',
                               });
                               setShowCreateQuestModal(true);
                             }}
@@ -1494,35 +1647,99 @@ export default function ArenaDetailsPage() {
                           <p className="text-sm text-akari-muted">No quests available yet.</p>
                         </div>
                       ) : (
-                        <div className="space-y-4">
-                          {quests.map((quest) => (
-                            <div
-                              key={quest.id}
-                              className="p-4 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30"
-                            >
-                              <div className="flex items-start justify-between mb-2">
-                                <h3 className="text-base font-semibold text-akari-text">{quest.name}</h3>
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  quest.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                                  quest.status === 'ended' ? 'bg-gray-500/20 text-gray-400' :
-                                  'bg-yellow-500/20 text-yellow-400'
-                                }`}>
-                                  {quest.status}
-                                </span>
-                              </div>
-                              {quest.narrative_focus && (
-                                <p className="text-sm text-akari-muted mb-2">{quest.narrative_focus}</p>
-                              )}
-                              <div className="flex items-center gap-4 text-xs text-akari-muted">
-                                <span>
-                                  {new Date(quest.starts_at).toLocaleDateString()} - {new Date(quest.ends_at).toLocaleDateString()}
-                                </span>
-                                {quest.reward_desc && (
-                                  <span>Reward: {quest.reward_desc}</span>
+                        <div className="space-y-6">
+                          {quests.map((quest) => {
+                            const leaderboard = questLeaderboards.get(quest.id) || [];
+                            const isLoading = questLeaderboardsLoading.has(quest.id);
+                            
+                            return (
+                              <div
+                                key={quest.id}
+                                className="p-6 rounded-xl border border-akari-border/30 bg-akari-cardSoft/30"
+                              >
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className="flex-1">
+                                    <h3 className="text-lg font-semibold text-akari-text mb-1">{quest.name}</h3>
+                                    {quest.narrative_focus && (
+                                      <p className="text-sm text-akari-muted mb-2">{quest.narrative_focus}</p>
+                                    )}
+                                    <div className="flex items-center gap-4 text-xs text-akari-muted">
+                                      <span>
+                                        {new Date(quest.starts_at).toLocaleDateString()} - {new Date(quest.ends_at).toLocaleDateString()}
+                                      </span>
+                                      {quest.reward_desc && (
+                                        <span>Reward: {quest.reward_desc}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                    quest.status === 'active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                    quest.status === 'ended' ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' :
+                                    quest.status === 'paused' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                    'bg-akari-cardSoft/50 text-akari-muted border border-akari-border/30'
+                                  }`}>
+                                    {quest.status}
+                                  </span>
+                                </div>
+
+                                {/* Mini Leaderboard */}
+                                {(quest.status === 'active' || quest.status === 'ended') && (
+                                  <div className="mt-4 pt-4 border-t border-akari-border/20">
+                                    <h4 className="text-sm font-medium text-akari-text mb-3">Top Contributors</h4>
+                                    {isLoading ? (
+                                      <div className="flex items-center justify-center py-6">
+                                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                                      </div>
+                                    ) : leaderboard.length === 0 ? (
+                                      <p className="text-xs text-akari-muted text-center py-4">
+                                        No contributions yet. Be the first!
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {leaderboard.slice(0, 10).map((entry) => (
+                                          <div
+                                            key={entry.twitter_username}
+                                            className="flex items-center gap-3 p-2 rounded-lg bg-akari-card/30 hover:bg-akari-card/50 transition-colors"
+                                          >
+                                            <span className="text-xs font-semibold text-akari-text w-6 flex-shrink-0">
+                                              #{entry.rank}
+                                            </span>
+                                            {entry.avatar_url ? (
+                                              <img
+                                                src={entry.avatar_url}
+                                                alt={entry.twitter_username}
+                                                className="w-8 h-8 rounded-full border border-akari-border/30"
+                                              />
+                                            ) : (
+                                              <div className="w-8 h-8 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text text-xs">
+                                                {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
+                                              </div>
+                                            )}
+                                            <span className="text-sm text-akari-text flex-1 min-w-0 truncate">
+                                              {entry.twitter_username}
+                                            </span>
+                                            {entry.ring && (
+                                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(entry.ring)}`}>
+                                                {entry.ring}
+                                              </span>
+                                            )}
+                                            <span className="text-sm font-medium text-akari-text whitespace-nowrap">
+                                              {Math.floor(entry.points).toLocaleString()} pts
+                                            </span>
+                                          </div>
+                                        ))}
+                                        {leaderboard.length > 10 && (
+                                          <p className="text-xs text-akari-muted text-center pt-2">
+                                            Showing top 10 of {leaderboard.length} contributors
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </>
@@ -1953,6 +2170,38 @@ export default function ArenaDetailsPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm text-white/60 mb-1">Quest Type</label>
+                  <select
+                    value={questForm.quest_type}
+                    onChange={(e) => setQuestForm({ ...questForm, quest_type: e.target.value as 'normal' | 'crm' })}
+                    className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                  >
+                    <option value="normal">Normal Quest</option>
+                    <option value="crm">CRM (KOL/Creator Manager) Quest</option>
+                  </select>
+                  <p className="mt-1 text-xs text-white/40">
+                    {questForm.quest_type === 'crm' 
+                      ? 'This quest will link to a Creator Manager program for participant tracking'
+                      : 'Standard quest with contribution-based leaderboard'}
+                  </p>
+                </div>
+                {questForm.quest_type === 'crm' && project && (
+                  <div>
+                    <label className="block text-sm text-white/60 mb-1">CRM Program (Optional)</label>
+                    <select
+                      value={questForm.crm_program_id}
+                      onChange={(e) => setQuestForm({ ...questForm, crm_program_id: e.target.value })}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
+                    >
+                      <option value="">Select a CRM program (optional)</option>
+                      {/* TODO: Fetch and populate creator_manager_programs for this project */}
+                    </select>
+                    <p className="mt-1 text-xs text-white/40">
+                      Link this quest to an existing Creator Manager program. If not selected, a new program can be created.
+                    </p>
+                  </div>
+                )}
+                <div>
                   <label className="block text-sm text-white/60 mb-1">Status</label>
                   <select
                     value={questForm.status}
@@ -1986,6 +2235,8 @@ export default function ArenaDetailsPage() {
                             ends_at: new Date(questForm.ends_at).toISOString(),
                             reward_desc: questForm.reward_desc || undefined,
                             status: questForm.status,
+                            quest_type: questForm.quest_type,
+                            crm_program_id: questForm.crm_program_id || undefined,
                           }),
                         });
                         const data = await res.json();

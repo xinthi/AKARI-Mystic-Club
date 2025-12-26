@@ -16,6 +16,7 @@ interface UpdateProjectBody {
   slug?: string;
   x_handle?: string;
   twitter_username?: string;
+  header_image_url?: string | null;
   is_active?: boolean;
   arc_active?: boolean;
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
@@ -29,6 +30,7 @@ interface ProjectQueryResult {
   slug: string;
   x_handle: string;
   twitter_username: string | null;
+  header_image_url?: string | null;
   is_active: boolean;
   arc_active?: boolean | null;
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
@@ -42,6 +44,7 @@ interface AdminProject {
   slug: string;
   x_handle: string;
   twitter_username: string | null;
+  header_image_url?: string | null;
   is_active: boolean;
   arc_active?: boolean;
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
@@ -164,7 +167,7 @@ export default async function handler(
     if (req.method === 'GET') {
       const { data: project, error: projectError } = await supabase
         .from('projects')
-        .select('id, name, display_name, slug, x_handle, twitter_username, is_active, arc_active, arc_access_level, profile_type')
+        .select('id, name, display_name, slug, x_handle, twitter_username, header_image_url, is_active, arc_active, arc_access_level, profile_type')
         .eq('id', id)
         .single();
 
@@ -180,6 +183,7 @@ export default async function handler(
         slug: projectData.slug,
         x_handle: projectData.x_handle,
         twitter_username: projectData.twitter_username ?? null,
+        header_image_url: projectData.header_image_url ?? null,
         is_active: projectData.is_active,
         arc_active: projectData.arc_active ?? undefined,
         arc_access_level: projectData.arc_access_level ?? undefined,
@@ -200,6 +204,7 @@ export default async function handler(
       slug?: string;
       x_handle?: string;
       twitter_username?: string;
+      header_image_url?: string | null;
       is_active?: boolean;
       arc_active?: boolean;
       arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
@@ -242,6 +247,9 @@ export default async function handler(
       }
       updateData.profile_type = body.profile_type;
     }
+    if (body.header_image_url !== undefined) {
+      updateData.header_image_url = body.header_image_url?.trim() || null;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ ok: false, error: 'No fields to update' });
@@ -252,7 +260,7 @@ export default async function handler(
       .from('projects')
       .update(updateData)
       .eq('id', id)
-      .select('id, name, display_name, slug, x_handle, twitter_username, is_active, arc_active, arc_access_level, profile_type')
+      .select('id, name, display_name, slug, x_handle, twitter_username, header_image_url, is_active, arc_active, arc_access_level, profile_type')
       .single();
 
     if (updateError) {
@@ -272,6 +280,7 @@ export default async function handler(
       slug: updatedProjectData.slug,
       x_handle: updatedProjectData.x_handle,
       twitter_username: updatedProjectData.twitter_username ?? null,
+      header_image_url: updatedProjectData.header_image_url ?? null,
       is_active: updatedProjectData.is_active,
       arc_active: updatedProjectData.arc_active ?? undefined,
       arc_access_level: updatedProjectData.arc_access_level ?? undefined,

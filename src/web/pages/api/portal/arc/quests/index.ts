@@ -24,6 +24,8 @@ interface CreateQuestPayload {
   ends_at: string;
   reward_desc?: string;
   status?: 'draft' | 'active' | 'paused' | 'ended';
+  quest_type?: 'normal' | 'crm';
+  crm_program_id?: string;
 }
 
 interface Quest {
@@ -110,12 +112,14 @@ export default async function handler(
     if (req.method === 'POST') {
       // Authentication using shared helper
       let userId: string | null = null;
+      let profileId: string | null = null;
       if (!DEV_MODE) {
         const portalUser = await requirePortalUser(req, res);
         if (!portalUser) {
           return; // requirePortalUser already sent 401 response
         }
         userId = portalUser.userId;
+        profileId = portalUser.profileId || null;
       } else {
         // DEV MODE: Find a super admin user
         const { data: superAdmin } = await supabase
@@ -125,6 +129,24 @@ export default async function handler(
           .limit(1)
           .maybeSingle();
         userId = superAdmin?.user_id || null;
+        if (userId) {
+          // Get profile_id for dev mode
+          const { data: identity } = await supabase
+            .from('akari_user_identities')
+            .select('username')
+            .eq('user_id', userId)
+            .eq('provider', 'x')
+            .maybeSingle();
+          if (identity?.username) {
+            const cleanUsername = identity.username.toLowerCase().replace('@', '').trim();
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('username', cleanUsername)
+              .maybeSingle();
+            profileId = profile?.id || null;
+          }
+        }
       }
 
       // Parse body
@@ -205,6 +227,40 @@ export default async function handler(
       if (insertError) {
         console.error('[ARC Quests API] Insert error:', insertError);
         return res.status(500).json({ ok: false, error: 'Failed to create quest' });
+      }
+
+      // If this is a CRM quest, create/link creator_manager_program
+      if (body.quest_type === 'crm') {
+        if (body.crm_program_id) {
+          // Link to existing program (could store this relationship in a metadata field or separate table)
+          // For now, we'll just log it
+          console.log('[ARC Quests API] CRM quest linked to program:', body.crm_program_id);
+        } else if (profileId) {
+          // Create new creator_manager_program for this CRM quest
+          const { data: program, error: programError } = await supabase
+            .from('creator_manager_programs')
+            .insert({
+              project_id: body.project_id,
+              title: body.name,
+              description: body.narrative_focus || null,
+              visibility: 'public',
+              status: 'active',
+              start_at: body.starts_at,
+              end_at: body.ends_at,
+              created_by: profileId,
+            })
+            .select('id')
+            .single();
+
+          if (programError) {
+            console.error('[ARC Quests API] Error creating CRM program:', programError);
+            // Don't fail the quest creation, just log the error
+          } else {
+            console.log('[ARC Quests API] Created CRM program for quest:', program.id);
+          }
+        } else {
+          console.warn('[ARC Quests API] Could not find profile_id for user, skipping CRM program creation');
+        }
       }
 
       return res.status(200).json({
