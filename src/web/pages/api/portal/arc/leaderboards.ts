@@ -127,7 +127,7 @@ export default async function handler(
       if (!username) continue;
 
       const arena = Array.isArray(creator.arenas) ? creator.arenas[0] : creator.arenas;
-      const project = arena?.projects;
+      const project = Array.isArray(arena?.projects) ? arena.projects[0] : arena?.projects;
       const profile = Array.isArray(creator.profiles) ? creator.profiles[0] : creator.profiles;
 
       const points = Number(creator.arc_points) || 0;
