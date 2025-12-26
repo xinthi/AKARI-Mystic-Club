@@ -40,6 +40,13 @@ interface LeaderboardRequest {
   arenaStatus?: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null;
   campaignEndedAt?: string | null;
   arenaEndedAt?: string | null;
+  // New fields for live item information
+  liveItemKind?: 'arena' | 'campaign' | 'gamified' | null;
+  liveItemId?: string | null;
+  liveItemStatus?: string | null;
+  liveItemStartsAt?: string | null;
+  liveItemEndsAt?: string | null;
+  missingReason?: string | null;
 }
 
 type LeaderboardRequestsResponse =
@@ -271,10 +278,17 @@ export default async function handler(
     const approvedProjectIds = approvedRequests.map((r: any) => r.project_id);
     const uniqueProjectIds = [...new Set(approvedProjectIds)];
 
-    // Map: request_id -> status (for specific matching)
+    // Maps for tracking live item information
+    const liveItemKindMap = new Map<string, 'arena' | 'campaign' | 'gamified' | null>();
+    const liveItemIdMap = new Map<string, string | null>();
+    const liveItemStatusMap = new Map<string, string | null>();
+    const liveItemStartsAtMap = new Map<string, string | null>();
+    const liveItemEndsAtMap = new Map<string, string | null>();
+    const missingReasonMap = new Map<string, string | null>();
+    
+    // Legacy maps for backward compatibility
     const campaignStatusMap = new Map<string, 'live' | 'paused' | 'ended' | null>();
     const arenaStatusMap = new Map<string, 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null>();
-    // Map: request_id -> end date (for ended campaigns/arenas)
     const campaignEndedAtMap = new Map<string, string | null>();
     const arenaEndedAtMap = new Map<string, string | null>();
 
@@ -282,7 +296,7 @@ export default async function handler(
       // Get all campaigns for these projects
       const { data: campaigns } = await supabase
         .from('arc_campaigns')
-        .select('id, project_id, status, created_at, end_at, updated_at')
+        .select('id, project_id, status, created_at, start_at, end_at, updated_at')
         .in('project_id', uniqueProjectIds)
         .in('status', ['live', 'paused', 'ended'])
         .order('created_at', { ascending: false });
@@ -290,19 +304,29 @@ export default async function handler(
       // Get all arenas for these projects
       const { data: arenas } = await supabase
         .from('arenas')
-        .select('id, project_id, status, created_at, ends_at, updated_at')
+        .select('id, project_id, status, created_at, starts_at, ends_at, updated_at')
         .in('project_id', uniqueProjectIds)
         .in('status', ['active', 'scheduled', 'paused', 'cancelled', 'ended'])
         .order('created_at', { ascending: false });
+      
+      // Get all creator_manager_programs for gamified requests
+      const { data: programs } = await supabase
+        .from('creator_manager_programs')
+        .select('id, project_id, status, created_at, start_at, end_at, updated_at')
+        .in('project_id', uniqueProjectIds)
+        .in('status', ['active', 'paused', 'ended'])
+        .order('created_at', { ascending: false });
 
-      // Match each approved request to its specific campaign/arena
+      // Match each approved request to its specific entity
       // Match by: same project_id AND created_at closest to request decided_at
       approvedRequests.forEach((req: any) => {
         const decidedAt = new Date(req.decided_at).getTime();
         
         if (req.requested_arc_access_level === 'creator_manager') {
-          // For CRM: Find campaign created closest to approval time
+          // For CRM: Find campaign
+          liveItemKindMap.set(req.id, 'campaign');
           const projectCampaigns = (campaigns || []).filter((c: any) => c.project_id === req.project_id);
+          
           if (projectCampaigns.length > 0) {
             // Find campaign created closest to decided_at (within 1 hour window)
             interface CampaignItem {
@@ -310,6 +334,7 @@ export default async function handler(
               project_id: string;
               status: 'live' | 'paused' | 'ended';
               created_at: string;
+              start_at?: string | null;
               end_at?: string | null;
               updated_at?: string | null;
             }
@@ -320,101 +345,195 @@ export default async function handler(
               const campaign = c as CampaignItem;
               const campaignTime = new Date(campaign.created_at).getTime();
               const timeDiff = Math.abs(campaignTime - decidedAt);
-              // Match if created within 1 hour of approval
               if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
                 minTimeDiff = timeDiff;
                 closestCampaign = campaign;
               }
             }
             
+            // Fallback: use most recent campaign if no match within 1 hour
+            if (closestCampaign === null && projectCampaigns.length > 0) {
+              const sorted = [...projectCampaigns].sort((a: any, b: any) => {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+              closestCampaign = sorted[0] as CampaignItem;
+            }
+            
             if (closestCampaign !== null) {
+              liveItemIdMap.set(req.id, closestCampaign.id);
+              liveItemStatusMap.set(req.id, closestCampaign.status);
+              liveItemStartsAtMap.set(req.id, closestCampaign.start_at || null);
+              liveItemEndsAtMap.set(req.id, closestCampaign.end_at || null);
+              
+              // Legacy maps
               campaignStatusMap.set(req.id, closestCampaign.status);
-              // Store end date: use updated_at if status is 'ended' (when it was ended), otherwise use end_at
               if (closestCampaign.status === 'ended') {
                 campaignEndedAtMap.set(req.id, closestCampaign.updated_at || closestCampaign.end_at || null);
               }
             } else {
-              // No campaign found near approval time - check for any campaign (including ended ones)
-              // Priority: live > paused > ended
-              const liveCampaign = projectCampaigns.find((c: any) => {
-                const campaign = c as CampaignItem;
-                return campaign.status === 'live';
-              }) as CampaignItem | undefined;
-              
-              if (liveCampaign) {
-                campaignStatusMap.set(req.id, liveCampaign.status);
-              } else {
-                // Check for paused
-                const pausedCampaign = projectCampaigns.find((c: any) => {
-                  const campaign = c as CampaignItem;
-                  return campaign.status === 'paused';
-                }) as CampaignItem | undefined;
-                
-                if (pausedCampaign) {
-                  campaignStatusMap.set(req.id, pausedCampaign.status);
-                } else {
-                  // Check for ended (most recent one)
-                  const endedCampaign = projectCampaigns.find((c: any) => {
-                    const campaign = c as CampaignItem;
-                    return campaign.status === 'ended';
-                  }) as CampaignItem | undefined;
-                  
-                  if (endedCampaign) {
-                    campaignStatusMap.set(req.id, endedCampaign.status);
-                    campaignEndedAtMap.set(req.id, endedCampaign.updated_at || endedCampaign.end_at || null);
-                  }
-                }
-              }
+              liveItemIdMap.set(req.id, null);
+              liveItemStatusMap.set(req.id, 'missing');
+              missingReasonMap.set(req.id, 'No campaign found for this approved request');
             }
+          } else {
+            liveItemIdMap.set(req.id, null);
+            liveItemStatusMap.set(req.id, 'missing');
+            missingReasonMap.set(req.id, 'No campaign exists for this project');
           }
-        } else if (req.requested_arc_access_level === 'leaderboard' || req.requested_arc_access_level === 'gamified') {
-          // For Leaderboard/Gamified: Find arena created closest to approval time
+        } else if (req.requested_arc_access_level === 'leaderboard') {
+          // For Leaderboard: Find arena
+          liveItemKindMap.set(req.id, 'arena');
           const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
+          
           if (projectArenas.length > 0) {
-            // Find arena created closest to decided_at (within 1 hour window)
             interface ArenaItem {
               id: string;
               project_id: string;
               status: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended';
               created_at: string;
+              starts_at?: string | null;
               ends_at?: string | null;
               updated_at?: string | null;
             }
             let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
             
-            // First, try to match by created_at within 1 hour of approval
             for (const a of projectArenas) {
               const arena = a as ArenaItem;
               const arenaTime = new Date(arena.created_at).getTime();
               const timeDiff = Math.abs(arenaTime - decidedAt);
-              // Match if created within 1 hour of approval
               if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
                 minTimeDiff = timeDiff;
                 closestArena = arena;
               }
             }
             
-            // If no match within 1 hour, use the most recent arena for this project as fallback
-            // This handles cases where arena was created much later than approval
             if (closestArena === null && projectArenas.length > 0) {
-              // Sort by created_at descending to get most recent
-              const sortedArenas = [...projectArenas].sort((a: any, b: any) => {
-                const aTime = new Date(a.created_at).getTime();
-                const bTime = new Date(b.created_at).getTime();
-                return bTime - aTime;
+              const sorted = [...projectArenas].sort((a: any, b: any) => {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
               });
-              closestArena = sortedArenas[0] as ArenaItem;
-              console.log(`[Admin Leaderboard Requests API] No arena found within 1 hour of approval for request ${req.id}, using most recent arena: ${closestArena.id} (created: ${closestArena.created_at})`);
+              closestArena = sorted[0] as ArenaItem;
             }
             
             if (closestArena !== null) {
+              liveItemIdMap.set(req.id, closestArena.id);
+              liveItemStatusMap.set(req.id, closestArena.status);
+              liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
+              liveItemEndsAtMap.set(req.id, closestArena.ends_at || null);
+              
+              // Legacy maps
               arenaStatusMap.set(req.id, closestArena.status);
-              // Store end date: use updated_at if status is 'ended' or 'cancelled' (when it was ended), otherwise use ends_at
               if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
                 arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
-                console.log(`[Admin Leaderboard Requests API] Request ${req.id} matched to ended arena ${closestArena.id}, ended at: ${closestArena.updated_at || closestArena.ends_at || 'N/A'}`);
               }
+            } else {
+              liveItemIdMap.set(req.id, null);
+              liveItemStatusMap.set(req.id, 'missing');
+              missingReasonMap.set(req.id, 'No arena found for this approved request');
+            }
+          } else {
+            liveItemIdMap.set(req.id, null);
+            liveItemStatusMap.set(req.id, 'missing');
+            missingReasonMap.set(req.id, 'No arena exists for this project');
+          }
+        } else if (req.requested_arc_access_level === 'gamified') {
+          // For Gamified: Check creator_manager_programs first, then arenas as fallback
+          liveItemKindMap.set(req.id, 'gamified');
+          const projectPrograms = (programs || []).filter((p: any) => p.project_id === req.project_id);
+          
+          if (projectPrograms.length > 0) {
+            interface ProgramItem {
+              id: string;
+              project_id: string;
+              status: 'active' | 'paused' | 'ended';
+              created_at: string;
+              start_at?: string | null;
+              end_at?: string | null;
+              updated_at?: string | null;
+            }
+            let closestProgram: ProgramItem | null = null;
+            let minTimeDiff = Infinity;
+            
+            for (const p of projectPrograms) {
+              const program = p as ProgramItem;
+              const programTime = new Date(program.created_at).getTime();
+              const timeDiff = Math.abs(programTime - decidedAt);
+              if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+                minTimeDiff = timeDiff;
+                closestProgram = program;
+              }
+            }
+            
+            if (closestProgram === null && projectPrograms.length > 0) {
+              const sorted = [...projectPrograms].sort((a: any, b: any) => {
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+              closestProgram = sorted[0] as ProgramItem;
+            }
+            
+            if (closestProgram !== null) {
+              liveItemIdMap.set(req.id, closestProgram.id);
+              liveItemStatusMap.set(req.id, closestProgram.status);
+              liveItemStartsAtMap.set(req.id, closestProgram.start_at || null);
+              liveItemEndsAtMap.set(req.id, closestProgram.end_at || null);
+            } else {
+              liveItemIdMap.set(req.id, null);
+              liveItemStatusMap.set(req.id, 'missing');
+              missingReasonMap.set(req.id, 'No program found for this approved request');
+            }
+          } else {
+            // Fallback to arenas for gamified
+            const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
+            if (projectArenas.length > 0) {
+              interface ArenaItem {
+                id: string;
+                project_id: string;
+                status: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended';
+                created_at: string;
+                starts_at?: string | null;
+                ends_at?: string | null;
+                updated_at?: string | null;
+              }
+              let closestArena: ArenaItem | null = null;
+              let minTimeDiff = Infinity;
+              
+              for (const a of projectArenas) {
+                const arena = a as ArenaItem;
+                const arenaTime = new Date(arena.created_at).getTime();
+                const timeDiff = Math.abs(arenaTime - decidedAt);
+                if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+                  minTimeDiff = timeDiff;
+                  closestArena = arena;
+                }
+              }
+              
+              if (closestArena === null && projectArenas.length > 0) {
+                const sorted = [...projectArenas].sort((a: any, b: any) => {
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                });
+                closestArena = sorted[0] as ArenaItem;
+              }
+              
+              if (closestArena !== null) {
+                liveItemIdMap.set(req.id, closestArena.id);
+                liveItemStatusMap.set(req.id, closestArena.status);
+                liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
+                liveItemEndsAtMap.set(req.id, closestArena.ends_at || null);
+                
+                // Legacy maps
+                arenaStatusMap.set(req.id, closestArena.status);
+                if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
+                  arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
+                }
+              } else {
+                liveItemIdMap.set(req.id, null);
+                liveItemStatusMap.set(req.id, 'missing');
+                missingReasonMap.set(req.id, 'No arena or program found for this approved request');
+              }
+            } else {
+              liveItemIdMap.set(req.id, null);
+              liveItemStatusMap.set(req.id, 'missing');
+              missingReasonMap.set(req.id, 'No program or arena exists for this project');
             }
           }
         }
@@ -473,6 +592,14 @@ export default async function handler(
         // Get end dates for ended campaigns/arenas
         const campaignEndedAt = campaignStatus === 'ended' ? (campaignEndedAtMap.get(r.id) || null) : null;
         const arenaEndedAt = (arenaStatus === 'ended' || arenaStatus === 'cancelled') ? (arenaEndedAtMap.get(r.id) || null) : null;
+        
+        // Get live item information for approved requests
+        const liveItemKind = r.status === 'approved' ? (liveItemKindMap.get(r.id) || null) : null;
+        const liveItemId = r.status === 'approved' ? (liveItemIdMap.get(r.id) || null) : null;
+        const liveItemStatus = r.status === 'approved' ? (liveItemStatusMap.get(r.id) || null) : null;
+        const liveItemStartsAt = r.status === 'approved' ? (liveItemStartsAtMap.get(r.id) || null) : null;
+        const liveItemEndsAt = r.status === 'approved' ? (liveItemEndsAtMap.get(r.id) || null) : null;
+        const missingReason = r.status === 'approved' ? (missingReasonMap.get(r.id) || null) : null;
 
         return {
           id: r.id,
@@ -499,28 +626,13 @@ export default async function handler(
           arenaStatus,
           campaignEndedAt,
           arenaEndedAt,
+          liveItemKind,
+          liveItemId,
+          liveItemStatus,
+          liveItemStartsAt,
+          liveItemEndsAt,
+          missingReason,
         };
-      })
-      // Filter out approved requests where the specific campaign/arena has been ended/cancelled
-      .filter((req: LeaderboardRequest) => {
-        // Keep all pending/rejected requests
-        if (req.status !== 'approved') {
-          return true;
-        }
-        // For approved requests, check status based on requested access level
-        // Hide if the specific campaign/arena matched to this request is ended/cancelled
-        const accessLevel = req.requested_arc_access_level;
-        
-        if (accessLevel === 'creator_manager') {
-          // For CRM requests, hide if campaign is ended
-          return req.campaignStatus !== 'ended';
-        } else if (accessLevel === 'leaderboard' || accessLevel === 'gamified') {
-          // For leaderboard/gamified requests, hide if arena is ended/cancelled
-          return req.arenaStatus !== 'ended' && req.arenaStatus !== 'cancelled';
-        }
-        
-        // If access level is null or unknown, show the request
-        return true;
       });
 
     // Set cache-control headers to prevent caching

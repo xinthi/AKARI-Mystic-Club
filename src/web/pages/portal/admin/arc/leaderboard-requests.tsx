@@ -45,6 +45,13 @@ interface LeaderboardRequest {
   arenaStatus?: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended' | null;
   campaignEndedAt?: string | null;
   arenaEndedAt?: string | null;
+  // New fields for live item information
+  liveItemKind?: 'arena' | 'campaign' | 'gamified' | null;
+  liveItemId?: string | null;
+  liveItemStatus?: string | null;
+  liveItemStartsAt?: string | null;
+  liveItemEndsAt?: string | null;
+  missingReason?: string | null;
 }
 
 // =============================================================================
@@ -277,155 +284,117 @@ export default function AdminLeaderboardRequestsPage() {
     }
   };
 
-  const handleStopCampaign = async (projectId: string, requestId: string) => {
-    if (processingIds.has(requestId)) return;
+  const handleLiveItemAction = async (
+    request: LeaderboardRequest,
+    action: 'pause' | 'restart' | 'end' | 'reinstate'
+  ) => {
+    if (processingIds.has(request.id)) return;
 
-    if (!confirm('Are you sure you want to end this campaign/arena? This action cannot be undone.')) {
+    if (!request.liveItemKind || !request.liveItemId) {
+      setRowErrors((prev) => {
+        const next = new Map(prev);
+        next.set(request.id, 'Missing live item information. Please use backfill to fix.');
+        return next;
+      });
       return;
     }
 
-    setProcessingIds((prev) => new Set(prev).add(requestId));
+    if (action === 'end' && !confirm('Are you sure you want to end this item? This action cannot be undone.')) {
+      return;
+    }
+
+    if (action === 'pause' && !confirm('Are you sure you want to pause this item?')) {
+      return;
+    }
+
+    setProcessingIds((prev) => new Set(prev).add(request.id));
     setRowErrors((prev) => {
       const next = new Map(prev);
-      next.delete(requestId);
+      next.delete(request.id);
       return next;
     });
 
+    // Optimistic update
+    const optimisticStatus = 
+      action === 'pause' ? 'paused' :
+      action === 'restart' ? (request.liveItemKind === 'campaign' ? 'live' : 'active') :
+      action === 'end' ? 'ended' :
+      action === 'reinstate' ? (request.liveItemKind === 'campaign' ? 'live' : 'active') :
+      request.liveItemStatus;
+
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === request.id
+          ? {
+              ...r,
+              liveItemStatus: optimisticStatus,
+              liveItemEndsAt: action === 'end' ? new Date().toISOString() : r.liveItemEndsAt,
+            }
+          : r
+      )
+    );
+
     try {
-      const res = await fetch('/api/portal/admin/arc/stop-campaign', {
+      const res = await fetch('/api/portal/admin/arc/live-item/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ projectId, requestId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to end campaigns');
-      }
-
-      console.log('[UI] Campaign/arena ended successfully, waiting for DB propagation...');
-      // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Reload requests to refresh status (with cache-busting)
-      console.log('[UI] Reloading requests after ending campaign/arena');
-      await loadRequests();
-    } catch (err: any) {
-      setRowErrors((prev) => {
-        const next = new Map(prev);
-        next.set(requestId, err.message || 'Failed to end campaigns');
-        return next;
-      });
-    } finally {
-      setProcessingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(requestId);
-        return next;
-      });
-    }
-  };
-
-  const handleResumeCampaign = async (projectId: string, requestId: string) => {
-    if (processingIds.has(requestId)) return;
-
-    setProcessingIds((prev) => new Set(prev).add(requestId));
-    setRowErrors((prev) => {
-      const next = new Map(prev);
-      next.delete(requestId);
-      return next;
-    });
-
-    try {
-      // Re-activate by approving again (API will handle re-activating paused arenas/campaigns)
-      const res = await fetch(`/api/portal/admin/arc/leaderboard-requests/${requestId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          status: 'approved',
-          // Don't change access level or dates, just re-activate
+          kind: request.liveItemKind,
+          id: request.liveItemId,
+          action,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to resume leaderboard');
+        throw new Error(data.error || 'Failed to perform action');
       }
 
-      console.log('[UI] Campaign/arena resumed successfully, waiting for DB propagation...');
-      // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Reload requests to refresh status (with cache-busting)
-      console.log('[UI] Reloading requests after resuming campaign/arena');
-      await loadRequests();
+      // Update with actual response
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === request.id
+            ? {
+                ...r,
+                liveItemStatus: data.status,
+                liveItemEndsAt: data.endsAt || r.liveItemEndsAt,
+                liveItemStartsAt: data.startsAt || r.liveItemStartsAt,
+              }
+            : r
+        )
+      );
+
+      // Reload in background to ensure consistency
+      loadRequests().catch((err) => {
+        console.error('[UI] Background reload error:', err);
+      });
+
+      // Navigate to report page if ending
+      if (action === 'end' && data.status === 'ended') {
+        // Navigate to report page
+        window.location.href = `/portal/admin/arc/reports/${request.liveItemKind}/${request.liveItemId}`;
+      }
     } catch (err: any) {
+      // Revert optimistic update on error
+      setRequests((prev) =>
+        prev.map((r) => (r.id === request.id ? request : r))
+      );
       setRowErrors((prev) => {
         const next = new Map(prev);
-        next.set(requestId, err.message || 'Failed to resume leaderboard');
+        next.set(request.id, err.message || 'Failed to perform action');
         return next;
       });
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);
-        next.delete(requestId);
+        next.delete(request.id);
         return next;
       });
     }
   };
 
-  const handlePauseCampaign = async (projectId: string, requestId: string) => {
-    if (processingIds.has(requestId)) return;
-
-    if (!confirm('Are you sure you want to pause this campaign/arena?')) {
-      return;
-    }
-
-    setProcessingIds((prev) => new Set(prev).add(requestId));
-    setRowErrors((prev) => {
-      const next = new Map(prev);
-      next.delete(requestId);
-      return next;
-    });
-
-    try {
-      const res = await fetch('/api/portal/admin/arc/pause-campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ projectId, requestId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to pause campaigns');
-      }
-
-      console.log('[UI] Campaign/arena paused successfully, waiting for DB propagation...');
-      // Small delay to ensure database update has propagated
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Reload requests to refresh status (with cache-busting)
-      console.log('[UI] Reloading requests after pausing campaign/arena');
-      await loadRequests();
-    } catch (err: any) {
-      setRowErrors((prev) => {
-        const next = new Map(prev);
-        next.set(requestId, err.message || 'Failed to pause campaigns');
-        return next;
-      });
-    } finally {
-      setProcessingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(requestId);
-        return next;
-      });
-    }
-  };
 
   const handleApprove = async () => {
     if (!approveModal) return;
@@ -685,22 +654,22 @@ export default function AdminLeaderboardRequestsPage() {
                               {(() => {
                                 // Show campaign/arena status for approved requests
                                 if (request.status === 'approved') {
-                                  const campaignStatus = request.campaignStatus;
-                                  const arenaStatus = request.arenaStatus;
+                                  const liveStatus = request.liveItemStatus;
                                   
                                   // Determine effective status
                                   let displayStatus: string = request.status;
                                   let statusColor = getStatusBadgeColor('approved');
                                   
-                                  // Check for ended first (including 'cancelled' which is treated as ended)
-                                  if (campaignStatus === 'ended' || arenaStatus === 'ended' || arenaStatus === 'cancelled') {
+                                  if (liveStatus === 'missing') {
+                                    displayStatus = 'missing';
+                                    statusColor = 'bg-orange-500/20 text-orange-400 border-orange-500/50';
+                                  } else if (liveStatus === 'ended') {
                                     displayStatus = 'ended';
                                     statusColor = 'bg-gray-500/20 text-gray-400 border-gray-500/50';
-                                  } else if (campaignStatus === 'paused' || arenaStatus === 'paused') {
-                                    // Only 'paused' status is treated as paused (can be re-instated)
+                                  } else if (liveStatus === 'paused' || liveStatus === 'cancelled') {
                                     displayStatus = 'paused';
                                     statusColor = 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
-                                  } else if (campaignStatus === 'live' || arenaStatus === 'active' || arenaStatus === 'scheduled') {
+                                  } else if (liveStatus === 'live' || liveStatus === 'active' || liveStatus === 'scheduled') {
                                     displayStatus = 'live';
                                     statusColor = 'bg-green-500/20 text-green-400 border-green-500/50';
                                   }
@@ -749,22 +718,36 @@ export default function AdminLeaderboardRequestsPage() {
                                   </>
                                 )}
                                 {request.status === 'approved' && (() => {
-                                  // Check for ended: campaigns/arenas with 'ended' or 'cancelled' status
-                                  // 'cancelled' is treated as ended (cannot be re-instated)
-                                  const isEnded = request.campaignStatus === 'ended' || 
-                                                  request.arenaStatus === 'ended' || 
-                                                  request.arenaStatus === 'cancelled';
-                                  // Check for paused: only 'paused' status (can be re-instated)
-                                  const isPaused = !isEnded && (
-                                    request.campaignStatus === 'paused' || 
-                                    request.arenaStatus === 'paused'
-                                  );
-                                  // Active/live if not ended and not paused
-                                  const isActive = !isEnded && !isPaused;
+                                  const liveStatus = request.liveItemStatus;
 
-                                  // ENDED: Show ENDED badge with end date, no action buttons
-                                  if (isEnded) {
-                                    const endDate = request.campaignEndedAt || request.arenaEndedAt;
+                                  // MISSING: Show Fix button
+                                  if (liveStatus === 'missing') {
+                                    return (
+                                      <>
+                                        <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 text-[10px] font-medium mr-1.5">
+                                          MISSING
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleBackfillLiveItems()}
+                                          disabled={backfillLoading}
+                                          className="px-2 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          title="Fix missing item"
+                                        >
+                                          {backfillLoading ? '...' : 'Fix'}
+                                        </button>
+                                        {request.missingReason && (
+                                          <span className="text-[9px] text-akari-muted" title={request.missingReason}>
+                                            {request.missingReason}
+                                          </span>
+                                        )}
+                                      </>
+                                    );
+                                  }
+
+                                  // ENDED: Show ENDED badge with end date and Reinstate button
+                                  if (liveStatus === 'ended') {
+                                    const endDate = request.liveItemEndsAt;
                                     return (
                                       <div className="flex flex-col gap-1">
                                         <span className="px-2 py-0.5 rounded bg-gray-500/10 text-gray-400 text-[10px] font-medium">
@@ -775,31 +758,44 @@ export default function AdminLeaderboardRequestsPage() {
                                             {formatDate(endDate)}
                                           </span>
                                         )}
+                                        {userIsSuperAdmin && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleLiveItemAction(request, 'reinstate')}
+                                            disabled={isProcessing}
+                                            className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                                            title="Reinstate this item"
+                                          >
+                                            {isProcessing ? '...' : 'Reinstate'}
+                                          </button>
+                                        )}
                                       </div>
                                     );
                                   }
 
-                                  // PAUSED: Show PAUSED badge and Start button (can be re-instated)
-                                  if (isPaused) {
+                                  // PAUSED/CANCELLED: Show PAUSED badge and Restart/End buttons
+                                  if (liveStatus === 'paused' || liveStatus === 'cancelled') {
                                     return (
                                       <>
                                         <span className="px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 text-[10px] font-medium mr-1.5">
                                           PAUSED
                                         </span>
                                         <button
-                                          onClick={() => handleResumeCampaign(request.project_id, request.id)}
+                                          type="button"
+                                          onClick={() => handleLiveItemAction(request, 'restart')}
                                           disabled={isProcessing}
                                           className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          title="Start this leaderboard"
+                                          title="Restart this item"
                                         >
-                                          {isProcessing ? '...' : 'Start'}
+                                          {isProcessing ? '...' : 'Restart'}
                                         </button>
                                         {userIsSuperAdmin && (
                                           <button
-                                            onClick={() => handleStopCampaign(request.project_id, request.id)}
+                                            type="button"
+                                            onClick={() => handleLiveItemAction(request, 'end')}
                                             disabled={isProcessing}
                                             className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title="End this leaderboard"
+                                            title="End this item"
                                           >
                                             {isProcessing ? '...' : 'End'}
                                           </button>
@@ -808,32 +804,39 @@ export default function AdminLeaderboardRequestsPage() {
                                     );
                                   }
 
-                                  // LIVE: Show LIVE badge and Pause/End buttons
-                                  return (
-                                    <>
-                                      <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-medium mr-1.5">
-                                        LIVE
-                                      </span>
-                                      <button
-                                        onClick={() => handlePauseCampaign(request.project_id, request.id)}
-                                        disabled={isProcessing}
-                                        className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title="Pause this leaderboard"
-                                      >
-                                        {isProcessing ? '...' : 'Pause'}
-                                      </button>
-                                      {userIsSuperAdmin && (
+                                  // LIVE/ACTIVE/SCHEDULED: Show LIVE badge and Pause/End buttons
+                                  if (liveStatus === 'live' || liveStatus === 'active' || liveStatus === 'scheduled') {
+                                    return (
+                                      <>
+                                        <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-medium mr-1.5">
+                                          LIVE
+                                        </span>
                                         <button
-                                          onClick={() => handleStopCampaign(request.project_id, request.id)}
+                                          type="button"
+                                          onClick={() => handleLiveItemAction(request, 'pause')}
                                           disabled={isProcessing}
-                                          className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
-                                          title="End this leaderboard"
+                                          className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          title="Pause this item"
                                         >
-                                          {isProcessing ? '...' : 'End'}
+                                          {isProcessing ? '...' : 'Pause'}
                                         </button>
-                                      )}
-                                    </>
-                                  );
+                                        {userIsSuperAdmin && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleLiveItemAction(request, 'end')}
+                                            disabled={isProcessing}
+                                            className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition-colors text-[10px] font-medium h-7 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="End this item"
+                                          >
+                                            {isProcessing ? '...' : 'End'}
+                                          </button>
+                                        )}
+                                      </>
+                                    );
+                                  }
+
+                                  // Unknown status
+                                  return <span className="text-[10px] text-akari-muted">Unknown status</span>;
                                 })()}
                                 {request.status !== 'pending' && request.status !== 'approved' && (
                                   <span className="text-[10px] text-akari-muted">

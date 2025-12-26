@@ -253,10 +253,10 @@ export default async function handler(
             summary.skippedCount++;
           }
         } else if (accessLevel === 'gamified') {
-          // Option 3: Check for quests or arenas
-          const { data: quests } = await supabase
-            .from('arc_quests')
-            .select('id')
+          // Option 3: Check for creator_manager_programs first, then arenas as fallback
+          const { data: programs } = await supabase
+            .from('creator_manager_programs')
+            .select('id, status')
             .eq('project_id', request.project_id)
             .in('status', ['active', 'paused'])
             .limit(1);
@@ -268,8 +268,8 @@ export default async function handler(
             .in('status', ['active', 'scheduled'])
             .limit(1);
 
-          if ((!quests || quests.length === 0) && (!arenas || arenas.length === 0)) {
-            // Create arena for gamified
+          if ((!programs || programs.length === 0) && (!arenas || arenas.length === 0)) {
+            // Create arena for gamified (fallback)
             if (!isDryRun) {
               const { data: projectData } = await supabase
                 .from('projects')
@@ -326,6 +326,48 @@ export default async function handler(
               }
             } else {
               summary.createdCount++;
+            }
+          } else if (programs && programs.length > 0 && programs[0].status !== 'active') {
+            // Update program to active
+            if (!isDryRun) {
+              const { error: updateError } = await supabase
+                .from('creator_manager_programs')
+                .update({ status: 'active' })
+                .eq('id', programs[0].id);
+
+              if (updateError) {
+                summary.errors.push({
+                  projectSlug,
+                  projectId: request.project_id,
+                  requestId: request.id,
+                  message: `Failed to activate program: ${updateError.message}`,
+                });
+              } else {
+                summary.updatedCount++;
+              }
+            } else {
+              summary.updatedCount++;
+            }
+          } else if (arenas && arenas.length > 0 && arenas[0].status !== 'active') {
+            // Update arena to active
+            if (!isDryRun) {
+              const { error: updateError } = await supabase
+                .from('arenas')
+                .update({ status: 'active' })
+                .eq('id', arenas[0].id);
+
+              if (updateError) {
+                summary.errors.push({
+                  projectSlug,
+                  projectId: request.project_id,
+                  requestId: request.id,
+                  message: `Failed to activate arena: ${updateError.message}`,
+                });
+              } else {
+                summary.updatedCount++;
+              }
+            } else {
+              summary.updatedCount++;
             }
           } else {
             summary.skippedCount++;
