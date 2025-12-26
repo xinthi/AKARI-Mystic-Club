@@ -317,15 +317,31 @@ export default async function handler(
         .in('status', ['active', 'paused', 'ended'])
         .order('created_at', { ascending: false });
 
+      // Track which entities have been matched to avoid duplicates
+      const matchedCampaignIds = new Set<string>();
+      const matchedArenaIds = new Set<string>();
+      const matchedProgramIds = new Set<string>();
+      
+      // Sort requests by decided_at to process in chronological order
+      // This ensures earlier requests get matched to earlier entities
+      const sortedApprovedRequests = [...approvedRequests].sort((a: any, b: any) => {
+        const aTime = new Date(a.decided_at).getTime();
+        const bTime = new Date(b.decided_at).getTime();
+        return aTime - bTime;
+      });
+      
       // Match each approved request to its specific entity
       // Match by: same project_id AND created_at closest to request decided_at
-      approvedRequests.forEach((req: any) => {
+      // CRITICAL: Each request must match to a unique entity (no reuse)
+      sortedApprovedRequests.forEach((req: any) => {
         const decidedAt = new Date(req.decided_at).getTime();
         
         if (req.requested_arc_access_level === 'creator_manager') {
           // For CRM: Find campaign
           liveItemKindMap.set(req.id, 'campaign');
-          const projectCampaigns = (campaigns || []).filter((c: any) => c.project_id === req.project_id);
+          const projectCampaigns = (campaigns || [])
+            .filter((c: any) => c.project_id === req.project_id)
+            .filter((c: any) => !matchedCampaignIds.has(c.id)); // Exclude already matched campaigns
           
           if (projectCampaigns.length > 0) {
             // Find campaign created closest to decided_at (within 1 hour window)
@@ -351,15 +367,22 @@ export default async function handler(
               }
             }
             
-            // Fallback: use most recent campaign if no match within 1 hour
+            // Fallback: use campaign created closest to decided_at (even if > 1 hour)
+            // But still prefer the one closest in time
             if (closestCampaign === null && projectCampaigns.length > 0) {
-              const sorted = [...projectCampaigns].sort((a: any, b: any) => {
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-              });
-              closestCampaign = sorted[0] as CampaignItem;
+              for (const c of projectCampaigns) {
+                const campaign = c as CampaignItem;
+                const campaignTime = new Date(campaign.created_at).getTime();
+                const timeDiff = Math.abs(campaignTime - decidedAt);
+                if (timeDiff < minTimeDiff) {
+                  minTimeDiff = timeDiff;
+                  closestCampaign = campaign;
+                }
+              }
             }
             
             if (closestCampaign !== null) {
+              matchedCampaignIds.add(closestCampaign.id);
               liveItemIdMap.set(req.id, closestCampaign.id);
               liveItemStatusMap.set(req.id, closestCampaign.status);
               liveItemStartsAtMap.set(req.id, closestCampaign.start_at || null);
@@ -383,7 +406,9 @@ export default async function handler(
         } else if (req.requested_arc_access_level === 'leaderboard') {
           // For Leaderboard: Find arena
           liveItemKindMap.set(req.id, 'arena');
-          const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
+          const projectArenas = (arenas || [])
+            .filter((a: any) => a.project_id === req.project_id)
+            .filter((a: any) => !matchedArenaIds.has(a.id)); // Exclude already matched arenas
           
           if (projectArenas.length > 0) {
             interface ArenaItem {
@@ -398,6 +423,7 @@ export default async function handler(
             let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
             
+            // First, try to find arena within 1 hour window
             for (const a of projectArenas) {
               const arena = a as ArenaItem;
               const arenaTime = new Date(arena.created_at).getTime();
@@ -408,14 +434,21 @@ export default async function handler(
               }
             }
             
+            // Fallback: use arena created closest to decided_at (even if > 1 hour)
             if (closestArena === null && projectArenas.length > 0) {
-              const sorted = [...projectArenas].sort((a: any, b: any) => {
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-              });
-              closestArena = sorted[0] as ArenaItem;
+              for (const a of projectArenas) {
+                const arena = a as ArenaItem;
+                const arenaTime = new Date(arena.created_at).getTime();
+                const timeDiff = Math.abs(arenaTime - decidedAt);
+                if (timeDiff < minTimeDiff) {
+                  minTimeDiff = timeDiff;
+                  closestArena = arena;
+                }
+              }
             }
             
             if (closestArena !== null) {
+              matchedArenaIds.add(closestArena.id);
               liveItemIdMap.set(req.id, closestArena.id);
               liveItemStatusMap.set(req.id, closestArena.status);
               liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
@@ -439,7 +472,9 @@ export default async function handler(
         } else if (req.requested_arc_access_level === 'gamified') {
           // For Gamified: Check creator_manager_programs first, then arenas as fallback
           liveItemKindMap.set(req.id, 'gamified');
-          const projectPrograms = (programs || []).filter((p: any) => p.project_id === req.project_id);
+          const projectPrograms = (programs || [])
+            .filter((p: any) => p.project_id === req.project_id)
+            .filter((p: any) => !matchedProgramIds.has(p.id)); // Exclude already matched programs
           
           if (projectPrograms.length > 0) {
             interface ProgramItem {
@@ -464,14 +499,21 @@ export default async function handler(
               }
             }
             
+            // Fallback: use program created closest to decided_at
             if (closestProgram === null && projectPrograms.length > 0) {
-              const sorted = [...projectPrograms].sort((a: any, b: any) => {
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-              });
-              closestProgram = sorted[0] as ProgramItem;
+              for (const p of projectPrograms) {
+                const program = p as ProgramItem;
+                const programTime = new Date(program.created_at).getTime();
+                const timeDiff = Math.abs(programTime - decidedAt);
+                if (timeDiff < minTimeDiff) {
+                  minTimeDiff = timeDiff;
+                  closestProgram = program;
+                }
+              }
             }
             
             if (closestProgram !== null) {
+              matchedProgramIds.add(closestProgram.id);
               liveItemIdMap.set(req.id, closestProgram.id);
               liveItemStatusMap.set(req.id, closestProgram.status);
               liveItemStartsAtMap.set(req.id, closestProgram.start_at || null);
@@ -483,7 +525,10 @@ export default async function handler(
             }
           } else {
             // Fallback to arenas for gamified
-            const projectArenas = (arenas || []).filter((a: any) => a.project_id === req.project_id);
+            const projectArenas = (arenas || [])
+              .filter((a: any) => a.project_id === req.project_id)
+              .filter((a: any) => !matchedArenaIds.has(a.id)); // Exclude already matched arenas
+            
             if (projectArenas.length > 0) {
               interface ArenaItem {
                 id: string;
@@ -507,14 +552,21 @@ export default async function handler(
                 }
               }
               
+              // Fallback: use arena created closest to decided_at
               if (closestArena === null && projectArenas.length > 0) {
-                const sorted = [...projectArenas].sort((a: any, b: any) => {
-                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                });
-                closestArena = sorted[0] as ArenaItem;
+                for (const a of projectArenas) {
+                  const arena = a as ArenaItem;
+                  const arenaTime = new Date(arena.created_at).getTime();
+                  const timeDiff = Math.abs(arenaTime - decidedAt);
+                  if (timeDiff < minTimeDiff) {
+                    minTimeDiff = timeDiff;
+                    closestArena = arena;
+                  }
+                }
               }
               
               if (closestArena !== null) {
+                matchedArenaIds.add(closestArena.id);
                 liveItemIdMap.set(req.id, closestArena.id);
                 liveItemStatusMap.set(req.id, closestArena.status);
                 liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
