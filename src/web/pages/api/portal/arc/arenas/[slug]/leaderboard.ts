@@ -392,34 +392,24 @@ export default async function handler(
     const usernamesNeedingImages = allUsernames.filter(username => !profileMap.has(username));
     
     if (usernamesNeedingImages.length > 0) {
-      // Fetch profiles - use .in() for exact match, Supabase should handle case-insensitive if needed
-      // If that doesn't work, we'll fetch all and filter client-side
-      const { data: profiles } = await supabase
+      // Create a set of normalized usernames we're looking for
+      const neededUsernamesSet = new Set(usernamesNeedingImages);
+      
+      // Fetch profiles - we'll fetch a reasonable batch and filter client-side
+      // This handles case-insensitive matching properly
+      const { data: allProfiles } = await supabase
         .from('profiles')
         .select('username, profile_image_url')
-        .in('username', usernamesNeedingImages);
+        .limit(10000); // Reasonable limit for most use cases
 
-      // If no results with .in(), try fetching all and filtering client-side
-      if (!profiles || profiles.length === 0) {
-        const { data: allProfiles } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .limit(10000); // Reasonable limit
-
-        if (allProfiles) {
-          for (const profile of allProfiles) {
-            const normalized = normalizeTwitterUsername(profile.username);
-            if (normalized && usernamesNeedingImages.includes(normalized) && !profileMap.has(normalized)) {
-              profileMap.set(normalized, profile.profile_image_url || null);
-            }
-          }
-        }
-      } else {
-        // Use results from .in() query
-        for (const profile of profiles) {
+      if (allProfiles) {
+        for (const profile of allProfiles) {
           const normalized = normalizeTwitterUsername(profile.username);
-          if (normalized && usernamesNeedingImages.includes(normalized) && !profileMap.has(normalized)) {
-            profileMap.set(normalized, profile.profile_image_url || null);
+          // Check if this normalized username is one we need
+          if (normalized && neededUsernamesSet.has(normalized) && profile.profile_image_url) {
+            if (!profileMap.has(normalized)) {
+              profileMap.set(normalized, profile.profile_image_url);
+            }
           }
         }
       }
