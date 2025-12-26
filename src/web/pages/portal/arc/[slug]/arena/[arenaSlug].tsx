@@ -36,6 +36,7 @@ interface ProjectInfo {
   twitter_username: string;
   avatar_url: string | null;
   slug?: string | null;
+  arc_access_level?: string | null;
 }
 
 interface Creator {
@@ -1142,7 +1143,7 @@ export default function ArenaDetailsPage() {
                     </button>
                   )}
                 </div>
-                {canWrite && activeTab === 'leaderboard' && (
+                {canWrite && activeTab === 'leaderboard' && project?.arc_access_level === 'creator_manager' && (
                   <button
                     onClick={() => {
                       setFormData({
@@ -1158,6 +1159,11 @@ export default function ArenaDetailsPage() {
                   >
                     Add Creator
                   </button>
+                )}
+                {canWrite && activeTab === 'leaderboard' && project?.arc_access_level !== 'creator_manager' && (
+                  <div className="text-xs text-akari-muted italic">
+                    Creators are automatically tracked from X contributions
+                  </div>
                 )}
               </div>
 
@@ -1601,22 +1607,16 @@ export default function ArenaDetailsPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs text-akari-muted">Base ARC Points (non-negative)</label>
+                  <label className="mb-1 block text-xs text-akari-muted">ARC Points (Auto-calculated)</label>
                   <input
                     type="number"
                     value={formData.arc_points}
-                    onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
-                      if (val < 0) return; // Prevent negative values
-                      setFormData({ ...formData, arc_points: val });
-                    }}
-                    min="0"
-                    step="0.01"
-                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-                    disabled={modalLoading}
+                    readOnly
+                    className="w-full px-3 py-2 text-sm bg-akari-cardSoft/20 border border-akari-border/20 rounded-lg text-akari-muted cursor-not-allowed"
+                    disabled={true}
                   />
                   <p className="mt-1 text-xs text-akari-muted">
-                    Note: To slash points (negative adjustments), use the &quot;Adjust&quot; button instead.
+                    Points are calculated automatically from creator activity. For manual adjustments, use the &quot;Adjust&quot; button after the creator is added.
                   </p>
                 </div>
 

@@ -33,6 +33,7 @@ interface ProjectInfo {
   name: string;
   twitter_username: string;
   avatar_url: string | null;
+  arc_access_level: string | null;
 }
 
 interface Creator {
@@ -188,7 +189,7 @@ export default async function handler(
     // STEP 2: Fetch project separately (split query to avoid join issues)
     const { data: projectData, error: projectError } = await supabase
       .from('projects')
-      .select('id, name, x_handle, avatar_url')
+      .select('id, name, x_handle, avatar_url, arc_access_level')
       .eq('id', arenaData.project_id)
       .single();
 
@@ -347,6 +348,7 @@ export default async function handler(
         name: project.name,
         twitter_username: project.x_handle || '',
         avatar_url: project.avatar_url || null,
+        arc_access_level: project.arc_access_level || null,
       },
       creators: creatorsWithAdjustments,
       sentiment: {
