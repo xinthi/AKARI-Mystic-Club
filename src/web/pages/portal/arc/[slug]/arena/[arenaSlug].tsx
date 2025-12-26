@@ -682,7 +682,7 @@ export default function ArenaDetailsPage() {
           : 'Unknown';
         // effective_points = base_points + adjustments_sum
         const effective = creator.adjusted_points ?? creator.arc_points ?? 0;
-        const text = `@${creator.twitter_username || 'Unknown'} joined this arena as ${ringName} with ${effective} ARC points.`;
+        const text = `@${(creator.twitter_username || 'Unknown').replace(/^@+/, '')} joined this arena as ${ringName} with ${effective} ARC points.`;
 
         return {
           date,
@@ -1249,7 +1249,7 @@ export default function ArenaDetailsPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-akari-text truncate">
-                          @{member.profile?.username || 'Unknown'}
+                          @{(member.profile?.username || 'Unknown').replace(/^@+/, '')}
                         </p>
                         {member.affiliate_title && (
                           <p className="text-xs text-akari-muted truncate">
@@ -1539,7 +1539,7 @@ export default function ArenaDetailsPage() {
                                   )}
                                   <div className="flex items-center gap-3 min-w-0 flex-wrap">
                                     <span className="text-sm font-medium text-akari-text whitespace-nowrap">
-                                      {entry.twitter_username}
+                                      @{entry.twitter_username.replace(/^@+/, '')}
                                     </span>
                                     {entry.ring && (
                                       <span
@@ -1800,7 +1800,7 @@ export default function ArenaDetailsPage() {
                                               </div>
                                             )}
                                             <span className="text-sm text-akari-text flex-1 min-w-0 truncate">
-                                              {entry.twitter_username}
+                                              @{entry.twitter_username.replace(/^@+/, '')}
                                             </span>
                                             {entry.ring && (
                                               <span className={`px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0 ${getRingColor(entry.ring)}`}>
@@ -2065,7 +2065,7 @@ export default function ArenaDetailsPage() {
                   <label className="mb-1 block text-xs text-akari-muted">Creator</label>
                   <input
                     type="text"
-                    value={`@${adjustingCreator.twitter_username || 'Unknown'}`}
+                    value={`@${(adjustingCreator.twitter_username || 'Unknown').replace(/^@+/, '')}`}
                     disabled
                     className="w-full px-3 py-2 text-sm bg-akari-cardSoft/20 border border-akari-border/20 rounded-lg text-akari-muted cursor-not-allowed"
                   />
@@ -2143,7 +2143,7 @@ export default function ArenaDetailsPage() {
             <div className="w-full max-w-2xl rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl max-h-[80vh] overflow-y-auto">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-akari-text">
-                  Adjustment History: @{adjustingCreator.twitter_username || 'Unknown'}
+                  Adjustment History: @{(adjustingCreator.twitter_username || 'Unknown').replace(/^@+/, '')}
                 </h3>
                 <button
                   onClick={closeModals}

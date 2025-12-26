@@ -868,7 +868,7 @@ export default function CreatorManagerProgramDetail() {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-akari-text truncate">
-                              @{creator.profile?.username || 'unknown'}
+                              @{((creator.profile?.username || 'unknown') as string).replace(/^@+/, '')}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-akari-muted">
                               {creator.class && (
@@ -1008,7 +1008,7 @@ export default function CreatorManagerProgramDetail() {
                             )}
                             <div>
                               <div className="font-medium text-akari-text">
-                                @{creator.profile?.username || 'unknown'}
+                                @{((creator.profile?.username || 'unknown') as string).replace(/^@+/, '')}
                               </div>
                               {creator.profile?.name && (
                                 <div className="text-sm text-akari-muted">{creator.profile.name}</div>
@@ -1258,7 +1258,7 @@ export default function CreatorManagerProgramDetail() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <span className="font-medium text-akari-text">
-                                        @{submission.creator_username}
+                                        @{(submission.creator_username || '').replace(/^@+/, '')}
                                       </span>
                                       <span
                                         className={`px-2 py-1 rounded text-xs ${

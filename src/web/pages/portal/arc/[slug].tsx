@@ -1734,7 +1734,7 @@ export default function ArcProjectHub() {
                                             )}
                                             <div>
                                               <div className="text-sm font-semibold text-white">
-                                                @{entry.twitter_username}
+                                                @{entry.twitter_username.replace(/^@+/, '')}
                                               </div>
                                             </div>
                                           </div>
@@ -1933,7 +1933,7 @@ export default function ArcProjectHub() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                           <div className="text-sm font-medium text-white truncate">
-                                            @{creator.twitter_username || 'Unknown'}
+                                            @{(creator.twitter_username || 'Unknown').replace(/^@+/, '')}
                                           </div>
                                           {creator.style && (
                                             <div className="text-xs text-white/60 truncate">{creator.style}</div>
@@ -2298,7 +2298,7 @@ export default function ArcProjectHub() {
                               <div className="space-y-2">
                                 {participants.map((p) => (
                                   <div key={p.id} className="flex items-center justify-between p-2 rounded border border-white/5 bg-white/5">
-                                    <span className="text-sm text-white">@{p.twitter_username}</span>
+                                    <span className="text-sm text-white">@{p.twitter_username.replace(/^@+/, '')}</span>
                                     <div className="flex items-center gap-2">
                                       <span className={`px-2 py-1 text-xs rounded-full capitalize ${
                                         p.status === 'accepted' ? 'bg-green-500/20 text-green-400' :
@@ -2386,7 +2386,7 @@ export default function ArcProjectHub() {
                                 <div key={sub.id} className="flex items-center justify-between p-3 rounded border border-white/5 bg-white/5">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-sm text-white">@{sub.participant?.twitter_username || 'Unknown'}</span>
+                                      <span className="text-sm text-white">@{((sub.participant?.twitter_username || 'Unknown') as string).replace(/^@+/, '')}</span>
                                       <span className="text-xs text-white/40 capitalize">{sub.platform}</span>
                                     </div>
                                     <a href={sub.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:underline">

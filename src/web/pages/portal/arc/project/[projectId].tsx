@@ -659,7 +659,7 @@ export default function ArcProjectPage() {
                                   )}
                                   <div>
                                     <div className="text-sm font-semibold text-white">
-                                      @{entry.twitter_username}
+                                      @{entry.twitter_username.replace(/^@+/, '')}
                                     </div>
                                   </div>
                                 </div>

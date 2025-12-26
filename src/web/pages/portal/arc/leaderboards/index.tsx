@@ -378,7 +378,7 @@ export default function ArcLeaderboardsPage() {
                                     href={`/portal/arc/creator/${encodeURIComponent(entry.twitter_username.replace('@', ''))}`}
                                     className="text-white font-medium hover:text-akari-neon-teal transition-colors"
                                   >
-                                    {entry.twitter_username}
+                                    @{entry.twitter_username.replace(/^@+/, '')}
                                   </Link>
                                   {entry.project_name && (
                                     <span className="text-xs text-akari-muted">

@@ -503,7 +503,7 @@ export default function GamifiedLeaderboardPage() {
                               />
                             )}
                             <div className="text-sm font-semibold text-white">
-                              @{entry.twitter_username}
+                              @{entry.twitter_username.replace(/^@+/, '')}
                             </div>
                           </div>
                         </td>
@@ -723,7 +723,7 @@ export default function GamifiedLeaderboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-white">
-                          @{activity.creator_username}
+                          @{(activity.creator_username || '').replace(/^@+/, '')}
                         </div>
                         <div className="text-xs text-white/60">
                           completed <span className="font-medium">{activity.mission_id}</span>
