@@ -208,7 +208,10 @@ export default function AdminLeaderboardRequestsPage() {
     setError(null);
 
     try {
-      const res = await fetch('/api/portal/admin/arc/leaderboard-requests');
+      // Force refresh by adding cache-busting timestamp
+      const res = await fetch(`/api/portal/admin/arc/leaderboard-requests?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
 
       if (!data.ok) {
@@ -292,7 +295,10 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to end campaigns');
       }
 
-      // Reload requests to refresh status
+      // Small delay to ensure database update has propagated
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload requests to refresh status (with cache-busting)
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
@@ -337,7 +343,10 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to resume leaderboard');
       }
 
-      // Reload requests to refresh status
+      // Small delay to ensure database update has propagated
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload requests to refresh status (with cache-busting)
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {
@@ -382,7 +391,10 @@ export default function AdminLeaderboardRequestsPage() {
         throw new Error(data.error || 'Failed to pause campaigns');
       }
 
-      // Reload requests to refresh status
+      // Small delay to ensure database update has propagated
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload requests to refresh status (with cache-busting)
       await loadRequests();
     } catch (err: any) {
       setRowErrors((prev) => {

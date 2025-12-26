@@ -133,7 +133,10 @@ export default async function handler(
           if (targetCampaign !== null) {
             const { error: updateError } = await supabase
               .from('arc_campaigns')
-              .update({ status: 'paused' })
+              .update({ 
+                status: 'paused',
+                updated_at: new Date().toISOString()
+              })
               .eq('id', targetCampaign.id);
 
             if (updateError) {
@@ -194,7 +197,10 @@ export default async function handler(
           if (targetArena !== null) {
             const { error: updateError } = await supabase
               .from('arenas')
-              .update({ status: 'paused' })
+              .update({ 
+                status: 'paused',
+                updated_at: new Date().toISOString()
+              })
               .eq('id', targetArena.id);
 
             if (updateError) {
@@ -252,7 +258,10 @@ export default async function handler(
     if (!campaignsFetchError && activeCampaigns && activeCampaigns.length > 0) {
       const { error: campaignsUpdateError } = await supabase
         .from('arc_campaigns')
-        .update({ status: 'paused' })
+        .update({ 
+          status: 'paused',
+          updated_at: new Date().toISOString()
+        })
         .eq('project_id', projectId)
         .in('status', ['live']);
 

@@ -145,9 +145,13 @@ export default async function handler(
         }
 
         // End only this specific campaign
+        // Also update updated_at to track when it was ended
         const { error: updateError } = await supabase
           .from('arc_campaigns')
-          .update({ status: 'ended' })
+          .update({ 
+            status: 'ended',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', targetCampaign.id);
 
         if (updateError) {
@@ -163,11 +167,12 @@ export default async function handler(
       } else {
         // For Leaderboard/Gamified: Find and end the specific arena
         // Match by: same project_id AND created_at closest to request decided_at (within 1 hour window)
+        // Include 'paused' status so we can end paused arenas too
         const { data: arenas } = await supabase
           .from('arenas')
           .select('id, created_at, status')
           .eq('project_id', request.project_id)
-          .in('status', ['draft', 'scheduled', 'active'])
+          .in('status', ['draft', 'scheduled', 'active', 'paused'])
           .order('created_at', { ascending: false });
 
         if (!arenas || arenas.length === 0) {
@@ -182,7 +187,7 @@ export default async function handler(
         interface ArenaItem {
           id: string;
           created_at: string;
-          status: 'draft' | 'scheduled' | 'active';
+          status: 'draft' | 'scheduled' | 'active' | 'paused';
         }
         let targetArena: ArenaItem | null = null;
         let minTimeDiff = Infinity;
@@ -208,9 +213,13 @@ export default async function handler(
         }
 
         // End only this specific arena (use 'ended' status for consistency with campaigns)
+        // Also update updated_at to track when it was ended
         const { error: updateError } = await supabase
           .from('arenas')
-          .update({ status: 'ended' })
+          .update({ 
+            status: 'ended',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', targetArena.id);
 
         if (updateError) {
