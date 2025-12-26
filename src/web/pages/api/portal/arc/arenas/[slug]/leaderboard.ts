@@ -401,7 +401,7 @@ export default async function handler(
         multiplier,
         score,
         is_joined: isJoined,
-        follow_verified,
+        follow_verified: followVerified,
         ring: joined?.ring as 'core' | 'momentum' | 'discovery' | null,
         joined_at: joined?.joined_at || null,
       });
