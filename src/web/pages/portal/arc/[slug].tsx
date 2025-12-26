@@ -239,6 +239,9 @@ export default function ArcProjectHub() {
     header_image_url: '',
   });
   const [savingProject, setSavingProject] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   const [joiningProjectId, setJoiningProjectId] = useState<string | null>(null);
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -783,6 +786,74 @@ export default function ArcProjectHub() {
     checkFollowVerification();
   }, [projectId, akariUser.user, permissions?.isInvestorView]);
 
+  // Handle image file selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.');
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB limit.');
+      return;
+    }
+
+    setSelectedImageFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle image upload
+  const handleImageUpload = async () => {
+    if (!projectId || !selectedImageFile) return;
+
+    setUploadingImage(true);
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedImageFile);
+      });
+
+      // Upload to API
+      const res = await fetch(`/api/portal/projects/${projectId}/upload-header-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ image: base64 }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to upload image');
+      }
+
+      // Update form with new image URL
+      setEditForm({ ...editForm, header_image_url: data.url });
+      setSelectedImageFile(null);
+      setImagePreview('');
+      alert('Image uploaded successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   // Handle save project edit
   const handleSaveProject = async () => {
     if (!projectId) return;
@@ -1235,12 +1306,13 @@ export default function ArcProjectHub() {
                                 credentials: 'include',
                               });
                               const data = await res.json();
+                              const headerImageUrl = data.project?.header_image_url || project.meta?.banner_url || '';
                               if (res.ok && data.ok && data.project) {
                                 setEditForm({
                                   name: data.project.name || project.name || '',
                                   slug: data.project.slug || project.slug || '',
                                   x_handle: data.project.x_handle || project.twitter_username?.replace(/^@+/, '') || '',
-                                  header_image_url: data.project.header_image_url || project.meta?.banner_url || '',
+                                  header_image_url: headerImageUrl,
                                 });
                               } else {
                                 // Fallback to current project data
@@ -1248,17 +1320,23 @@ export default function ArcProjectHub() {
                                   name: project.name || '',
                                   slug: project.slug || '',
                                   x_handle: project.twitter_username?.replace(/^@+/, '') || '',
-                                  header_image_url: project.meta?.banner_url || '',
+                                  header_image_url: headerImageUrl,
                                 });
                               }
+                              // Set preview if there's an existing image
+                              setImagePreview(headerImageUrl || '');
+                              setSelectedImageFile(null);
                             } catch (err) {
                               // Fallback to current project data
+                              const headerImageUrl = project.meta?.banner_url || '';
                               setEditForm({
                                 name: project.name || '',
                                 slug: project.slug || '',
                                 x_handle: project.twitter_username?.replace(/^@+/, '') || '',
-                                header_image_url: project.meta?.banner_url || '',
+                                header_image_url: headerImageUrl,
                               });
+                              setImagePreview(headerImageUrl || '');
+                              setSelectedImageFile(null);
                             }
                             setEditingProject(true);
                           }}
@@ -3010,27 +3088,49 @@ export default function ArcProjectHub() {
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Header Image URL</label>
+                <label className="block text-xs text-slate-400 mb-1">Header Image</label>
                 <input
-                  type="url"
-                  value={editForm.header_image_url}
-                  onChange={(e) => setEditForm({ ...editForm, header_image_url: e.target.value })}
-                  placeholder="https://example.com/header-image.jpg"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                  onChange={handleImageSelect}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:font-medium file:bg-akari-primary/20 file:text-akari-primary hover:file:bg-akari-primary/30 file:cursor-pointer"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  URL to the project header image (displayed on leaderboard pages)
+                  Upload a header image for your project (max 10MB, JPEG/PNG/WebP/GIF)
                 </p>
-                {editForm.header_image_url && (
+                
+                {/* Upload button for selected file */}
+                {selectedImageFile && (
+                  <button
+                    type="button"
+                    onClick={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="mt-2 px-4 py-2 text-sm font-medium bg-akari-primary/20 text-akari-primary hover:bg-akari-primary/30 border border-akari-primary/50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                  </button>
+                )}
+
+                {/* Preview */}
+                {(imagePreview || editForm.header_image_url) && (
                   <div className="mt-2">
                     <img
-                      src={editForm.header_image_url}
+                      src={imagePreview || editForm.header_image_url}
                       alt="Header preview"
                       className="w-full h-32 object-cover rounded-lg border border-slate-700"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}
                     />
+                    {editForm.header_image_url && !imagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, header_image_url: '' })}
+                        className="mt-2 text-xs text-red-400 hover:text-red-300"
+                      >
+                        Remove image
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -3045,7 +3145,11 @@ export default function ArcProjectHub() {
                 {savingProject ? 'Saving...' : 'Save'}
               </button>
               <button
-                onClick={() => setEditingProject(false)}
+                onClick={() => {
+                  setEditingProject(false);
+                  setSelectedImageFile(null);
+                  setImagePreview('');
+                }}
                 disabled={savingProject}
                 className="flex-1 px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
