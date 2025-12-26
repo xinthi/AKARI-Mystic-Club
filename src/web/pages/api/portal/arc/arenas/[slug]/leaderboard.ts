@@ -363,18 +363,42 @@ export default async function handler(
     const entries: LeaderboardEntry[] = [];
     const profileMap = new Map<string, { avatar_url: string | null }>();
 
-    // Get profile images for all creators
+    // Extract profile images from joined creators (already fetched via join query)
+    if (creators) {
+      for (const creator of creators) {
+        const normalizedUsername = normalizeTwitterUsername(creator.twitter_username);
+        if (normalizedUsername) {
+          // Extract profile_image_url from the joined profiles relation
+          const profile = (creator as any).profiles;
+          if (profile) {
+            // Handle both single object and array cases
+            const profileData = Array.isArray(profile) ? profile[0] : profile;
+            if (profileData?.profile_image_url) {
+              profileMap.set(normalizedUsername, { avatar_url: profileData.profile_image_url });
+            }
+            // Also map by profile_id if available
+            if (creator.profile_id && profileData?.profile_image_url) {
+              profileMap.set(creator.profile_id, { avatar_url: profileData.profile_image_url });
+            }
+          }
+        }
+      }
+    }
+
+    // Get profile images for all creators (by username) - for those not already joined
     const allUsernames = Array.from(autoTrackedPoints.keys());
-    if (allUsernames.length > 0) {
+    const usernamesNeedingImages = allUsernames.filter(username => !profileMap.has(username));
+    
+    if (usernamesNeedingImages.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('username, profile_image_url')
-        .in('username', allUsernames);
+        .in('username', usernamesNeedingImages);
 
       if (profiles) {
         for (const profile of profiles) {
           const normalized = normalizeTwitterUsername(profile.username);
-          if (normalized) {
+          if (normalized && !profileMap.has(normalized)) {
             profileMap.set(normalized, { avatar_url: profile.profile_image_url || null });
           }
         }
@@ -391,12 +415,22 @@ export default async function handler(
       const multiplier = (isJoined && followVerified) ? 1.5 : 1.0;
       const score = data.basePoints * multiplier;
 
-      const profile = profileMap.get(username);
+      // Get avatar URL - try by username first, then by profile_id if joined
+      let avatarUrl: string | null = null;
+      const profileByUsername = profileMap.get(username);
+      if (profileByUsername?.avatar_url) {
+        avatarUrl = profileByUsername.avatar_url;
+      } else if (joined?.profile_id) {
+        const profileById = profileMap.get(joined.profile_id);
+        if (profileById?.avatar_url) {
+          avatarUrl = profileById.avatar_url;
+        }
+      }
 
       entries.push({
         rank: 0, // Will be set after sorting
         twitter_username: `@${username}`,
-        avatar_url: profile?.avatar_url || null,
+        avatar_url: avatarUrl,
         base_points: data.basePoints,
         multiplier,
         score,
