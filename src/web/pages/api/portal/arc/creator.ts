@@ -6,7 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createPortalClient } from '@/lib/portal/supabase';
+import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 
 // =============================================================================
 // TYPES
@@ -23,6 +23,7 @@ interface CreatorProfile {
     momentum: number;
     discovery: number;
   };
+  avatar_url: string | null;
 }
 
 interface CreatorArenaEntry {
@@ -195,6 +196,18 @@ export default async function handler(
     // Get the actual twitter_username from the first row (should be consistent)
     const twitterUsernameActual = creatorsData[0]?.twitter_username || normalizedUsername;
 
+    // Fetch profile image for this creator
+    let avatar_url: string | null = null;
+    try {
+      const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
+      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, [cleanUsername]);
+      // akariUsersMap takes precedence if both exist
+      avatar_url = akariUsersMap.get(cleanUsername) || profilesMap.get(cleanUsername) || null;
+    } catch (error) {
+      console.error('[API /portal/arc/creator] Error fetching profile image:', error);
+      // Continue without avatar
+    }
+
     // Build response
     const response: CreatorResponse = {
       ok: true,
@@ -205,6 +218,7 @@ export default async function handler(
         total_points: totalPoints,
         arenas_count: arenasCount,
         ring_points: ringPoints,
+        avatar_url: avatar_url,
       },
       arenas: arenas.sort((a, b) => b.arc_points - a.arc_points), // Sort by points descending
     };

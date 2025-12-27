@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 
 interface LeaderboardEntry {
   rank: number;
@@ -146,33 +147,28 @@ export default async function handler(
 
     // Build leaderboard entries
     const entries: LeaderboardEntry[] = [];
-    const profileMap = new Map<string, { avatar_url: string | null }>();
 
-    // Get profile images
+    // Get profile images using the helper function
     const allUsernames = Array.from(pointsMap.keys());
+    const avatarMap = new Map<string, string | null>();
     if (allUsernames.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('username, profile_image_url')
-        .in('username', allUsernames);
-
-      if (profiles) {
-        for (const profile of profiles) {
-          const normalized = normalizeTwitterUsername(profile.username);
-          if (normalized) {
-            profileMap.set(normalized, { avatar_url: profile.profile_image_url || null });
-          }
-        }
+      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, allUsernames);
+      
+      // Combine both maps (akariUsersMap takes precedence if both exist)
+      for (const [username, imageUrl] of profilesMap.entries()) {
+        avatarMap.set(username, imageUrl);
+      }
+      for (const [username, imageUrl] of akariUsersMap.entries()) {
+        avatarMap.set(username, imageUrl);
       }
     }
 
     // Create entries
     for (const [username, data] of pointsMap.entries()) {
-      const profile = profileMap.get(username);
       entries.push({
         rank: 0, // Will be set after sorting
         twitter_username: `@${username}`,
-        avatar_url: profile?.avatar_url || null,
+        avatar_url: avatarMap.get(username) || null,
         points: data.points,
         contributions: data.count,
         ring: (ringMap.get(username) as 'core' | 'momentum' | 'discovery') || null,

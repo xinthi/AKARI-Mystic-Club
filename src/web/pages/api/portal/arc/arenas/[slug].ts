@@ -300,37 +300,22 @@ export default async function handler(
       }
     }
 
-    // Fetch profile images for creators
+    // Fetch profile images for creators using the helper function
     const profileImageMap = new Map<string, string | null>();
-    if (creatorProfileIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, profile_image_url')
-        .in('id', creatorProfileIds);
-
-      if (profiles) {
-        for (const profile of profiles) {
-          profileImageMap.set(profile.id, profile.profile_image_url || null);
-        }
-      }
-    }
-
-    // Also fetch by username for creators without profile_id
-    const usernamesWithoutProfile = (creatorsData || [])
-      .filter((c: any) => !c.profile_id && c.twitter_username)
-      .map((c: any) => c.twitter_username.replace(/^@+/, '').toLowerCase());
+    const allCreatorUsernames = (creatorsData || [])
+      .filter((c: any) => c.twitter_username)
+      .map((c: any) => (c.twitter_username || '').replace(/^@+/, '').toLowerCase());
     
-    if (usernamesWithoutProfile.length > 0) {
-      const { data: profilesByUsername } = await supabase
-        .from('profiles')
-        .select('username, profile_image_url')
-        .in('username', usernamesWithoutProfile);
-
-      if (profilesByUsername) {
-        for (const profile of profilesByUsername) {
-          const normalizedUsername = profile.username.toLowerCase().replace(/^@+/, '');
-          profileImageMap.set(normalizedUsername, profile.profile_image_url || null);
-        }
+    if (allCreatorUsernames.length > 0) {
+      const { fetchProfileImagesForHandles } = await import('@/lib/portal/supabase');
+      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, allCreatorUsernames);
+      
+      // Combine both maps (akariUsersMap takes precedence if both exist)
+      for (const [username, imageUrl] of profilesMap.entries()) {
+        profileImageMap.set(username, imageUrl);
+      }
+      for (const [username, imageUrl] of akariUsersMap.entries()) {
+        profileImageMap.set(username, imageUrl);
       }
     }
 
@@ -346,13 +331,10 @@ export default async function handler(
       // effective_points = base_points + COALESCE(adjustments_sum, 0)
       const effectivePoints = basePoints + adjustmentsSum;
 
-      // Get avatar URL
+      // Get avatar URL (profileImageMap is keyed by normalized username)
       let avatarUrl: string | null = null;
-      if (creator.profile_id) {
-        avatarUrl = profileImageMap.get(creator.profile_id) || null;
-      }
-      if (!avatarUrl && creator.twitter_username) {
-        const normalizedUsername = creator.twitter_username.replace(/^@+/, '').toLowerCase();
+      if (creator.twitter_username) {
+        const normalizedUsername = (creator.twitter_username || '').replace(/^@+/, '').toLowerCase();
         avatarUrl = profileImageMap.get(normalizedUsername) || null;
       }
 
