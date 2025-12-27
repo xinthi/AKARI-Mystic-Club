@@ -166,6 +166,7 @@ export default function ArenaDetailsPage() {
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [leaderboardTotal, setLeaderboardTotal] = useState(0);
   const [leaderboardTotalPages, setLeaderboardTotalPages] = useState(0);
+  const [leaderboardSearch, setLeaderboardSearch] = useState('');
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   
   // Team members state
