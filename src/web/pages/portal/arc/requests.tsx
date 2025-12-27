@@ -306,11 +306,11 @@ export default function ArcRequestsPage() {
           {/* Request Form */}
           {!projectLoading && selectedProject && (
             <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
-                {submitSuccess ? (
+              {submitSuccess ? (
                   <div className="text-center py-8">
                     <div className="text-green-400 text-4xl mb-4">✓</div>
                     <h2 className="text-xl font-semibold text-white mb-2">Request submitted</h2>
-                    <p className="text-akari-muted mb-4">Redirecting to My Requests...</p>
+                    <p className="text-white/60 mb-4">Redirecting to My Requests...</p>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -368,7 +368,6 @@ export default function ArcRequestsPage() {
                 )}
               </div>
             )}
-          </div>
         </div>
       </ArcPageShell>
     );
@@ -484,8 +483,7 @@ export default function ArcRequestsPage() {
             </div>
           )}
         </div>
-      </div>
-    </ArcPageShell>
+      </ArcPageShell>
   );
 }
 
