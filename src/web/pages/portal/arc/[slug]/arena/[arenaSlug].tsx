@@ -851,7 +851,7 @@ export default function ArenaDetailsPage() {
         });
       }
 
-      const res = await fetch(fetchUrl);
+      const res = await fetch(fetchUrl, { credentials: 'include' });
       
       // Debug logging (development only)
       if (process.env.NODE_ENV === 'development') {

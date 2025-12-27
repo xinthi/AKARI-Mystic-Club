@@ -66,7 +66,7 @@ export default function CreatorManagerHome() {
       setError(null);
 
       // Use API route instead of direct Supabase calls
-      const response = await fetch('/api/portal/creator-manager/projects');
+      const response = await fetch('/api/portal/creator-manager/projects', { credentials: 'include' });
       const data = await response.json();
 
       if (!data.ok) {
