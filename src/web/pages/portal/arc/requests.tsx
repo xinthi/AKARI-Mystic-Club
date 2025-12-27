@@ -10,10 +10,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import Link from 'next/link';
 import { getArcFeatureName, getArcFeatureDescription } from '@/lib/arc-naming';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 
 // =============================================================================
 // TYPES
@@ -249,64 +249,63 @@ export default function ArcRequestsPage() {
     const projectHandle = selectedProject?.twitter_username;
 
     return (
-      <PortalLayout title="Request ARC Access">
-        <div className="min-h-screen bg-akari-dark text-white py-8 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
-            {/* Back to My Requests Button */}
-            <div className="mb-6">
-              <Link
-                href="/portal/arc/requests"
-                className="inline-flex items-center gap-2 text-akari-muted hover:text-akari-neon-teal transition-colors text-sm"
-              >
-                ← Back to My Requests
-              </Link>
-            </div>
+      <ArcPageShell>
+        <div>
+          {/* Back to My Requests Button */}
+          <div className="mb-6">
+            <Link
+              href="/portal/arc/requests"
+              className="inline-flex items-center gap-2 text-white/60 hover:text-white transition-colors text-sm"
+            >
+              ← Back to My Requests
+            </Link>
+          </div>
 
-            {/* Header */}
-            <div className="mb-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">
-                    Request ARC access for {projectDisplayName}
-                  </h1>
-                  {projectHandle && (
-                    <p className="text-akari-muted">@{projectHandle}</p>
-                  )}
-                </div>
-                {/* Admin Panel Link - Show if project has slug */}
-                {selectedProject?.slug && (
-                  <Link
-                    href={`/portal/arc/admin/${encodeURIComponent(selectedProject.slug)}`}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all whitespace-nowrap"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Admin Panel
-                  </Link>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">
+                  Request ARC access for {projectDisplayName}
+                </h1>
+                {projectHandle && (
+                  <p className="text-white/60">@{projectHandle}</p>
                 )}
               </div>
+              {/* Admin Panel Link - Show if project has slug */}
+              {selectedProject?.slug && (
+                <Link
+                  href={`/portal/arc/admin/${encodeURIComponent(selectedProject.slug)}`}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Admin Panel
+                </Link>
+              )}
             </div>
+          </div>
 
-            {/* Loading Project */}
-            {projectLoading && (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-akari-neon-teal"></div>
-                <p className="mt-4 text-akari-muted">Loading project...</p>
-              </div>
-            )}
+          {/* Loading Project */}
+          {projectLoading && (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white/60"></div>
+              <p className="mt-4 text-white/60">Loading project...</p>
+            </div>
+          )}
 
-            {/* Error Loading Project */}
-            {error && !projectLoading && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-6">
-                <p className="text-red-400">{error}</p>
-              </div>
-            )}
+          {/* Error Loading Project */}
+          {error && !projectLoading && (
+            <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-6">
+              <p className="text-red-400">{error}</p>
+            </div>
+          )}
 
-            {/* Request Form */}
-            {!projectLoading && selectedProject && (
-              <div className="bg-akari-card border border-akari-border rounded-lg p-6">
+          {/* Request Form */}
+          {!projectLoading && selectedProject && (
+            <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
                 {submitSuccess ? (
                   <div className="text-center py-8">
                     <div className="text-green-400 text-4xl mb-4">✓</div>
@@ -323,13 +322,13 @@ export default function ArcRequestsPage() {
                       <select
                         value={selectedAccessLevel}
                         onChange={(e) => setSelectedAccessLevel(e.target.value as 'creator_manager' | 'leaderboard' | 'gamified')}
-                        className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-neon-teal"
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                       >
                         <option value="creator_manager">{getArcFeatureName('creator_manager')}</option>
                         <option value="leaderboard">{getArcFeatureName('leaderboard')}</option>
                         <option value="gamified">{getArcFeatureName('gamified')}</option>
                       </select>
-                      <p className="text-xs text-akari-muted mt-2">
+                      <p className="text-xs text-white/60 mt-2">
                         {getArcFeatureDescription(selectedAccessLevel)}
                       </p>
                     </div>
@@ -343,7 +342,7 @@ export default function ArcRequestsPage() {
                         value={justification}
                         onChange={(e) => setJustification(e.target.value)}
                         placeholder="Explain why you'd like to enable ARC access for this project..."
-                        className="w-full px-4 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-neon-teal resize-none"
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
                         rows={4}
                       />
                     </div>
@@ -360,7 +359,7 @@ export default function ArcRequestsPage() {
                       <button
                         onClick={handleSubmitRequest}
                         disabled={submitting}
-                        className="w-full px-4 py-2 bg-akari-neon-teal text-black rounded-lg hover:bg-akari-neon-teal/80 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-2 bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submitting ? 'Submitting...' : 'Submit Request'}
                       </button>
@@ -371,19 +370,18 @@ export default function ArcRequestsPage() {
             )}
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // Render normal requests list
   return (
-    <PortalLayout title="My ARC Requests">
-      <div className="min-h-screen bg-akari-dark text-white py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
+    <ArcPageShell>
+      <div>
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">My ARC Leaderboard Requests</h1>
-            <p className="text-akari-muted">
+            <p className="text-white/60">
               View the status of your ARC leaderboard access requests.
             </p>
           </div>
@@ -391,8 +389,8 @@ export default function ArcRequestsPage() {
           {/* Loading State */}
           {loading && (
             <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-akari-neon-teal"></div>
-              <p className="mt-4 text-akari-muted">Loading requests...</p>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white/60"></div>
+              <p className="mt-4 text-white/60">Loading requests...</p>
             </div>
           )}
 
@@ -407,11 +405,11 @@ export default function ArcRequestsPage() {
           {!loading && !error && (
             <div>
               {requests.length === 0 ? (
-                <div className="bg-akari-card border border-akari-border rounded-lg p-8 text-center">
-                  <p className="text-akari-muted mb-4">You haven&apos;t made any requests yet.</p>
+                <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+                  <p className="text-white/60 mb-4">You haven&apos;t made any requests yet.</p>
                   <Link
                     href="/portal/arc"
-                    className="inline-block px-4 py-2 bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 rounded-lg hover:bg-akari-neon-teal/30 transition-colors"
+                    className="inline-block px-4 py-2 bg-gradient-to-r from-teal-400/20 to-cyan-400/20 text-teal-400 border border-teal-400/50 rounded-lg hover:bg-teal-400/30 transition-colors"
                   >
                     Browse ARC Projects
                   </Link>
@@ -421,7 +419,7 @@ export default function ArcRequestsPage() {
                   {requests.map((request) => (
                     <div
                       key={request.id}
-                      className="bg-akari-card border border-akari-border rounded-lg p-6 hover:border-akari-neon-teal/50 transition-colors"
+                      className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-white/20 transition-colors"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                         {/* Left Side: Project Info */}
@@ -430,27 +428,27 @@ export default function ArcRequestsPage() {
                             <h3 className="text-lg font-semibold text-white">
                               {request.project ? (
                                 <>
-                                  <Link
-                                    href={getProjectLink(request)}
-                                    className="hover:text-akari-neon-teal transition-colors"
-                                  >
-                                    {getProjectDisplay(request).name}
-                                  </Link>
-                                  {getProjectDisplay(request).handle && (
-                                    <span className="text-akari-muted text-sm font-normal ml-2">
-                                      @{getProjectDisplay(request).handle}
-                                    </span>
-                                  )}
-                                </>
+                                    <Link
+                                      href={getProjectLink(request)}
+                                      className="hover:text-teal-400 transition-colors"
+                                    >
+                                      {getProjectDisplay(request).name}
+                                    </Link>
+                                    {getProjectDisplay(request).handle && (
+                                      <span className="text-white/60 text-sm font-normal ml-2">
+                                        @{getProjectDisplay(request).handle}
+                                      </span>
+                                    )}
+                                </> 
                               ) : (
-                                <span className="text-akari-muted">Unknown Project</span>
+                                <span className="text-white/60">Unknown Project</span>
                               )}
                             </h3>
                           </div>
 
                           {/* Request Details */}
                           <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-4 text-akari-muted">
+                            <div className="flex items-center gap-4 text-white/60">
                               <span>Created: {formatDate(request.created_at)}</span>
                               {request.decided_at && (
                                 <span>Decided: {formatDate(request.decided_at)}</span>
@@ -472,7 +470,7 @@ export default function ArcRequestsPage() {
                           {request.status === 'approved' && request.project && (
                             <Link
                               href={getProjectLink(request)}
-                              className="px-3 py-1.5 rounded-lg bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors text-xs font-medium"
+                              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-400/20 to-cyan-400/20 text-teal-400 border border-teal-400/50 hover:bg-teal-400/30 transition-colors text-xs font-medium"
                             >
                               View Project
                             </Link>
@@ -487,7 +485,7 @@ export default function ArcRequestsPage() {
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
