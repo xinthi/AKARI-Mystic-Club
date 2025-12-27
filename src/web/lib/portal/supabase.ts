@@ -751,6 +751,7 @@ export async function fetchProfileImagesForHandles(
           }
         });
       }
+    }
   } catch (error: any) {
     console.warn('[Supabase] Error in fetchProfileImagesForHandles:', error.message);
   }
