@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
@@ -256,7 +256,7 @@ export default function ArenaDetailsPage() {
 
         // Use the correct API route that returns arena, project, and creators in one call
         // NEVER call /api/portal/arc/admin/arena-creators from this public page
-        const res = await fetch(fetchUrl);
+        const res = await fetch(fetchUrl, { credentials: 'include' });
         
         // Debug logging (development only)
         if (process.env.NODE_ENV === 'development') {
@@ -1153,13 +1153,13 @@ export default function ArenaDetailsPage() {
   const safeProjectSlug = (project?.slug || projectSlug || '').trim().toLowerCase();
 
   return (
-    <PortalLayout title="ARC Arena">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             ARC Home
           </Link>
@@ -2480,6 +2480,6 @@ export default function ArenaDetailsPage() {
         )}
 
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }

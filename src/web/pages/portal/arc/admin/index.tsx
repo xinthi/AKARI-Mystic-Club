@@ -12,7 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdmin } from '@/lib/permissions';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -214,76 +214,76 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
   // Show loading state until mounted (prevents hydration mismatch)
   if (!mounted) {
     return (
-      <PortalLayout title="ARC Admin">
+      <ArcPageShell canManageArc={true}>
         <div className="text-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-akari-muted">Loading...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // Check access (only after mounted to prevent flash)
   if (!userIsSuperAdmin) {
     return (
-      <PortalLayout title="ARC Admin">
-        <div className="space-y-6">
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-danger">
+      <ArcPageShell canManageArc={true}>
+        <div>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+            <p className="text-sm text-red-400">
               Access denied. Super Admin privileges required.
             </p>
             <Link
               href="/portal/arc"
-              className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+              className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
             >
               ← Back to ARC Home
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="ARC Super Admin">
+    <ArcPageShell canManageArc={true}>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             ARC Home
           </Link>
           <span>/</span>
-          <span className="text-akari-text">Super Admin</span>
+          <span className="text-white">Super Admin</span>
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-akari-text">ARC Super Admin Dashboard</h1>
-            <p className="text-sm text-akari-muted mt-1">Manage access, approvals, pricing, and analytics</p>
+            <h1 className="text-3xl font-bold text-white">ARC Super Admin Dashboard</h1>
+            <p className="text-white/60 mt-1">Manage access, approvals, pricing, and analytics</p>
           </div>
         </div>
 
         {/* Error state */}
         {initialError && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">{initialError}</p>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-400">{initialError}</p>
           </div>
         )}
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-akari-border/30 pb-2 overflow-x-auto">
+        <div className="flex items-center gap-2 border-b border-white/10 pb-2 overflow-x-auto">
           {(['dashboard', 'access', 'requests', 'reporting', 'pricing'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                 activeTab === tab
-                  ? 'text-black bg-gradient-to-r from-akari-neon-teal to-akari-neon-teal/80 shadow-[0_0_15px_rgba(0,246,162,0.3)]'
-                  : 'text-akari-muted hover:text-akari-text hover:bg-akari-cardSoft/30'
+                  ? 'text-black bg-gradient-to-r from-teal-400 to-cyan-400 shadow-[0_0_15px_rgba(0,246,162,0.3)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
               {tab === 'dashboard' && '📊 Dashboard'}
@@ -303,93 +303,93 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
               {/* Stats Grid */}
               {statsLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
                 </div>
               ) : stats ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Total Projects</div>
-                      <div className="text-3xl font-bold text-akari-text">{stats.totalProjects}</div>
-                      <div className="text-xs text-akari-muted mt-1">{stats.activeProjects} active</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Total Projects</div>
+                      <div className="text-3xl font-bold text-white">{stats.totalProjects}</div>
+                      <div className="text-xs text-white/60 mt-1">{stats.activeProjects} active</div>
                     </div>
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Pending Requests</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Pending Requests</div>
                       <div className="text-3xl font-bold text-yellow-400">{stats.pendingRequests}</div>
                       <Link
                         href="/portal/admin/arc/leaderboard-requests"
-                        className="text-xs text-akari-neon-teal hover:underline mt-1 inline-block"
+                        className="text-xs text-teal-400 hover:underline mt-1 inline-block"
                       >
                         Review requests →
                       </Link>
                     </div>
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Total Revenue</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Total Revenue</div>
                       <div className="text-3xl font-bold text-green-400">${stats.totalRevenue.toLocaleString()}</div>
-                      <div className="text-xs text-akari-muted mt-1">${stats.monthlyRevenue.toLocaleString()} this month</div>
+                      <div className="text-xs text-white/60 mt-1">${stats.monthlyRevenue.toLocaleString()} this month</div>
                     </div>
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Active Arenas</div>
-                      <div className="text-3xl font-bold text-akari-text">{stats.activeArenas}</div>
-                      <div className="text-xs text-akari-muted mt-1">{stats.activeCampaigns} campaigns</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Active Arenas</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeArenas}</div>
+                      <div className="text-xs text-white/60 mt-1">{stats.activeCampaigns} campaigns</div>
                     </div>
                   </div>
                   
                   {/* Breakdown by Type */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Leaderboards</div>
-                      <div className="text-3xl font-bold text-akari-text">{stats.activeLeaderboards}</div>
-                      <div className="text-xs text-akari-muted mt-1">Normal Leaderboard (Option 2)</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Leaderboards</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeLeaderboards}</div>
+                      <div className="text-xs text-white/60 mt-1">Normal Leaderboard (Option 2)</div>
                     </div>
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">CRM</div>
-                      <div className="text-3xl font-bold text-akari-text">{stats.activeCRM}</div>
-                      <div className="text-xs text-akari-muted mt-1">Creator Manager (Option 1)</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">CRM</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeCRM}</div>
+                      <div className="text-xs text-white/60 mt-1">Creator Manager (Option 1)</div>
                     </div>
-                    <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                      <div className="text-sm text-akari-muted mb-1">Gamified</div>
-                      <div className="text-3xl font-bold text-akari-text">{stats.activeGamified}</div>
-                      <div className="text-xs text-akari-muted mt-1">Gamified Leaderboard (Option 3)</div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Gamified</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeGamified}</div>
+                      <div className="text-xs text-white/60 mt-1">Gamified Leaderboard (Option 3)</div>
                     </div>
                   </div>
                 </>
               ) : null}
 
               {/* Recent Activity */}
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                <h2 className="text-lg font-semibold text-akari-text mb-4">Recent Activity</h2>
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
                 <div className="space-y-3">
-                  <div className="text-sm text-akari-muted text-center py-4">
+                  <div className="text-sm text-white/60 text-center py-4">
                     Activity feed coming soon...
                   </div>
                 </div>
               </div>
 
               {/* Quick Actions */}
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                <h2 className="text-lg font-semibold text-akari-text mb-4">Quick Actions</h2>
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <Link
                     href="/portal/admin/arc/leaderboard-requests"
-                    className="px-4 py-3 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30 hover:bg-akari-cardSoft/50 transition-colors"
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
                   >
-                    <div className="font-medium text-akari-text">Review Requests</div>
-                    <div className="text-xs text-akari-muted mt-1">Approve or reject leaderboard requests</div>
+                    <div className="font-medium text-white">Review Requests</div>
+                    <div className="text-xs text-white/60 mt-1">Approve or reject leaderboard requests</div>
                   </Link>
                   <button
                     onClick={() => setActiveTab('pricing')}
-                    className="px-4 py-3 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30 hover:bg-akari-cardSoft/50 transition-colors text-left"
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-left"
                   >
-                    <div className="font-medium text-akari-text">Manage Pricing</div>
-                    <div className="text-xs text-akari-muted mt-1">Update pricing for access levels</div>
+                    <div className="font-medium text-white">Manage Pricing</div>
+                    <div className="text-xs text-white/60 mt-1">Update pricing for access levels</div>
                   </button>
                   <button
                     onClick={() => setActiveTab('access')}
-                    className="px-4 py-3 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30 hover:bg-akari-cardSoft/50 transition-colors text-left"
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-left"
                   >
-                    <div className="font-medium text-akari-text">Manage Access</div>
-                    <div className="text-xs text-akari-muted mt-1">Super admin role management</div>
+                    <div className="font-medium text-white">Manage Access</div>
+                    <div className="text-xs text-white/60 mt-1">Super admin role management</div>
                   </button>
                 </div>
               </div>
@@ -399,32 +399,32 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
           {/* Access Management Tab */}
           {activeTab === 'access' && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-akari-text">Super Admin Users</h2>
+                  <h2 className="text-lg font-semibold text-white">Super Admin Users</h2>
                 </div>
                 {superAdminsLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
                   </div>
                 ) : superAdmins.length === 0 ? (
-                  <div className="text-sm text-akari-muted text-center py-8">No super admins found</div>
+                  <div className="text-sm text-white/60 text-center py-8">No super admins found</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-akari-cardSoft/30 border-b border-akari-border/30">
+                      <thead className="bg-white/5 border-b border-white/10">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">User</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Roles</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Created</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">User</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Roles</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Created</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-akari-border/30">
+                      <tbody className="divide-y divide-white/10">
                         {superAdmins.map((admin) => (
-                          <tr key={admin.id} className="hover:bg-akari-cardSoft/20 transition-colors">
+                          <tr key={admin.id} className="hover:bg-white/5 transition-colors">
                             <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-akari-text">{admin.display_name || admin.username}</div>
-                              <div className="text-xs text-akari-muted">@{admin.username}</div>
+                              <div className="text-sm font-medium text-white">{admin.display_name || admin.username}</div>
+                              <div className="text-xs text-white/60">@{admin.username}</div>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1">
@@ -438,7 +438,7 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
                                 ))}
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-akari-muted">
+                            <td className="px-4 py-3 text-sm text-white/60">
                               {new Date(admin.created_at).toLocaleDateString()}
                             </td>
                           </tr>
@@ -454,17 +454,17 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
           {/* Requests Tab */}
           {activeTab === 'requests' && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-akari-text">Leaderboard Requests</h2>
+                  <h2 className="text-lg font-semibold text-white">Leaderboard Requests</h2>
                   <Link
                     href="/portal/admin/arc/leaderboard-requests"
-                    className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                    className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
                   >
                     View All Requests
                   </Link>
                 </div>
-                <p className="text-sm text-akari-muted">
+                <p className="text-sm text-white/60">
                   Manage and approve leaderboard access requests. Click &quot;View All Requests&quot; to see the full management interface.
                 </p>
               </div>
@@ -474,9 +474,9 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
           {/* Reporting Tab */}
           {activeTab === 'reporting' && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                <h2 className="text-lg font-semibold text-akari-text mb-4">Analytics & Reporting</h2>
-                <div className="text-sm text-akari-muted text-center py-8">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Analytics & Reporting</h2>
+                <div className="text-sm text-white/60 text-center py-8">
                   Reporting dashboard coming soon...
                 </div>
               </div>
@@ -486,20 +486,20 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
           {/* Pricing & Billing Tab */}
           {activeTab === 'pricing' && (
             <div className="space-y-6">
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-akari-text">Pricing Configuration</h2>
+                  <h2 className="text-lg font-semibold text-white">Pricing Configuration</h2>
                 </div>
 
                 {pricingError && (
-                  <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                  <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
                     <p className="text-sm text-red-400">{pricingError}</p>
                   </div>
                 )}
 
                 {pricingLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -515,9 +515,9 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
               </div>
 
               {/* Billing Records */}
-              <div className="rounded-xl border border-akari-border/30 bg-akari-card p-6">
-                <h2 className="text-lg font-semibold text-akari-text mb-4">Billing Records</h2>
-                <div className="text-sm text-akari-muted text-center py-8">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Billing Records</h2>
+                <div className="text-sm text-white/60 text-center py-8">
                   Billing history coming soon...
                 </div>
               </div>
@@ -525,7 +525,7 @@ export default function ArcAdminHome({ projects: initialProjects, error: initial
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
@@ -562,32 +562,32 @@ function PricingRow({ config, onUpdate }: PricingRowProps) {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-akari-border/30 bg-akari-cardSoft/30">
+    <div className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5">
       <div className="flex-1">
-        <div className="font-medium text-akari-text capitalize">{config.access_level.replace('_', ' ')}</div>
+        <div className="font-medium text-white capitalize">{config.access_level.replace('_', ' ')}</div>
         {config.description && (
-          <div className="text-xs text-akari-muted mt-1">{config.description}</div>
+          <div className="text-xs text-white/60 mt-1">{config.description}</div>
         )}
       </div>
       <div className="flex items-center gap-3">
         {editing ? (
           <>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-akari-muted">$</span>
+              <span className="text-sm text-white/60">$</span>
               <input
                 type="number"
                 value={newPrice}
                 onChange={(e) => setNewPrice(e.target.value)}
                 step="0.01"
                 min="0"
-                className="w-24 px-2 py-1 text-sm bg-akari-card border border-akari-border/30 rounded text-akari-text"
+                className="w-24 px-2 py-1 text-sm bg-black/40 border border-white/10 rounded text-white"
                 disabled={saving}
               />
             </div>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 text-xs font-medium bg-akari-primary text-white rounded hover:bg-akari-primary/80 transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -597,19 +597,19 @@ function PricingRow({ config, onUpdate }: PricingRowProps) {
                 setNewPrice(config.base_price_usd.toString());
               }}
               disabled={saving}
-              className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 rounded text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium border border-white/10 rounded text-white hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
           </>
         ) : (
           <>
-            <div className="text-lg font-semibold text-akari-text">
+            <div className="text-lg font-semibold text-white">
               ${config.base_price_usd.toFixed(2)}
             </div>
             <button
               onClick={() => setEditing(true)}
-              className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 rounded text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium border border-white/10 rounded text-white hover:bg-white/10 transition-colors"
             >
               Edit
             </button>

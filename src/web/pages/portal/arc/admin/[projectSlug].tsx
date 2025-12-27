@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { createPortalClient } from '@/lib/portal/supabase';
 import { isSuperAdmin } from '@/lib/permissions';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -280,49 +280,49 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
         return 'bg-red-500/20 border-red-500/40 text-red-300';
       case 'draft':
       default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+        return 'bg-white/10 border-white/20 text-white/60';
     }
   };
 
   // Check access (server-side check)
   if (!hasAccess) {
     return (
-      <PortalLayout title="ARC Admin">
-        <div className="space-y-6">
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-danger">
+      <ArcPageShell canManageArc={true}>
+        <div>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+            <p className="text-sm text-red-400">
               {accessError || 'Access denied. You do not have permission to manage this project.'}
             </p>
             {project?.slug && (
               <Link
                 href={`/portal/arc/${encodeURIComponent(project.slug)}`}
-                className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+                className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
               >
                 ← Back to Project Hub
               </Link>
             )}
             <Link
               href="/portal/arc"
-              className="mt-2 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+              className="mt-2 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
             >
               ← Back to ARC Home
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="ARC Admin">
+    <ArcPageShell canManageArc={true}>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           {project?.slug && (
             <>
               <Link
                 href={`/portal/arc/${encodeURIComponent(project.slug)}`}
-                className="hover:text-akari-primary transition-colors"
+                className="hover:text-white transition-colors"
               >
                 {project.name || 'Project'}
               </Link>
@@ -333,7 +333,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             <>
               <Link
                 href="/portal/arc"
-                className="hover:text-akari-primary transition-colors"
+                className="hover:text-white transition-colors"
               >
                 ARC Home
               </Link>
@@ -344,27 +344,27 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             <>
               <Link
                 href="/portal/arc/admin"
-                className="hover:text-akari-primary transition-colors"
+                className="hover:text-white transition-colors"
               >
                 Admin
               </Link>
               <span>/</span>
             </>
           )}
-          <span className="text-akari-text">Leaderboard Dashboard</span>
+          <span className="text-white">Leaderboard Dashboard</span>
         </div>
 
         {/* Error state */}
         {error && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">{error}</p>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
         {/* Project not found */}
         {!error && !project && (
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-muted">
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+            <p className="text-white/60">
               Project not found.
             </p>
           </div>
@@ -376,11 +376,11 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-akari-text mb-1">
+                <h1 className="text-3xl font-bold text-white mb-1">
                   {project.name}
                 </h1>
                 {project.twitter_username && (
-                  <p className="text-sm text-akari-muted">
+                  <p className="text-white/60">
                     @{project.twitter_username}
                   </p>
                 )}
@@ -400,7 +400,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                     setModalError(null);
                     setShowCreateModal(true);
                   }}
-                  className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+                  className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
                 >
                   Create Arena
                 </button>
@@ -408,47 +408,47 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             </div>
 
             {/* Arenas table */}
-            <div className="rounded-xl border border-slate-700 bg-akari-card overflow-hidden">
+            <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden">
               {arenas.length === 0 ? (
                 <div className="p-8 text-center">
-                  <p className="text-sm text-akari-muted">
+                  <p className="text-white/60">
                     No arenas found for this project.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-akari-cardSoft/30 border-b border-akari-border/30">
+                    <thead className="bg-white/5 border-b border-white/10">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Slug</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Date Range</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Reward Depth</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Slug</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Date Range</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Reward Depth</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-akari-border/30">
+                    <tbody className="divide-y divide-white/10">
                       {arenas.map((arena) => (
                         <tr
                           key={arena.id}
-                          className="hover:bg-akari-cardSoft/20 transition-colors"
+                          className="hover:bg-white/5 transition-colors"
                         >
-                          <td className="px-4 py-3 text-sm text-akari-text">
+                          <td className="px-4 py-3 text-sm text-white">
                             <Link
                               href={`/portal/arc/${projectSlug}/arena/${arena.slug}`}
-                              className="font-medium text-akari-primary hover:text-akari-neon-teal transition-colors"
+                              className="font-medium text-teal-400 hover:text-teal-300 transition-colors"
                             >
                               {arena.name}
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-sm text-akari-muted">
+                          <td className="px-4 py-3 text-sm text-white/60">
                             {arena.slug}
                           </td>
-                          <td className="px-4 py-3 text-sm text-akari-text">
+                          <td className="px-4 py-3 text-sm text-white">
                             {formatDateRange(arena.starts_at, arena.ends_at)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-akari-text">
+                          <td className="px-4 py-3 text-sm text-white">
                             {arena.reward_depth}
                           </td>
                           <td className="px-4 py-3">
@@ -465,14 +465,14 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                               {canManage && (
                                 <button
                                   onClick={() => openEditModal(arena)}
-                                  className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                  className="px-2 py-1 text-xs text-white/60 hover:text-white transition-colors"
                                 >
                                   Edit
                                 </button>
                               )}
                               <Link
                                 href={`/portal/arc/${projectSlug}/arena/${arena.slug}`}
-                                className="px-2 py-1 text-xs text-akari-muted hover:text-akari-primary transition-colors"
+                                className="px-2 py-1 text-xs text-white/60 hover:text-white transition-colors"
                               >
                                 View
                               </Link>
@@ -514,7 +514,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
           />
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
@@ -543,12 +543,12 @@ interface ArenaModalProps {
 function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, error }: ArenaModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-akari-text">{title}</h3>
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="text-akari-muted hover:text-akari-text transition-colors"
+            className="text-white/60 hover:text-white transition-colors"
             disabled={loading}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -559,56 +559,56 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
 
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs text-akari-muted">Name *</label>
+            <label className="mb-1 block text-xs text-white/60">Name *</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
               disabled={loading}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-akari-muted">Slug *</label>
+            <label className="mb-1 block text-xs text-white/60">Slug *</label>
             <input
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
               disabled={loading}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs text-akari-muted">Description</label>
+            <label className="mb-1 block text-xs text-white/60">Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+              className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
               disabled={loading}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs text-akari-muted">Start Date</label>
+              <label className="mb-1 block text-xs text-white/60">Start Date</label>
               <input
                 type="datetime-local"
                 value={formData.starts_at}
                 onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-akari-muted">End Date</label>
+              <label className="mb-1 block text-xs text-white/60">End Date</label>
               <input
                 type="datetime-local"
                 value={formData.ends_at}
                 onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
             </div>
@@ -616,22 +616,22 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs text-akari-muted">Reward Depth</label>
+              <label className="mb-1 block text-xs text-white/60">Reward Depth</label>
               <input
                 type="number"
                 value={formData.reward_depth}
                 onChange={(e) => setFormData({ ...formData, reward_depth: Number(e.target.value) || 0 })}
                 min="0"
-                className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-akari-muted">Status</label>
+              <label className="mb-1 block text-xs text-white/60">Status</label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
+                className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               >
                 <option value="draft">Draft</option>
@@ -644,15 +644,15 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
           </div>
 
           {error && (
-            <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
-              <p className="text-xs text-akari-danger">{error}</p>
+            <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-2">
+              <p className="text-xs text-red-400">{error}</p>
             </div>
           )}
 
           <div className="flex gap-2 pt-2">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
+              className="flex-1 px-4 py-2 text-sm font-medium border border-white/10 rounded-lg text-white hover:bg-white/10 transition-colors"
               disabled={loading}
             >
               Cancel
@@ -660,7 +660,7 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
             <button
               onClick={onSubmit}
               disabled={loading}
-              className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Saving...' : 'Save'}
             </button>

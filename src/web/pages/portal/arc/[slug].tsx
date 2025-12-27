@@ -9,7 +9,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Image from 'next/image';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getUserCampaignStatuses, type UserCampaignStatus } from '@/lib/arc/helpers';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
@@ -514,7 +514,7 @@ export default function ArcProjectHub() {
           });
         }
         
-        const res = await fetch(arenaUrl);
+        const res = await fetch(arenaUrl, { credentials: 'include' });
         
         // Debug logging (development only)
         if (process.env.NODE_ENV === 'development') {
@@ -1215,12 +1215,12 @@ export default function ArcProjectHub() {
   };
 
   return (
-    <PortalLayout title={project?.name || 'ARC Project'}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Back link */}
         <Link
           href="/portal/arc"
-          className="inline-flex items-center gap-2 text-sm text-akari-muted hover:text-akari-primary transition-colors"
+          className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -3192,6 +3192,6 @@ export default function ArcProjectHub() {
           </div>
         </div>
       )}
-    </PortalLayout>
+    </ArcPageShell>
   );
 }

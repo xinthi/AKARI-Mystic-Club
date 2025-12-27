@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import Image from 'next/image';
 
 interface LeaderboardEntry {
@@ -181,12 +181,12 @@ export default function ArcLeaderboardsPage() {
   const timePeriods: TimePeriod[] = ['7D', '30D', '3M', '6M', '12M', 'ALL'];
 
   return (
-    <PortalLayout title="ARC Leaderboards">
-      <div className="px-4 py-4 md:px-6 lg:px-10">
+    <ArcPageShell>
+      <div>
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-white mb-2">Creator Leaderboard</h1>
-          <p className="text-sm text-akari-muted">
+          <p className="text-white/60">
             {projectSlug ? 'Project-specific leaderboard' : 'Global ARC creator rankings'}
           </p>
         </div>
@@ -465,7 +465,7 @@ export default function ArcLeaderboardsPage() {
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

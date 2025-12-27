@@ -8,7 +8,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getQuestCategory, getQuestCategoryInfo, calculateLevelFromScore } from '@/lib/arc-ui-helpers';
 
@@ -275,21 +275,21 @@ export default function GamifiedLeaderboardPage() {
 
   if (loading) {
     return (
-      <PortalLayout title="Quest Leaderboard">
+      <ArcPageShell>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
-            <p className="text-akari-muted">Loading...</p>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+            <p className="text-white/60">Loading...</p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error) {
     return (
-      <PortalLayout title="Quest Leaderboard">
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6">
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6">
           <p className="text-red-400 text-sm mb-4">{error}</p>
           <Link
             href="/portal/arc"
@@ -298,12 +298,12 @@ export default function GamifiedLeaderboardPage() {
             Back to ARC Home
           </Link>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="Gamified Leaderboard">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-white/60">
@@ -755,6 +755,6 @@ export default function GamifiedLeaderboardPage() {
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }

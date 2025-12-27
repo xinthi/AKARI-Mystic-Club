@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getArcFeatureName, getArcFeatureDescription } from '@/lib/arc-naming';
 
@@ -434,14 +434,14 @@ export default function ArcProjectPage() {
   // Loading state
   if (loading) {
     return (
-      <PortalLayout title="ARC Project">
+      <ArcPageShell>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
-            <p className="text-akari-muted">Loading project...</p>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+            <p className="text-white/60">Loading project...</p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
@@ -459,7 +459,7 @@ export default function ArcProjectPage() {
   const statusLabel = arcActive ? 'Active' : 'Inactive';
 
   return (
-    <PortalLayout title={displayName}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Error Message (if any) */}
         {error && (
@@ -857,7 +857,7 @@ export default function ArcProjectPage() {
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

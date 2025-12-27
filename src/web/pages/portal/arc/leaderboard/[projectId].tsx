@@ -9,7 +9,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 
 export default function LegacyLeaderboardPage() {
   const router = useRouter();
@@ -89,51 +89,51 @@ export default function LegacyLeaderboardPage() {
 
   if (redirecting) {
     return (
-      <PortalLayout title="Redirecting...">
+      <ArcPageShell>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-akari-primary mx-auto mb-4"></div>
-            <p className="text-akari-text">Redirecting to arena...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white/60 mx-auto mb-4"></div>
+            <p className="text-white">Redirecting to arena...</p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (loading) {
     return (
-      <PortalLayout title="Loading...">
+      <ArcPageShell>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-akari-primary mx-auto mb-4"></div>
-            <p className="text-akari-text">Loading...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white/60 mx-auto mb-4"></div>
+            <p className="text-white">Loading...</p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="Leaderboard">
-      <div className="max-w-2xl mx-auto mt-8">
-        <div className="rounded-xl border border-akari-border bg-akari-card p-6">
-          <h1 className="text-2xl font-semibold text-akari-text mb-4">Leaderboard</h1>
+    <ArcPageShell>
+      <div className="max-w-2xl mx-auto">
+        <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+          <h1 className="text-2xl font-semibold text-white mb-4">Leaderboard</h1>
           {error ? (
             <div className="space-y-4">
-              <p className="text-akari-muted">{error}</p>
+              <p className="text-white/60">{error}</p>
               <Link
                 href="/portal/arc"
-                className="inline-block px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/90 transition-colors"
+                className="inline-block px-4 py-2 bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
               >
                 Back to ARC
               </Link>
             </div>
           ) : (
-            <p className="text-akari-muted">Redirecting...</p>
+            <p className="text-white/60">Redirecting...</p>
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

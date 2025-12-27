@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getLevelInfo } from '@/lib/creator-gamification';
 
@@ -93,7 +93,7 @@ export default function CreatorProgramDetail() {
 
     try {
       // Get missions
-      const missionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`);
+      const missionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`, { credentials: 'include' });
       const missionsData = await missionsRes.json();
 
       if (missionsData.ok) {
@@ -101,7 +101,7 @@ export default function CreatorProgramDetail() {
       }
 
       // Get program info (we'll get it from my-programs endpoint)
-      const programsRes = await fetch('/api/portal/creator-manager/my-programs');
+      const programsRes = await fetch('/api/portal/creator-manager/my-programs', { credentials: 'include' });
       const programsData = await programsRes.json();
 
       if (programsData.ok) {
@@ -126,7 +126,7 @@ export default function CreatorProgramDetail() {
             // Fetch creator profile ID from my-programs endpoint response
             // We'll get it from the creators list
             try {
-              const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+              const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
               const creatorsData = await creatorsRes.json();
               if (creatorsData.ok) {
                 // Find current user's creator record
@@ -150,7 +150,7 @@ export default function CreatorProgramDetail() {
         const foundProgram = programsData.programs.find((p: any) => p.id === programId);
         if (foundProgram && foundProgram.creatorStatus === 'approved') {
           try {
-            const leaderboardRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+            const leaderboardRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
             const leaderboardData = await leaderboardRes.json();
             if (leaderboardData.ok) {
               const approvedCreators = leaderboardData.creators
@@ -174,7 +174,7 @@ export default function CreatorProgramDetail() {
       }
 
       // Get mission progress for current creator
-      const progressRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions/my-progress`);
+      const progressRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions/my-progress`, { credentials: 'include' });
       const progressData = await progressRes.json();
       if (progressData.ok) {
         const progressMap = new Map<string, MissionProgress>();
@@ -185,14 +185,14 @@ export default function CreatorProgramDetail() {
       }
 
       // Get badges for current creator
-      const badgesRes = await fetch(`/api/portal/creator-manager/programs/${programId}/my-badges`);
+      const badgesRes = await fetch(`/api/portal/creator-manager/programs/${programId}/my-badges`, { credentials: 'include' });
       const badgesData = await badgesRes.json();
       if (badgesData.ok) {
         setBadges(badgesData.badges || []);
       }
 
       // Get links for this program
-      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
+      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`, { credentials: 'include' });
       const linksData = await linksRes.json();
       if (linksData.ok) {
         setLinks(linksData.links || []);
@@ -224,6 +224,7 @@ export default function CreatorProgramDetail() {
       const res = await fetch(`/api/portal/creator-manager/missions/${missionId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           postUrl: submitForm.postUrl || undefined,
           postTweetId: submitForm.postTweetId || undefined,
@@ -264,35 +265,35 @@ export default function CreatorProgramDetail() {
 
   if (loading) {
     return (
-      <PortalLayout title="Creator Program">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <p className="text-akari-muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error || !program) {
     return (
-      <PortalLayout title="Creator Program">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">{error || 'Program not found'}</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">{error || 'Program not found'}</p>
           <Link
             href="/portal/arc/my-creator-programs"
-            className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+            className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
           >
             ← Back to My Programs
           </Link>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title={`${program.title} - Missions`}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
             ARC Home
           </Link>
@@ -655,7 +656,7 @@ export default function CreatorProgramDetail() {
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

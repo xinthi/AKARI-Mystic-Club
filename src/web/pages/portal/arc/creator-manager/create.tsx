@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 
 // =============================================================================
@@ -92,7 +92,7 @@ export default function CreateProgramPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/portal/creator-manager/projects');
+        const response = await fetch('/api/portal/creator-manager/projects', { credentials: 'include' });
         const data = await response.json();
 
         if (!data.ok) {
@@ -181,6 +181,7 @@ export default function CreateProgramPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -214,128 +215,128 @@ export default function CreateProgramPage() {
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
-      <PortalLayout title="Create Program">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">Please log in to create a program</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">Please log in to create a program</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // Loading state
   if (loading) {
     return (
-      <PortalLayout title="Create Program">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-akari-muted">Loading...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // Error state (project not found or no access)
   if (error && (projectIdFromQuery || projects.length === 0)) {
     return (
-      <PortalLayout title="Create Program">
+      <ArcPageShell>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <Link href="/portal/arc/creator-manager" className="hover:text-akari-primary transition-colors">
+            <Link href="/portal/arc/creator-manager" className="hover:text-white transition-colors">
               Creator Manager
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Create Program</span>
+            <span className="text-white">Create Program</span>
           </div>
 
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-danger mb-4">{error}</p>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+            <p className="text-sm text-red-400 mb-4">{error}</p>
             <Link
               href="/portal/arc/creator-manager"
-              className="text-akari-primary hover:text-akari-neon-teal text-sm underline inline-block"
+              className="text-teal-400 hover:text-teal-300 text-sm underline inline-block"
             >
               Back to Creator Manager
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // No projects with access
   if (projects.length === 0) {
     return (
-      <PortalLayout title="Create Program">
+      <ArcPageShell>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <Link href="/portal/arc/creator-manager" className="hover:text-akari-primary transition-colors">
+            <Link href="/portal/arc/creator-manager" className="hover:text-white transition-colors">
               Creator Manager
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Create Program</span>
+            <span className="text-white">Create Program</span>
           </div>
 
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-akari-muted mb-4">
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+            <p className="text-white/60 mb-4">
               You don&apos;t have admin/moderator access to any projects yet.
             </p>
-            <p className="text-sm text-akari-muted mb-4">
+            <p className="text-sm text-white/60 mb-4">
               Projects must be claimed and you must be assigned as owner, admin, or moderator.
             </p>
             <Link
               href="/portal/arc/creator-manager"
-              className="text-akari-primary hover:text-akari-neon-teal text-sm underline inline-block"
+              className="text-teal-400 hover:text-teal-300 text-sm underline inline-block"
             >
               Back to Creator Manager
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
     <>
-      <PortalLayout title="Create Program">
+      <ArcPageShell>
         <div className="space-y-6">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <Link href="/portal/arc/creator-manager" className="hover:text-akari-primary transition-colors">
+            <Link href="/portal/arc/creator-manager" className="hover:text-white transition-colors">
               Creator Manager
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Create Program</span>
+            <span className="text-white">Create Program</span>
           </div>
 
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold text-akari-text mb-2">Create Program</h1>
-            <p className="text-akari-muted">
+            <h1 className="text-3xl font-bold text-white mb-2">Create Program</h1>
+            <p className="text-white/60">
               Create a new Creator Manager program for your project
             </p>
           </div>
 
           {/* Form */}
-          <div className="rounded-xl border border-akari-border bg-akari-card p-6">
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Project Selection */}
               <div>
-                <label className="block text-sm font-medium text-akari-text mb-2">
-                  Project <span className="text-akari-danger">*</span>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Project <span className="text-red-400">*</span>
                 </label>
                 {projectIdFromQuery && selectedProject ? (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft border border-akari-border">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
                     {selectedProject.avatar_url && (
                       <img
                         src={selectedProject.avatar_url}
@@ -344,9 +345,9 @@ export default function CreateProgramPage() {
                       />
                     )}
                     <div>
-                      <div className="text-sm font-medium text-akari-text">{selectedProject.name}</div>
+                      <div className="text-sm font-medium text-white">{selectedProject.name}</div>
                       {selectedProject.twitter_username && (
-                        <div className="text-xs text-akari-muted">@{selectedProject.twitter_username}</div>
+                        <div className="text-xs text-white/60">@{selectedProject.twitter_username}</div>
                       )}
                     </div>
                   </div>
@@ -359,7 +360,7 @@ export default function CreateProgramPage() {
                       setFormData({ ...formData, projectId: e.target.value });
                     }}
                     required
-                    className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
                     disabled={submitting}
                   >
                     <option value="">Select a project...</option>
@@ -374,8 +375,8 @@ export default function CreateProgramPage() {
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-akari-text mb-2">
-                  Title <span className="text-akari-danger">*</span>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Title <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -383,14 +384,14 @@ export default function CreateProgramPage() {
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   required
                   placeholder="e.g., Q1 Creator Program"
-                  className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary placeholder-akari-muted"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
                   disabled={submitting}
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-akari-text mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Description (optional)
                 </label>
                 <textarea
@@ -398,28 +399,28 @@ export default function CreateProgramPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Describe the program goals, rewards, and requirements..."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary placeholder-akari-muted resize-none"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40 resize-none"
                   disabled={submitting}
                 />
               </div>
 
               {/* Visibility */}
               <div>
-                <label className="block text-sm font-medium text-akari-text mb-2">
-                  Visibility <span className="text-akari-danger">*</span>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Visibility <span className="text-red-400">*</span>
                 </label>
                 <select
                   value={formData.visibility}
                   onChange={(e) => setFormData({ ...formData, visibility: e.target.value as 'private' | 'public' | 'hybrid' })}
                   required
-                  className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
                   disabled={submitting}
                 >
                   <option value="private">Private (invite only)</option>
                   <option value="public">Public (anyone can apply)</option>
                   <option value="hybrid">Hybrid (invite + public applications)</option>
                 </select>
-                <p className="text-xs text-akari-muted mt-1">
+                <p className="text-xs text-white/60 mt-1">
                   {formData.visibility === 'private' && 'Only invited creators can join'}
                   {formData.visibility === 'public' && 'Any creator can apply to join'}
                   {formData.visibility === 'hybrid' && 'Invited creators are auto-approved, others can apply'}
@@ -429,26 +430,26 @@ export default function CreateProgramPage() {
               {/* Date Range */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-akari-text mb-2">
+                  <label className="block text-sm font-medium text-white mb-2">
                     Start Date (optional)
                   </label>
                   <input
                     type="date"
                     value={formData.startAt}
                     onChange={(e) => setFormData({ ...formData, startAt: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
                     disabled={submitting}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-akari-text mb-2">
+                  <label className="block text-sm font-medium text-white mb-2">
                     End Date (optional)
                   </label>
                   <input
                     type="date"
                     value={formData.endAt}
                     onChange={(e) => setFormData({ ...formData, endAt: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-akari-cardSoft border border-akari-border text-akari-text text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
                     disabled={submitting}
                   />
                 </div>
@@ -466,13 +467,13 @@ export default function CreateProgramPage() {
                 <button
                   type="submit"
                   disabled={submitting || !formData.projectId || !formData.title.trim()}
-                  className="px-6 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Creating...' : 'Create Program'}
                 </button>
                 <Link
                   href="/portal/arc/creator-manager"
-                  className="px-6 py-2 bg-akari-cardSoft border border-akari-border text-akari-text rounded-lg hover:bg-akari-card transition-colors font-medium"
+                  className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-lg hover:bg-white/10 transition-colors font-medium"
                 >
                   Cancel
                 </Link>
@@ -480,7 +481,7 @@ export default function CreateProgramPage() {
             </form>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
 
       {/* Toast notification */}
       {toast && (

@@ -7,7 +7,7 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
@@ -59,7 +59,7 @@ interface CreatorProfilePageProps {
 export default function CreatorProfilePage({ creator, arenas, error, twitterUsername }: CreatorProfilePageProps) {
   // Helper function to get ring badge color
   const getRingColor = (ring: string | null) => {
-    if (!ring) return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+    if (!ring) return 'bg-white/10 border-white/20 text-white/60';
     
     switch (ring.toLowerCase()) {
       case 'core':
@@ -69,7 +69,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       case 'discovery':
         return 'bg-green-500/20 border-green-500/40 text-green-300';
       default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+        return 'bg-white/10 border-white/20 text-white/60';
     }
   };
 
@@ -91,13 +91,13 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         <img
           src={avatarUrl}
           alt={normalizedUsername}
-          className={`flex-shrink-0 ${sizeClasses} rounded-full border border-akari-border/30 object-cover`}
+          className={`flex-shrink-0 ${sizeClasses} rounded-full border border-white/10 object-cover`}
         />
       );
     }
     
     return (
-      <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text`}>
+      <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-semibold text-white`}>
         {firstLetter}
       </div>
     );
@@ -216,31 +216,31 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   };
 
   return (
-    <PortalLayout title="ARC Creator">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             ARC Home
           </Link>
           <span>/</span>
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             Creator
           </Link>
           <span>/</span>
-          <span className="text-akari-text">@{twitterUsername}</span>
+          <span className="text-white">@{twitterUsername}</span>
         </div>
 
         {/* Error state */}
         {error && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-400">
               {error === 'CREATOR_NOT_FOUND' 
                 ? 'Creator not found in ARC yet.'
                 : 'Failed to load creator profile. Please try again later.'}
@@ -445,7 +445,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           </>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

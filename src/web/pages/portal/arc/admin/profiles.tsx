@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { requireSuperAdmin } from '@/lib/server-auth';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
@@ -224,33 +224,31 @@ export default function ArcAdminProfilesPage() {
   // Not logged in or not super admin
   if (!akariUser.isLoggedIn || !userIsSuperAdmin) {
     return (
-      <PortalLayout title="ARC Admin - Profiles">
-        <div className="px-4 py-4 md:px-6 lg:px-10">
-          <div className="neon-card neon-hover p-8 text-center">
-            <p className="text-akari-muted">
-              You need super admin access to view this page.
-            </p>
-          </div>
+      <ArcPageShell canManageArc={true}>
+        <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+          <p className="text-white/60">
+            You need super admin access to view this page.
+          </p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="ARC Admin - Profile Management">
-      <div className="px-4 py-4 md:px-6 lg:px-10">
+    <ArcPageShell canManageArc={true}>
+      <div>
         {/* Header */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-3">
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold mb-2 text-gradient-neon">ARC Profile Management</h1>
-              <p className="text-base text-akari-muted leading-relaxed">
+              <h1 className="text-3xl font-bold text-white mb-2">ARC Profile Management</h1>
+              <p className="text-white/60">
                 Manage ARC visibility and access level per project profile. Changes reflect immediately on /portal/arc.
               </p>
             </div>
             <Link
               href="/portal/arc"
-              className="pill-neon px-4 py-2 text-sm text-akari-neon-teal hover:bg-akari-neon-teal/20 border border-akari-neon-teal/50"
+              className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
             >
               ← Back to ARC
             </Link>
@@ -258,10 +256,10 @@ export default function ArcAdminProfilesPage() {
         </div>
 
         {/* Main Card */}
-        <div className="neon-card neon-hover p-6">
+        <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
           {loading ? (
-            <div className="py-12 text-center text-akari-muted">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
+            <div className="py-12 text-center text-white/60">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
               Loading profiles...
             </div>
           ) : error ? (
@@ -269,30 +267,30 @@ export default function ArcAdminProfilesPage() {
               {error}
             </div>
           ) : profiles.length === 0 ? (
-            <div className="py-12 text-center text-akari-muted">
+            <div className="py-12 text-center text-white/60">
               No project profiles found.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-akari-neon-teal/20 bg-gradient-to-br from-akari-card/80 to-akari-cardSoft/60 backdrop-blur-xl">
+            <div className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">
+                  <tr className="border-b border-white/10 bg-white/5">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white">
                       Name
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-blue">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white">
                       @Handle
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-pink">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white">
                       Profile ID
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-heat">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white">
                       ARC Active
                     </th>
-                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
+                    <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white/60">
                       Access Level
                     </th>
-                    <th className="text-right py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">
+                    <th className="text-right py-4 px-5 text-xs uppercase tracking-wider font-semibold text-white/60">
                       Actions
                     </th>
                   </tr>
@@ -314,7 +312,7 @@ export default function ArcAdminProfilesPage() {
                     return (
                       <tr
                         key={profile.profile_id}
-                        className="border-b border-akari-neon-teal/10 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)]"
+                        className="border-b border-white/10 transition-all duration-300 hover:bg-white/5"
                       >
                         {/* Name */}
                         <td className="py-4 px-5">
@@ -326,19 +324,19 @@ export default function ArcAdminProfilesPage() {
                                 className="w-8 h-8 rounded-full object-cover"
                               />
                             )}
-                            <span className="text-sm text-akari-text font-semibold">
+                            <span className="text-sm text-white font-semibold">
                               {profile.name}
                             </span>
                           </div>
                         </td>
 
                         {/* @Handle */}
-                        <td className="py-4 px-5 text-sm text-akari-muted">
+                        <td className="py-4 px-5 text-sm text-white/60">
                           {profile.twitter_username ? `@${profile.twitter_username}` : '-'}
                         </td>
 
                         {/* Profile ID */}
-                        <td className="py-4 px-5 text-sm text-akari-muted font-mono text-xs">
+                        <td className="py-4 px-5 text-sm text-white/60 font-mono text-xs">
                           {profile.profile_id.substring(0, 8)}...
                         </td>
 
@@ -347,10 +345,10 @@ export default function ArcAdminProfilesPage() {
                           <button
                             onClick={() => handleToggleActive(profile.profile_id)}
                             disabled={currentState.saving}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-akari-neon-teal/50 focus:ring-offset-2 focus:ring-offset-akari-card ${
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-400/50 focus:ring-offset-2 focus:ring-offset-black ${
                               currentState.arc_active
-                                ? 'bg-akari-neon-teal'
-                                : 'bg-akari-cardSoft/50'
+                                ? 'bg-teal-400'
+                                : 'bg-white/20'
                             } ${currentState.saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                           >
                             <span
@@ -372,7 +370,7 @@ export default function ArcAdminProfilesPage() {
                               )
                             }
                             disabled={currentState.saving}
-                            className="px-3 py-1.5 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text focus:outline-none focus:border-akari-neon-teal/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1.5 text-sm bg-black/40 border border-white/10 rounded-lg text-white focus:outline-none focus:border-teal-400/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="none">none</option>
                             <option value="creator_manager">creator_manager</option>
@@ -397,7 +395,7 @@ export default function ArcAdminProfilesPage() {
                             <button
                               onClick={() => handleSave(profile.profile_id)}
                               disabled={currentState.saving || !hasChanges}
-                              className="pill-neon px-4 py-2 min-h-[36px] bg-akari-primary/20 text-akari-neon-teal hover:bg-akari-primary/30 border border-akari-primary/50 transition-all duration-300 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_12px_rgba(0,246,162,0.3)]"
+                              className="px-4 py-2 min-h-[36px] bg-gradient-to-r from-teal-400/20 to-cyan-400/20 text-teal-400 hover:bg-teal-400/30 border border-teal-400/50 transition-all duration-300 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
                             >
                               {currentState.saving ? 'Saving...' : 'Save'}
                             </button>
@@ -412,7 +410,7 @@ export default function ArcAdminProfilesPage() {
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

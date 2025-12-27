@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { getLevelInfo } from '@/lib/creator-gamification';
 
@@ -46,7 +46,7 @@ export default function MyCreatorPrograms() {
   useEffect(() => {
     async function loadPrograms() {
       try {
-        const res = await fetch('/api/portal/creator-manager/my-programs');
+        const res = await fetch('/api/portal/creator-manager/my-programs', { credentials: 'include' });
         const data = await res.json();
 
         if (data.ok) {
@@ -86,21 +86,21 @@ export default function MyCreatorPrograms() {
 
   if (loading) {
     return (
-      <PortalLayout title="My Creator Programs">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <p className="text-akari-muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error) {
     return (
-      <PortalLayout title="My Creator Programs">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">{error}</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">{error}</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
@@ -109,12 +109,12 @@ export default function MyCreatorPrograms() {
   const availablePrograms = programs.filter(p => !p.creatorStatus);
 
   return (
-    <PortalLayout title="My Creator Programs">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-akari-text mb-2">My Creator Programs</h1>
-          <p className="text-akari-muted">
+          <h1 className="text-3xl font-bold text-white mb-2">My Creator Programs</h1>
+          <p className="text-white/60">
             Manage your creator programs, missions, and track your progress
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function MyCreatorPrograms() {
         {/* My Programs */}
         {myPrograms.length > 0 && (
           <section>
-            <h2 className="text-xl font-semibold text-akari-text mb-4">My Programs</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">My Programs</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {myPrograms.map((program) => {
                 const levelInfo = program.xp !== undefined ? getLevelInfo(program.xp) : null;
@@ -131,13 +131,13 @@ export default function MyCreatorPrograms() {
                   <Link
                     key={program.id}
                     href={`/portal/arc/my-creator-programs/${program.id}`}
-                    className="rounded-xl border border-akari-border bg-akari-card p-6 hover:border-akari-primary transition-all"
+                    className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 transition-all"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-akari-text mb-1">{program.title}</h3>
+                        <h3 className="text-lg font-semibold text-white mb-1">{program.title}</h3>
                         {program.project && (
-                          <p className="text-sm text-akari-muted">{program.project.name}</p>
+                          <p className="text-sm text-white/60">{program.project.name}</p>
                         )}
                       </div>
                       {program.project?.avatar_url && (
@@ -150,12 +150,12 @@ export default function MyCreatorPrograms() {
                     </div>
 
                     {program.description && (
-                      <p className="text-sm text-akari-muted mb-4 line-clamp-2">{program.description}</p>
+                      <p className="text-sm text-white/60 mb-4 line-clamp-2">{program.description}</p>
                     )}
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-akari-muted">Status</span>
+                        <span className="text-xs text-white/60">Status</span>
                         {getStatusBadge(program.creatorStatus)}
                       </div>
 
@@ -163,28 +163,28 @@ export default function MyCreatorPrograms() {
                         <>
                           {levelInfo && (
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-akari-muted">Level</span>
-                              <span className="text-sm font-semibold text-akari-text">
+                              <span className="text-xs text-white/60">Level</span>
+                              <span className="text-sm font-semibold text-white">
                                 Level {levelInfo.level}
                               </span>
                             </div>
                           )}
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-akari-muted">ARC Points</span>
-                            <span className="text-sm font-semibold text-akari-text">
+                            <span className="text-xs text-white/60">ARC Points</span>
+                            <span className="text-sm font-semibold text-white">
                               {program.arcPoints?.toLocaleString() || 0}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-akari-muted">XP</span>
-                            <span className="text-sm font-semibold text-akari-text">
+                            <span className="text-xs text-white/60">XP</span>
+                            <span className="text-sm font-semibold text-white">
                               {program.xp?.toLocaleString() || 0}
                             </span>
                           </div>
                           {program.class && (
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-akari-muted">Class</span>
-                              <span className="text-sm font-semibold text-akari-primary">
+                              <span className="text-xs text-white/60">Class</span>
+                              <span className="text-sm font-semibold text-teal-400">
                                 {program.class}
                               </span>
                             </div>
@@ -202,19 +202,19 @@ export default function MyCreatorPrograms() {
         {/* Available Programs */}
         {availablePrograms.length > 0 && (
           <section>
-            <h2 className="text-xl font-semibold text-akari-text mb-4">Available Programs</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">Available Programs</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {availablePrograms.map((program) => (
                 <Link
                   key={program.id}
                   href={`/portal/arc/my-creator-programs/${program.id}`}
-                  className="rounded-xl border border-akari-border bg-akari-card p-6 hover:border-akari-primary transition-all"
+                  className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-akari-text mb-1">{program.title}</h3>
+                      <h3 className="text-lg font-semibold text-white mb-1">{program.title}</h3>
                       {program.project && (
-                        <p className="text-sm text-akari-muted">{program.project.name}</p>
+                        <p className="text-sm text-white/60">{program.project.name}</p>
                       )}
                     </div>
                     {program.project?.avatar_url && (
@@ -227,12 +227,12 @@ export default function MyCreatorPrograms() {
                   </div>
 
                   {program.description && (
-                    <p className="text-sm text-akari-muted mb-4 line-clamp-2">{program.description}</p>
+                    <p className="text-sm text-white/60 mb-4 line-clamp-2">{program.description}</p>
                   )}
 
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-akari-muted">Visibility</span>
-                    <span className="text-xs text-akari-text capitalize">{program.visibility}</span>
+                    <span className="text-xs text-white/60">Visibility</span>
+                    <span className="text-xs text-white capitalize">{program.visibility}</span>
                   </div>
                 </Link>
               ))}
@@ -242,12 +242,12 @@ export default function MyCreatorPrograms() {
 
         {/* Empty State */}
         {programs.length === 0 && (
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-akari-muted">No creator programs available</p>
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+            <p className="text-white/60">No creator programs available</p>
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
