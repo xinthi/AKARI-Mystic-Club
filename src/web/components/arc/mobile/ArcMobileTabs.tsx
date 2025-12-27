@@ -13,8 +13,16 @@ interface ArcMobileTabsProps {
   showAdmin?: boolean;
 }
 
+type TabId = 'home' | 'live' | 'create' | 'activity' | 'admin';
+
+interface Tab {
+  id: TabId;
+  label: string;
+  icon: React.ReactNode;
+}
+
 export function ArcMobileTabs({ activeTab, onTabChange, showAdmin }: ArcMobileTabsProps) {
-  const tabs = [
+  const tabs: Tab[] = [
     {
       id: 'home' as const,
       label: 'Home',
