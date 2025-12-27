@@ -23,6 +23,18 @@ interface LeaderboardEntry {
   follow_verified: boolean;
   ring: 'core' | 'momentum' | 'discovery' | null;
   joined_at: string | null;
+  // New metrics
+  sentiment: number | null; // Average sentiment score (-100 to 100)
+  ct_heat: number | null; // CT Heat score (0-100)
+  signal: number | null; // Signal score (quality content)
+  noise: number | null; // Noise score (low quality/spam)
+  engagement_types: {
+    threader: number;
+    video: number;
+    clipper: number;
+    meme: number;
+  };
+  mindshare: number; // Total mindshare points
 }
 
 type LeaderboardResponse =
@@ -47,41 +59,169 @@ function normalizeTwitterUsername(username: string | null | undefined): string {
 }
 
 /**
- * Calculate points from project_tweets (mentions only)
- * Points = sum of engagement (likes + replies*2 + retweets*3) for mentions
+ * Classify tweet type based on content
+ */
+function classifyTweetType(text: string | null): 'threader' | 'video' | 'clipper' | 'meme' | null {
+  if (!text) return null;
+  const lowerText = text.toLowerCase();
+  
+  // Check for thread indicators
+  if (/\d+\/\d+/.test(lowerText) || lowerText.includes('thread') || lowerText.includes('🧵')) {
+    return 'threader';
+  }
+  
+  // Check for video indicators
+  if (lowerText.includes('youtube.com') || lowerText.includes('youtu.be') || 
+      lowerText.includes('video') || lowerText.includes('watch')) {
+    return 'video';
+  }
+  
+  // Check for clipper indicators
+  if (lowerText.includes('quote') || lowerText.includes('screenshot') || 
+      lowerText.includes('📸') || lowerText.includes('📷')) {
+    return 'clipper';
+  }
+  
+  // Check for meme indicators
+  if (lowerText.includes('meme') || lowerText.includes('😂') || 
+      lowerText.includes('💀') || lowerText.includes('🔥')) {
+    return 'meme';
+  }
+  
+  return null;
+}
+
+/**
+ * Calculate points and metrics from project_tweets (mentions only)
+ * Returns comprehensive metrics including sentiment, CT heat, signal, noise, engagement types
  */
 async function calculateAutoTrackedPoints(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   projectId: string
-): Promise<Map<string, { basePoints: number; tweetCount: number }>> {
-  // Get all mentions (non-official tweets) for this project
+): Promise<Map<string, {
+  basePoints: number;
+  tweetCount: number;
+  sentiment: number | null;
+  ctHeat: number | null;
+  signal: number;
+  noise: number;
+  engagementTypes: { threader: number; video: number; clipper: number; meme: number };
+  mindshare: number;
+}>> {
+  // Get all mentions with full data
   const { data: mentions, error } = await supabase
     .from('project_tweets')
-    .select('author_handle, likes, replies, retweets')
+    .select('author_handle, likes, replies, retweets, text, sentiment_score, created_at')
     .eq('project_id', projectId)
-    .eq('is_official', false); // Only mentions, not official project tweets
+    .eq('is_official', false);
 
   if (error || !mentions) {
     console.error('[ARC Leaderboard] Error fetching mentions:', error);
     return new Map();
   }
 
-  // Aggregate points by normalized username
-  const pointsMap = new Map<string, { basePoints: number; tweetCount: number }>();
+  // Aggregate metrics by normalized username
+  const metricsMap = new Map<string, {
+    basePoints: number;
+    tweetCount: number;
+    sentimentSum: number;
+    sentimentCount: number;
+    totalEngagement: number;
+    signal: number;
+    noise: number;
+    engagementTypes: { threader: number; video: number; clipper: number; meme: number };
+    mindshare: number;
+  }>();
+
   for (const mention of mentions) {
     const normalizedUsername = normalizeTwitterUsername(mention.author_handle);
     if (!normalizedUsername) continue;
 
-    // Calculate engagement points: likes + replies*2 + retweets*3
-    const engagement = (mention.likes || 0) + (mention.replies || 0) * 2 + (mention.retweets || 0) * 3;
-    const current = pointsMap.get(normalizedUsername) || { basePoints: 0, tweetCount: 0 };
-    pointsMap.set(normalizedUsername, {
-      basePoints: current.basePoints + engagement,
-      tweetCount: current.tweetCount + 1,
+    const current = metricsMap.get(normalizedUsername) || {
+      basePoints: 0,
+      tweetCount: 0,
+      sentimentSum: 0,
+      sentimentCount: 0,
+      totalEngagement: 0,
+      signal: 0,
+      noise: 0,
+      engagementTypes: { threader: 0, video: 0, clipper: 0, meme: 0 },
+      mindshare: 0,
+    };
+
+    const likes = mention.likes || 0;
+    const replies = mention.replies || 0;
+    const retweets = mention.retweets || 0;
+    const engagement = likes + replies * 2 + retweets * 3;
+    
+    // Sentiment
+    if (mention.sentiment_score !== null && mention.sentiment_score !== undefined) {
+      current.sentimentSum += mention.sentiment_score;
+      current.sentimentCount++;
+    }
+
+    // Classify tweet type
+    const tweetType = classifyTweetType(mention.text);
+    if (tweetType) {
+      current.engagementTypes[tweetType]++;
+    }
+
+    // Signal vs Noise
+    const isSignal = (tweetType === 'threader' || tweetType === 'video') && engagement > 10;
+    const isNoise = engagement < 5 || (mention.sentiment_score !== null && mention.sentiment_score < 30);
+    
+    if (isSignal) {
+      current.signal += engagement;
+    } else if (isNoise) {
+      current.noise += engagement;
+    }
+
+    // CT Heat (recency-weighted)
+    const tweetAge = mention.created_at ? (Date.now() - new Date(mention.created_at).getTime()) / (1000 * 60 * 60) : 0;
+    const recencyMultiplier = tweetAge < 24 ? 1.5 : tweetAge < 168 ? 1.0 : 0.5;
+    current.totalEngagement += engagement * recencyMultiplier;
+
+    current.mindshare += engagement;
+    current.basePoints += engagement;
+    current.tweetCount++;
+
+    metricsMap.set(normalizedUsername, current);
+  }
+
+  // Convert to final format
+  const resultMap = new Map<string, {
+    basePoints: number;
+    tweetCount: number;
+    sentiment: number | null;
+    ctHeat: number | null;
+    signal: number;
+    noise: number;
+    engagementTypes: { threader: number; video: number; clipper: number; meme: number };
+    mindshare: number;
+  }>();
+
+  for (const [username, metrics] of metricsMap.entries()) {
+    const avgSentiment = metrics.sentimentCount > 0 
+      ? Math.round(metrics.sentimentSum / metrics.sentimentCount)
+      : null;
+
+    const ctHeat = metrics.tweetCount > 0
+      ? Math.min(100, Math.max(0, Math.round((metrics.totalEngagement / metrics.tweetCount) / 10)))
+      : null;
+
+    resultMap.set(username, {
+      basePoints: metrics.basePoints,
+      tweetCount: metrics.tweetCount,
+      sentiment: avgSentiment,
+      ctHeat,
+      signal: metrics.signal,
+      noise: metrics.noise,
+      engagementTypes: metrics.engagementTypes,
+      mindshare: metrics.mindshare,
     });
   }
 
-  return pointsMap;
+  return resultMap;
 }
 
 export default async function handler(
@@ -474,18 +614,10 @@ export default async function handler(
         avatarUrl = profileMap.get(joined.profile_id) || null;
       }
 
-      // Debug: Log first few entries to verify avatar_url is being set
-      if (entries.length < 5) {
-        console.log(`[ARC Leaderboard] Entry ${entries.length + 1}: username=${username}, avatar_url=${avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null'}, profileMap.has(${username})=${profileMap.has(username)}, profileMap.size=${profileMap.size}`);
-        if (!avatarUrl) {
-          console.log(`[ARC Leaderboard] No avatar for ${username} - checking profileMap keys:`, Array.from(profileMap.keys()).slice(0, 10));
-        }
-      }
-
       entries.push({
         rank: 0, // Will be set after sorting
         twitter_username: `@${username}`,
-        avatar_url: avatarUrl || null, // Explicitly set to null if not found
+        avatar_url: avatarUrl || null,
         base_points: data.basePoints,
         multiplier,
         score,
@@ -493,6 +625,13 @@ export default async function handler(
         follow_verified: followVerified,
         ring: joined?.ring as 'core' | 'momentum' | 'discovery' | null,
         joined_at: joined?.joined_at || null,
+        // New metrics
+        sentiment: data.sentiment,
+        ct_heat: data.ctHeat,
+        signal: data.signal,
+        noise: data.noise,
+        engagement_types: data.engagementTypes,
+        mindshare: data.mindshare,
       });
     }
 
