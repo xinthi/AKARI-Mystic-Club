@@ -8,7 +8,8 @@ import React from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { PortalLayout } from '@/components/portal/PortalLayout';
-import { createPortalClient } from '@/lib/portal/supabase';
+import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // =============================================================================
 // TYPES
@@ -470,7 +471,7 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     const supabase = createPortalClient();
     const normalizedUsername = twitterUsername.toLowerCase().trim();
 
-    // Query arena_creators with joins including profile for avatar
+    // Query arena_creators with joins (removed profiles join - will fetch separately for consistency)
     const { data: creatorsData, error: creatorsError } = await supabase
       .from('arena_creators')
       .select(`
@@ -482,10 +483,6 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
         created_at,
         arena_id,
         profile_id,
-        profiles:profile_id (
-          username,
-          profile_image_url
-        ),
         arenas!inner (
           id,
           name,
@@ -592,8 +589,19 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     // Get the actual twitter_username and avatar from the first row
     const firstRow = creatorsData[0];
     const twitterUsernameActual = firstRow?.twitter_username || normalizedUsername;
-    const profile = Array.isArray(firstRow?.profiles) ? firstRow.profiles[0] : firstRow?.profiles;
-    const avatarUrl = profile?.profile_image_url || null;
+    
+    // Fetch profile image using the helper function for consistent fetching
+    let avatarUrl: string | null = null;
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
+      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabaseAdmin, [cleanUsername]);
+      // akariUsersMap takes precedence if both exist
+      avatarUrl = akariUsersMap.get(cleanUsername) || profilesMap.get(cleanUsername) || null;
+    } catch (error) {
+      console.error('[CreatorProfilePage] Error fetching profile image:', error);
+      // Continue without avatar - will show placeholder
+    }
 
     const creator: CreatorProfile = {
       twitter_username: twitterUsernameActual,
