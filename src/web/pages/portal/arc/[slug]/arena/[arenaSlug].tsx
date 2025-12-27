@@ -1651,7 +1651,7 @@ export default function ArenaDetailsPage() {
                                       </td>
                                       <td className="py-4 px-4 text-right">
                                         <div className="flex flex-col items-end gap-1">
-                                          {Object.entries(engagementTypeCounts).some(([, count]) => count > 0) ? (
+                                          {Object.entries(engagementTypeCounts).some(([, count]: [string, number]) => count > 0) ? (
                                             <div className="flex items-center gap-1 text-xs">
                                               {engagementTypeCounts.threader > 0 && (
                                                 <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
