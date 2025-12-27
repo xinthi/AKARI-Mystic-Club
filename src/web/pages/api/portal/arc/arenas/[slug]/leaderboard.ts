@@ -476,13 +476,16 @@ export default async function handler(
 
       // Debug: Log first few entries to verify avatar_url is being set
       if (entries.length < 5) {
-        console.log(`[ARC Leaderboard] Entry ${entries.length + 1}: username=${username}, avatar_url=${avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null'}, profileMap.has(${username})=${profileMap.has(username)}`);
+        console.log(`[ARC Leaderboard] Entry ${entries.length + 1}: username=${username}, avatar_url=${avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null'}, profileMap.has(${username})=${profileMap.has(username)}, profileMap.size=${profileMap.size}`);
+        if (!avatarUrl) {
+          console.log(`[ARC Leaderboard] No avatar for ${username} - checking profileMap keys:`, Array.from(profileMap.keys()).slice(0, 10));
+        }
       }
 
       entries.push({
         rank: 0, // Will be set after sorting
         twitter_username: `@${username}`,
-        avatar_url: avatarUrl,
+        avatar_url: avatarUrl || null, // Explicitly set to null if not found
         base_points: data.basePoints,
         multiplier,
         score,
@@ -507,6 +510,16 @@ export default async function handler(
     const startIndex = (pageNum - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedEntries = entries.slice(startIndex, endIndex);
+
+    // Debug: Log summary of avatar URLs in response
+    const entriesWithAvatars = paginatedEntries.filter(e => e.avatar_url).length;
+    console.log(`[ARC Leaderboard] Returning ${paginatedEntries.length} entries, ${entriesWithAvatars} with avatars`);
+    if (paginatedEntries.length > 0 && paginatedEntries[0]) {
+      console.log(`[ARC Leaderboard] First entry in response:`, {
+        username: paginatedEntries[0].twitter_username,
+        avatar_url: paginatedEntries[0].avatar_url ? paginatedEntries[0].avatar_url.substring(0, 50) + '...' : 'null',
+      });
+    }
 
     return res.status(200).json({
       ok: true,
