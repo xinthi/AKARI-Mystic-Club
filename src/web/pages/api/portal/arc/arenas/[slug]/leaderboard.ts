@@ -10,6 +10,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 
 interface LeaderboardEntry {
   rank: number;
@@ -421,39 +422,37 @@ export default async function handler(
     const allUsernames = Array.from(autoTrackedPoints.keys());
     const usernamesNeedingImages = allUsernames.filter(username => !profileMap.has(username));
     
-    console.log(`[ARC Leaderboard] Need profile images for ${usernamesNeedingImages.length} creators (out of ${allUsernames.length} total)`);
+    console.log(`[ARC Leaderboard] Need profile images for ${usernamesNeedingImages.length} creators (out of ${allUsernames.length} total):`, usernamesNeedingImages.slice(0, 10));
     
     if (usernamesNeedingImages.length > 0) {
-      // Create a set of normalized usernames we're looking for
-      const neededUsernamesSet = new Set(usernamesNeedingImages);
-      
-      // Fetch profiles - we'll fetch a reasonable batch and filter client-side
-      // This handles case-insensitive matching properly
-      const { data: allProfiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('username, profile_image_url')
-        .limit(10000); // Reasonable limit for most use cases
-
-      if (profilesError) {
-        console.error(`[ARC Leaderboard] Error fetching profiles:`, profilesError);
-      }
-
-      if (allProfiles) {
-        console.log(`[ARC Leaderboard] Fetched ${allProfiles.length} profiles from database`);
-        let matchedCount = 0;
-        for (const profile of allProfiles) {
-          const normalized = normalizeTwitterUsername(profile.username);
-          // Check if this normalized username is one we need
-          if (normalized && neededUsernamesSet.has(normalized) && profile.profile_image_url) {
-            if (!profileMap.has(normalized)) {
-              profileMap.set(normalized, profile.profile_image_url);
-              matchedCount++;
-              console.log(`[ARC Leaderboard] Matched profile image for ${normalized}: ${profile.profile_image_url.substring(0, 50)}...`);
-            }
+      // Use the existing helper function that handles profile image fetching correctly
+      // Note: fetchProfileImagesForHandles stores keys as lowercase, and our usernames are already normalized (lowercase)
+      try {
+        const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, usernamesNeedingImages);
+        
+        // Add to our profileMap (profilesMap keys are already lowercase from the helper function)
+        // Our usernames are already normalized (lowercase) so keys will match
+        for (const [username, imageUrl] of profilesMap.entries()) {
+          if (imageUrl) {
+            // username is already lowercase from fetchProfileImagesForHandles, store as-is
+            profileMap.set(username, imageUrl);
+            console.log(`[ARC Leaderboard] Found profile image for ${username} using fetchProfileImagesForHandles: ${imageUrl.substring(0, 50)}...`);
           }
         }
-        console.log(`[ARC Leaderboard] Matched ${matchedCount} profile images from profiles table`);
+        
+        // Also check akariUsersMap for registered users (keys are also lowercase)
+        for (const [username, imageUrl] of akariUsersMap.entries()) {
+          if (imageUrl && !profileMap.has(username)) {
+            profileMap.set(username, imageUrl);
+            console.log(`[ARC Leaderboard] Found profile image for ${username} from akari_users: ${imageUrl.substring(0, 50)}...`);
+          }
+        }
+        
+        console.log(`[ARC Leaderboard] Added ${profilesMap.size + akariUsersMap.size} profile images from fetchProfileImagesForHandles`);
+      } catch (error: any) {
+        console.error(`[ARC Leaderboard] Error in fetchProfileImagesForHandles:`, error);
       }
+      
       console.log(`[ARC Leaderboard] Final profile map size: ${profileMap.size} entries`);
     }
 
@@ -468,6 +467,7 @@ export default async function handler(
       const score = data.basePoints * multiplier;
 
       // Get avatar URL - try by username first, then by profile_id if joined
+      // username is already normalized (lowercase, no @) from normalizeTwitterUsername
       let avatarUrl: string | null = null;
       avatarUrl = profileMap.get(username) || null;
       if (!avatarUrl && joined?.profile_id) {
