@@ -296,7 +296,7 @@ export default async function handler(
     // Get joined creators (for multiplier and ring info)
     const { data: creators, error: creatorsError } = await supabase
       .from('arena_creators')
-      .select('profile_id, twitter_username, ring, created_at, profiles:profile_id (username, profile_image_url)')
+      .select('profile_id, twitter_username, ring, created_at')
       .eq('arena_id', arenaData.id);
 
     if (creatorsError) {
@@ -363,27 +363,57 @@ export default async function handler(
     const entries: LeaderboardEntry[] = [];
     const profileMap = new Map<string, string | null>();
 
-    // Extract profile images from joined creators (already fetched via join query)
+    // Extract profile images from joined creators by fetching profiles separately
     if (creators && creators.length > 0) {
-      for (const creator of creators) {
-        const normalizedUsername = normalizeTwitterUsername(creator.twitter_username);
-        if (normalizedUsername) {
-          // Extract profile_image_url from the joined profiles relation
-          // Supabase returns relations as an object or array depending on cardinality
-          const profile = (creator as any).profiles;
-          if (profile) {
-            // Handle both single object and array cases
-            const profileData = Array.isArray(profile) ? (profile.length > 0 ? profile[0] : null) : profile;
-            if (profileData?.profile_image_url) {
-              profileMap.set(normalizedUsername, profileData.profile_image_url);
-              // Also map by profile_id if available
-              if (creator.profile_id) {
-                profileMap.set(creator.profile_id, profileData.profile_image_url);
+      console.log(`[ARC Leaderboard] Processing ${creators.length} joined creators for profile images`);
+      
+      // Get all profile_ids from joined creators
+      const creatorProfileIds = creators
+        .map(c => c.profile_id)
+        .filter((id): id is string => !!id);
+      
+      if (creatorProfileIds.length > 0) {
+        // Fetch profiles by profile_id
+        const { data: creatorProfiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, profile_image_url')
+          .in('id', creatorProfileIds);
+
+        if (profilesError) {
+          console.error(`[ARC Leaderboard] Error fetching creator profiles:`, profilesError);
+        }
+
+        if (creatorProfiles) {
+          // Create a map of profile_id -> profile_image_url
+          const profileIdMap = new Map<string, string>();
+          for (const profile of creatorProfiles) {
+            if (profile.profile_image_url) {
+              profileIdMap.set(profile.id, profile.profile_image_url);
+              // Also map by normalized username
+              const normalized = normalizeTwitterUsername(profile.username);
+              if (normalized) {
+                profileMap.set(normalized, profile.profile_image_url);
+              }
+            }
+          }
+
+          // Now map profile images to creators by profile_id
+          for (const creator of creators) {
+            const normalizedUsername = normalizeTwitterUsername(creator.twitter_username);
+            if (normalizedUsername) {
+              // Try to get profile image by profile_id first
+              if (creator.profile_id && profileIdMap.has(creator.profile_id)) {
+                const imageUrl = profileIdMap.get(creator.profile_id)!;
+                profileMap.set(normalizedUsername, imageUrl);
+                console.log(`[ARC Leaderboard] Found profile image for joined creator ${normalizedUsername} (via profile_id): ${imageUrl.substring(0, 50)}...`);
+              } else if (!profileMap.has(normalizedUsername)) {
+                console.log(`[ARC Leaderboard] No profile image found for joined creator ${normalizedUsername} (profile_id: ${creator.profile_id || 'none'})`);
               }
             }
           }
         }
       }
+      console.log(`[ARC Leaderboard] Profile map after joined creators: ${profileMap.size} entries`);
     }
 
     // Get profile images for ALL creators in the leaderboard (by username)
@@ -391,28 +421,40 @@ export default async function handler(
     const allUsernames = Array.from(autoTrackedPoints.keys());
     const usernamesNeedingImages = allUsernames.filter(username => !profileMap.has(username));
     
+    console.log(`[ARC Leaderboard] Need profile images for ${usernamesNeedingImages.length} creators (out of ${allUsernames.length} total)`);
+    
     if (usernamesNeedingImages.length > 0) {
       // Create a set of normalized usernames we're looking for
       const neededUsernamesSet = new Set(usernamesNeedingImages);
       
       // Fetch profiles - we'll fetch a reasonable batch and filter client-side
       // This handles case-insensitive matching properly
-      const { data: allProfiles } = await supabase
+      const { data: allProfiles, error: profilesError } = await supabase
         .from('profiles')
         .select('username, profile_image_url')
         .limit(10000); // Reasonable limit for most use cases
 
+      if (profilesError) {
+        console.error(`[ARC Leaderboard] Error fetching profiles:`, profilesError);
+      }
+
       if (allProfiles) {
+        console.log(`[ARC Leaderboard] Fetched ${allProfiles.length} profiles from database`);
+        let matchedCount = 0;
         for (const profile of allProfiles) {
           const normalized = normalizeTwitterUsername(profile.username);
           // Check if this normalized username is one we need
           if (normalized && neededUsernamesSet.has(normalized) && profile.profile_image_url) {
             if (!profileMap.has(normalized)) {
               profileMap.set(normalized, profile.profile_image_url);
+              matchedCount++;
+              console.log(`[ARC Leaderboard] Matched profile image for ${normalized}: ${profile.profile_image_url.substring(0, 50)}...`);
             }
           }
         }
+        console.log(`[ARC Leaderboard] Matched ${matchedCount} profile images from profiles table`);
       }
+      console.log(`[ARC Leaderboard] Final profile map size: ${profileMap.size} entries`);
     }
 
     // Build entries with multipliers
@@ -430,6 +472,11 @@ export default async function handler(
       avatarUrl = profileMap.get(username) || null;
       if (!avatarUrl && joined?.profile_id) {
         avatarUrl = profileMap.get(joined.profile_id) || null;
+      }
+
+      // Debug: Log first few entries to verify avatar_url is being set
+      if (entries.length < 5) {
+        console.log(`[ARC Leaderboard] Entry ${entries.length + 1}: username=${username}, avatar_url=${avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null'}, profileMap.has(${username})=${profileMap.has(username)}`);
       }
 
       entries.push({

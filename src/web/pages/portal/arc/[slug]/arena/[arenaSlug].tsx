@@ -449,7 +449,17 @@ export default function ArenaDetailsPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.ok) {
-            setLeaderboardEntries(data.entries || []);
+            // Debug: Log first few entries to see if avatar_url is present
+            const entries = data.entries || [];
+            console.log('[ArenaDetailsPage] Leaderboard entries received:', entries.length);
+            if (entries.length > 0) {
+              console.log('[ArenaDetailsPage] First entry:', {
+                username: entries[0].twitter_username,
+                avatar_url: entries[0].avatar_url ? entries[0].avatar_url.substring(0, 50) + '...' : 'null',
+                rank: entries[0].rank,
+              });
+            }
+            setLeaderboardEntries(entries);
             setLeaderboardTotal(data.total || 0);
             setLeaderboardTotalPages(data.totalPages || 0);
           }
@@ -1526,17 +1536,23 @@ export default function ArenaDetailsPage() {
                                   <span className="text-sm font-semibold text-akari-text w-8 flex-shrink-0">
                                     #{entry.rank}
                                   </span>
-                                  {entry.avatar_url ? (
+                                  {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                     <img
                                       src={entry.avatar_url}
                                       alt={entry.twitter_username}
-                                      className="w-10 h-10 rounded-full border border-akari-border/30"
+                                      className="w-10 h-10 rounded-full border border-akari-border/30 object-cover"
+                                      onError={(e) => {
+                                        // If image fails to load, hide it and show placeholder
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        const placeholder = target.nextElementSibling as HTMLElement;
+                                        if (placeholder) placeholder.style.display = 'flex';
+                                      }}
                                     />
-                                  ) : (
-                                    <div className="w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
-                                      {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
-                                    </div>
-                                  )}
+                                  ) : null}
+                                  <div className={`w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
+                                    {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
+                                  </div>
                                   <div className="flex items-center gap-3 min-w-0 flex-wrap">
                                     <span className="text-sm font-medium text-akari-text whitespace-nowrap">
                                       @{entry.twitter_username.replace(/^@+/, '')}
