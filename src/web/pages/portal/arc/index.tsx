@@ -477,12 +477,13 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           liveItems={liveItems}
           upcomingItems={upcomingItems}
           activities={activities}
-          loading={loading}
-          error={error}
+          loading={liveItemsLoading}
+          error={liveItemsError}
           kindFilter={kindFilter}
           timeFilter={timeFilter}
           onKindFilterChange={setKindFilter}
           onTimeFilterChange={setTimeFilter}
+          onActionSuccess={refetchLiveItems}
         />
       </div>
 

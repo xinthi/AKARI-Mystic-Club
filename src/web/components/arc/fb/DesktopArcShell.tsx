@@ -32,6 +32,7 @@ interface DesktopArcShellProps {
   timeFilter: 'all' | 'live' | 'upcoming';
   onKindFilterChange: (filter: 'all' | 'arena' | 'campaign' | 'gamified') => void;
   onTimeFilterChange: (filter: 'all' | 'live' | 'upcoming') => void;
+  onActionSuccess?: () => void;
 }
 
 export function DesktopArcShell({
@@ -49,6 +50,7 @@ export function DesktopArcShell({
   timeFilter,
   onKindFilterChange,
   onTimeFilterChange,
+  onActionSuccess,
 }: DesktopArcShellProps) {
   return (
     <div className="flex flex-col min-h-screen w-full bg-black">

@@ -4,7 +4,7 @@
  * Dense, metric-first card for live/upcoming items
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { LiveItem } from '@/lib/arc/useArcLiveItems';
 import { getLiveItemRoute } from './routeUtils';
@@ -12,9 +12,13 @@ import { getLiveItemRoute } from './routeUtils';
 interface LiveItemCardProps {
   item: LiveItem;
   canManageArc?: boolean;
+  onActionSuccess?: () => void;
 }
 
-export function LiveItemCard({ item, canManageArc }: LiveItemCardProps) {
+export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCardProps) {
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const route = getLiveItemRoute(item);
   const kindLabel = item.kind === 'arena' ? 'Arena' : item.kind === 'campaign' ? 'Campaign' : 'Gamified';
 
@@ -26,6 +30,43 @@ export function LiveItemCard({ item, canManageArc }: LiveItemCardProps) {
   const startDate = item.statusLabel === 'Upcoming' && item.startAt ? new Date(item.startAt) : null;
   const timeUntilStart = startDate ? Math.max(0, startDate.getTime() - Date.now()) : null;
   const daysUntilStart = timeUntilStart ? Math.floor(timeUntilStart / (1000 * 60 * 60 * 24)) : null;
+
+  const handleAction = async (action: 'pause' | 'restart' | 'end' | 'reinstate') => {
+    if (!canManageArc || loadingAction) return;
+
+    setLoadingAction(action);
+    setActionError(null);
+    setDropdownOpen(false);
+
+    try {
+      const res = await fetch('/api/portal/admin/arc/live-item/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          kind: item.kind,
+          id: item.id,
+          action,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to perform action');
+      }
+
+      // Trigger refetch of live items
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
+    } catch (err: any) {
+      console.error('[LiveItemCard] Action error:', err);
+      setActionError(err.message || 'Failed to perform action');
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-white/10 bg-black/40 p-4 hover:border-white/20 hover:bg-white/5 transition-all">
@@ -79,33 +120,69 @@ export function LiveItemCard({ item, canManageArc }: LiveItemCardProps) {
 
       {/* Actions */}
       <div className="flex gap-2">
-        {route && (
+        {item.statusLabel === 'Live' && route && (
           <Link
             href={route}
-            className="flex-1 text-center px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+            className="flex-1 text-center px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
           >
             View
           </Link>
         )}
         {canManageArc && (
-          <div className="relative group">
-            <button className="px-3 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              disabled={loadingAction !== null}
+              className="px-3 py-2 text-sm font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingAction ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              )}
             </button>
-            {/* Dropdown menu - placeholder UI only */}
-            <div className="hidden group-hover:block absolute right-0 mt-1 w-48 bg-black/90 border border-white/20 rounded-lg shadow-lg z-10">
-              <div className="py-1">
-                <button className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">Pause</button>
-                <button className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">End</button>
-                <button className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">Restart</button>
-                <button className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">Reinstate</button>
+            {dropdownOpen && !loadingAction && (
+              <div className="absolute right-0 mt-1 w-48 bg-black/90 border border-white/20 rounded-lg shadow-lg z-10">
+                <div className="py-1">
+                  <button
+                    onClick={() => handleAction('pause')}
+                    disabled={loadingAction !== null}
+                    className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Pause
+                  </button>
+                  <button
+                    onClick={() => handleAction('end')}
+                    disabled={loadingAction !== null}
+                    className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    End
+                  </button>
+                  <button
+                    onClick={() => handleAction('restart')}
+                    disabled={loadingAction !== null}
+                    className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Restart
+                  </button>
+                  <button
+                    onClick={() => handleAction('reinstate')}
+                    disabled={loadingAction !== null}
+                    className="w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reinstate
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
+      {actionError && (
+        <div className="mt-2 text-xs text-red-400">{actionError}</div>
+      )}
     </div>
   );
 }

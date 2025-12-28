@@ -26,6 +26,7 @@ interface CenterFeedProps {
   timeFilter: 'all' | 'live' | 'upcoming';
   
   canManageArc?: boolean;
+  onActionSuccess?: () => void;
 }
 
 export function CenterFeed({
@@ -38,6 +39,7 @@ export function CenterFeed({
   kindFilter,
   timeFilter,
   canManageArc,
+  onActionSuccess,
 }: CenterFeedProps) {
   // Filter items
   const filteredLive = liveItems.filter((item) => {
@@ -106,6 +108,7 @@ export function CenterFeed({
                 key={item.id}
                 item={item}
                 canManageArc={canManageArc}
+                onActionSuccess={onActionSuccess}
               />
             ))}
           </div>
@@ -138,6 +141,7 @@ export function CenterFeed({
                 key={item.id}
                 item={item}
                 canManageArc={canManageArc}
+                onActionSuccess={onActionSuccess}
               />
             ))}
           </div>
@@ -149,7 +153,7 @@ export function CenterFeed({
         <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
         {activities.length === 0 ? (
           <div className="rounded-lg border border-white/10 bg-black/40 p-12 text-center">
-            <p className="text-white/60 text-sm">No activity yet</p>
+            <p className="text-white/60 text-sm">No recent activity</p>
           </div>
         ) : (
           <div className="space-y-2">

@@ -54,6 +54,7 @@ export function MobileLayout({
   error,
   treemapRender,
   canManageArc,
+  onActionSuccess,
 }: MobileLayoutProps) {
   const akariUser = useAkariUser();
   const [activeTab, setActiveTab] = useState<'home' | 'live' | 'create' | 'activity' | 'admin'>('home');
@@ -203,7 +204,7 @@ export function MobileLayout({
               </div>
             ) : (
               [...liveItems, ...upcomingItems].map((item) => (
-                <LiveItemCard key={item.id} item={item} canManageArc={canManageArc} />
+                <LiveItemCard key={item.id} item={item} canManageArc={canManageArc} onActionSuccess={onActionSuccess} />
               ))
             )}
           </div>
@@ -221,7 +222,7 @@ export function MobileLayout({
           <div className="px-4 py-6 space-y-2">
             {activities.length === 0 ? (
               <div className="rounded-lg border border-white/10 bg-black/40 p-12 text-center">
-                <p className="text-white/60 text-sm">No activity yet</p>
+                <p className="text-white/60 text-sm">No recent activity</p>
               </div>
             ) : (
               activities.map((activity) => (
