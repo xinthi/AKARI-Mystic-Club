@@ -1203,17 +1203,19 @@ export default function ArenaDetailsPage() {
           <>
             {/* Combined Project & Arena Header */}
             {project && arena && (
-              <div className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card">
+              <div className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card relative">
+                {/* Dimmed background header image */}
                 {project.header_image_url && (
-                  <div className="w-full h-24 sm:h-32 md:h-40 bg-gradient-to-br from-akari-neon-teal/20 to-akari-neon-blue/20 relative">
+                  <div className="absolute inset-0 z-0">
                     <img
                       src={project.header_image_url}
                       alt={`${project.name} header`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover opacity-10"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/60" />
                   </div>
                 )}
-                <div className="p-4 sm:p-6">
+                <div className="relative z-10 p-4 sm:p-6">
                   {/* Top Section: Project & Arena Info */}
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4 sm:mb-6">
                     <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
@@ -1232,13 +1234,10 @@ export default function ArenaDetailsPage() {
                           {arena.name}
                         </h1>
                         {project.twitter_username && (
-                          <p className="text-[10px] sm:text-xs text-akari-muted mb-1">
+                          <p className="text-[10px] sm:text-xs text-akari-muted">
                             @{project.twitter_username.replace(/^@/, '')}
                           </p>
                         )}
-                        <p className="text-[9px] sm:text-[10px] text-akari-muted">
-                          Slug: {arena.slug}
-                        </p>
                       </div>
                     </div>
                     <span

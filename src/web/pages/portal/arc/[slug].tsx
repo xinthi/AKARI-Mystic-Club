@@ -1250,17 +1250,20 @@ export default function ArcProjectHub() {
           <>
             {/* Project Hero Section */}
             <section className="mb-8 rounded-2xl overflow-hidden border border-white/5 bg-black/60">
-              {/* Banner */}
+              {/* Banner with dimmed background */}
               <div className="relative h-32 md:h-40">
-                {project.meta?.banner_url ? (
-                  <Image
-                    src={project.meta.banner_url}
-                    alt={`${project.name || 'Project'} banner`}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                    sizes="100vw"
-                  />
+                {(project.meta?.banner_url || (project as any).header_image_url) ? (
+                  <>
+                    <Image
+                      src={(project as any).header_image_url || project.meta?.banner_url || ''}
+                      alt={`${project.name || 'Project'} banner`}
+                      fill
+                      className="object-cover opacity-10"
+                      unoptimized
+                      sizes="100vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/80" />
+                  </>
                 ) : (
                   <div 
                     className="w-full h-full"
@@ -1269,12 +1272,10 @@ export default function ArcProjectHub() {
                     }}
                   />
                 )}
-                {/* Dark overlay */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/80" />
               </div>
 
               {/* Content row */}
-              <div className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="relative z-10 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 {/* Left: logo + name + tagline */}
                 <div className="flex items-start gap-4 flex-1">
                   {/* Project logo/avatar */}

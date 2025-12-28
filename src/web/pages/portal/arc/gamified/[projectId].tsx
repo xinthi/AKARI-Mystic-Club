@@ -111,6 +111,7 @@ export default function GamifiedLeaderboardPage() {
   const [leaderboardView, setLeaderboardView] = useState<'score' | 'impact' | 'consistency'>('score');
   const [completingQuestId, setCompletingQuestId] = useState<string | null>(null);
   const [completionSuccess, setCompletionSuccess] = useState<string | null>(null);
+  const [project, setProject] = useState<{ name: string; header_image_url?: string | null; avatar_url?: string | null; twitter_username?: string | null } | null>(null);
 
   // Refetch completions and recent activity (defined early for useEffect dependency)
   const refetchCompletionsAndActivity = useCallback(async (arenaIdToUse?: string) => {
@@ -177,6 +178,22 @@ export default function GamifiedLeaderboardPage() {
       try {
         setLoading(true);
         setError(null);
+
+        // Fetch project data
+        const projectRes = await fetch(`/api/portal/arc/project/${projectId}`, {
+          credentials: 'include',
+        });
+        if (projectRes.ok) {
+          const projectData = await projectRes.json();
+          if (projectData.ok && projectData.project) {
+            setProject({
+              name: projectData.project.name || 'Unknown Project',
+              header_image_url: projectData.project.header_image_url || projectData.project.meta?.banner_url || null,
+              avatar_url: projectData.project.avatar_url || null,
+              twitter_username: projectData.project.twitter_username || null,
+            });
+          }
+        }
 
         // Fetch gamified data (leaderboard + quests)
         const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
@@ -314,12 +331,50 @@ export default function GamifiedLeaderboardPage() {
           <span className="text-white/80">Gamified</span>
         </div>
 
-        {/* Header */}
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Quest Leaderboard</h1>
-          {arenaName && (
-            <p className="text-white/60">Active Arena: {arenaName}</p>
+        {/* Header with Project Info */}
+        <div className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card relative">
+          {/* Dimmed background header image */}
+          {project?.header_image_url && (
+            <div className="absolute inset-0 z-0">
+              <img
+                src={project.header_image_url}
+                alt={`${project.name} header`}
+                className="w-full h-full object-cover opacity-10"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/80" />
+            </div>
           )}
+          <div className="relative z-10 p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4 mb-3">
+              {project?.avatar_url && (
+                <img
+                  src={project.avatar_url}
+                  alt={project.name}
+                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full border-2 border-akari-border flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                {project && (
+                  <p className="text-xs sm:text-sm text-akari-muted mb-0.5">
+                    {project.name}
+                  </p>
+                )}
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-akari-text mb-1">
+                  Quest Leaderboard
+                </h1>
+                {project?.twitter_username && (
+                  <p className="text-[10px] sm:text-xs text-akari-muted mb-1">
+                    @{project.twitter_username.replace(/^@/, '')}
+                  </p>
+                )}
+                {arenaName && (
+                  <p className="text-xs sm:text-sm text-akari-muted">
+                    Active Arena: {arenaName}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Completion Success Message */}
