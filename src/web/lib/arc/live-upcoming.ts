@@ -204,7 +204,7 @@ async function fetchArenas(supabase: SupabaseClient) {
         x_handle
       )
     `)
-    .in('status', ['active', 'scheduled'])
+    .in('status', ['active', 'scheduled', 'paused'])
     .order('created_at', { ascending: false });
 
   if (error) {
