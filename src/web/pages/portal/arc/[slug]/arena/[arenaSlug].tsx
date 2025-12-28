@@ -1201,11 +1201,11 @@ export default function ArenaDetailsPage() {
         {/* Arena content */}
         {!loading && !error && arena && (
           <>
-            {/* Project Header with Image */}
+            {/* Project Header with Team */}
             {project && (
               <div className="rounded-xl border border-slate-700 overflow-hidden bg-akari-card">
                 {project.header_image_url && (
-                  <div className="w-full h-48 md:h-64 bg-gradient-to-br from-akari-neon-teal/20 to-akari-neon-blue/20 relative">
+                  <div className="w-full h-32 sm:h-40 md:h-48 bg-gradient-to-br from-akari-neon-teal/20 to-akari-neon-blue/20 relative">
                     <img
                       src={project.header_image_url}
                       alt={`${project.name} header`}
@@ -1213,63 +1213,64 @@ export default function ArenaDetailsPage() {
                     />
                   </div>
                 )}
-                <div className="p-6">
-                  <div className="flex items-start gap-4">
+                <div className="p-4 sm:p-6">
+                  {/* Project Header */}
+                  <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
                     {project.avatar_url && (
                       <img
                         src={project.avatar_url}
                         alt={project.name}
-                        className="w-16 h-16 rounded-full border-2 border-akari-border"
+                        className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-2 border-akari-border flex-shrink-0"
                       />
                     )}
-                    <div className="flex-1">
-                      <h1 className="text-2xl font-bold text-akari-text mb-1">
+                    <div className="flex-1 min-w-0">
+                      <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-akari-text mb-1">
                         {project.name}
                       </h1>
                       {project.twitter_username && (
-                        <p className="text-sm text-akari-muted">
+                        <p className="text-xs sm:text-sm text-akari-muted">
                           @{project.twitter_username.replace(/^@/, '')}
                         </p>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
 
-            {/* Project Team Profiles */}
-            {teamMembers.length > 0 && (
-              <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-                <h2 className="text-lg font-semibold text-akari-text mb-4">Project Team</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30"
-                    >
-                      {member.profile?.profile_image_url ? (
-                        <img
-                          src={member.profile.profile_image_url}
-                          alt={member.profile.username}
-                          className="w-12 h-12 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text">
-                          {member.profile?.username?.[0]?.toUpperCase() || '?'}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-akari-text truncate">
-                          @{(member.profile?.username || 'Unknown').replace(/^@+/, '')}
-                        </p>
-                        {member.affiliate_title && (
-                          <p className="text-xs text-akari-muted truncate">
-                            {member.affiliate_title}
-                          </p>
-                        )}
+                  {/* Project Team Profiles - Compact */}
+                  {teamMembers.length > 0 && (
+                    <div>
+                      <h2 className="text-sm sm:text-base font-semibold text-akari-text mb-3">Project Team</h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+                        {teamMembers.map((member) => (
+                          <div
+                            key={member.id}
+                            className="flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-lg bg-akari-cardSoft/30 border border-akari-border/30 hover:bg-akari-cardSoft/40 transition-colors"
+                          >
+                            {member.profile?.profile_image_url ? (
+                              <img
+                                src={member.profile.profile_image_url}
+                                alt={member.profile.username}
+                                className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[10px] sm:text-xs md:text-sm text-akari-text flex-shrink-0">
+                                {member.profile?.username?.[0]?.toUpperCase() || '?'}
+                              </div>
+                            )}
+                            <div className="w-full text-center min-w-0">
+                              <p className="text-[10px] sm:text-xs font-medium text-akari-text truncate">
+                                @{(member.profile?.username || 'Unknown').replace(/^@+/, '')}
+                              </p>
+                              {member.affiliate_title && (
+                                <p className="text-[9px] sm:text-[10px] text-akari-muted truncate mt-0.5">
+                                  {member.affiliate_title}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -1533,29 +1534,29 @@ export default function ArenaDetailsPage() {
                         </div>
 
                         {/* Table-based Leaderboard - Responsive */}
-                        <div className="overflow-x-auto -mx-6 px-6 sm:-mx-8 sm:px-8 md:-mx-12 md:px-12 lg:-mx-16 lg:px-16 xl:-mx-24 xl:px-24">
-                          <table className="w-full border-collapse min-w-[600px] sm:min-w-[800px]">
+                        <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 lg:-mx-12 lg:px-12 xl:-mx-16 xl:px-16">
+                          <table className="w-full border-collapse min-w-[320px] sm:min-w-[480px] md:min-w-[700px] lg:min-w-[900px]">
                             <thead>
                               <tr className="border-b border-akari-border/30">
-                                <th className="text-left py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
-                                <th className="text-left py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Name</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">ARC</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
-                                  <span className="flex items-center justify-end gap-1">
-                                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <th className="text-left py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
+                                <th className="text-left py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider min-w-[120px] sm:min-w-[140px]">Name</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">ARC</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell">
+                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
+                                    <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
                                     </svg>
-                                    <span className="hidden sm:inline">Signal</span>
+                                    <span className="hidden md:inline">Signal</span>
                                   </span>
                                 </th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell">Noise</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Sentiment</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">CT Heat</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell">Engagement</th>
-                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
-                                  <span className="flex items-center justify-end gap-1">
-                                    <span className="text-akari-primary font-bold">X</span>
-                                    <span className="hidden sm:inline">Mindshare</span>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Noise</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">Sentiment</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">CT Heat</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell">Engagement</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">
+                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
+                                    <span className="text-akari-primary font-bold text-[10px] sm:text-xs">X</span>
+                                    <span className="hidden md:inline">Mindshare</span>
                                   </span>
                                 </th>
                               </tr>
@@ -1599,18 +1600,18 @@ export default function ArenaDetailsPage() {
                                         isTopThree ? 'bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5' : ''
                                       }`}
                                     >
-                                      <td className="py-4 px-2 sm:px-4">
-                                        <span className={`text-sm font-semibold ${isTopThree ? 'text-akari-primary' : 'text-akari-text'}`}>
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4">
+                                        <span className={`text-[11px] sm:text-xs md:text-sm font-semibold ${isTopThree ? 'text-akari-primary' : 'text-akari-text'}`}>
                                           #{entry.rank}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4">
-                                        <Link href={creatorUrl} className="flex items-center gap-2 sm:gap-3 group">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4">
+                                        <Link href={creatorUrl} className="flex items-center gap-1.5 sm:gap-2 md:gap-3 group">
                                           {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                             <img
                                               src={entry.avatar_url}
                                               alt={entry.twitter_username}
-                                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
+                                              className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
                                               onError={(e) => {
                                                 const target = e.target as HTMLImageElement;
                                                 target.style.display = 'none';
@@ -1619,21 +1620,21 @@ export default function ArenaDetailsPage() {
                                               }}
                                             />
                                           ) : null}
-                                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
+                                          <div className={`w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[10px] sm:text-xs md:text-sm text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
                                             {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
                                           </div>
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-xs sm:text-sm font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
+                                            <span className="text-[10px] sm:text-xs md:text-sm font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
                                               @{entry.twitter_username.replace(/^@+/, '')}
                                             </span>
-                                            <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
+                                            <div className="flex items-center gap-1 mt-0.5">
                                               {entry.ring && (
-                                                <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border ${getRingColor(entry.ring)}`}>
+                                                <span className={`px-1 sm:px-1.5 md:px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] md:text-xs font-medium border ${getRingColor(entry.ring)}`}>
                                                   {entry.ring}
                                                 </span>
                                               )}
                                               {primaryEngagementType && (
-                                                <span className="text-[10px] sm:text-xs text-akari-muted capitalize">
+                                                <span className="text-[8px] sm:text-[10px] md:text-xs text-akari-muted capitalize hidden sm:inline">
                                                   {primaryEngagementType}
                                                 </span>
                                               )}
@@ -1641,23 +1642,23 @@ export default function ArenaDetailsPage() {
                                           </div>
                                         </Link>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right">
-                                        <span className={`text-sm font-bold ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right">
+                                        <span className={`text-[11px] sm:text-xs md:text-sm font-bold ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
                                           {calculatedPoints}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right">
-                                        <span className="text-xs sm:text-sm font-medium text-akari-text">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right hidden sm:table-cell">
+                                        <span className="text-[10px] sm:text-xs md:text-sm font-medium text-akari-text">
                                           {entry.signal ? entry.signal.toLocaleString() : '0'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right hidden md:table-cell">
-                                        <span className="text-xs sm:text-sm font-medium text-akari-muted">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right hidden lg:table-cell">
+                                        <span className="text-[10px] sm:text-xs md:text-sm font-medium text-akari-muted">
                                           {entry.noise ? entry.noise.toLocaleString() : '0'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right hidden lg:table-cell">
-                                        <span className={`text-xs sm:text-sm font-medium ${
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right hidden xl:table-cell">
+                                        <span className={`text-[10px] sm:text-xs md:text-sm font-medium ${
                                           entry.sentiment !== null && entry.sentiment > 50 
                                             ? 'text-green-400' 
                                             : entry.sentiment !== null && entry.sentiment < 50 
@@ -1667,15 +1668,15 @@ export default function ArenaDetailsPage() {
                                           {entry.sentiment !== null ? entry.sentiment : 'N/A'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right hidden lg:table-cell">
-                                        <span className="text-xs sm:text-sm font-medium text-akari-text">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right hidden xl:table-cell">
+                                        <span className="text-[10px] sm:text-xs md:text-sm font-medium text-akari-text">
                                           {entry.ct_heat !== null ? entry.ct_heat : 'N/A'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right hidden md:table-cell">
-                                        <div className="flex flex-col items-end gap-1">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right hidden md:table-cell">
+                                        <div className="flex flex-col items-end gap-0.5 sm:gap-1">
                                           {Object.entries(engagementTypeCounts).some(([, count]) => (count as number) > 0) ? (
-                                            <div className="flex items-center gap-1 text-[10px] sm:text-xs">
+                                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[10px] md:text-xs">
                                               {engagementTypeCounts.threader > 0 && (
                                                 <span className="px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
                                                   T:{engagementTypeCounts.threader}
@@ -1698,12 +1699,12 @@ export default function ArenaDetailsPage() {
                                               )}
                                             </div>
                                           ) : (
-                                            <span className="text-[10px] sm:text-xs text-akari-muted">N/A</span>
+                                            <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
                                           )}
                                         </div>
                                       </td>
-                                      <td className="py-4 px-2 sm:px-4 text-right">
-                                        <span className="text-xs sm:text-sm font-semibold text-akari-primary">
+                                      <td className="py-2 sm:py-3 px-1.5 sm:px-2 md:px-4 text-right">
+                                        <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-akari-primary">
                                           {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
                                         </span>
                                       </td>
