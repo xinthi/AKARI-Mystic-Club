@@ -56,6 +56,12 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
         throw new Error(data.error || 'Failed to perform action');
       }
 
+      // Navigate to report if ending
+      if (action === 'end' && data.status === 'ended') {
+        window.location.href = `/portal/admin/arc/reports/${item.kind}/${item.id}`;
+        return; // Don't trigger refetch since we're navigating away
+      }
+
       // Trigger refetch of live items
       if (onActionSuccess) {
         onActionSuccess();

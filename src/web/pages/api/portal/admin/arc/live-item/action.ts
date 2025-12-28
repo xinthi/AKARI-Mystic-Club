@@ -110,8 +110,7 @@ export default async function handler(
       let updateData: any = { updated_at: now };
 
       if (action === 'pause') {
-        // Use 'cancelled' as pause status for arenas (safest approach)
-        newStatus = 'cancelled';
+        newStatus = 'paused';
         updateData.status = newStatus;
       } else if (action === 'restart') {
         newStatus = 'active';
