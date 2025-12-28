@@ -616,15 +616,27 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs text-white/60">Reward Depth</label>
+              <label className="mb-1 block text-xs text-white/60 group relative">
+                <span className="flex items-center gap-1">
+                  Reward Depth
+                  <svg className="w-3 h-3 text-white/40 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="absolute bottom-full left-0 mb-2 hidden w-56 rounded-lg bg-black/90 p-2 text-xs text-white/80 shadow-lg group-hover:block z-20 border border-white/10">
+                    Number of top participants who will receive rewards (e.g., 100 = top 100 will be rewarded)
+                  </div>
+                </span>
+              </label>
               <input
                 type="number"
                 value={formData.reward_depth}
                 onChange={(e) => setFormData({ ...formData, reward_depth: Number(e.target.value) || 0 })}
                 min="0"
+                placeholder="100"
                 className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
+              <p className="mt-1 text-[10px] text-white/40">Top {formData.reward_depth || 0} participants will be eligible for rewards</p>
             </div>
             <div>
               <label className="mb-1 block text-xs text-white/60">Status</label>

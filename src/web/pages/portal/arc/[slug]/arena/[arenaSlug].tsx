@@ -1266,10 +1266,18 @@ export default function ArenaDetailsPage() {
                           {formatDateRange(arena.starts_at, arena.ends_at)}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-[10px] sm:text-xs text-akari-muted mb-1">Reward Depth</p>
+                      <div className="group relative">
+                        <p className="text-[10px] sm:text-xs text-akari-muted mb-1 flex items-center gap-1">
+                          Reward Depth
+                          <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-akari-muted cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="absolute bottom-full left-0 mb-2 hidden w-48 rounded-lg bg-black/90 p-2 text-[10px] text-white/80 shadow-lg group-hover:block z-20 border border-white/10">
+                            Number of top participants who will receive rewards. Set by the project team.
+                          </div>
+                        </p>
                         <p className="text-xs sm:text-sm font-medium text-akari-text">
-                          {arena.reward_depth}
+                          Top {arena.reward_depth}
                         </p>
                       </div>
                     </div>
