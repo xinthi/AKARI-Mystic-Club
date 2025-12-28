@@ -32,6 +32,7 @@ interface MobileLayoutProps {
   
   // Admin
   canManageArc?: boolean;
+  onActionSuccess?: () => void;
 }
 
 function getUserInitials(displayName: string | null | undefined): string {
