@@ -403,6 +403,7 @@ export default function ArcProjectHub() {
 
         // Step 4: Build ArcProject object from project data
         // We'll need to fetch project_arc_settings for meta/tier if available
+        const headerImageUrl = (projectData.project as any).header_image_url || null;
         const arcProject: ArcProject = {
           project_id: projectInfo.id,
           slug: projectInfo.slug,
@@ -412,7 +413,9 @@ export default function ArcProjectHub() {
           arc_tier: 'basic', // Default, will be updated if we have project_arc_settings
           arc_status: 'active', // Default
           security_status: 'normal', // Default
-          meta: {}, // Will be populated if we fetch project_arc_settings
+          meta: {
+            banner_url: headerImageUrl, // Store header_image_url in meta.banner_url for consistency
+          },
         };
 
         // Try to fetch project_arc_settings for meta/tier
@@ -845,8 +848,42 @@ export default function ArcProjectHub() {
         throw new Error(data.error || 'Failed to upload image');
       }
 
+      // Save the header_image_url to the database immediately
+      const saveRes = await fetch(`/api/portal/projects/${projectId}/header-image`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ header_image_url: data.url }),
+      });
+
+      const saveData = await saveRes.json();
+
+      if (!saveData.ok) {
+        console.warn('Failed to save header image URL:', saveData.error);
+        // Continue anyway - the upload succeeded, just the save failed
+      }
+
       // Update form with new image URL
       setEditForm({ ...editForm, header_image_url: data.url });
+      
+      // Update project state immediately so header shows up
+      if (project) {
+        setProject({
+          ...project,
+          meta: {
+            ...project.meta || {},
+            banner_url: data.url,
+          },
+        });
+        // Also store directly on project for compatibility
+        (project as any).header_image_url = data.url;
+      }
+      
+      // Refetch project data to ensure everything is in sync
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+
       setSelectedImageFile(null);
       setImagePreview('');
       alert('Image uploaded successfully!');
@@ -1252,7 +1289,7 @@ export default function ArcProjectHub() {
             <section className="mb-8 rounded-2xl overflow-hidden border border-white/5 bg-black/60">
               {/* Banner with dimmed background */}
               <div className="relative h-32 md:h-40">
-                {(project.meta?.banner_url || (project as any).header_image_url) ? (
+                {((project as any).header_image_url || project.meta?.banner_url) ? (
                   <>
                     <Image
                       src={(project as any).header_image_url || project.meta?.banner_url || ''}

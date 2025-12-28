@@ -25,6 +25,7 @@ type ProjectBySlugResponse =
         name: string;
         twitter_username: string;
         avatar_url: string | null;
+        header_image_url: string | null;
       };
       canonicalSlug: string;
       wasRedirected: boolean;
@@ -65,7 +66,7 @@ export default async function handler(
     // First try to find project by current slug
     const { data: projectBySlug, error: slugError } = await supabase
       .from('projects')
-      .select('id, slug, name, x_handle, avatar_url')
+      .select('id, slug, name, x_handle, avatar_url, header_image_url')
       .eq('slug', slug)
       .single();
 
@@ -94,7 +95,7 @@ export default async function handler(
       if (projectId) {
         const { data: projectData, error: projectError } = await supabase
           .from('projects')
-          .select('id, slug, name, x_handle, avatar_url')
+          .select('id, slug, name, x_handle, avatar_url, header_image_url')
           .eq('id', projectId)
           .single();
 
@@ -123,6 +124,7 @@ export default async function handler(
         name: project.name,
         twitter_username: project.x_handle || '',
         avatar_url: project.avatar_url || null,
+        header_image_url: project.header_image_url || null,
       },
       canonicalSlug,
       wasRedirected,
