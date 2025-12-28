@@ -1395,7 +1395,7 @@ export default function ArenaDetailsPage() {
 
               {/* Leaderboard Tab Content */}
               {activeTab === 'leaderboard' && (
-                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                   {/* CRM Private Placeholder */}
                   {crmStatus?.isCRM && crmStatus.visibility === 'private' && !crmStatus.canViewLeaderboard && (
                     <div className="text-center py-12">
@@ -1532,29 +1532,30 @@ export default function ArenaDetailsPage() {
                           </div>
                         </div>
 
-                        {/* Table-based Leaderboard - Full Width */}
-                        <div className="overflow-x-auto -mx-6 sm:-mx-8 md:-mx-12 lg:-mx-16 xl:-mx-24 px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
-                          <table className="w-full border-collapse min-w-[800px]">
+                        {/* Table-based Leaderboard - Responsive */}
+                        <div className="overflow-x-auto -mx-6 px-6 sm:-mx-8 sm:px-8 md:-mx-12 md:px-12 lg:-mx-16 lg:px-16 xl:-mx-24 xl:px-24">
+                          <table className="w-full border-collapse min-w-[600px] sm:min-w-[800px]">
                             <thead>
                               <tr className="border-b border-akari-border/30">
-                                <th className="text-left py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
-                                <th className="text-left py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Name</th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
+                                <th className="text-left py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
+                                <th className="text-left py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Name</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Points</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
                                   <span className="flex items-center justify-end gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
                                     </svg>
-                                    Signal
+                                    <span className="hidden sm:inline">Signal</span>
                                   </span>
                                 </th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Noise</th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Sentiment</th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">CT Heat</th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">Engagement</th>
-                                <th className="text-right py-3 px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell">Noise</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Sentiment</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">CT Heat</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell">Engagement</th>
+                                <th className="text-right py-3 px-2 sm:px-4 text-xs font-semibold text-akari-muted uppercase tracking-wider">
                                   <span className="flex items-center justify-end gap-1">
                                     <span className="text-akari-primary font-bold">X</span>
-                                    Mindshare
+                                    <span className="hidden sm:inline">Mindshare</span>
                                   </span>
                                 </th>
                               </tr>
@@ -1574,6 +1575,23 @@ export default function ArenaDetailsPage() {
                                   const primaryEngagementType = Object.entries(engagementTypeCounts)
                                     .sort(([, a], [, b]) => (b as number) - (a as number))[0]?.[0] || null;
                                   
+                                  // Calculate points using a restrictive formula (hard to earn, limited)
+                                  // Formula: (signal * 2 + sentiment_bonus + ct_heat * 1 - noise * 0.5) / 15
+                                  // This keeps points low and makes them look valuable
+                                  const signalValue = entry.signal || 0;
+                                  const noiseValue = entry.noise || 0;
+                                  const sentimentValue = entry.sentiment !== null ? entry.sentiment : 50;
+                                  const ctHeatValue = entry.ct_heat !== null ? entry.ct_heat : 0;
+                                  
+                                  // Sentiment bonus: only positive sentiment (>50) contributes
+                                  const sentimentBonus = sentimentValue > 50 ? (sentimentValue - 50) * 0.3 : 0;
+                                  
+                                  // Calculate raw points
+                                  const rawPoints = (signalValue * 2) + sentimentBonus + (ctHeatValue * 1) - (noiseValue * 0.5);
+                                  
+                                  // Scale down to make points scarce (divide by 15, floor to keep them low)
+                                  const calculatedPoints = Math.floor(Math.max(0, rawPoints) / 15);
+                                  
                                   return (
                                     <tr
                                       key={entry.twitter_username}
@@ -1581,18 +1599,18 @@ export default function ArenaDetailsPage() {
                                         isTopThree ? 'bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5' : ''
                                       }`}
                                     >
-                                      <td className="py-4 px-4">
+                                      <td className="py-4 px-2 sm:px-4">
                                         <span className={`text-sm font-semibold ${isTopThree ? 'text-akari-primary' : 'text-akari-text'}`}>
                                           #{entry.rank}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-4">
-                                        <Link href={creatorUrl} className="flex items-center gap-3 group">
+                                      <td className="py-4 px-2 sm:px-4">
+                                        <Link href={creatorUrl} className="flex items-center gap-2 sm:gap-3 group">
                                           {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                             <img
                                               src={entry.avatar_url}
                                               alt={entry.twitter_username}
-                                              className="w-10 h-10 rounded-full border border-akari-border/30 object-cover"
+                                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
                                               onError={(e) => {
                                                 const target = e.target as HTMLImageElement;
                                                 target.style.display = 'none';
@@ -1601,21 +1619,21 @@ export default function ArenaDetailsPage() {
                                               }}
                                             />
                                           ) : null}
-                                          <div className={`w-10 h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
+                                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
                                             {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
                                           </div>
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-sm font-medium text-akari-text group-hover:text-akari-primary transition-colors">
+                                            <span className="text-xs sm:text-sm font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
                                               @{entry.twitter_username.replace(/^@+/, '')}
                                             </span>
-                                            <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
                                               {entry.ring && (
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getRingColor(entry.ring)}`}>
+                                                <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border ${getRingColor(entry.ring)}`}>
                                                   {entry.ring}
                                                 </span>
                                               )}
                                               {primaryEngagementType && (
-                                                <span className="text-xs text-akari-muted capitalize">
+                                                <span className="text-[10px] sm:text-xs text-akari-muted capitalize">
                                                   {primaryEngagementType}
                                                 </span>
                                               )}
@@ -1623,18 +1641,23 @@ export default function ArenaDetailsPage() {
                                           </div>
                                         </Link>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
-                                        <span className="text-sm font-medium text-akari-text">
+                                      <td className="py-4 px-2 sm:px-4 text-right">
+                                        <span className={`text-sm font-bold ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
+                                          {calculatedPoints}
+                                        </span>
+                                      </td>
+                                      <td className="py-4 px-2 sm:px-4 text-right">
+                                        <span className="text-xs sm:text-sm font-medium text-akari-text">
                                           {entry.signal ? entry.signal.toLocaleString() : '0'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
-                                        <span className="text-sm font-medium text-akari-muted">
+                                      <td className="py-4 px-2 sm:px-4 text-right hidden md:table-cell">
+                                        <span className="text-xs sm:text-sm font-medium text-akari-muted">
                                           {entry.noise ? entry.noise.toLocaleString() : '0'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
-                                        <span className={`text-sm font-medium ${
+                                      <td className="py-4 px-2 sm:px-4 text-right hidden lg:table-cell">
+                                        <span className={`text-xs sm:text-sm font-medium ${
                                           entry.sentiment !== null && entry.sentiment > 50 
                                             ? 'text-green-400' 
                                             : entry.sentiment !== null && entry.sentiment < 50 
@@ -1644,43 +1667,43 @@ export default function ArenaDetailsPage() {
                                           {entry.sentiment !== null ? entry.sentiment : 'N/A'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
-                                        <span className="text-sm font-medium text-akari-text">
+                                      <td className="py-4 px-2 sm:px-4 text-right hidden lg:table-cell">
+                                        <span className="text-xs sm:text-sm font-medium text-akari-text">
                                           {entry.ct_heat !== null ? entry.ct_heat : 'N/A'}
                                         </span>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
+                                      <td className="py-4 px-2 sm:px-4 text-right hidden md:table-cell">
                                         <div className="flex flex-col items-end gap-1">
                                           {Object.entries(engagementTypeCounts).some(([, count]) => (count as number) > 0) ? (
-                                            <div className="flex items-center gap-1 text-xs">
+                                            <div className="flex items-center gap-1 text-[10px] sm:text-xs">
                                               {engagementTypeCounts.threader > 0 && (
-                                                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
                                                   T:{engagementTypeCounts.threader}
                                                 </span>
                                               )}
                                               {engagementTypeCounts.video > 0 && (
-                                                <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
                                                   V:{engagementTypeCounts.video}
                                                 </span>
                                               )}
                                               {engagementTypeCounts.clipper > 0 && (
-                                                <span className="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                                                   C:{engagementTypeCounts.clipper}
                                                 </span>
                                               )}
                                               {engagementTypeCounts.meme > 0 && (
-                                                <span className="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
                                                   M:{engagementTypeCounts.meme}
                                                 </span>
                                               )}
                                             </div>
                                           ) : (
-                                            <span className="text-xs text-akari-muted">N/A</span>
+                                            <span className="text-[10px] sm:text-xs text-akari-muted">N/A</span>
                                           )}
                                         </div>
                                       </td>
-                                      <td className="py-4 px-4 text-right">
-                                        <span className="text-sm font-semibold text-akari-primary">
+                                      <td className="py-4 px-2 sm:px-4 text-right">
+                                        <span className="text-xs sm:text-sm font-semibold text-akari-primary">
                                           {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
                                         </span>
                                       </td>
@@ -1760,7 +1783,7 @@ export default function ArenaDetailsPage() {
                   </div>
 
                   {/* Arena Storyline */}
-                  <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                  <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                     <h2 className="text-xl font-semibold text-akari-text mb-4">Arena Storyline</h2>
                   {storyEvents.length === 0 ? (
                     <p className="text-sm text-akari-muted">
@@ -1796,7 +1819,7 @@ export default function ArenaDetailsPage() {
 
               {/* Map Tab Content */}
               {activeTab === 'map' && (
-                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                   <h2 className="text-xl font-semibold text-akari-text mb-4">Creator Map</h2>
                   {creators && creators.length > 0 ? (
                     <ArenaBubbleMap creators={creators.filter(c => c && c.twitter_username)} />
@@ -1810,7 +1833,7 @@ export default function ArenaDetailsPage() {
 
               {/* Quests Tab Content (Quest Leaderboard) */}
               {activeTab === 'quests' && (
-                <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
+                <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                   {!gamefiEnabled ? (
                     <div className="flex items-center justify-center py-12">
                       <p className="text-sm text-akari-muted">Quest Leaderboard is not enabled for this project.</p>
