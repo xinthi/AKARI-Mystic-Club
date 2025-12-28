@@ -80,11 +80,30 @@ export default async function handler(
     const fileExt = fileType === 'jpg' ? 'jpeg' : fileType;
     const fileName = `project-${projectId}-${Date.now()}.${fileExt}`;
     const filePath = `project-headers/${fileName}`;
+    const bucketName = 'project-images'; // Bucket name for project header images
+
+    // Check if bucket exists, create if it doesn't
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    if (!listError && buckets) {
+      const bucketExists = buckets.some(b => b.name === bucketName);
+      if (!bucketExists) {
+        // Create bucket if it doesn't exist
+        const { error: createError } = await supabase.storage.createBucket(bucketName, {
+          public: true,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+          fileSizeLimit: 10485760, // 10MB
+        });
+        if (createError) {
+          console.error('[Project Header Upload] Failed to create bucket:', createError);
+          // Continue anyway - might already exist or permission issue
+        }
+      }
+    }
 
     // Upload to Supabase Storage
     const contentType = `image/${fileExt}`;
     const { data, error: uploadError } = await supabase.storage
-      .from('images') // Using 'images' bucket - adjust if you have a different bucket name
+      .from(bucketName)
       .upload(filePath, fileBuffer, {
         contentType,
         upsert: false,
@@ -92,15 +111,22 @@ export default async function handler(
 
     if (uploadError) {
       console.error('[Project Header Upload] Storage error:', uploadError);
+      // If bucket doesn't exist error, provide helpful message
+      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found')) {
+        return res.status(500).json({ 
+          ok: false, 
+          error: `Storage bucket '${bucketName}' does not exist. Please create it in Supabase Storage with public access enabled.` 
+        });
+      }
       return res.status(500).json({ 
         ok: false, 
-        error: uploadError.message || 'Failed to upload image. Please ensure the storage bucket exists.' 
+        error: uploadError.message || 'Failed to upload image. Please check your storage configuration.' 
       });
     }
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('images')
+      .from(bucketName)
       .getPublicUrl(filePath);
 
     const publicUrl = urlData.publicUrl;
