@@ -1,7 +1,7 @@
 /**
  * ARC Leaderboards Page
  * 
- * Modern leaderboard interface similar to KAITO/XREET but optimized for ARC theme
+ * Modern leaderboard interface optimized for ARC theme
  * Shows global or project-specific creator leaderboards with time period filters
  */
 
