@@ -64,7 +64,11 @@ export function DesktopArcShell({
       {/* Main Content: 3 Columns */}
       <div className="flex flex-1 w-full">
         {/* Left Rail */}
-        <LeftRail canManageArc={canManageArc} />
+        <LeftRail 
+          canManageArc={canManageArc}
+          onKindFilterChange={onKindFilterChange}
+          onTimeFilterChange={onTimeFilterChange}
+        />
 
         {/* Center Feed */}
         <CenterFeed

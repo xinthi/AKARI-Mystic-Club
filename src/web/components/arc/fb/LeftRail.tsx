@@ -10,15 +10,30 @@ import { useRouter } from 'next/router';
 
 interface LeftRailProps {
   canManageArc?: boolean;
+  onKindFilterChange?: (filter: 'all' | 'arena' | 'campaign' | 'gamified') => void;
+  onTimeFilterChange?: (filter: 'all' | 'live' | 'upcoming') => void;
 }
 
-export function LeftRail({ canManageArc }: LeftRailProps) {
+export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange }: LeftRailProps) {
   const router = useRouter();
 
   const scrollToSection = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // If not on ARC home page, navigate there first
+    if (router.pathname !== '/portal/arc') {
+      router.push('/portal/arc').then(() => {
+        // Wait for navigation and then scroll
+        setTimeout(() => {
+          const element = document.getElementById(id);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      });
+    } else {
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -30,7 +45,7 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       ),
-      onClick: () => router.push('/portal/arc'),
+      href: '/portal/arc',
       active: router.pathname === '/portal/arc',
     },
     {
@@ -40,7 +55,16 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      onClick: () => scrollToSection('live-section'),
+      onClick: () => {
+        if (router.pathname !== '/portal/arc') {
+          router.push('/portal/arc');
+        } else {
+          scrollToSection('live-section');
+          if (onTimeFilterChange) {
+            onTimeFilterChange('live');
+          }
+        }
+      },
       active: false,
     },
     {
@@ -50,7 +74,16 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
-      onClick: () => scrollToSection('upcoming-section'),
+      onClick: () => {
+        if (router.pathname !== '/portal/arc') {
+          router.push('/portal/arc');
+        } else {
+          scrollToSection('upcoming-section');
+          if (onTimeFilterChange) {
+            onTimeFilterChange('upcoming');
+          }
+        }
+      },
       active: false,
     },
     {
@@ -60,7 +93,20 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       ),
-      onClick: () => scrollToSection('campaigns-filter'),
+      onClick: () => {
+        if (router.pathname !== '/portal/arc') {
+          router.push('/portal/arc').then(() => {
+            if (onKindFilterChange) {
+              onKindFilterChange('campaign');
+            }
+          });
+        } else {
+          scrollToSection('live-section');
+          if (onKindFilterChange) {
+            onKindFilterChange('campaign');
+          }
+        }
+      },
       active: false,
     },
     {
@@ -70,7 +116,20 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
         </svg>
       ),
-      onClick: () => scrollToSection('gamified-filter'),
+      onClick: () => {
+        if (router.pathname !== '/portal/arc') {
+          router.push('/portal/arc').then(() => {
+            if (onKindFilterChange) {
+              onKindFilterChange('gamified');
+            }
+          });
+        } else {
+          scrollToSection('live-section');
+          if (onKindFilterChange) {
+            onKindFilterChange('gamified');
+          }
+        }
+      },
       active: false,
     },
     {
@@ -100,8 +159,8 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
-      onClick: () => scrollToSection('reports-section'),
-      active: false,
+      href: '/portal/arc/report',
+      active: router.pathname === '/portal/arc/report',
     },
   ];
 
@@ -135,11 +194,11 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
         {navItems.map((item) => {
           const content = (
             <div
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                 item.active
                   ? 'bg-white/10 text-white'
                   : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`}
+              } ${item.onClick ? 'cursor-pointer' : ''}`}
               onClick={item.onClick}
             >
               {item.icon}
@@ -149,7 +208,7 @@ export function LeftRail({ canManageArc }: LeftRailProps) {
 
           if (item.href) {
             return (
-              <Link key={item.label} href={item.href}>
+              <Link key={item.label} href={item.href} className="block">
                 {content}
               </Link>
             );
