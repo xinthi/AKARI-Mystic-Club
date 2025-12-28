@@ -109,6 +109,7 @@ export default async function handler(
         slug,
         name,
         twitter_username,
+        header_image_url,
         project_arc_settings (
           tier,
           status,
@@ -127,19 +128,27 @@ export default async function handler(
     }
     
     // Map to response format
-    const data = projectsData?.map((p: any) => ({
-      project_id: p.id,
-      projects: {
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        twitter_username: p.twitter_username,
-      },
-      tier: p.project_arc_settings?.[0]?.tier || 'basic',
-      status: p.project_arc_settings?.[0]?.status || 'active',
-      security_status: p.project_arc_settings?.[0]?.security_status || 'normal',
-      meta: p.project_arc_settings?.[0]?.meta || {},
-    })) || [];
+    const data = projectsData?.map((p: any) => {
+      const settingsMeta = p.project_arc_settings?.[0]?.meta || {};
+      // Merge header_image_url from projects table into meta, taking precedence
+      const mergedMeta = {
+        ...settingsMeta,
+        banner_url: p.header_image_url || settingsMeta.banner_url || null,
+      };
+      return {
+        project_id: p.id,
+        projects: {
+          id: p.id,
+          slug: p.slug,
+          name: p.name,
+          twitter_username: p.twitter_username,
+        },
+        tier: p.project_arc_settings?.[0]?.tier || 'basic',
+        status: p.project_arc_settings?.[0]?.status || 'active',
+        security_status: p.project_arc_settings?.[0]?.security_status || 'normal',
+        meta: mergedMeta,
+      };
+    }) || [];
 
     // Get stats for each project (creator count, total points)
     const projectIds = data?.map((row: any) => row.project_id) || [];

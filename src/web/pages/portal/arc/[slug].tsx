@@ -430,13 +430,21 @@ export default function ArcProjectHub() {
               arcProject.arc_tier = foundSettings.arc_tier;
               arcProject.arc_status = foundSettings.arc_status;
               arcProject.security_status = foundSettings.security_status;
-              arcProject.meta = foundSettings.meta;
+              // Merge meta: prioritize header_image_url from projects table, but keep other meta fields
+              arcProject.meta = {
+                ...foundSettings.meta,
+                // header_image_url from projects table takes precedence over meta.banner_url
+                banner_url: headerImageUrl || foundSettings.meta?.banner_url || null,
+              };
             }
           }
         } catch (settingsErr) {
           // Optional, use defaults if it fails
           console.warn('[ArcProjectHub] Failed to fetch project settings:', settingsErr);
         }
+        
+        // Also store header_image_url directly on project for easy access
+        (arcProject as any).header_image_url = headerImageUrl;
 
         setProject(arcProject);
       } catch (err) {
@@ -1289,26 +1297,45 @@ export default function ArcProjectHub() {
             <section className="mb-8 rounded-2xl overflow-hidden border border-white/5 bg-black/60">
               {/* Banner with dimmed background */}
               <div className="relative h-32 md:h-40">
-                {((project as any).header_image_url || project.meta?.banner_url) ? (
-                  <>
-                    <Image
-                      src={(project as any).header_image_url || project.meta?.banner_url || ''}
-                      alt={`${project.name || 'Project'} banner`}
-                      fill
-                      className="object-cover opacity-10"
-                      unoptimized
-                      sizes="100vw"
+                {(() => {
+                  const headerUrl = (project as any).header_image_url || project.meta?.banner_url || null;
+                  // Debug: log in development
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('[ArcProjectHub] Header image check:', {
+                      header_image_url: (project as any).header_image_url,
+                      meta_banner_url: project.meta?.banner_url,
+                      finalUrl: headerUrl,
+                    });
+                  }
+                  
+                  if (headerUrl) {
+                    return (
+                      <>
+                        <Image
+                          src={headerUrl}
+                          alt={`${project.name || 'Project'} banner`}
+                          fill
+                          className="object-cover opacity-10"
+                          unoptimized
+                          sizes="100vw"
+                          onError={(e) => {
+                            console.error('[ArcProjectHub] Failed to load header image:', headerUrl, e);
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/80" />
+                      </>
+                    );
+                  }
+                  
+                  return (
+                    <div 
+                      className="w-full h-full"
+                      style={{
+                        background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}05 100%)`,
+                      }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/80" />
-                  </>
-                ) : (
-                  <div 
-                    className="w-full h-full"
-                    style={{
-                      background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}05 100%)`,
-                    }}
-                  />
-                )}
+                  );
+                })()}
               </div>
 
               {/* Content row */}
