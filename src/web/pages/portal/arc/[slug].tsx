@@ -17,6 +17,7 @@ import { isSuperAdmin } from '@/lib/permissions';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
 import { getAllTemplates, getTemplate, type CampaignTemplate } from '@/lib/arc-campaign-templates';
 import { getRankBadgeFromRank, getBadgeDisplayInfo } from '@/lib/arc-ui-helpers';
+import { ActiveQuestsPanel } from '@/components/arc/fb/ActiveQuestsPanel';
 
 // =============================================================================
 // TYPES
@@ -301,6 +302,22 @@ export default function ArcProjectHub() {
     topCreatorScore: number | null;
   } | null>(null);
   const [pulseLoading, setPulseLoading] = useState(false);
+
+  // Quest visibility panel state (for gamified projects)
+  const [quests, setQuests] = useState<Array<{
+    id: string;
+    name: string;
+    title?: string;
+    description?: string | null;
+    narrative_focus?: string | null;
+    points_reward?: number;
+    reward_desc?: string | null;
+    status: string;
+    starts_at: string | null;
+    ends_at: string | null;
+  }>>([]);
+  const [questsLoading, setQuestsLoading] = useState(false);
+  const [questArenaId, setQuestArenaId] = useState<string | null>(null);
 
   // Fetch project by slug and unified state
   useEffect(() => {
@@ -800,6 +817,90 @@ export default function ArcProjectHub() {
     checkFollowVerification();
   }, [projectId, akariUser.user, permissions?.isInvestorView]);
 
+  // Fetch active quests for right rail panel (when gamified enabled)
+  const [questCompletions, setQuestCompletions] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    async function fetchQuestsForPanel() {
+      if (!projectId || !unifiedState?.modules?.gamefi?.enabled) {
+        setQuests([]);
+        setQuestArenaId(null);
+        setQuestCompletions(new Set());
+        return;
+      }
+
+      try {
+        setQuestsLoading(true);
+        // Fetch gamified data to get arena and quests
+        const gamifiedRes = await fetch(`/api/portal/arc/gamified/${projectId}`, {
+          credentials: 'include',
+        });
+        const gamifiedData = await gamifiedRes.json();
+
+        if (gamifiedRes.ok && gamifiedData.ok) {
+          const arenaId = gamifiedData.arena?.id || null;
+          setQuestArenaId(arenaId);
+          
+          // Map quests to expected format
+          const mappedQuests = (gamifiedData.quests || []).map((q: any) => ({
+            id: q.id,
+            name: q.name || q.title || 'Untitled Quest',
+            title: q.name || q.title || 'Untitled Quest',
+            description: q.description || null,
+            narrative_focus: q.narrative_focus || null,
+            points_reward: q.reward_desc ? parseInt(q.reward_desc) || 0 : 0,
+            reward_desc: q.reward_desc || null,
+            status: q.status || 'active',
+            starts_at: q.starts_at || null,
+            ends_at: q.ends_at || null,
+          }));
+          setQuests(mappedQuests);
+
+          // Fetch quest completions for the quest panel (if logged in)
+          if (arenaId && akariUser.isLoggedIn) {
+            try {
+              const completionsRes = await fetch(
+                `/api/portal/arc/quests/completions?arenaId=${encodeURIComponent(arenaId)}`,
+                { credentials: 'include' }
+              );
+              if (completionsRes.ok) {
+                const completionsData = await completionsRes.json();
+                if (completionsData.ok && completionsData.completions) {
+                  const missionIds = new Set<string>(
+                    completionsData.completions.map((c: { mission_id: string }) => c.mission_id)
+                  );
+                  setQuestCompletions(missionIds);
+                } else {
+                  setQuestCompletions(new Set());
+                }
+              } else {
+                setQuestCompletions(new Set());
+              }
+            } catch (err) {
+              console.error('[ArcProjectHub] Error fetching quest completions for panel:', err);
+              setQuestCompletions(new Set());
+            }
+          } else {
+            setQuestCompletions(new Set());
+          }
+        } else {
+          setQuests([]);
+          setQuestArenaId(null);
+          setQuestCompletions(new Set());
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Error fetching quests for panel:', err);
+        setQuests([]);
+        setQuestArenaId(null);
+        setQuestCompletions(new Set());
+      } finally {
+        setQuestsLoading(false);
+      }
+    }
+
+    fetchQuestsForPanel();
+  }, [projectId, unifiedState?.modules?.gamefi?.enabled, akariUser.isLoggedIn]);
+
   // Handle image file selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1259,8 +1360,23 @@ export default function ArcProjectHub() {
     }
   };
 
+  // Prepare right rail content (quests panel when gamified enabled)
+  const rightRailContent = React.useMemo(() => {
+    if (unifiedState?.modules?.gamefi?.enabled && projectId) {
+      return (
+        <ActiveQuestsPanel
+          projectId={projectId}
+          quests={quests}
+          userCompletions={questCompletions}
+          loading={questsLoading}
+        />
+      );
+    }
+    return undefined; // Use default right rail
+  }, [unifiedState?.modules?.gamefi?.enabled, projectId, quests, questCompletions, questsLoading]);
+
   return (
-    <ArcPageShell>
+    <ArcPageShell canManageArc={canWrite} rightRailContent={rightRailContent}>
       <div className="space-y-6">
         {/* Back link */}
         <Link
