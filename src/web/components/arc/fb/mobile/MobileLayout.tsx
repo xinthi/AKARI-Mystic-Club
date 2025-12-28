@@ -172,7 +172,7 @@ export function MobileLayout({
               <h2 className="text-base font-semibold text-white mb-4">Live Now</h2>
               <div className="space-y-3">
                 {liveItems.slice(0, 3).map((item) => (
-                  <LiveItemCard key={item.id} item={item} canManageArc={canManageArc} />
+                  <LiveItemCard key={item.id} item={item} canManageArc={canManageArc} onActionSuccess={onActionSuccess} />
                 ))}
               </div>
             </section>

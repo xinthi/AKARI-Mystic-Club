@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { LiveItem } from '@/lib/arc/useArcLiveItems';
 import { getLiveItemRoute } from './routeUtils';
 
@@ -16,11 +16,30 @@ interface LiveItemCardProps {
 }
 
 export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCardProps) {
+  const router = useRouter();
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const route = getLiveItemRoute(item);
   const kindLabel = item.kind === 'arena' ? 'Arena' : item.kind === 'campaign' ? 'Campaign' : 'Gamified';
+  
+  // Determine if card should be clickable - always clickable if route exists and not ended
+  const isClickable = route && item.statusLabel !== 'Ended';
+  
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on buttons or dropdown
+    if (
+      (e.target as HTMLElement).closest('button') ||
+      (e.target as HTMLElement).closest('[role="menu"]') ||
+      dropdownOpen
+    ) {
+      return;
+    }
+    
+    if (isClickable && route) {
+      router.push(route);
+    }
+  };
 
   const timeRemaining = item.statusLabel === 'Live' && item.endAt
     ? Math.max(0, new Date(item.endAt).getTime() - Date.now())
@@ -75,7 +94,14 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
   };
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/40 p-4 hover:border-white/20 hover:bg-white/5 transition-all">
+    <div 
+      onClick={handleCardClick}
+      className={`rounded-lg border border-white/10 bg-black/40 p-4 transition-all ${
+        isClickable 
+          ? 'hover:border-white/20 hover:bg-white/5 cursor-pointer' 
+          : 'hover:border-white/20 hover:bg-white/5'
+      }`}
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
@@ -126,14 +152,6 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
 
       {/* Actions */}
       <div className="flex gap-2">
-        {item.statusLabel === 'Live' && route && (
-          <Link
-            href={route}
-            className="flex-1 text-center px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
-          >
-            View
-          </Link>
-        )}
         {canManageArc && (
           <div className="relative">
             <button

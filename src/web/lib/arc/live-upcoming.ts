@@ -23,6 +23,7 @@ export interface ArcLiveItem {
   projectId: string;
   projectName: string;
   projectSlug: string | null;
+  projectAccessLevel?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
   title: string;
   slug: string | null;
   xHandle: string | null;
@@ -201,7 +202,8 @@ async function fetchArenas(supabase: SupabaseClient) {
         id,
         name,
         slug,
-        x_handle
+        x_handle,
+        arc_access_level
       )
     `)
     .in('status', ['active', 'scheduled', 'paused'])
@@ -267,7 +269,8 @@ async function fetchCampaigns(supabase: SupabaseClient) {
         id,
         name,
         slug,
-        x_handle
+        x_handle,
+        arc_access_level
       )
     `)
     .in('status', ['live', 'paused'])
@@ -327,7 +330,8 @@ async function fetchQuests(supabase: SupabaseClient) {
         id,
         name,
         slug,
-        x_handle
+        x_handle,
+        arc_access_level
       )
     `)
     .in('status', ['active', 'paused'])
@@ -404,6 +408,7 @@ function createArenaItem(arena: any): ArcLiveItem {
     projectId: arena.projectId,
     projectName: arena.project?.name || 'Unknown',
     projectSlug: arena.project?.slug || null,
+    projectAccessLevel: arena.project?.arc_access_level || null,
     title: arena.name,
     slug: arena.slug,
     xHandle: arena.project?.x_handle || null,
@@ -426,6 +431,7 @@ function createCampaignItem(campaign: any): ArcLiveItem {
     projectId: campaign.projectId,
     projectName: campaign.project?.name || 'Unknown',
     projectSlug: campaign.project?.slug || null,
+    projectAccessLevel: campaign.project?.arc_access_level || null,
     title: campaign.name,
     slug: null, // Campaigns don't have slugs in the schema
     xHandle: campaign.project?.x_handle || null,
@@ -447,6 +453,7 @@ function createQuestItem(quest: any): ArcLiveItem {
     projectId: quest.projectId,
     projectName: quest.project?.name || 'Unknown',
     projectSlug: quest.project?.slug || null,
+    projectAccessLevel: quest.project?.arc_access_level || null,
     title: quest.name,
     slug: null, // Quests don't have slugs
     xHandle: quest.project?.x_handle || null,

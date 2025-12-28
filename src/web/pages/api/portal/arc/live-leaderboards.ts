@@ -21,12 +21,14 @@ interface LiveLeaderboard {
   projectId: string;
   projectName: string;
   projectSlug: string | null;
+  projectAccessLevel?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
   xHandle: string | null;
   creatorCount: number;
   startAt: string | null;
   endAt: string | null;
   title: string;
   kind: 'arena' | 'campaign' | 'gamified';
+  status?: 'live' | 'upcoming' | 'paused' | 'ended';
 }
 
 type LiveLeaderboardsResponse =
@@ -79,6 +81,12 @@ export default async function handler(
       } else if (item.kind === 'campaign') {
         result.campaignId = item.campaignId || item.id;
       }
+
+      // Add project access level for routing
+      result.projectAccessLevel = item.projectAccessLevel || null;
+      
+      // Add status for UI display
+      result.status = item.status || 'live';
 
       return result;
     };

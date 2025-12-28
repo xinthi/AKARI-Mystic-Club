@@ -19,11 +19,12 @@ export interface LiveItem {
     name: string;
     slug: string | null;
     xHandle: string | null;
+    accessLevel?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
   };
   creatorCount: number;
   startAt: string | null;
   endAt: string | null;
-  statusLabel: 'Live' | 'Upcoming';
+  statusLabel: 'Live' | 'Upcoming' | 'Paused' | 'Ended';
   // Additional fields for routing
   arenaId?: string;
   arenaSlug?: string;
@@ -56,14 +57,25 @@ export function useArcLiveItems(): ArcLiveItemsData {
     const startAt = item.startAt ? new Date(item.startAt).getTime() : null;
     const endAt = item.endAt ? new Date(item.endAt).getTime() : null;
     
-    // Determine status: Live if currently active, otherwise Upcoming
-    let statusLabel: 'Live' | 'Upcoming' = 'Upcoming';
-    if (startAt && endAt) {
-      statusLabel = (now >= startAt && now <= endAt) ? 'Live' : 'Upcoming';
-    } else if (endAt && now <= endAt) {
+    // Determine status label based on API status or date logic
+    let statusLabel: 'Live' | 'Upcoming' | 'Paused' | 'Ended' = 'Upcoming';
+    
+    // Use API status if available (more accurate)
+    if (item.status === 'paused') {
+      statusLabel = 'Paused';
+    } else if (item.status === 'ended') {
+      statusLabel = 'Ended';
+    } else if (item.status === 'live' || item.status === 'active') {
       statusLabel = 'Live';
-    } else if (startAt && now >= startAt) {
-      statusLabel = 'Live';
+    } else {
+      // Fallback to date-based logic
+      if (startAt && endAt) {
+        statusLabel = (now >= startAt && now <= endAt) ? 'Live' : 'Upcoming';
+      } else if (endAt && now <= endAt) {
+        statusLabel = 'Live';
+      } else if (startAt && now >= startAt) {
+        statusLabel = 'Live';
+      }
     }
 
     return {
@@ -75,6 +87,7 @@ export function useArcLiveItems(): ArcLiveItemsData {
         name: item.projectName || 'Unknown Project',
         slug: item.projectSlug || null,
         xHandle: item.xHandle || null,
+        accessLevel: item.projectAccessLevel || null,
       },
       creatorCount: item.creatorCount || 0,
       startAt: item.startAt || null,
