@@ -1574,7 +1574,7 @@ export default function ArenaDetailsPage() {
                                   Smart Followers
                                 </th>
                                 <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
-                                  Signal
+                                  Signal Score
                                 </th>
                                 <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
                                   Trust
