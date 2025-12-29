@@ -215,6 +215,11 @@ export function ProfilePersonaSelector({
               </span>
             </button>
           </div>
+          {localPersonaType === 'company' && (
+            <p className="mt-3 text-xs text-akari-muted italic">
+              Company accounts require AKARI approval to become official projects.
+            </p>
+          )}
         </div>
         
         {/* Persona Tags */}

@@ -4,6 +4,19 @@
   "outputDirectory": ".next",
   "installCommand": "cd ../.. && pnpm install",
   "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.akarimystic.club"
+        }
+      ],
+      "destination": "https://akarimystic.club/:path*",
+      "permanent": true
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/sentiment-update",

@@ -5,7 +5,8 @@
  * Responsive design optimized for all devices.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ProfileCard, ProfileCardProps } from './ProfileCard';
 import html2canvas from 'html2canvas';
 
@@ -32,9 +33,26 @@ export function ProfileCardPreview({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
+  // Ensure we're mounted on the client side for portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen && mounted) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen, mounted]);
+
+  if (!isOpen || !mounted || typeof document === 'undefined') return null;
 
   // Common html2canvas options for consistent rendering
   const getCanvasOptions = (element: HTMLElement) => ({
@@ -142,12 +160,13 @@ export function ProfileCardPreview({
     window.open(shareUrl, '_blank');
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3"
       style={{
         background: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(8px)',
+        isolation: 'isolate', // Create new stacking context
       }}
       onClick={onClose}
     >
@@ -178,8 +197,8 @@ export function ProfileCardPreview({
         </div>
 
         {/* Actions */}
-        <div className="px-4 pb-4">
-          <div className="flex gap-2">
+        <div className="px-4 pb-4 relative z-10 bg-[#0d0d12]">
+          <div className="flex gap-2 relative">
             <button
               onClick={handleDownload}
               disabled={isGenerating}
@@ -237,4 +256,7 @@ export function ProfileCardPreview({
       </div>
     </div>
   );
+
+  // Render modal in a portal at the document body level to avoid stacking context issues
+  return createPortal(modalContent, document.body);
 }

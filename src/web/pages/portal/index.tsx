@@ -188,6 +188,16 @@ export default function PortalHome({ platforms }: PortalHomeProps) {
 
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
+    // Check if DATABASE_URL is set
+    if (!process.env.DATABASE_URL) {
+      console.warn('[Portal Home] DATABASE_URL not set, returning empty platforms');
+      return {
+        props: {
+          platforms: [],
+        },
+      };
+    }
+
     const platforms = await prisma.launchPlatform.findMany({
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
@@ -199,8 +209,9 @@ export const getServerSideProps: GetServerSideProps = async () => {
         platforms: JSON.parse(JSON.stringify(platforms)),
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Portal Home] Error fetching platforms:', error);
+    // Return empty platforms array instead of failing the page
     return {
       props: {
         platforms: [],

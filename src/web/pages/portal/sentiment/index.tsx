@@ -7,6 +7,7 @@ import { can } from '../../../lib/permissions';
 import { getUserTier } from '../../../lib/userTier';
 import { classifyFreshness, formatTimestampForTooltip, getFreshnessPillClasses, type FreshnessInfo } from '../../../lib/portal/data-freshness';
 import { UpgradeModal } from '../../../components/portal/UpgradeModal';
+import { canSearchNewProfiles, allowedNewProfileTypes, type ProfileType } from '../../../lib/profile-permissions';
 
 /**
  * Type definitions for sentiment data
@@ -602,13 +603,28 @@ export default function SentimentOverview() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [trackingUser, setTrackingUser] = useState<string | null>(null);
+  
+  // Profile type modal state
+  const [profileTypeModal, setProfileTypeModal] = useState<{
+    open: boolean;
+    user: SearchResultUser | null;
+    selectedType: ProfileType | null;
+  }>({
+    open: false,
+    user: null,
+    selectedType: null,
+  });
 
   // Permission checks
   const { user } = useAkariUser();
+  // SuperAdmin has all features via roleImpliesFeature, so canSearch will be true for SuperAdmin
   const canSearch = can(user, 'sentiment.search');
   const canCompare = can(user, 'sentiment.compare');
   const isLoggedIn = user?.isLoggedIn ?? false;
   const userTier = getUserTier(user);
+  // SuperAdmin can always search/add new profiles (checked in canSearchNewProfiles)
+  const canAddNewProfiles = canSearchNewProfiles(user);
+  const allowedProfileTypes = allowedNewProfileTypes(user);
   const [upgradeModalState, setUpgradeModalState] = useState<{ open: boolean; targetTier?: 'analyst' | 'institutional_plus' }>({
     open: false,
     targetTier: 'analyst',
@@ -616,21 +632,65 @@ export default function SentimentOverview() {
   
   const router = useRouter();
 
-  // Track a profile and navigate to its detail page
-  const handleTrackAndNavigate = useCallback(async (user: SearchResultUser) => {
-    setTrackingUser(user.username);
+  // Check if profile exists and handle tracking
+  const handleTrackAndNavigate = useCallback(async (searchUser: SearchResultUser) => {
+    // Check if user can add new profiles
+    if (!canAddNewProfiles) {
+      setSearchError('Upgrade to Institutional Plus to add new company profiles.');
+      return;
+    }
+
+    setTrackingUser(searchUser.username);
     
     try {
-      // Track the profile first (saves to DB)
+      // First, check if profile exists in projects table
+      const checkRes = await fetch(`/api/portal/sentiment/check-profile?username=${encodeURIComponent(searchUser.username)}`);
+      const checkData = await checkRes.json();
+
+      if (checkData.ok && checkData.exists && checkData.project) {
+        // Profile already exists, navigate directly
+        router.push(`/portal/sentiment/${checkData.project.slug}`);
+        setTrackingUser(null);
+        return;
+      }
+
+      // Profile doesn't exist - show modal to select profile type
+      const defaultType = allowedProfileTypes.length > 0 ? allowedProfileTypes[0] : null;
+      setProfileTypeModal({
+        open: true,
+        user: searchUser,
+        selectedType: defaultType,
+      });
+      setTrackingUser(null);
+    } catch (err) {
+      console.error('[Sentiment] Check profile error:', err);
+      setSearchError('Failed to check profile. Please try again.');
+      setTrackingUser(null);
+    }
+  }, [router, canAddNewProfiles, allowedProfileTypes]);
+
+  // Handle profile type selection and track
+  const handleConfirmProfileType = useCallback(async () => {
+    if (!profileTypeModal.user || !profileTypeModal.selectedType) {
+      return;
+    }
+
+    const searchUser = profileTypeModal.user;
+    setProfileTypeModal({ open: false, user: null, selectedType: null });
+    setTrackingUser(searchUser.username);
+
+    try {
+      // Track the profile with selected type
       const trackRes = await fetch('/api/portal/sentiment/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: user.username,
-          name: user.name,
-          bio: user.bio,
-          profileImageUrl: user.profileImageUrl,
-          followersCount: user.followersCount,
+          username: searchUser.username,
+          name: searchUser.name,
+          bio: searchUser.bio,
+          profileImageUrl: searchUser.profileImageUrl,
+          followersCount: searchUser.followersCount,
+          profile_type: profileTypeModal.selectedType,
         }),
       });
 
@@ -640,17 +700,15 @@ export default function SentimentOverview() {
         // Navigate to the tracked project's page
         router.push(`/portal/sentiment/${trackData.project.slug}`);
       } else {
-        // Fallback to profile page if tracking fails
-        router.push(`/portal/sentiment/profile/${user.username}`);
+        setSearchError(trackData.error || 'Failed to track profile');
       }
     } catch (err) {
       console.error('[Sentiment] Track error:', err);
-      // Fallback to profile page on error
-      router.push(`/portal/sentiment/profile/${user.username}`);
+      setSearchError('Failed to track profile. Please try again.');
     } finally {
       setTrackingUser(null);
     }
-  }, [router]);
+  }, [profileTypeModal, router]);
 
   // Fetch coverage/health data
   useEffect(() => {
@@ -1022,14 +1080,21 @@ export default function SentimentOverview() {
             {searchResults.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-akari-muted uppercase tracking-wider mb-2">
-                  Found {searchResults.length} profile(s) – Click to track
+                  Found {searchResults.length} profile(s) {canAddNewProfiles ? '– Click to track' : ''}
                 </p>
+                {!canAddNewProfiles && (
+                  <div className="rounded-xl bg-akari-cardSoft border border-akari-border/30 p-3 mb-2">
+                    <p className="text-xs text-akari-muted">
+                      Upgrade to Institutional Plus to add new company profiles.
+                    </p>
+                  </div>
+                )}
                 {searchResults.map((user) => (
                   <button
                     key={user.username}
                     onClick={() => handleTrackAndNavigate(user)}
-                    disabled={trackingUser === user.username}
-                    className="w-full text-left flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer disabled:opacity-70 disabled:cursor-wait"
+                    disabled={trackingUser === user.username || !canAddNewProfiles}
+                    className="w-full text-left flex items-start gap-3 p-4 rounded-xl bg-akari-cardSoft border border-akari-border/30 hover:border-akari-primary/50 hover:bg-akari-card transition cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {/* Profile Image */}
                     {user.profileImageUrl ? (
@@ -1723,6 +1788,109 @@ export default function SentimentOverview() {
           user={user}
           targetTier={upgradeModalState.targetTier}
         />
+      )}
+
+      {/* Profile Type Selection Modal */}
+      {profileTypeModal.open && profileTypeModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="rounded-2xl border border-akari-border bg-akari-card p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold text-akari-text mb-2">Add new profile</h2>
+            <p className="text-sm text-akari-muted mb-4">Select profile type</p>
+            
+            {/* Profile preview */}
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-akari-cardSoft border border-akari-border/30 mb-4">
+              {profileTypeModal.user.profileImageUrl ? (
+                <img
+                  src={profileTypeModal.user.profileImageUrl}
+                  alt={profileTypeModal.user.name || profileTypeModal.user.username}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-akari-primary/20 to-akari-accent/20 flex items-center justify-center text-akari-primary font-semibold">
+                  {(profileTypeModal.user.name || profileTypeModal.user.username).charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-akari-text truncate">{profileTypeModal.user.name}</p>
+                <p className="text-xs text-akari-muted">@{profileTypeModal.user.username}</p>
+              </div>
+            </div>
+
+            {/* Profile type options */}
+            <div className="space-y-2 mb-6">
+              {allowedProfileTypes.includes('company') && (
+                <button
+                  onClick={() => setProfileTypeModal({ ...profileTypeModal, selectedType: 'company' })}
+                  className={`w-full text-left p-4 rounded-xl border transition ${
+                    profileTypeModal.selectedType === 'company'
+                      ? 'border-akari-primary bg-akari-primary/10'
+                      : 'border-akari-border/30 bg-akari-cardSoft hover:border-akari-primary/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                      profileTypeModal.selectedType === 'company'
+                        ? 'border-akari-primary bg-akari-primary'
+                        : 'border-akari-border'
+                    }`}>
+                      {profileTypeModal.selectedType === 'company' && (
+                        <div className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-akari-text">Company/Project</p>
+                      <p className="text-xs text-akari-muted">For companies, projects, and organizations</p>
+                    </div>
+                  </div>
+                </button>
+              )}
+
+              {allowedProfileTypes.includes('personal') && (
+                <button
+                  onClick={() => setProfileTypeModal({ ...profileTypeModal, selectedType: 'personal' })}
+                  className={`w-full text-left p-4 rounded-xl border transition ${
+                    profileTypeModal.selectedType === 'personal'
+                      ? 'border-akari-primary bg-akari-primary/10'
+                      : 'border-akari-border/30 bg-akari-cardSoft hover:border-akari-primary/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                      profileTypeModal.selectedType === 'personal'
+                        ? 'border-akari-primary bg-akari-primary'
+                        : 'border-akari-border'
+                    }`}>
+                      {profileTypeModal.selectedType === 'personal' && (
+                        <div className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-akari-text">Personal/Individual</p>
+                      <p className="text-xs text-akari-muted">For individual creators and influencers</p>
+                    </div>
+                  </div>
+                </button>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setProfileTypeModal({ open: false, user: null, selectedType: null })}
+                className="flex-1 px-4 py-2 rounded-xl bg-akari-cardSoft border border-akari-border text-akari-text hover:bg-akari-card transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmProfileType}
+                disabled={!profileTypeModal.selectedType}
+                className="flex-1 px-4 py-2 rounded-xl bg-akari-primary text-black font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add profile
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </PortalLayout>
   );

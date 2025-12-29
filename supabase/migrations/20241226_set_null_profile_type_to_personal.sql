@@ -1,0 +1,16 @@
+-- Migration: Set NULL profile_type to 'personal' (DEPRECATED - replaced by 20241226_allow_null_profile_type_for_unclassified.sql)
+-- Purpose: This migration is superseded by the new flow where NULL = unclassified
+-- Date: 2024-12-26
+-- 
+-- ⚠️ DEPRECATED: This migration is kept for historical reference but should NOT be run.
+-- 
+-- New flow (20241226_allow_null_profile_type_for_unclassified.sql):
+-- 1. Track: profile_type = NULL (unclassified)
+-- 2. Claim: User sets identity (individual/company) via akari_users.persona_type
+-- 3. Classify: SuperAdmin sets profile_type ('personal' or 'project') which controls ARC visibility
+--
+-- Only projects with profile_type='project' appear in ARC Top Projects and heat maps.
+--
+-- This file is kept for reference but the migration logic has been moved to:
+-- 20241226_allow_null_profile_type_for_unclassified.sql
+

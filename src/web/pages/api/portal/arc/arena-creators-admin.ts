@@ -9,6 +9,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { checkProjectPermissions } from '@/lib/project-permissions';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -81,6 +83,23 @@ async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, us
   return (roles?.length ?? 0) > 0;
 }
 
+async function getProjectIdFromArenaId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  arenaId: string
+): Promise<string | null> {
+  const { data: arena, error } = await supabase
+    .from('arenas')
+    .select('project_id')
+    .eq('id', arenaId)
+    .single();
+
+  if (error || !arena) {
+    return null;
+  }
+
+  return arena.project_id;
+}
+
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -93,8 +112,10 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // ==========================================================================
-    // AUTHENTICATION: Check Super Admin (with DEV MODE bypass)
+    // AUTHENTICATION: Check project permissions (with DEV MODE bypass)
     // ==========================================================================
+    let userId: string | null = null;
+
     if (!DEV_MODE) {
       const sessionToken = getSessionToken(req);
       if (!sessionToken) {
@@ -121,12 +142,75 @@ export default async function handler(
         return res.status(401).json({ ok: false, error: 'Session expired' });
       }
 
-      const userId = session.user_id;
+      userId = session.user_id;
 
-      // Check if user is super admin
-      const isSuperAdmin = await checkSuperAdmin(supabase, userId);
-      if (!isSuperAdmin) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      // Runtime guard: ensure userId is a non-empty string
+      if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing userId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const uid: string = userId;
+
+      // Get projectId from request (either from body or query)
+      let arenaId: string | null = null;
+      if (req.method === 'POST') {
+        arenaId = (req.body as AddCreatorBody)?.arenaId || null;
+      } else if (req.method === 'PATCH') {
+        // For PATCH, we need to get arenaId from the creator record
+        const creatorId = (req.body as EditCreatorBody)?.id;
+        if (creatorId) {
+          const { data: creator } = await supabase
+            .from('arena_creators')
+            .select('arena_id')
+            .eq('id', creatorId)
+            .single();
+          arenaId = creator?.arena_id || null;
+        }
+      } else if (req.method === 'DELETE') {
+        const id = (req.query.id as string) || (req.body?.id as string);
+        if (id) {
+          const { data: creator } = await supabase
+            .from('arena_creators')
+            .select('arena_id')
+            .eq('id', id)
+            .single();
+          arenaId = creator?.arena_id || null;
+        }
+      }
+
+      if (!arenaId) {
+        return res.status(400).json({ ok: false, error: 'Could not determine arena' });
+      }
+
+      // Get projectId from arenaId
+      const projectId = await getProjectIdFromArenaId(supabase, arenaId);
+      if (!projectId) {
+        return res.status(404).json({ ok: false, error: 'Arena not found' });
+      }
+
+      // Runtime guard: ensure projectId is a non-empty string
+      if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing projectId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const pid: string = projectId;
+
+      // Check project permissions
+      const permissions = await checkProjectPermissions(supabase, uid, pid);
+      
+      // Creator CRUD requires: isSuperAdmin OR isOwner OR isAdmin OR isModerator
+      const canWrite = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin || permissions.isModerator;
+      
+      if (!canWrite) {
+        return res.status(403).json({ ok: false, error: 'You do not have permission to manage creators for this project' });
+      }
+
+      // Check ARC access (Option 2 = Normal Leaderboard for arena creators)
+      const accessCheck = await requireArcAccess(supabase, pid, 2);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ ok: false, error: accessCheck.error });
       }
     } else {
       console.log('[API /portal/arc/arena-creators-admin] DEV MODE - skipping auth');

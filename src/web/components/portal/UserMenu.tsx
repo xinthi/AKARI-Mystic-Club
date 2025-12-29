@@ -19,6 +19,20 @@ export function UserMenu() {
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const tierInfo = getUserTierInfo(akariUser.user);
   
+  // Debug logging for admin access issues
+  useEffect(() => {
+    if (typeof window !== 'undefined' && akariUser.user) {
+      console.log('[UserMenu] User roles check:', {
+        xUsername: akariUser.user.xUsername,
+        realRoles: akariUser.user.realRoles,
+        effectiveRoles: akariUser.user.effectiveRoles,
+        isSuperAdmin: userIsSuperAdmin,
+        userId: akariUser.user.id,
+        isDevMode: process.env.NODE_ENV === 'development',
+      });
+    }
+  }, [akariUser.user, userIsSuperAdmin]);
+  
   const [isOpen, setIsOpen] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);

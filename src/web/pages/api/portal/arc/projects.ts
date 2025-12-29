@@ -57,28 +57,98 @@ export default async function handler(
       error: 'Method not allowed',
     });
   }
+  
+  // This endpoint is PUBLIC - no authentication required
+  // It returns a list of ARC-enabled projects for the home page
 
   try {
     // Create Supabase client (read-only with anon key)
-    const supabase = createPortalClient();
+    let supabase;
+    try {
+      supabase = createPortalClient();
+    } catch (configError: any) {
+      console.error('[ARC Projects API] Supabase configuration error:', configError);
+      return res.status(503).json({
+        ok: false,
+        error: 'Server configuration error. Please contact support.',
+      });
+    }
 
-    // Query project_arc_settings joined with projects
-    const { data, error } = await supabase
-      .from('project_arc_settings')
+    // Query projects with ARC access approved OR arc_active=true
+    // First, get approved projects from arc_project_access
+    const { data: approvedAccess, error: accessError } = await supabase
+      .from('arc_project_access')
+      .select('project_id')
+      .eq('application_status', 'approved');
+    
+    const approvedProjectIds = approvedAccess?.map(a => a.project_id) || [];
+    
+    // Also get projects with arc_active=true (backward compatibility)
+    const { data: activeProjects, error: activeError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('arc_active', true);
+    
+    const activeProjectIds = activeProjects?.map(p => p.id) || [];
+    
+    // Combine both sets
+    const allProjectIds = [...new Set([...approvedProjectIds, ...activeProjectIds])];
+    
+    if (allProjectIds.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        projects: [],
+      });
+    }
+    
+    // Get project details with optional project_arc_settings metadata
+    const { data: projectsData, error: projectsError } = await supabase
+      .from('projects')
       .select(`
-        project_id,
-        tier,
-        status,
-        security_status,
-        meta,
-        projects (
-          id,
-          slug,
-          name,
-          twitter_username
+        id,
+        slug,
+        name,
+        twitter_username,
+        header_image_url,
+        project_arc_settings (
+          tier,
+          status,
+          security_status,
+          meta
         )
       `)
-      .eq('is_arc_enabled', true);
+      .in('id', allProjectIds);
+    
+    if (projectsError) {
+      console.error('[API /portal/arc/projects] Error fetching projects:', projectsError);
+      return res.status(500).json({
+        ok: false,
+        error: 'Internal server error',
+      });
+    }
+    
+    // Map to response format
+    const data = projectsData?.map((p: any) => {
+      const settingsMeta = p.project_arc_settings?.[0]?.meta || {};
+      // Merge header_image_url from projects table into meta, taking precedence
+      const mergedMeta = {
+        ...settingsMeta,
+        banner_url: p.header_image_url || settingsMeta.banner_url || null,
+      };
+      return {
+        project_id: p.id,
+        projects: {
+          id: p.id,
+          slug: p.slug,
+          name: p.name,
+          twitter_username: p.twitter_username,
+        },
+        tier: p.project_arc_settings?.[0]?.tier || 'basic',
+        status: p.project_arc_settings?.[0]?.status || 'active',
+        security_status: p.project_arc_settings?.[0]?.security_status || 'normal',
+        meta: mergedMeta,
+      };
+    }) || [];
 
     // Get stats for each project (creator count, total points)
     const projectIds = data?.map((row: any) => row.project_id) || [];
@@ -116,21 +186,6 @@ export default async function handler(
           });
         }
       }
-    }
-
-    if (error) {
-      console.error('[API /portal/arc/projects] Supabase error:', error);
-      return res.status(500).json({
-        ok: false,
-        error: 'Internal server error',
-      });
-    }
-
-    if (data === null) {
-      return res.status(200).json({
-        ok: true,
-        projects: [],
-      });
     }
 
     // Map data to response format

@@ -31,6 +31,9 @@ function getSessionToken(req: NextApiRequest): string | null {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Always return JSON, never HTML - set this FIRST before any operations
+  res.setHeader('Content-Type', 'application/json');
+  
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
@@ -42,6 +45,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Check Supabase configuration before trying to use it
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[Auth /me] Missing Supabase configuration:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseServiceKey,
+      });
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Missing Supabase configuration. Please check your .env.local file in src/web/ directory.' 
+      });
+    }
+
     const supabase = getSupabaseAdmin();
 
     // Find session
@@ -90,6 +108,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select('role')
       .eq('user_id', user.id);
 
+    // DEV MODE: Automatically ensure dev_user has super_admin role
+    const isDevUser = xIdentity?.username?.toLowerCase() === 'dev_user';
+    const userRoles = roles?.map(r => r.role) || ['user'];
+    
+    if (isDevUser && !userRoles.includes('super_admin')) {
+      // Grant super_admin role to dev_user automatically
+      // Check if role already exists first to avoid conflicts
+      const { data: existingRole } = await supabase
+        .from('akari_user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+      
+      if (!existingRole) {
+        // Only insert if it doesn't exist
+        await supabase
+          .from('akari_user_roles')
+          .insert({ user_id: user.id, role: 'super_admin' });
+      }
+      
+      // Add super_admin to the roles array
+      userRoles.push('super_admin');
+      console.log('[Auth /me] Auto-granted super_admin to dev_user');
+    }
+
     // Get feature grants
     const { data: grants } = await supabase
       .from('akari_user_feature_grants')
@@ -102,7 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: user.id,
         displayName: user.display_name,
         avatarUrl: user.avatar_url,
-        roles: roles?.map(r => r.role) || ['user'],
+        roles: userRoles,
         featureGrants: grants || [],
         xUsername: xIdentity?.username || null,
         // Mystic Identity fields
@@ -114,7 +158,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('[Auth /me] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    
+    // Ensure we always return JSON, even if error occurred
+    const errorMessage = error?.message || 'Server error';
+    
+    // Check if it's a configuration error
+    if (errorMessage.includes('Missing Supabase') || errorMessage.includes('configuration')) {
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Missing Supabase configuration. Please check your .env.local file in src/web/ directory and restart the dev server.' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      ok: false, 
+      error: process.env.NODE_ENV === 'development' ? errorMessage : 'Server error' 
+    });
   }
 }
 

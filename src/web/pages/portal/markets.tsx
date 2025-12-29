@@ -110,7 +110,7 @@ function formatPrice(price: number): string {
 }
 
 function formatLargeNumber(num: number | null): string {
-  if (num === null || num === 0) return '—';
+  if (num === null || num === 0) return 'N/A';
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
   if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `$${(num / 1_000).toFixed(1)}K`;
@@ -201,7 +201,7 @@ export default function MarketsPage({
                   <div key={`dex-${snap.symbol}-${i}`} className="flex items-center justify-between text-sm p-3 rounded-xl bg-akari-cardSoft/50 border border-akari-neon-teal/10 transition-all duration-300 hover:border-akari-neon-teal/30 hover:bg-akari-cardSoft/70">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="text-lg">{chainIcon(snap.chain)}</span>
-                      <span className="text-akari-text font-semibold uppercase truncate">{snap.symbol || '—'}</span>
+                      <span className="text-akari-text font-semibold uppercase truncate">{snap.symbol || 'N/A'}</span>
                       <span className={`pill-neon px-2 py-0.5 text-[10px] hidden sm:inline font-medium border ${chainBadgeColor(snap.chain)}`}>
                         {formatChainLabel(snap.chain)}
                       </span>
@@ -328,7 +328,7 @@ export default function MarketsPage({
                       <td className="px-5 py-4 text-right text-akari-text font-medium">{formatPrice(coin.priceUsd)}</td>
                       <td className="px-5 py-4 text-right text-gradient-followers font-semibold">{formatLargeNumber(coin.volume24hUsd)}</td>
                       <td className={`px-5 py-4 text-right font-semibold ${changeColor}`}>
-                        {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(2)}%` : '—'}
+                        {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(2)}%` : 'N/A'}
                       </td>
                     </tr>
                   );
@@ -354,7 +354,7 @@ export default function MarketsPage({
                     </div>
                     <div className="text-right">
                       <span className={`text-sm font-semibold ${changeColor}`}>
-                        {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(1)}%` : '—'}
+                        {coin.change24hPct !== null ? `${coin.change24hPct >= 0 ? '+' : ''}${coin.change24hPct.toFixed(1)}%` : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -553,8 +553,8 @@ export const getServerSideProps: GetServerSideProps<MarketsPageProps> = async ()
     console.error('[Markets Page] Error:', error);
     return {
       props: {
-        trackedMarketCap: '—',
-        trackedVolume24h: '—',
+        trackedMarketCap: 'N/A',
+        trackedVolume24h: 'N/A',
         trending: [],
         dexRadar: [],
         cexHeatmap: [],

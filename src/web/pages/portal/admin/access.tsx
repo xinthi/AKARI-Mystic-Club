@@ -5,10 +5,12 @@
  */
 
 import { useState, useEffect } from 'react';
+import { GetServerSideProps } from 'next';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { FEATURE_KEYS } from '@/lib/permissions';
+import { requireSuperAdmin } from '@/lib/server-auth';
 
 // =============================================================================
 // TYPES
@@ -328,4 +330,21 @@ export default function AdminAccessRequestsPage() {
     </PortalLayout>
   );
 }
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  // Require Super Admin access
+  const redirect = await requireSuperAdmin(context);
+  if (redirect) {
+    return redirect;
+  }
+
+  // User is authenticated and is Super Admin
+  return {
+    props: {},
+  };
+};
 

@@ -50,9 +50,9 @@ export const LiquiditySignalsCard: React.FC<Props> = ({ signals, lastAnySignal }
         </div>
       ) : signals.length === 0 && lastAnySignal ? (
         <div className="text-sm text-slate-400 pt-2 space-y-2">
-          <p>No new signals in the last 24 hours — markets are quiet.</p>
+          <p>No new signals in the last 24 hours - markets are quiet.</p>
           <p className="text-xs text-slate-500">
-            Last signal: &quot;{lastAnySignal.title}&quot; — {timeAgo(lastAnySignal.triggeredAt)}
+            Last signal: &quot;{lastAnySignal.title}&quot; - {timeAgo(lastAnySignal.triggeredAt)}
             {lastAnySignal.chain ? ` on ${lastAnySignal.chain}` : ''}.
           </p>
         </div>

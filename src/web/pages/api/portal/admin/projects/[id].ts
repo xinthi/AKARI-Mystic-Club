@@ -1,11 +1,16 @@
 /**
  * API Route: PATCH /api/portal/admin/projects/[id]
  * 
- * Updates project metadata for super admin.
+ * Updates project metadata.
+ * - Super admins can edit all fields
+ * - Project owners and admins can edit basic fields (name, slug, x_handle, twitter_username, header_image_url)
+ * - System fields (is_active, arc_active, arc_access_level, profile_type) are super admin only
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 // =============================================================================
 // TYPES
@@ -16,15 +21,39 @@ interface UpdateProjectBody {
   slug?: string;
   x_handle?: string;
   twitter_username?: string;
+  header_image_url?: string | null;
   is_active?: boolean;
+  arc_active?: boolean;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  profile_type?: 'personal' | 'project';
+}
+
+interface ProjectQueryResult {
+  id: string;
+  name: string;
+  display_name: string | null;
+  slug: string;
+  x_handle: string;
+  twitter_username: string | null;
+  header_image_url?: string | null;
+  is_active: boolean;
+  arc_active?: boolean | null;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified' | null;
+  profile_type?: 'personal' | 'project' | null;
 }
 
 interface AdminProject {
   id: string;
   name: string;
+  display_name: string | null;
   slug: string;
   x_handle: string;
+  twitter_username: string | null;
+  header_image_url?: string | null;
   is_active: boolean;
+  arc_active?: boolean;
+  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+  profile_type?: 'personal' | 'project';
 }
 
 type UpdateProjectResponse =
@@ -44,36 +73,6 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 // HELPERS
 // =============================================================================
 
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
-
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
-  const { data: roles } = await supabase
-    .from('akari_user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'super_admin');
-
-  return (roles?.length ?? 0) > 0;
-}
 
 // =============================================================================
 // HANDLER
@@ -83,7 +82,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<UpdateProjectResponse>
 ) {
-  if (req.method !== 'PATCH') {
+  // Always set JSON content type
+  res.setHeader('Content-Type', 'application/json');
+  
+  // Support both GET and PATCH
+  if (req.method !== 'GET' && req.method !== 'PATCH') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
@@ -91,48 +94,69 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // ==========================================================================
-    // DEV MODE: Skip authentication in development
+    // AUTHENTICATION & PERMISSIONS
     // ==========================================================================
+    let permissions: Awaited<ReturnType<typeof checkProjectPermissions>> | null = null;
+    const projectId = typeof req.query.id === 'string' ? req.query.id : null;
+
+    if (!projectId) {
+      return res.status(400).json({ ok: false, error: 'Project ID is required' });
+    }
+
     if (!DEV_MODE) {
-      const sessionToken = getSessionToken(req);
-      if (!sessionToken) {
-        return res.status(401).json({ ok: false, error: 'Not authenticated' });
+      const portalUser = await requirePortalUser(req, res);
+      if (!portalUser) {
+        return; // requirePortalUser already sent the response
       }
-
-      // Validate session and get user ID
-      const { data: session, error: sessionError } = await supabase
-        .from('akari_user_sessions')
-        .select('user_id, expires_at')
-        .eq('session_token', sessionToken)
-        .single();
-
-      if (sessionError || !session) {
-        return res.status(401).json({ ok: false, error: 'Invalid session' });
-      }
-
-      // Check if session is expired
-      if (new Date(session.expires_at) < new Date()) {
-        await supabase
-          .from('akari_user_sessions')
-          .delete()
-          .eq('session_token', sessionToken);
-        return res.status(401).json({ ok: false, error: 'Session expired' });
-      }
-
-      const userId = session.user_id;
-
-      // Check if user is super admin
-      const isSuperAdmin = await checkSuperAdmin(supabase, userId);
-      if (!isSuperAdmin) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
-      }
+      permissions = await checkProjectPermissions(supabase, portalUser.userId, projectId);
     } else {
       console.log('[Admin Projects API] DEV MODE - skipping auth');
     }
 
-    const { id } = req.query;
-    if (!id || typeof id !== 'string') {
-      return res.status(400).json({ ok: false, error: 'Project ID is required' });
+    // GET: Return project details
+    if (req.method === 'GET') {
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .select('id, name, display_name, slug, x_handle, twitter_username, header_image_url, is_active, arc_active, arc_access_level, profile_type')
+        .eq('id', projectId)
+        .single();
+
+      if (projectError || !project) {
+        return res.status(404).json({ ok: false, error: 'Project not found' });
+      }
+
+      const projectData = project as ProjectQueryResult;
+      const adminProject: AdminProject = {
+        id: projectData.id,
+        name: projectData.name,
+        display_name: projectData.display_name ?? null,
+        slug: projectData.slug,
+        x_handle: projectData.x_handle,
+        twitter_username: projectData.twitter_username ?? null,
+        header_image_url: projectData.header_image_url ?? null,
+        is_active: projectData.is_active,
+        arc_active: projectData.arc_active ?? undefined,
+        arc_access_level: projectData.arc_access_level ?? undefined,
+        profile_type: projectData.profile_type ?? undefined,
+      };
+
+      return res.status(200).json({
+        ok: true,
+        project: adminProject,
+      });
+    }
+
+    // PATCH: Update project
+    // Check permissions: project owners/admins can edit basic fields, super admins can edit all
+    if (!DEV_MODE && !permissions) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
+
+    const canManage = DEV_MODE || (permissions?.canManage ?? false);
+    const isSuperAdmin = DEV_MODE || (permissions?.isSuperAdmin ?? false);
+
+    if (!canManage) {
+      return res.status(403).json({ ok: false, error: 'You do not have permission to update this project' });
     }
 
     const body = req.body as UpdateProjectBody;
@@ -143,9 +167,14 @@ export default async function handler(
       slug?: string;
       x_handle?: string;
       twitter_username?: string;
+      header_image_url?: string | null;
       is_active?: boolean;
+      arc_active?: boolean;
+      arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+      profile_type?: 'personal' | 'project';
     } = {};
 
+    // Basic fields that project owners/admins can edit
     if (body.name !== undefined) {
       updateData.name = body.name.trim();
     }
@@ -162,8 +191,42 @@ export default async function handler(
       // Also update x_handle if twitter_username is provided
       updateData.x_handle = body.twitter_username.trim();
     }
+    if (body.header_image_url !== undefined) {
+      updateData.header_image_url = body.header_image_url?.trim() || null;
+    }
+
+    // System fields that only super admins can edit
     if (body.is_active !== undefined) {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'Only super admins can update is_active' });
+      }
       updateData.is_active = body.is_active;
+    }
+    if (body.arc_active !== undefined) {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'Only super admins can update arc_active' });
+      }
+      updateData.arc_active = body.arc_active;
+    }
+    if (body.arc_access_level !== undefined) {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'Only super admins can update arc_access_level' });
+      }
+      // Validate arc_access_level
+      if (!['none', 'creator_manager', 'leaderboard', 'gamified'].includes(body.arc_access_level)) {
+        return res.status(400).json({ ok: false, error: 'Invalid arc_access_level value' });
+      }
+      updateData.arc_access_level = body.arc_access_level;
+    }
+    if (body.profile_type !== undefined) {
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: 'Only super admins can update profile_type' });
+      }
+      // Validate profile_type
+      if (!['personal', 'project'].includes(body.profile_type)) {
+        return res.status(400).json({ ok: false, error: 'Invalid profile_type value' });
+      }
+      updateData.profile_type = body.profile_type;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -174,8 +237,8 @@ export default async function handler(
     const { data: updatedProject, error: updateError } = await supabase
       .from('projects')
       .update(updateData)
-      .eq('id', id)
-      .select('id, name, slug, x_handle, is_active')
+      .eq('id', projectId)
+      .select('id, name, display_name, slug, x_handle, twitter_username, header_image_url, is_active, arc_active, arc_access_level, profile_type')
       .single();
 
     if (updateError) {
@@ -187,15 +250,24 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
+    const updatedProjectData = updatedProject as ProjectQueryResult;
+    const adminProject: AdminProject = {
+      id: updatedProjectData.id,
+      name: updatedProjectData.name,
+      display_name: updatedProjectData.display_name ?? null,
+      slug: updatedProjectData.slug,
+      x_handle: updatedProjectData.x_handle,
+      twitter_username: updatedProjectData.twitter_username ?? null,
+      header_image_url: updatedProjectData.header_image_url ?? null,
+      is_active: updatedProjectData.is_active,
+      arc_active: updatedProjectData.arc_active ?? undefined,
+      arc_access_level: updatedProjectData.arc_access_level ?? undefined,
+      profile_type: updatedProjectData.profile_type ?? undefined,
+    };
+
     return res.status(200).json({
       ok: true,
-      project: {
-        id: updatedProject.id,
-        name: updatedProject.name,
-        slug: updatedProject.slug,
-        x_handle: updatedProject.x_handle,
-        is_active: updatedProject.is_active,
-      },
+      project: adminProject,
     });
   } catch (error: any) {
     console.error('[Admin Projects API] Error:', error);

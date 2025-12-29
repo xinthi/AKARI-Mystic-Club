@@ -1,20 +1,40 @@
 /**
- * ARC Admin Home Page
+ * ARC Super Admin Dashboard
  * 
- * Lists all ARC-enabled projects for admin management
+ * Comprehensive admin panel for super admins to manage:
+ * - Dashboard/Overview with key metrics
+ * - Access Management (super admin roles)
+ * - Leaderboard Requests (approvals and confirmations)
+ * - Reporting & Analytics
+ * - Pricing & Billing for leaderboard approvals
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
-import { createPortalClient } from '@/lib/portal/supabase';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdmin } from '@/lib/permissions';
 import { useAkariUser } from '@/lib/akari-auth';
+import { requireSuperAdmin } from '@/lib/server-auth';
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+interface DashboardStats {
+  totalProjects: number;
+  activeProjects: number;
+  pendingRequests: number;
+  approvedRequests: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+  activeArenas: number;
+  activeCampaigns: number;
+  activeLeaderboards: number;
+  activeCRM: number;
+  activeGamified: number;
+}
 
 interface ArcProject {
   project_id: string;
@@ -32,397 +52,569 @@ interface ArcProject {
   };
 }
 
+interface SuperAdminUser {
+  id: string;
+  username: string;
+  display_name: string | null;
+  email: string | null;
+  roles: string[];
+  created_at: string;
+}
+
+interface PricingConfig {
+  access_level: 'creator_manager' | 'leaderboard' | 'gamified';
+  base_price_usd: number;
+  currency: string;
+  description: string | null;
+  is_active: boolean;
+}
+
 interface ArcAdminHomeProps {
   projects: ArcProject[];
   error: string | null;
 }
 
+type TabType = 'dashboard' | 'access' | 'requests' | 'reporting' | 'pricing';
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
-export default function ArcAdminHome({ projects, error }: ArcAdminHomeProps) {
+export default function ArcAdminHome({ projects: initialProjects, error: initialError }: ArcAdminHomeProps) {
   const akariUser = useAkariUser();
+  const [mounted, setMounted] = useState(false);
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<ArcProject | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [modalError, setModalError] = useState<string | null>(null);
-  const [settingsFormData, setSettingsFormData] = useState({
-    banner_url: '',
-    accent_color: '',
-    tagline: '',
-  });
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [superAdmins, setSuperAdmins] = useState<SuperAdminUser[]>([]);
+  const [superAdminsLoading, setSuperAdminsLoading] = useState(false);
+  const [pricingConfig, setPricingConfig] = useState<PricingConfig[]>([]);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
 
-  // Helper function to get tier badge color
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'event_host':
-        return 'bg-purple-500/20 border-purple-500/40 text-purple-300';
-      case 'pro':
-        return 'bg-blue-500/20 border-blue-500/40 text-blue-300';
-      case 'basic':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
+  // Set mounted flag on client to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Load dashboard stats
+  useEffect(() => {
+    if (!userIsSuperAdmin || !mounted) return;
+
+    async function loadStats() {
+      try {
+        setStatsLoading(true);
+        const res = await fetch('/api/portal/admin/arc/dashboard-stats', {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (data.ok && data.stats) {
+          setStats(data.stats);
+        }
+      } catch (err) {
+        console.error('[ArcAdmin] Error loading stats:', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    }
+
+    loadStats();
+  }, [userIsSuperAdmin, mounted]);
+
+  // Load super admins
+  useEffect(() => {
+    if (!userIsSuperAdmin || !mounted || activeTab !== 'access') return;
+
+    async function loadSuperAdmins() {
+      try {
+        setSuperAdminsLoading(true);
+        const res = await fetch('/api/portal/admin/arc/super-admins', {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (data.ok && data.admins) {
+          setSuperAdmins(data.admins);
+        }
+      } catch (err) {
+        console.error('[ArcAdmin] Error loading super admins:', err);
+      } finally {
+        setSuperAdminsLoading(false);
+      }
+    }
+
+    loadSuperAdmins();
+  }, [userIsSuperAdmin, mounted, activeTab]);
+
+  // Load pricing config
+  useEffect(() => {
+    if (!userIsSuperAdmin || !mounted || activeTab !== 'pricing') return;
+
+    async function loadPricing() {
+      try {
+        setPricingLoading(true);
+        setPricingError(null);
+        const res = await fetch('/api/portal/admin/arc/pricing', {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (data.ok && data.pricing) {
+          setPricingConfig(data.pricing);
+        } else {
+          setPricingError(data.error || 'Failed to load pricing');
+        }
+      } catch (err: any) {
+        console.error('[ArcAdmin] Error loading pricing:', err);
+        setPricingError(err.message || 'Failed to load pricing');
+      } finally {
+        setPricingLoading(false);
+      }
+    }
+
+    loadPricing();
+  }, [userIsSuperAdmin, mounted, activeTab]);
+
+  // Handle pricing update
+  const handlePricingUpdate = async (accessLevel: string, newPrice: number) => {
+    try {
+      setPricingError(null);
+      const res = await fetch('/api/portal/admin/arc/pricing', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          access_level: accessLevel,
+          base_price_usd: newPrice,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        // Reload pricing
+        const reloadRes = await fetch('/api/portal/admin/arc/pricing', {
+          credentials: 'include',
+        });
+        const reloadData = await reloadRes.json();
+        if (reloadData.ok && reloadData.pricing) {
+          setPricingConfig(reloadData.pricing);
+        }
+      } else {
+        setPricingError(data.error || 'Failed to update pricing');
+      }
+    } catch (err: any) {
+      setPricingError(err.message || 'Failed to update pricing');
     }
   };
 
-  // Helper function to get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500/20 border-green-500/40 text-green-300';
-      case 'suspended':
-        return 'bg-red-500/20 border-red-500/40 text-red-300';
-      case 'inactive':
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
-    }
-  };
+  // Show loading state until mounted (prevents hydration mismatch)
+  if (!mounted) {
+    return (
+      <ArcPageShell canManageArc={true}>
+        <div className="text-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+          <p className="text-white/60">Loading...</p>
+        </div>
+      </ArcPageShell>
+    );
+  }
 
-  // Helper function to get security status badge color
-  const getSecurityColor = (status: string) => {
-    switch (status) {
-      case 'alert':
-        return 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300';
-      case 'clear':
-        return 'bg-green-500/20 border-green-500/40 text-green-300';
-      case 'normal':
-      default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-text';
-    }
-  };
-
-  // Check access
+  // Check access (only after mounted to prevent flash)
   if (!userIsSuperAdmin) {
     return (
-      <PortalLayout title="ARC Admin">
-        <div className="space-y-6">
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-danger">
+      <ArcPageShell canManageArc={true}>
+        <div>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+            <p className="text-sm text-red-400">
               Access denied. Super Admin privileges required.
             </p>
             <Link
               href="/portal/arc"
-              className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+              className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
             >
               ← Back to ARC Home
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="ARC Admin">
+    <ArcPageShell canManageArc={true}>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             ARC Home
           </Link>
           <span>/</span>
-          <span className="text-akari-text">Admin</span>
+          <span className="text-white">Super Admin</span>
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-akari-text">ARC Admin</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-white">ARC Super Admin Dashboard</h1>
+            <p className="text-white/60 mt-1">Manage access, approvals, pricing, and analytics</p>
+          </div>
         </div>
 
         {/* Error state */}
-        {error && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">{error}</p>
+        {initialError && (
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-400">{initialError}</p>
           </div>
         )}
 
-        {/* Projects table */}
-        {!error && (
-          <div className="rounded-xl border border-slate-700 bg-akari-card overflow-hidden">
-            {projects.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-sm text-akari-muted">
-                  No ARC-enabled projects found.
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-2 overflow-x-auto">
+          {(['dashboard', 'access', 'requests', 'reporting', 'pricing'] as TabType[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+                activeTab === tab
+                  ? 'text-black bg-gradient-to-r from-teal-400 to-cyan-400 shadow-[0_0_15px_rgba(0,246,162,0.3)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {tab === 'dashboard' && '📊 Dashboard'}
+              {tab === 'access' && '👥 Access Management'}
+              {tab === 'requests' && '✅ Approvals'}
+              {tab === 'reporting' && '📈 Reporting'}
+              {tab === 'pricing' && '💰 Pricing & Billing'}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div className="mt-6">
+          {/* Dashboard Tab */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+              {/* Stats Grid */}
+              {statsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+                </div>
+              ) : stats ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Total Projects</div>
+                      <div className="text-3xl font-bold text-white">{stats.totalProjects}</div>
+                      <div className="text-xs text-white/60 mt-1">{stats.activeProjects} active</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Pending Requests</div>
+                      <div className="text-3xl font-bold text-yellow-400">{stats.pendingRequests}</div>
+                      <Link
+                        href="/portal/admin/arc/leaderboard-requests"
+                        className="text-xs text-teal-400 hover:underline mt-1 inline-block"
+                      >
+                        Review requests →
+                      </Link>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Total Revenue</div>
+                      <div className="text-3xl font-bold text-green-400">${stats.totalRevenue.toLocaleString()}</div>
+                      <div className="text-xs text-white/60 mt-1">${stats.monthlyRevenue.toLocaleString()} this month</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Active Arenas</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeArenas}</div>
+                      <div className="text-xs text-white/60 mt-1">{stats.activeCampaigns} campaigns</div>
+                    </div>
+                  </div>
+                  
+                  {/* Breakdown by Type */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Leaderboards</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeLeaderboards}</div>
+                      <div className="text-xs text-white/60 mt-1">Normal Leaderboard (Option 2)</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">CRM</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeCRM}</div>
+                      <div className="text-xs text-white/60 mt-1">Creator Manager (Option 1)</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                      <div className="text-sm text-white/60 mb-1">Gamified</div>
+                      <div className="text-3xl font-bold text-white">{stats.activeGamified}</div>
+                      <div className="text-xs text-white/60 mt-1">Gamified Leaderboard (Option 3)</div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              {/* Recent Activity */}
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
+                <div className="space-y-3">
+                  <div className="text-sm text-white/60 text-center py-4">
+                    Activity feed coming soon...
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Link
+                    href="/portal/admin/arc/leaderboard-requests"
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="font-medium text-white">Review Requests</div>
+                    <div className="text-xs text-white/60 mt-1">Approve or reject leaderboard requests</div>
+                  </Link>
+                  <button
+                    onClick={() => setActiveTab('pricing')}
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-left"
+                  >
+                    <div className="font-medium text-white">Manage Pricing</div>
+                    <div className="text-xs text-white/60 mt-1">Update pricing for access levels</div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('access')}
+                    className="px-4 py-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-left"
+                  >
+                    <div className="font-medium text-white">Manage Access</div>
+                    <div className="text-xs text-white/60 mt-1">Super admin role management</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Access Management Tab */}
+          {activeTab === 'access' && (
+            <div className="space-y-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white">Super Admin Users</h2>
+                </div>
+                {superAdminsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+                  </div>
+                ) : superAdmins.length === 0 ? (
+                  <div className="text-sm text-white/60 text-center py-8">No super admins found</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-white/5 border-b border-white/10">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">User</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Roles</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Created</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {superAdmins.map((admin) => (
+                          <tr key={admin.id} className="hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-white">{admin.display_name || admin.username}</div>
+                              <div className="text-xs text-white/60">@{admin.username}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {admin.roles.map((role) => (
+                                  <span
+                                    key={role}
+                                    className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                                  >
+                                    {role}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-white/60">
+                              {new Date(admin.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Requests Tab */}
+          {activeTab === 'requests' && (
+            <div className="space-y-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white">Leaderboard Requests</h2>
+                  <Link
+                    href="/portal/admin/arc/leaderboard-requests"
+                    className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
+                  >
+                    View All Requests
+                  </Link>
+                </div>
+                <p className="text-sm text-white/60">
+                  Manage and approve leaderboard access requests. Click &quot;View All Requests&quot; to see the full management interface.
                 </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-akari-cardSoft/30 border-b border-akari-border/30">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Project</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">ARC Tier</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Security</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Arenas</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-akari-border/30">
-                    {projects.map((project) => (
-                      <tr
-                        key={project.project_id}
-                        className="hover:bg-akari-cardSoft/20 transition-colors"
-                      >
-                        <td className="px-4 py-3 text-sm text-akari-text">
-                          <div>
-                            <div className="font-medium">{project.name || 'Unnamed Project'}</div>
-                            {project.twitter_username && (
-                              <div className="text-xs text-akari-muted">
-                                @{project.twitter_username}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getTierColor(
-                              project.arc_tier
-                            )}`}
-                          >
-                            {project.arc_tier}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                              project.arc_status
-                            )}`}
-                          >
-                            {project.arc_status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getSecurityColor(
-                              project.security_status
-                            )}`}
-                          >
-                            {project.security_status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-akari-text">
-                          {project.arenas_count}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {project.slug && (
-                              <Link
-                                href={`/portal/arc/admin/${project.slug}`}
-                                className="px-3 py-1.5 text-xs font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-                              >
-                                Manage Arenas
-                              </Link>
-                            )}
-                            <button
-                              onClick={() => {
-                                setEditingProject(project);
-                                setSettingsFormData({
-                                  banner_url: project.meta?.banner_url || '',
-                                  accent_color: project.meta?.accent_color || '',
-                                  tagline: project.meta?.tagline || '',
-                                });
-                                setModalError(null);
-                                setShowSettingsModal(true);
-                              }}
-                              className="px-3 py-1.5 text-xs font-medium border border-akari-border/30 text-akari-text rounded-lg hover:bg-akari-cardSoft/30 transition-colors"
-                            >
-                              Edit Settings
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Edit ARC Settings Modal */}
-        {showSettingsModal && editingProject && (
-          <ProjectSettingsModal
-            project={editingProject}
-            formData={settingsFormData}
-            setFormData={setSettingsFormData}
-            onClose={() => {
-              setShowSettingsModal(false);
-              setEditingProject(null);
-              setSettingsFormData({ banner_url: '', accent_color: '', tagline: '' });
-              setModalError(null);
-            }}
-            onSuccess={() => {
-              // Refresh the page to show updated settings
-              window.location.reload();
-            }}
-            loading={modalLoading}
-            error={modalError}
-            setLoading={setModalLoading}
-            setError={setModalError}
-          />
-        )}
+          {/* Reporting Tab */}
+          {activeTab === 'reporting' && (
+            <div className="space-y-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Analytics & Reporting</h2>
+                <div className="text-sm text-white/60 text-center py-8">
+                  Reporting dashboard coming soon...
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pricing & Billing Tab */}
+          {activeTab === 'pricing' && (
+            <div className="space-y-6">
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white">Pricing Configuration</h2>
+                </div>
+
+                {pricingError && (
+                  <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
+                    <p className="text-sm text-red-400">{pricingError}</p>
+                  </div>
+                )}
+
+                {pricingLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pricingConfig.map((config) => (
+                      <PricingRow
+                        key={config.access_level}
+                        config={config}
+                        onUpdate={handlePricingUpdate}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Billing Records */}
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Billing Records</h2>
+                <div className="text-sm text-white/60 text-center py-8">
+                  Billing history coming soon...
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
 // =============================================================================
-// PROJECT SETTINGS MODAL COMPONENT
+// PRICING ROW COMPONENT
 // =============================================================================
 
-interface ProjectSettingsModalProps {
-  project: ArcProject;
-  formData: {
-    banner_url: string;
-    accent_color: string;
-    tagline: string;
-  };
-  setFormData: (data: any) => void;
-  onClose: () => void;
-  onSuccess: () => void;
-  loading: boolean;
-  error: string | null;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+interface PricingRowProps {
+  config: PricingConfig;
+  onUpdate: (accessLevel: string, newPrice: number) => Promise<void>;
 }
 
-function ProjectSettingsModal({
-  project,
-  formData,
-  setFormData,
-  onClose,
-  onSuccess,
-  loading,
-  error,
-  setLoading,
-  setError,
-}: ProjectSettingsModalProps) {
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError(null);
+function PricingRow({ config, onUpdate }: PricingRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [newPrice, setNewPrice] = useState(config.base_price_usd.toString());
+  const [saving, setSaving] = useState(false);
 
+  const handleSave = async () => {
+    const price = parseFloat(newPrice);
+    if (isNaN(price) || price < 0) {
+      alert('Please enter a valid price');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const res = await fetch('/api/portal/arc/project-settings-admin', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: project.project_id,
-          meta: {
-            banner_url: formData.banner_url.trim() || null,
-            accent_color: formData.accent_color.trim() || null,
-            tagline: formData.tagline.trim() || null,
-          },
-        }),
-      });
-
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Server error: ${res.status} ${res.statusText}`);
-      }
-
-      const result = await res.json();
-
-      if (!res.ok || !result.ok) {
-        throw new Error(result.error || 'Failed to update project settings');
-      }
-
-      onSuccess();
-    } catch (err: any) {
-      console.error('[ProjectSettingsModal] Error:', err);
-      setError(err?.message || 'Failed to update settings. Please try again.');
+      await onUpdate(config.access_level, price);
+      setEditing(false);
+    } catch (err) {
+      console.error('[PricingRow] Error saving:', err);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-700 bg-akari-card p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-akari-text">
-            Edit ARC Settings - {project.name}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-akari-muted hover:text-akari-text transition-colors"
-            disabled={loading}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs text-akari-muted">Banner URL</label>
-            <input
-              type="text"
-              value={formData.banner_url}
-              onChange={(e) => setFormData({ ...formData, banner_url: e.target.value })}
-              placeholder="https://example.com/banner.jpg"
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-              disabled={loading}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs text-akari-muted">Accent Color (Hex)</label>
-            <input
-              type="text"
-              value={formData.accent_color}
-              onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
-              placeholder="#FF5733"
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-              disabled={loading}
-            />
-            <p className="mt-1 text-xs text-akari-muted">Enter a hex color code (e.g., #FF5733)</p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs text-akari-muted">Tagline</label>
-            <input
-              type="text"
-              value={formData.tagline}
-              onChange={(e) => setFormData({ ...formData, tagline: e.target.value })}
-              placeholder="Short project tagline"
-              className="w-full px-3 py-2 text-sm bg-akari-cardSoft/30 border border-akari-border/30 rounded-lg text-akari-text placeholder-akari-muted focus:outline-none focus:border-akari-neon-teal/50 transition-colors"
-              disabled={loading}
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-lg border border-akari-danger/30 bg-akari-danger/10 p-2">
-              <p className="text-xs text-akari-danger">{error}</p>
+    <div className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5">
+      <div className="flex-1">
+        <div className="font-medium text-white capitalize">{config.access_level.replace('_', ' ')}</div>
+        {config.description && (
+          <div className="text-xs text-white/60 mt-1">{config.description}</div>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        {editing ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">$</span>
+              <input
+                type="number"
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                step="0.01"
+                min="0"
+                className="w-24 px-2 py-1 text-sm bg-black/40 border border-white/10 rounded text-white"
+                disabled={saving}
+              />
             </div>
-          )}
-
-          <div className="flex gap-2 pt-2">
             <button
-              onClick={onClose}
-              className="flex-1 px-4 py-2 text-sm font-medium border border-akari-border/30 rounded-lg text-akari-text hover:bg-akari-cardSoft/30 transition-colors"
-              disabled={loading}
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={() => {
+                setEditing(false);
+                setNewPrice(config.base_price_usd.toString());
+              }}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium border border-white/10 rounded text-white hover:bg-white/10 transition-colors"
             >
               Cancel
             </button>
+          </>
+        ) : (
+          <>
+            <div className="text-lg font-semibold text-white">
+              ${config.base_price_usd.toFixed(2)}
+            </div>
             <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="flex-1 px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setEditing(true)}
+              className="px-3 py-1.5 text-xs font-medium border border-white/10 rounded text-white hover:bg-white/10 transition-colors"
             >
-              {loading ? 'Saving...' : 'Save'}
+              Edit
             </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -432,9 +624,17 @@ function ProjectSettingsModal({
 // SERVER-SIDE PROPS
 // =============================================================================
 
-export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async () => {
+export const getServerSideProps: GetServerSideProps<ArcAdminHomeProps> = async (context) => {
+  // Check super admin access
+  // requireSuperAdmin returns null if authorized, or redirect object if not
+  const superAdminCheck = await requireSuperAdmin(context);
+  if (superAdminCheck !== null) {
+    // Not authorized - return redirect
+    return superAdminCheck;
+  }
+
   try {
-    const supabase = createPortalClient();
+    const supabase = getSupabaseAdmin();
 
     // Query project_arc_settings joined with projects
     const { data: arcSettingsData, error: arcSettingsError } = await supabase

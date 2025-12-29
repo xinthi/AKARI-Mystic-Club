@@ -7,8 +7,9 @@
 import React from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
-import { createPortalClient } from '@/lib/portal/supabase';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
+import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // =============================================================================
 // TYPES
@@ -16,6 +17,7 @@ import { createPortalClient } from '@/lib/portal/supabase';
 
 interface CreatorProfile {
   twitter_username: string;
+  avatar_url: string | null;
   primary_ring: string | null;
   primary_style: string | null;
   total_points: number;
@@ -57,7 +59,7 @@ interface CreatorProfilePageProps {
 export default function CreatorProfilePage({ creator, arenas, error, twitterUsername }: CreatorProfilePageProps) {
   // Helper function to get ring badge color
   const getRingColor = (ring: string | null) => {
-    if (!ring) return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+    if (!ring) return 'bg-white/10 border-white/20 text-white/60';
     
     switch (ring.toLowerCase()) {
       case 'core':
@@ -67,17 +69,35 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       case 'discovery':
         return 'bg-green-500/20 border-green-500/40 text-green-300';
       default:
-        return 'bg-akari-cardSoft/50 border-akari-border/30 text-akari-muted';
+        return 'bg-white/10 border-white/20 text-white/60';
     }
   };
 
+  // Helper function to normalize username (remove @ if present)
+  const normalizeUsername = (username: string): string => {
+    if (!username) return '';
+    return username.replace(/^@+/, ''); // Remove leading @ symbols
+  };
+
   // Helper function to get avatar/initial for creator
-  const getCreatorAvatar = (username: string, size: 'small' | 'large' = 'small') => {
+  const getCreatorAvatar = (username: string, avatarUrl: string | null = null, size: 'small' | 'large' = 'small') => {
     if (!username) return null;
-    const firstLetter = username.charAt(0).toUpperCase();
+    const normalizedUsername = normalizeUsername(username);
+    const firstLetter = normalizedUsername.charAt(0).toUpperCase();
     const sizeClasses = size === 'large' ? 'w-16 h-16 text-xl' : 'w-8 h-8 text-sm';
+    
+    if (avatarUrl) {
+      return (
+        <img
+          src={avatarUrl}
+          alt={normalizedUsername}
+          className={`flex-shrink-0 ${sizeClasses} rounded-full border border-white/10 object-cover`}
+        />
+      );
+    }
+    
     return (
-      <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-akari-text`}>
+      <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-semibold text-white`}>
         {firstLetter}
       </div>
     );
@@ -115,8 +135,10 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   const creatorNarrativeSummary = React.useMemo(() => {
     if (!creator) return '';
 
+    const normalizedUsername = normalizeUsername(creator.twitter_username);
+
     if (creator.arenas_count === 0) {
-      return `@${creator.twitter_username} has not joined any ARC arenas yet.`;
+      return `@${normalizedUsername} has not joined any ARC arenas yet.`;
     }
 
     const parts: string[] = [];
@@ -126,7 +148,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       ? creator.primary_ring.charAt(0).toUpperCase() + creator.primary_ring.slice(1)
       : 'creator';
     const arenaText = creator.arenas_count === 1 ? 'arena' : 'arenas';
-    parts.push(`@${creator.twitter_username} is a ${ringText} creator with ${creator.total_points.toLocaleString()} ARC points across ${creator.arenas_count} ${arenaText}.`);
+    parts.push(`@${normalizedUsername} is a ${ringText} creator with ${creator.total_points.toLocaleString()} ARC points across ${creator.arenas_count} ${arenaText}.`);
 
     // Style
     if (creator.primary_style) {
@@ -194,31 +216,31 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   };
 
   return (
-    <PortalLayout title="ARC Creator">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
+        <div className="flex items-center gap-2 text-sm text-white/60">
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             ARC Home
           </Link>
           <span>/</span>
           <Link
             href="/portal/arc"
-            className="hover:text-akari-primary transition-colors"
+            className="hover:text-white transition-colors"
           >
             Creator
           </Link>
           <span>/</span>
-          <span className="text-akari-text">@{twitterUsername}</span>
+          <span className="text-white">@{twitterUsername}</span>
         </div>
 
         {/* Error state */}
         {error && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-400">
               {error === 'CREATOR_NOT_FOUND' 
                 ? 'Creator not found in ARC yet.'
                 : 'Failed to load creator profile. Please try again later.'}
@@ -242,11 +264,11 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
             <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
               <div className="flex items-start gap-6">
                 <div className="flex-shrink-0">
-                  {getCreatorAvatar(creator.twitter_username, 'large')}
+                  {getCreatorAvatar(creator.twitter_username, creator.avatar_url, 'large')}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h1 className="text-3xl font-bold text-akari-text mb-2">
-                    @{creator.twitter_username}
+                    @{normalizeUsername(creator.twitter_username)}
                   </h1>
                   {creator.primary_style && (
                     <p className="text-base text-akari-muted mb-4">
@@ -318,7 +340,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                 <h2 className="text-xl font-semibold text-akari-text mb-4">Narrative Summary</h2>
                 <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
                   <p className="text-sm text-akari-muted leading-relaxed">
-                    {creatorNarrativeSummary || `@${creator.twitter_username} has not joined any ARC arenas yet.`}
+                    {creatorNarrativeSummary || `@${normalizeUsername(creator.twitter_username)} has not joined any ARC arenas yet.`}
                   </p>
                 </div>
               </section>
@@ -409,7 +431,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                                 {arena.arc_points.toLocaleString()}
                               </td>
                               <td className="px-4 py-3 text-sm text-akari-muted">
-                                {formatDate(arena.joined_at) || '—'}
+                                {formatDate(arena.joined_at) || 'N/A'}
                               </td>
                             </tr>
                           );
@@ -423,7 +445,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           </>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
@@ -449,7 +471,7 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     const supabase = createPortalClient();
     const normalizedUsername = twitterUsername.toLowerCase().trim();
 
-    // Query arena_creators with joins
+    // Query arena_creators with joins (removed profiles join - will fetch separately for consistency)
     const { data: creatorsData, error: creatorsError } = await supabase
       .from('arena_creators')
       .select(`
@@ -460,6 +482,7 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
         style,
         created_at,
         arena_id,
+        profile_id,
         arenas!inner (
           id,
           name,
@@ -503,7 +526,13 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     // Process the data (same logic as API route)
     const arenas: CreatorArenaEntry[] = [];
     let totalPoints = 0;
-    const ringPoints = { core: 0, momentum: 0, discovery: 0 };
+    type RingKey = 'core' | 'momentum' | 'discovery';
+
+    const ringPoints: Record<RingKey, number> = {
+      core: 0,
+      momentum: 0,
+      discovery: 0,
+    };
     let primaryRing: string | null = null;
     let primaryStyle: string | null = null;
     let maxPoints = -1;
@@ -518,10 +547,14 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       totalPoints += points;
 
       // Track ring points
-      if (row.ring) {
-        const ring = row.ring.toLowerCase();
-        if (ring === 'core' || ring === 'momentum' || ring === 'discovery') {
-          ringPoints[ring] += points;
+      const rawRing = row.ring;
+
+      if (typeof rawRing === 'string') {
+        const lower = rawRing.toLowerCase();
+
+        if (lower === 'core' || lower === 'momentum' || lower === 'discovery') {
+          const key = lower as RingKey;
+          ringPoints[key] += points;
         }
       }
 
@@ -553,11 +586,26 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     const uniqueArenas = new Set(arenas.map(a => a.arena_id));
     const arenasCount = uniqueArenas.size;
 
-    // Get the actual twitter_username from the first row
-    const twitterUsernameActual = creatorsData[0]?.twitter_username || normalizedUsername;
+    // Get the actual twitter_username and avatar from the first row
+    const firstRow = creatorsData[0];
+    const twitterUsernameActual = firstRow?.twitter_username || normalizedUsername;
+    
+    // Fetch profile image using the helper function for consistent fetching
+    let avatarUrl: string | null = null;
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
+      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabaseAdmin, [cleanUsername]);
+      // akariUsersMap takes precedence if both exist
+      avatarUrl = akariUsersMap.get(cleanUsername) || profilesMap.get(cleanUsername) || null;
+    } catch (error) {
+      console.error('[CreatorProfilePage] Error fetching profile image:', error);
+      // Continue without avatar - will show placeholder
+    }
 
     const creator: CreatorProfile = {
       twitter_username: twitterUsernameActual,
+      avatar_url: avatarUrl,
       primary_ring: primaryRing,
       primary_style: primaryStyle,
       total_points: totalPoints,

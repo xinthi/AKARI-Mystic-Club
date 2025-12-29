@@ -8,6 +8,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { checkProjectPermissions } from '@/lib/project-permissions';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -86,6 +88,23 @@ async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, us
   return (roles?.length ?? 0) > 0;
 }
 
+async function getProjectIdFromArenaId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  arenaId: string
+): Promise<string | null> {
+  const { data: arena, error } = await supabase
+    .from('arenas')
+    .select('project_id')
+    .eq('id', arenaId)
+    .single();
+
+  if (error || !arena) {
+    return null;
+  }
+
+  return arena.project_id;
+}
+
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -98,8 +117,10 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // ==========================================================================
-    // AUTHENTICATION: Check Super Admin (with DEV MODE bypass)
+    // AUTHENTICATION: Check project permissions (with DEV MODE bypass)
     // ==========================================================================
+    let userId: string | null = null;
+
     if (!DEV_MODE) {
       const sessionToken = getSessionToken(req);
       if (!sessionToken) {
@@ -126,12 +147,49 @@ export default async function handler(
         return res.status(401).json({ ok: false, error: 'Session expired' });
       }
 
-      const userId = session.user_id;
+      userId = session.user_id;
 
-      // Check if user is super admin
-      const isSuperAdmin = await checkSuperAdmin(supabase, userId);
-      if (!isSuperAdmin) {
-        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      // Runtime guard: ensure userId is a non-empty string
+      if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing userId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const uid: string = userId;
+
+      // Get projectId from request
+      let projectId: string | null = null;
+      if (req.method === 'POST') {
+        projectId = (req.body as CreateArenaBody)?.projectId || null;
+      } else if (req.method === 'PATCH') {
+        const arenaId = (req.body as UpdateArenaBody)?.id;
+        if (arenaId) {
+          projectId = await getProjectIdFromArenaId(supabase, arenaId);
+        }
+      }
+
+      // Runtime guard: ensure projectId is a non-empty string
+      if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
+        return res.status(400).json({ ok: false, error: 'Missing projectId' });
+      }
+
+      // TypeScript narrowing: assign to const with explicit string type
+      const pid: string = projectId;
+
+      // Check project permissions
+      const permissions = await checkProjectPermissions(supabase, uid, pid);
+      
+      // Arena CRUD requires: isSuperAdmin OR isOwner OR isAdmin
+      const canManageArenas = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin;
+      
+      if (!canManageArenas) {
+        return res.status(403).json({ ok: false, error: 'You do not have permission to manage arenas for this project' });
+      }
+
+      // Check ARC access (Option 2 = Normal Leaderboard for arenas)
+      const accessCheck = await requireArcAccess(supabase, pid, 2);
+      if (!accessCheck.ok) {
+        return res.status(403).json({ ok: false, error: accessCheck.error });
       }
     } else {
       console.log('[API /portal/arc/arenas-admin] DEV MODE - skipping auth');

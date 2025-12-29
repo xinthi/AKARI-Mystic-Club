@@ -1,0 +1,339 @@
+/**
+ * API Route: GET /api/portal/arc/cta-state?projectId=<uuid>
+ * 
+ * Consolidated endpoint that returns all ARC CTA state in one response.
+ * This prevents multiple round trips and ensures consistent state.
+ */
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import { canRequestLeaderboard } from '@/lib/project-permissions';
+import { getArcUnifiedState, getLegacyAccessLevel, getLegacyArcActive } from '@/lib/arc/unified-state';
+import { enforceArcApiTier } from '@/lib/arc/api-tier-guard';
+
+// DEV MODE: Skip authentication in development
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+type CtaStateResponse =
+  | {
+      ok: true;
+      arcAccessLevel: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
+      arcActive: boolean;
+      existingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null;
+      shouldShowRequestButton: boolean;
+      reason?: string;
+    }
+  | { ok: false; error: string };
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase configuration');
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
+
+async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string) {
+  const { data: session, error: sessionError } = await supabase
+    .from('akari_user_sessions')
+    .select('user_id, expires_at')
+    .eq('session_token', sessionToken)
+    .single();
+
+  if (sessionError || !session) {
+    return null;
+  }
+
+  if (new Date(session.expires_at) < new Date()) {
+    await supabase
+      .from('akari_user_sessions')
+      .delete()
+      .eq('session_token', sessionToken);
+    return null;
+  }
+
+  return { userId: session.user_id };
+}
+
+async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
+  try {
+    // Check akari_user_roles table
+    const { data: userRoles, error: rolesError } = await supabase
+      .from('akari_user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin');
+
+    if (rolesError) {
+      console.error('[CTA State API] Error checking akari_user_roles:', rolesError);
+    } else if (userRoles && userRoles.length > 0) {
+      return true;
+    }
+
+    // Also check profiles.real_roles via Twitter username
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (identityError) {
+      return false;
+    }
+
+    if (xIdentity?.username) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('real_roles')
+        .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+        .single();
+
+      if (profileError) {
+        return false;
+      }
+
+      if (profile?.real_roles?.includes('super_admin')) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (err: any) {
+    console.error('[CTA State API] Error in checkSuperAdmin:', err);
+    return false;
+  }
+}
+
+async function getUserProjectRole(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  projectId: string
+): Promise<'owner' | 'admin' | 'moderator' | null> {
+  try {
+    // Check if user is project owner
+    const { data: project } = await supabase
+      .from('projects')
+      .select('claimed_by')
+      .eq('id', projectId)
+      .single();
+
+    if (project?.claimed_by === userId) {
+      return 'owner';
+    }
+
+    // Get user's Twitter username
+    const { data: xIdentity } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (!xIdentity?.username) {
+      return null;
+    }
+
+    // Get profile ID
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+      .single();
+
+    if (!profile) {
+      return null;
+    }
+
+    // Check project_team_members for admin or moderator role
+    const { data: teamMembers } = await supabase
+      .from('project_team_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('profile_id', profile.id)
+      .in('role', ['admin', 'moderator']);
+
+    if (teamMembers && teamMembers.length > 0) {
+      const roles = teamMembers.map(m => m.role);
+      return roles.includes('admin') ? 'admin' : 'moderator';
+    }
+
+    return null;
+  } catch (err: any) {
+    console.error('[CTA State API] Error getting user project role:', err);
+    return null;
+  }
+}
+
+// =============================================================================
+// HANDLER
+// =============================================================================
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<CtaStateResponse>
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  }
+  
+  // Enforce tier guard
+  const tierCheck = await enforceArcApiTier(req, res, '/api/portal/arc/cta-state');
+  if (tierCheck) {
+    return tierCheck; // Access denied
+  }
+
+  const { projectId } = req.query;
+  if (!projectId || typeof projectId !== 'string') {
+    return res.status(400).json({ ok: false, error: 'projectId is required' });
+  }
+
+  try {
+    const supabase = getSupabaseAdmin();
+
+    // Get unified ARC state (reads from arc_project_features, falls back to legacy fields)
+    let profileId: string | null = null;
+    const sessionToken = getSessionToken(req);
+    if (sessionToken) {
+      const currentUser = await getCurrentUser(supabase, sessionToken);
+      if (currentUser) {
+        // Get user's Twitter username to find profile
+        const { data: xIdentity } = await supabase
+          .from('akari_user_identities')
+          .select('username')
+          .eq('user_id', currentUser.userId)
+          .eq('provider', 'x')
+          .single();
+
+        if (xIdentity?.username) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+            .single();
+
+          if (profile) {
+            profileId = profile.id;
+          }
+        }
+      }
+    }
+
+    const unifiedState = await getArcUnifiedState(supabase, projectId, profileId);
+    
+    // Get legacy equivalents for backward compatibility
+    const arcAccessLevel = getLegacyAccessLevel(unifiedState);
+    const arcActive = getLegacyArcActive(unifiedState);
+
+    // Get existing request (from unified state)
+    let existingRequest: { id: string; status: 'pending' | 'approved' | 'rejected' } | null = null;
+    if (unifiedState.requests.lastStatus && profileId) {
+      // Fetch request ID if needed (unified state doesn't return ID)
+      const { data: requests } = await supabase
+        .from('arc_leaderboard_requests')
+        .select('id, status')
+        .eq('project_id', projectId)
+        .eq('requested_by', profileId)
+        .eq('status', unifiedState.requests.lastStatus)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (requests && requests.length > 0) {
+        existingRequest = {
+          id: requests[0].id,
+          status: requests[0].status,
+        };
+      }
+    }
+
+    // Check if user can request (permission check)
+    // Show button if user has permission AND no pending request exists
+    // This allows requesting additional ARC options even if project already has some access
+    let shouldShowRequestButton = false;
+    let reason: string | undefined;
+
+    // DEV MODE: Bypass permission checks in development only
+    // In production (NODE_ENV !== 'development'), this block is skipped
+    if (DEV_MODE) {
+      // In dev mode, show if no pending request (allow requesting even if ARC is active)
+      shouldShowRequestButton = !existingRequest || existingRequest.status !== 'pending';
+      reason = shouldShowRequestButton ? 'DEV_MODE: allowed' : 'Existing pending request';
+    } else {
+      const sessionToken = getSessionToken(req);
+      if (!sessionToken) {
+        reason = 'Not logged in';
+      } else {
+        const currentUser = await getCurrentUser(supabase, sessionToken);
+        if (!currentUser) {
+          reason = 'Invalid session';
+        } else {
+          // Check if user has permission to request
+          let hasPermission = false;
+          
+          // Check superadmin
+          const isSuperAdmin = await checkSuperAdmin(supabase, currentUser.userId);
+          if (isSuperAdmin) {
+            hasPermission = true;
+          } else {
+            // Check team role (owner/admin/moderator)
+            const teamRole = await getUserProjectRole(supabase, currentUser.userId, projectId);
+            if (teamRole) {
+              hasPermission = true;
+            } else {
+              // Check permission API
+              const canRequest = await canRequestLeaderboard(supabase, currentUser.userId, projectId);
+              if (canRequest) {
+                hasPermission = true;
+              }
+            }
+          }
+
+          // Show button if user has permission AND no pending request
+          // This allows requesting additional options even if project already has ARC access
+          if (hasPermission) {
+            shouldShowRequestButton = !existingRequest || existingRequest.status !== 'pending';
+            reason = shouldShowRequestButton 
+              ? (isSuperAdmin ? 'Superadmin' : 'Has permission') 
+              : 'Existing pending request';
+          } else {
+            reason = 'No permission';
+          }
+        }
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      arcAccessLevel,
+      arcActive,
+      existingRequest,
+      shouldShowRequestButton,
+      reason,
+    });
+  } catch (error: any) {
+    console.error('[CTA State API] Error:', error);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+}
+

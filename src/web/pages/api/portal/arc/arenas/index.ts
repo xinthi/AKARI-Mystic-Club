@@ -11,6 +11,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -107,6 +109,24 @@ export default async function handler(
     } else {
       // Use provided projectId directly
       targetProjectId = projectId!;
+    }
+
+    // Runtime guard: ensure targetProjectId is a non-empty string
+    if (!targetProjectId || typeof targetProjectId !== 'string' || targetProjectId.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'Missing projectId' });
+    }
+
+    // TypeScript narrowing: assign to const with explicit string type
+    const pid: string = targetProjectId;
+
+    // Check ARC access (Option 2 = Leaderboard)
+    const supabaseAdmin = getSupabaseAdmin();
+    const accessCheck = await requireArcAccess(supabaseAdmin, pid, 2);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error,
+      });
     }
 
     // Query arenas filtered by project_id
