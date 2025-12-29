@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { PortalLayout } from '../../../components/portal/PortalLayout';
 import { useAkariUser } from '../../../lib/akari-auth';
-import { can, canUseDeepExplorer, FEATURE_KEYS } from '../../../lib/permissions';
+import { can, canUseDeepExplorer, FEATURE_KEYS, isSuperAdmin } from '../../../lib/permissions';
 import { classifyFreshness, getFreshnessPillClasses } from '../../../lib/portal/data-freshness';
 import { LockedFeatureOverlay } from '../../../components/portal/LockedFeatureOverlay';
 import { UpgradeModal } from '../../../components/portal/UpgradeModal';
@@ -914,7 +914,8 @@ export default function SentimentDetail() {
   // Get current user for permission checks
   const akariUser = useAkariUser();
   const { user } = akariUser;
-  const isLoggedIn = user?.isLoggedIn ?? false;
+  // Resilient logged-in detection: user exists and has an identifier (works in DEV MODE)
+  const isLoggedIn = !!user && (!!user.id || user.isLoggedIn === true);
   
   // Permission checks - Similar Projects and Twitter Analytics require analyst+
   const canViewCompare = can(user, 'sentiment.compare');
@@ -954,6 +955,30 @@ export default function SentimentDetail() {
   // NEW: Audience Geo state
   const [audienceGeo, setAudienceGeo] = useState<AudienceGeoData | null>(null);
   const [audienceGeoLoading, setAudienceGeoLoading] = useState(false);
+
+  // ARC CTA state - single source of truth from API
+  const [arcCta, setArcCta] = useState<any>(null);
+  const [arcCtaLoading, setArcCtaLoading] = useState(false);
+  const [arcCtaError, setArcCtaError] = useState<string | null>(null);
+
+  // Hard reset on slug change - prevents stale data from previous project
+  useEffect(() => {
+    // Reset ARC CTA state immediately when slug changes
+    setArcCta(null);
+    setArcCtaLoading(false);
+    setArcCtaError(null);
+    
+    // Reset all page data to avoid stale UI during navigation
+    setProject(null);
+    setMetrics([]);
+    setTweets([]);
+    setChanges24h(null);
+    setInfluencers([]);
+    setInnerCircle({ count: 0, power: 0 });
+    setCompetitors([]);
+    setError(null);
+    setLoading(true);
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -995,6 +1020,33 @@ export default function SentimentDetail() {
 
     fetchData();
   }, [slug]);
+
+  // Fetch ARC CTA state - single consolidated endpoint
+  useEffect(() => {
+    if (!project?.id) return;
+    let cancelled = false;
+    (async () => {
+      setArcCtaLoading(true);
+      setArcCtaError(null);
+      try {
+        const url = `/api/portal/arc/cta-state?projectId=${project.id}${process.env.NODE_ENV !== 'production' ? `&_t=${Date.now()}` : ''}`;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[ARC CTA] fetch', url);
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[ARC CTA] response', data);
+        }
+        if (!cancelled) setArcCta(data);
+      } catch (e: any) {
+        if (!cancelled) setArcCtaError(e?.message || 'cta-state fetch failed');
+      } finally {
+        if (!cancelled) setArcCtaLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   // Fetch competitors separately
   useEffect(() => {
@@ -1217,6 +1269,19 @@ export default function SentimentDetail() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                       Open Deep Explorer
+                    </Link>
+                  )}
+                  {/* Request ARC Leaderboard Button (for admins/moderators) */}
+                  {/* API-driven: Only show if API explicitly returns shouldShowRequestButton: true */}
+                  {arcCta?.ok === true && arcCta?.shouldShowRequestButton === true && project?.id && (
+                    <Link
+                      href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
+                      className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Request ARC Leaderboard
                     </Link>
                   )}
                 </div>

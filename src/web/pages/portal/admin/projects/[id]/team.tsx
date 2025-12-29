@@ -22,6 +22,7 @@ interface TeamMember {
   project_id: string;
   profile_id: string;
   role: 'owner' | 'admin' | 'moderator' | 'investor_view';
+  affiliate_title: string | null;
   created_at: string;
   profile?: {
     id: string;
@@ -61,8 +62,10 @@ export default function ProjectTeamPage() {
   const [searchResults, setSearchResults] = useState<ProfileSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'admin' | 'moderator'>('admin');
+  const [selectedAffiliateTitle, setSelectedAffiliateTitle] = useState('');
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(new Set());
+  const [editingAffiliate, setEditingAffiliate] = useState<{ memberId: string; title: string } | null>(null);
 
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
@@ -198,6 +201,7 @@ export default function ProjectTeamPage() {
         body: JSON.stringify({
           profileId,
           role: selectedRole,
+          affiliate_title: selectedAffiliateTitle || null,
         }),
       });
 
@@ -336,6 +340,20 @@ export default function ProjectTeamPage() {
             </div>
 
             <div>
+              <label className="block text-sm text-slate-400 mb-2">Affiliate Title (Optional)</label>
+              <input
+                type="text"
+                value={selectedAffiliateTitle}
+                onChange={(e) => setSelectedAffiliateTitle(e.target.value)}
+                placeholder="e.g., Founder, CMO, Investor, Advisor"
+                className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                This title will be displayed on the project leaderboard page
+              </p>
+            </div>
+
+            <div>
               <label className="block text-sm text-slate-400 mb-2">Search Profile by Username</label>
               <input
                 type="text"
@@ -437,20 +455,92 @@ export default function ProjectTeamPage() {
                       <p className="text-xs text-slate-500 mt-1">
                         Role: <span className="capitalize">{member.role}</span>
                       </p>
+                      {member.affiliate_title && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Title: {member.affiliate_title}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveMember(member.profile_id, member.role)}
-                    disabled={removing.has(`${member.profile_id}-${member.role}`)}
-                    className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {removing.has(`${member.profile_id}-${member.role}`) ? 'Removing...' : 'Remove'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingAffiliate({ memberId: member.id, title: member.affiliate_title || '' })}
+                      className="px-3 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50 transition text-sm font-medium"
+                    >
+                      Edit Title
+                    </button>
+                    <button
+                      onClick={() => handleRemoveMember(member.profile_id, member.role)}
+                      disabled={removing.has(`${member.profile_id}-${member.role}`)}
+                      className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {removing.has(`${member.profile_id}-${member.role}`) ? 'Removing...' : 'Remove'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Edit Affiliate Title Modal */}
+        {editingAffiliate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-semibold text-white mb-4">Edit Affiliate Title</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Affiliate Title</label>
+                  <input
+                    type="text"
+                    value={editingAffiliate.title}
+                    onChange={(e) => setEditingAffiliate({ ...editingAffiliate, title: e.target.value })}
+                    placeholder="e.g., Founder, CMO, Investor"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!projectId || typeof projectId !== 'string') return;
+                      
+                      try {
+                        const res = await fetch(`/api/portal/projects/${projectId}/team-member/${editingAffiliate.memberId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({
+                            affiliate_title: editingAffiliate.title || null,
+                          }),
+                        });
+                        
+                        const data = await res.json();
+                        if (res.ok && data.ok) {
+                          await loadMembers();
+                          setEditingAffiliate(null);
+                        } else {
+                          alert(data.error || 'Failed to update');
+                        }
+                      } catch (err) {
+                        console.error('Error updating affiliate title:', err);
+                        alert('Failed to update affiliate title');
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 rounded-lg bg-akari-primary text-white hover:bg-akari-primary/80 transition text-sm font-medium"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingAffiliate(null)}
+                    className="flex-1 px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white hover:bg-slate-700 transition text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </PortalLayout>
   );

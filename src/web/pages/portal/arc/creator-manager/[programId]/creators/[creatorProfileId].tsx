@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { CREATOR_CLASSES } from '@/lib/creator-gamification';
 
@@ -82,7 +82,7 @@ export default function CreatorDetailPage() {
     if (!programId || !creatorProfileId || typeof programId !== 'string' || typeof creatorProfileId !== 'string') return;
 
     try {
-      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}`);
+      const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}`, { credentials: 'include' });
       const result = await res.json();
 
       if (result.ok) {
@@ -92,7 +92,7 @@ export default function CreatorDetailPage() {
       }
 
       // Load deals
-      const dealsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/deals`);
+      const dealsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/deals`, { credentials: 'include' });
       const dealsData = await dealsRes.json();
       if (dealsData.ok) {
         setDeals(dealsData.deals || []);
@@ -118,7 +118,7 @@ export default function CreatorDetailPage() {
     setUpdatingStatus(true);
     try {
       // Find creator ID from the creators list
-      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
       const creatorsData = await creatorsRes.json();
       if (!creatorsData.ok) {
         alert('Failed to find creator');
@@ -133,6 +133,7 @@ export default function CreatorDetailPage() {
       const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: newStatus }),
       });
 
@@ -155,7 +156,7 @@ export default function CreatorDetailPage() {
     if (!data) return;
     setUpdatingDeal(true);
     try {
-      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
       const creatorsData = await creatorsRes.json();
       if (!creatorsData.ok) {
         alert('Failed to find creator');
@@ -170,6 +171,7 @@ export default function CreatorDetailPage() {
       const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/deal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ dealId }),
       });
 
@@ -192,7 +194,7 @@ export default function CreatorDetailPage() {
     if (!data) return;
     setUpdatingClass(true);
     try {
-      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
       const creatorsData = await creatorsRes.json();
       if (!creatorsData.ok) {
         alert('Failed to find creator');
@@ -207,6 +209,7 @@ export default function CreatorDetailPage() {
       const res = await fetch(`/api/portal/creator-manager/programs/${programId}/creators/${creatorProfileId}/class`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ class: newClass }),
       });
 
@@ -275,32 +278,32 @@ export default function CreatorDetailPage() {
 
   if (loading) {
     return (
-      <PortalLayout title="Creator Detail">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <p className="text-akari-muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error || !data) {
     return (
-      <PortalLayout title="Creator Detail">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">{error || 'Creator not found'}</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">{error || 'Creator not found'}</p>
           <Link
             href={`/portal/arc/creator-manager/${programId}`}
-            className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+            className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
           >
             ← Back to Program
           </Link>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title={`Creator: @${data.profile.username}`}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-akari-muted">
@@ -342,7 +345,7 @@ export default function CreatorDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-lg border border-akari-border bg-akari-card p-4">
             <div className="text-sm text-akari-muted mb-1">Rank</div>
-            <div className="text-2xl font-bold text-akari-primary">#{data.creator.rank || '—'}</div>
+            <div className="text-2xl font-bold text-akari-primary">#{data.creator.rank || 'N/A'}</div>
           </div>
           <div className="rounded-lg border border-akari-border bg-akari-card p-4">
             <div className="text-sm text-akari-muted mb-1">Level</div>
@@ -471,14 +474,14 @@ export default function CreatorDetailPage() {
                         ) : progress.post_tweet_id ? (
                           <span className="text-akari-muted text-sm">Tweet ID: {progress.post_tweet_id}</span>
                         ) : (
-                          <span className="text-akari-muted text-sm">—</span>
+                          <span className="text-akari-muted text-sm">N/A</span>
                         )}
                       </td>
                       <td className="p-3">
                         {progress.notes ? (
                           <span className="text-akari-text text-sm italic">&quot;{progress.notes}&quot;</span>
                         ) : (
-                          <span className="text-akari-muted text-sm">—</span>
+                          <span className="text-akari-muted text-sm">N/A</span>
                         )}
                       </td>
                       <td className="p-3 text-akari-muted text-sm">
@@ -582,7 +585,7 @@ export default function CreatorDetailPage() {
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

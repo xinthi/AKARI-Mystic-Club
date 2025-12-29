@@ -359,7 +359,7 @@ export default function CampaignParticipantsPage() {
                           Eligible
                         </span>
                       ) : (
-                        <span className="text-gray-500 text-xs">—</span>
+                        <span className="text-gray-500 text-xs">N/A</span>
                       )}
                     </td>
                   </tr>

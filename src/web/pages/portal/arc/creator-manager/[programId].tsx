@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
 import { CREATOR_CLASSES } from '@/lib/creator-gamification';
 import { createPortalClient } from '@/lib/portal/supabase';
@@ -251,7 +251,7 @@ export default function CreatorManagerProgramDetail() {
       });
 
       // Load creators
-      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`);
+      const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
       const creatorsData = await creatorsRes.json();
       if (creatorsData.ok) {
         const creatorsWithBadges = await Promise.all(
@@ -275,14 +275,14 @@ export default function CreatorManagerProgramDetail() {
       }
 
       // Load deals
-      const dealsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/deals`);
+      const dealsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/deals`, { credentials: 'include' });
       const dealsData = await dealsRes.json();
       if (dealsData.ok) {
         setDeals(dealsData.deals || []);
       }
 
       // Load missions (already sorted by order_index from API)
-      const missionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`);
+      const missionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`, { credentials: 'include' });
       const missionsData = await missionsRes.json();
       if (missionsData.ok) {
         // Ensure missions are sorted by order_index, then by created_at
@@ -296,14 +296,14 @@ export default function CreatorManagerProgramDetail() {
       }
 
       // Load submissions
-      const submissionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions/submissions`);
+      const submissionsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/missions/submissions`, { credentials: 'include' });
       const submissionsData = await submissionsRes.json();
       if (submissionsData.ok) {
         setSubmissions(submissionsData.submissions || []);
       }
 
       // Load links
-      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`);
+      const linksRes = await fetch(`/api/portal/creator-manager/programs/${programId}/links`, { credentials: 'include' });
       const linksData = await linksRes.json();
       if (linksData.ok) {
         setLinks(linksData.links || []);
@@ -486,6 +486,7 @@ export default function CreatorManagerProgramDetail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDeal),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -513,6 +514,7 @@ export default function CreatorManagerProgramDetail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newMission),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -537,6 +539,7 @@ export default function CreatorManagerProgramDetail() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ missionId, is_active: !isActive }),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -564,6 +567,7 @@ export default function CreatorManagerProgramDetail() {
       const res = await fetch(`/api/portal/creator-manager/programs/${programId}/missions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           missionId: editingMission.id,
           title: editingMission.title,
@@ -599,6 +603,7 @@ export default function CreatorManagerProgramDetail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creatorProfileId, action }),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -629,6 +634,7 @@ export default function CreatorManagerProgramDetail() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
+        credentials: 'include',
       });
 
       const data = await res.json();
@@ -648,48 +654,48 @@ export default function CreatorManagerProgramDetail() {
 
   if (loading) {
     return (
-      <PortalLayout title="Creator Manager Program">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <p className="text-akari-muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (hasPermission === false) {
     return (
-      <PortalLayout title="Creator Manager Program">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">You don&apos;t have permission to access this program</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">You don&apos;t have permission to access this program</p>
           <Link
             href="/portal/arc/creator-manager"
-            className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+            className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
           >
             ← Back to Creator Manager
           </Link>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error || !program) {
     return (
-      <PortalLayout title="Creator Manager Program">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">{error || 'Program not found'}</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">{error || 'Program not found'}</p>
           <Link
             href="/portal/arc/creator-manager"
-            className="mt-4 inline-block text-sm text-akari-primary hover:text-akari-neon-teal transition-colors"
+            className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
           >
             ← Back to Creator Manager
           </Link>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title={`Creator Manager - ${program.title}`}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-akari-muted">
@@ -857,7 +863,7 @@ export default function CreatorManagerProgramDetail() {
                       >
                         <div className="flex items-center gap-3 flex-1">
                           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-akari-primary/20 text-akari-primary font-bold text-sm">
-                            {creator.rank || '—'}
+                            {creator.rank || 'N/A'}
                           </div>
                           {creator.profile?.profile_image_url && (
                             <img
@@ -868,7 +874,7 @@ export default function CreatorManagerProgramDetail() {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-akari-text truncate">
-                              @{creator.profile?.username || 'unknown'}
+                              @{((creator.profile?.username || 'unknown') as string).replace(/^@+/, '')}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-akari-muted">
                               {creator.class && (
@@ -1008,7 +1014,7 @@ export default function CreatorManagerProgramDetail() {
                             )}
                             <div>
                               <div className="font-medium text-akari-text">
-                                @{creator.profile?.username || 'unknown'}
+                                @{((creator.profile?.username || 'unknown') as string).replace(/^@+/, '')}
                               </div>
                               {creator.profile?.name && (
                                 <div className="text-sm text-akari-muted">{creator.profile.name}</div>
@@ -1258,7 +1264,7 @@ export default function CreatorManagerProgramDetail() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <span className="font-medium text-akari-text">
-                                        @{submission.creator_username}
+                                        @{(submission.creator_username || '').replace(/^@+/, '')}
                                       </span>
                                       <span
                                         className={`px-2 py-1 rounded text-xs ${
@@ -1729,6 +1735,7 @@ export default function CreatorManagerProgramDetail() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(newLink),
+                        credentials: 'include',
                       });
                       const data = await res.json();
                       if (data.ok) {
@@ -1797,6 +1804,6 @@ export default function CreatorManagerProgramDetail() {
           </div>
         )}
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }

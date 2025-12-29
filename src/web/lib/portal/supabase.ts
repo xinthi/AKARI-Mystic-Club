@@ -706,36 +706,51 @@ export async function fetchProfileImagesForHandles(
 
   try {
     // 1. Fetch profile images from 'profiles' table (CT influencers)
-    const { data: profilesData, error: profilesError } = await client
-      .from('profiles')
-      .select('username, profile_image_url')
-      .in('username', lowerHandles);
+    // Use case-insensitive matching with ilike since usernames might have different casing in DB
+    // We'll query one by one or use OR conditions for case-insensitive matching
+    if (lowerHandles.length > 0) {
+      // Build OR query for case-insensitive username matching
+      // Format: username.ilike.handle1,username.ilike.handle2,...
+      const orConditions = lowerHandles.map(h => `username.ilike.${h}`).join(',');
+      const { data: profilesData, error: profilesError } = await client
+        .from('profiles')
+        .select('username, profile_image_url')
+        .or(orConditions);
 
-    if (profilesError) {
-      console.warn('[Supabase] Error fetching profiles for enrichment:', profilesError.message);
-    } else if (profilesData) {
-      profilesData.forEach((p: any) => {
-        if (p.profile_image_url) {
-          profilesMap.set(p.username.toLowerCase(), p.profile_image_url);
-        }
-      });
+      if (profilesError) {
+        console.warn('[Supabase] Error fetching profiles for enrichment:', profilesError.message);
+      } else if (profilesData) {
+        profilesData.forEach((p: any) => {
+          if (p.profile_image_url && p.username) {
+            // Store with lowercase key for consistent lookup
+            const normalizedKey = p.username.toLowerCase().replace(/^@+/, '');
+            profilesMap.set(normalizedKey, p.profile_image_url);
+          }
+        });
+      }
     }
 
     // 2. Fetch profile images from 'akari_users' table (registered users)
-    const { data: akariUsersData, error: akariUsersError } = await client
-      .from('akari_user_identities')
-      .select('username, akari_users(avatar_url)')
-      .eq('provider', 'x')
-      .in('username', lowerHandles);
+    // Use case-insensitive matching here too
+    if (lowerHandles.length > 0) {
+      const orConditions = lowerHandles.map(h => `username.ilike.${h}`).join(',');
+      const { data: akariUsersData, error: akariUsersError } = await client
+        .from('akari_user_identities')
+        .select('username, akari_users(avatar_url)')
+        .eq('provider', 'x')
+        .or(orConditions);
 
-    if (akariUsersError) {
-      console.warn('[Supabase] Error fetching akari_users for enrichment:', akariUsersError.message);
-    } else if (akariUsersData) {
-      akariUsersData.forEach((au: any) => {
-        if (au.akari_users && au.akari_users.avatar_url) {
-          akariUsersMap.set(au.username.toLowerCase(), au.akari_users.avatar_url);
-        }
-      });
+      if (akariUsersError) {
+        console.warn('[Supabase] Error fetching akari_users for enrichment:', akariUsersError.message);
+      } else if (akariUsersData) {
+        akariUsersData.forEach((au: any) => {
+          if (au.akari_users && au.akari_users.avatar_url && au.username) {
+            // Store with lowercase key for consistent lookup
+            const normalizedKey = au.username.toLowerCase().replace(/^@+/, '');
+            akariUsersMap.set(normalizedKey, au.akari_users.avatar_url);
+          }
+        });
+      }
     }
   } catch (error: any) {
     console.warn('[Supabase] Error in fetchProfileImagesForHandles:', error.message);

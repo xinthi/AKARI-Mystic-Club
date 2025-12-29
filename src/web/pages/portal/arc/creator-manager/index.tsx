@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { ErrorDisplay } from '@/components/portal/ErrorDisplay';
 import { useAkariUser } from '@/lib/akari-auth';
 
@@ -66,7 +66,7 @@ export default function CreatorManagerHome() {
       setError(null);
 
       // Use API route instead of direct Supabase calls
-      const response = await fetch('/api/portal/creator-manager/projects');
+      const response = await fetch('/api/portal/creator-manager/projects', { credentials: 'include' });
       const data = await response.json();
 
       if (!data.ok) {
@@ -132,34 +132,34 @@ export default function CreatorManagerHome() {
 
   if (!akariUser.isLoggedIn) {
     return (
-      <PortalLayout title="Creator Manager">
-        <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-8 text-center">
-          <p className="text-sm text-akari-danger">Please log in to access Creator Manager</p>
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">Please log in to access Creator Manager</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (loading) {
     return (
-      <PortalLayout title="Creator Manager">
+      <ArcPageShell>
         <div className="text-center py-12">
-          <p className="text-akari-muted">Loading...</p>
+          <p className="text-white/60">Loading...</p>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (error) {
     return (
-      <PortalLayout title="Creator Manager">
+      <ArcPageShell>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Creator Manager</span>
+            <span className="text-white">Creator Manager</span>
           </div>
 
           <ErrorDisplay
@@ -170,79 +170,79 @@ export default function CreatorManagerHome() {
             }}
           />
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   if (allProjects.length === 0) {
     return (
-      <PortalLayout title="Creator Manager">
+      <ArcPageShell>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Creator Manager</span>
+            <span className="text-white">Creator Manager</span>
           </div>
 
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-akari-muted">
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+            <p className="text-white/60">
               You don&apos;t have admin/moderator access to any projects yet.
             </p>
-            <p className="text-sm text-akari-muted mt-2">
+            <p className="text-sm text-white/60 mt-2">
               Projects must be claimed and you must be assigned as owner, admin, or moderator.
             </p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   // If filtering by projectId and no match found
   if (projectIdFromQuery && filteredProjects.length === 0) {
     return (
-      <PortalLayout title="Creator Manager">
+      <ArcPageShell>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-akari-muted">
-            <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+          <div className="flex items-center gap-2 text-sm text-white/60">
+            <Link href="/portal/arc" className="hover:text-white transition-colors">
               ARC Home
             </Link>
             <span>/</span>
-            <span className="text-akari-text">Creator Manager</span>
+            <span className="text-white">Creator Manager</span>
           </div>
 
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-akari-muted">
+          <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-8 text-center">
+            <p className="text-white/60">
               Project not found or you don&apos;t have access to it.
             </p>
             <Link
               href="/portal/arc/creator-manager"
-              className="text-akari-primary hover:text-akari-neon-teal text-sm underline mt-2 inline-block"
+              className="text-teal-400 hover:text-teal-300 text-sm underline mt-2 inline-block"
             >
               View all projects
             </Link>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
   return (
-    <PortalLayout title="Creator Manager">
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-akari-muted">
-          <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">
+        <div className="flex items-center gap-2 text-sm text-white/60">
+          <Link href="/portal/arc" className="hover:text-white transition-colors">
             ARC Home
           </Link>
           <span>/</span>
-          <span className="text-akari-text">Creator Manager</span>
+          <span className="text-white">Creator Manager</span>
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-akari-text">Creator Manager</h1>
+          <h1 className="text-3xl font-bold text-white">Creator Manager</h1>
           {projectIdFromQuery && (
             <Link
               href="/portal/arc/creator-manager"
@@ -378,7 +378,7 @@ export default function CreatorManagerHome() {
           })}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 

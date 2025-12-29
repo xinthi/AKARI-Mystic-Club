@@ -129,6 +129,7 @@ export default function AdminProjectsPage() {
     name: '',
     slug: '',
     x_handle: '',
+    header_image_url: '',
     is_active: true,
   });
   const [classifyForm, setClassifyForm] = useState({
@@ -234,14 +235,44 @@ export default function AdminProjectsPage() {
   }, [userIsSuperAdmin, loadProjects]);
 
   // Handle edit
-  const handleEdit = (project: AdminProjectSummary) => {
-    setEditingProject(project);
-    setEditForm({
-      name: project.name,
-      slug: project.slug,
-      x_handle: project.x_handle,
-      is_active: project.is_active,
-    });
+  const handleEdit = async (project: AdminProjectSummary) => {
+    // Fetch full project details including header_image_url
+    try {
+      const res = await fetch(`/api/portal/admin/projects/${project.id}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok && data.ok && data.project) {
+        setEditingProject(project);
+        setEditForm({
+          name: data.project.name,
+          slug: data.project.slug,
+          x_handle: data.project.x_handle,
+          header_image_url: data.project.header_image_url || '',
+          is_active: data.project.is_active,
+        });
+      } else {
+        // Fallback to basic info
+        setEditingProject(project);
+        setEditForm({
+          name: project.name,
+          slug: project.slug,
+          x_handle: project.x_handle,
+          header_image_url: '',
+          is_active: project.is_active,
+        });
+      }
+    } catch (err) {
+      // Fallback to basic info
+      setEditingProject(project);
+      setEditForm({
+        name: project.name,
+        slug: project.slug,
+        x_handle: project.x_handle,
+        header_image_url: '',
+        is_active: project.is_active,
+      });
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -831,6 +862,32 @@ export default function AdminProjectsPage() {
                     placeholder="handle (without @)"
                     className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Header Image URL</label>
+                  <input
+                    type="url"
+                    value={editForm.header_image_url}
+                    onChange={(e) => setEditForm({ ...editForm, header_image_url: e.target.value })}
+                    placeholder="https://example.com/header-image.jpg"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    URL to the project header image (displayed on leaderboard pages)
+                  </p>
+                  {editForm.header_image_url && (
+                    <div className="mt-2">
+                      <img
+                        src={editForm.header_image_url}
+                        alt="Header preview"
+                        className="w-full h-32 object-cover rounded-lg border border-slate-700"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>

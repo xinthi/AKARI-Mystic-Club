@@ -7,6 +7,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -54,6 +56,7 @@ export default async function handler(
   try {
     // Create Supabase client (read-only with anon key)
     const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Extract query parameter
     const { arenaId } = req.query;
@@ -63,6 +66,36 @@ export default async function handler(
       return res.status(400).json({
         ok: false,
         error: 'arenaId is required',
+      });
+    }
+
+    // Fetch arena to get project_id for access check
+    const { data: arena, error: arenaError } = await supabase
+      .from('arenas')
+      .select('id, project_id')
+      .eq('id', arenaId)
+      .single();
+
+    if (arenaError || !arena) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Arena not found',
+      });
+    }
+
+    if (!arena.project_id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Arena missing project_id',
+      });
+    }
+
+    // Check ARC access (Option 2 = Leaderboard) - creator data is project-specific ARC data
+    const accessCheck = await requireArcAccess(supabaseAdmin, arena.project_id, 2);
+    if (!accessCheck.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: accessCheck.error,
       });
     }
 
@@ -81,11 +114,11 @@ export default async function handler(
       });
     }
 
-    // Map data to response format
+    // Map data to response format (only safe fields needed by UI)
     const creators = (data ?? []).map((row) => ({
       id: row.id,
       arena_id: row.arena_id,
-      profile_id: row.profile_id,
+      profile_id: row.profile_id, // Needed for UI operations
       username: null,
       twitter_username: row.twitter_username,
       avatar_url: null,

@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "guard:forbidden": "node ../../scripts/guard-forbidden.mjs",
+    "verify": "pnpm guard:forbidden && pnpm lint && pnpm build",
     "dev": "next dev",
-    "build": "npx prisma generate --schema=../../prisma/schema.prisma && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -15,6 +17,7 @@
     "autoprefixer": "^10.4.17",
     "axios": "^1.13.2",
     "canvas-confetti": "^1.9.2",
+    "cookie": "^1.1.1",
     "grammy": "^1.21.1",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.309.0",
@@ -28,6 +31,7 @@
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.0.3",
+    "@types/cookie": "^1.0.0",
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",

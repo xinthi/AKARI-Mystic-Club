@@ -9,6 +9,9 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { canRequestLeaderboard } from '@/lib/project-permissions';
 
+// DEV MODE: Skip authentication in development
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -54,6 +57,19 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
+  const { projectId } = req.query;
+  if (!projectId || typeof projectId !== 'string') {
+    return res.status(400).json({ ok: false, error: 'projectId is required' });
+  }
+
+  // ==========================================================================
+  // DEV MODE: Skip authentication in development - always allow
+  // ==========================================================================
+  if (DEV_MODE) {
+    console.log('[Check Leaderboard Permission API] DEV MODE - allowing request');
+    return res.status(200).json({ ok: true, canRequest: true });
+  }
+
   const sessionToken = getSessionToken(req);
   if (!sessionToken) {
     return res.status(200).json({ ok: true, canRequest: false });
@@ -79,11 +95,6 @@ export default async function handler(
         .delete()
         .eq('session_token', sessionToken);
       return res.status(200).json({ ok: true, canRequest: false });
-    }
-
-    const { projectId } = req.query;
-    if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({ ok: false, error: 'projectId is required' });
     }
 
     // Check permission

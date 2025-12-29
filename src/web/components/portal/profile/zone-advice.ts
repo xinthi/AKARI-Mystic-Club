@@ -99,7 +99,7 @@ export function computeZoneAdvice(input: ZoneAdviceInput): ZoneAdviceItem[] {
       advice.push({
         type: 'strength',
         title: 'Double down on your strengths',
-        description: `Your content around ${formatTopicList(strongTopicNames.slice(0, 2))} resonates well. Keep producing high-quality posts in these lanes—your audience expects it.`,
+        description: `Your content around ${formatTopicList(strongTopicNames.slice(0, 2))} resonates well. Keep producing high-quality posts in these lanes - your audience expects it.`,
       });
     } else if (strongTopics.length === 1) {
       // Single dominant topic
@@ -137,7 +137,7 @@ export function computeZoneAdvice(input: ZoneAdviceInput): ZoneAdviceItem[] {
     advice.push({
       type: 'opportunity',
       title: 'Expand your reach',
-      description: `You're focused mainly on ${getTopicDisplayName(topTopic)}. Consider adjacent topics to grow your audience—cross-pollination often brings new followers.`,
+      description: `You're focused mainly on ${getTopicDisplayName(topTopic)}. Consider adjacent topics to grow your audience - cross-pollination often brings new followers.`,
     });
   }
   
@@ -161,7 +161,7 @@ export function computeZoneAdvice(input: ZoneAdviceInput): ZoneAdviceItem[] {
       advice.push({
         type: 'alignment',
         title: 'Build your crew',
-        description: `You have ${playerCount} allies at similar levels. Engage with their content—mutual support compounds over time and builds genuine community.`,
+        description: `You have ${playerCount} allies at similar levels. Engage with their content - mutual support compounds over time and builds genuine community.`,
       });
     } else if (hasInnerCircle && !hasActiveTopics) {
       // Has circle but no topics
@@ -187,7 +187,7 @@ export function computeZoneAdvice(input: ZoneAdviceInput): ZoneAdviceItem[] {
       advice.push({
         type: 'opportunity',
         title: 'Diversify for resilience',
-        description: `You're heavily weighted toward ${getTopicDisplayName(activeTopics[0].topic)}. Narrative shifts happen fast—having a secondary lane protects against audience churn.`,
+        description: `You're heavily weighted toward ${getTopicDisplayName(activeTopics[0].topic)}. Narrative shifts happen fast - having a secondary lane protects against audience churn.`,
       });
     }
   }

@@ -137,7 +137,7 @@ export default function PricingPage() {
             <div className="mb-8">
               <div className="text-akari-neon-violet text-xs font-semibold uppercase tracking-wider mb-3">PAID TIER</div>
               <h2 className="text-3xl font-bold text-gradient-pink mb-3">Analyst</h2>
-              <div className="text-4xl font-bold text-gradient-neon mb-2">—</div>
+              <div className="text-4xl font-bold text-gradient-neon mb-2">N/A</div>
               <p className="text-sm text-akari-muted">Contact for pricing</p>
             </div>
 
@@ -186,7 +186,7 @@ export default function PricingPage() {
             <div className="mb-8">
               <div className="text-akari-neon-pink text-xs font-semibold uppercase tracking-wider mb-3">ENTERPRISE</div>
               <h2 className="text-3xl font-bold text-gradient-pink mb-3">Institutional Plus</h2>
-              <div className="text-4xl font-bold text-gradient-neon mb-2">—</div>
+              <div className="text-4xl font-bold text-gradient-neon mb-2">N/A</div>
               <p className="text-sm text-akari-muted">Custom pricing</p>
             </div>
 

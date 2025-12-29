@@ -24,6 +24,7 @@ interface AddTeamMemberRequest {
   projectId: string;
   profileId: string; // profiles.id (Twitter profile)
   role: 'owner' | 'admin' | 'moderator' | 'investor_view';
+  affiliate_title?: string | null;
 }
 
 interface RemoveTeamMemberRequest {
@@ -37,6 +38,7 @@ interface TeamMember {
   project_id: string;
   profile_id: string;
   role: string;
+  affiliate_title: string | null;
   created_at: string;
   profile?: {
     id: string;
@@ -240,6 +242,7 @@ export default async function handler(
         project_id,
         profile_id,
         role,
+        affiliate_title,
         created_at,
         profiles:profile_id (
           id,
@@ -263,6 +266,7 @@ export default async function handler(
         project_id: m.project_id,
         profile_id: m.profile_id,
         role: m.role,
+        affiliate_title: m.affiliate_title,
         created_at: m.created_at,
         profile: m.profiles ? {
           id: m.profiles.id,
@@ -323,6 +327,7 @@ export default async function handler(
         project_id: body.projectId,
         profile_id: body.profileId,
         role: body.role,
+        affiliate_title: body.affiliate_title || null,
       });
 
     if (insertError) {
@@ -338,6 +343,7 @@ export default async function handler(
         project_id,
         profile_id,
         role,
+        affiliate_title,
         created_at,
         profiles:profile_id (
           id,
@@ -356,6 +362,7 @@ export default async function handler(
         project_id: m.project_id,
         profile_id: m.profile_id,
         role: m.role,
+        affiliate_title: m.affiliate_title,
         created_at: m.created_at,
         profile: m.profiles ? {
           id: m.profiles.id,
@@ -413,6 +420,7 @@ export default async function handler(
         project_id,
         profile_id,
         role,
+        affiliate_title,
         created_at,
         profiles:profile_id (
           id,
@@ -431,6 +439,7 @@ export default async function handler(
         project_id: m.project_id,
         profile_id: m.profile_id,
         role: m.role,
+        affiliate_title: m.affiliate_title,
         created_at: m.created_at,
         profile: m.profiles ? {
           id: m.profiles.id,

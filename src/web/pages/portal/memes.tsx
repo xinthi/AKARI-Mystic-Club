@@ -46,7 +46,7 @@ function formatPrice(price: number): string {
 }
 
 function formatLargeNumber(num: number | null): string {
-  if (num === null || num === 0) return '—';
+  if (num === null || num === 0) return 'N/A';
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
   if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `$${(num / 1_000).toFixed(1)}K`;
@@ -54,7 +54,7 @@ function formatLargeNumber(num: number | null): string {
 }
 
 function formatPriceChange(change: number | null): { text: string; color: string } {
-  if (change === null) return { text: '—', color: 'text-akari-muted' };
+  if (change === null) return { text: 'N/A', color: 'text-akari-muted' };
   const sign = change >= 0 ? '+' : '';
   const color = change >= 0 ? 'text-green-400' : 'text-red-400';
   return { text: `${sign}${change.toFixed(2)}%`, color };
@@ -173,7 +173,7 @@ export default function MemesPage({ memes, lastUpdated, error }: MemesPageProps)
                         </span>
                       </td>
                       <td className="py-4 px-5 text-right text-akari-text font-medium">
-                        {meme.priceUsd ? formatPrice(meme.priceUsd) : '—'}
+                        {meme.priceUsd ? formatPrice(meme.priceUsd) : 'N/A'}
                       </td>
                       <td className="py-4 px-5 text-right text-gradient-followers font-semibold">
                         {formatLargeNumber(meme.volume24hUsd)}
@@ -212,7 +212,7 @@ export default function MemesPage({ memes, lastUpdated, error }: MemesPageProps)
                         </span>
                       </div>
                       <span className="text-[10px] text-akari-muted">
-                        {meme.priceUsd ? formatPrice(meme.priceUsd) : '—'}
+                        {meme.priceUsd ? formatPrice(meme.priceUsd) : 'N/A'}
                       </span>
                     </div>
                   </div>

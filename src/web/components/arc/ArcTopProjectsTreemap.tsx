@@ -7,7 +7,16 @@
 
 import React, { useMemo, useState, memo, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Treemap, ResponsiveContainer, Tooltip, Cell } from 'recharts';
+import dynamic from 'next/dynamic';
+
+// Client-only treemap component (no SSR)
+const ArcTopProjectsTreemapClient = dynamic(
+  () => import('@/components/arc/ArcTopProjectsTreemapClient').then(mod => ({ default: mod.ArcTopProjectsTreemapClient })),
+  { ssr: false }
+);
+
+// Single source of truth for treemap height
+const TREEMAP_HEIGHT = 540;
 
 // =============================================================================
 // TYPES
@@ -23,6 +32,7 @@ export interface TopProjectItem {
   slug?: string | null; // Optional slug for navigation
   arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
   arc_active?: boolean;
+  value?: number; // Optional pre-computed value for treemap sizing (takes precedence over growth_pct)
 }
 
 interface ArcTopProjectsTreemapProps {
@@ -56,34 +66,7 @@ interface TreemapDataPoint {
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Get color based on growth percentage
- */
-function getGrowthColor(growthPct: number): string {
-  if (growthPct > 0) {
-    // Positive growth: green gradient
-    // Scale intensity based on growth amount
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1); // Cap at 20% for max intensity
-    const opacity = 0.3 + intensity * 0.4; // 0.3 to 0.7 opacity
-    return `rgba(34, 197, 94, ${opacity})`; // green-500
-  } else if (growthPct < 0) {
-    // Negative growth: red gradient
-    const intensity = Math.min(Math.abs(growthPct) / 20, 1);
-    const opacity = 0.3 + intensity * 0.4;
-    return `rgba(239, 68, 68, ${opacity})`; // red-500
-  } else {
-    // Neutral: gray
-    return 'rgba(156, 163, 175, 0.3)'; // gray-400
-  }
-}
-
-/**
- * Format growth percentage for display
- */
-function formatGrowthPct(growthPct: number): string {
-  const sign = growthPct >= 0 ? '+' : '';
-  return `${sign}${growthPct.toFixed(2)}%`;
-}
+import { getGrowthFill, formatGrowthPct } from './utils';
 
 /**
  * Get tier label from arc_access_level
@@ -120,6 +103,27 @@ function normalizeForTreemap(values: number[]): number[] {
   }
   
   return sqrtValues.map(v => 1 + ((v - min) / (max - min)) * 99);
+}
+
+/**
+ * Get tile fill color based on growth percentage
+ * Opacity varies by magnitude: 0.40 (min) to 0.80 (max)
+ */
+function getTileFill(growthPct: number) {
+  // Compute magnitude (cap at 20% for max intensity)
+  const magnitude = Math.min(Math.abs(growthPct) / 20, 1);
+  // Opacity range: 0.40 to 0.80
+  const opacity = 0.40 + magnitude * 0.40;
+
+  if (growthPct > 0.5) {
+    return `rgba(34, 197, 94, ${opacity})`; // green with variable opacity
+  }
+
+  if (growthPct < -0.5) {
+    return `rgba(239, 68, 68, ${opacity})`; // red with variable opacity
+  }
+
+  return `rgba(234, 179, 8, ${opacity})`; // yellow with variable opacity
 }
 
 // =============================================================================
@@ -266,11 +270,13 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
 
     console.log(`[Treemap] Preparing ${validItems.length} items for treemap rendering`);
 
-    // Convert growth_pct into tile value with minimum size
-    // For zero growth, use a base value so items are still visible
-    // value = Math.max(10, Math.round(Math.abs(growth_pct) * 100))
-    // This ensures even 0% growth projects get a visible size (base of 10)
+    // Convert to tile values - prefer pre-computed value if available, otherwise compute from growth_pct
     const tileValues = validItems.map(item => {
+      // Prefer pre-computed value if provided
+      if (typeof item.value === 'number' && Number.isFinite(item.value) && item.value > 0) {
+        return item.value;
+      }
+      // Fallback to computing from growth_pct
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
       const absGrowth = Math.abs(growthPct);
       // Use base value of 10 for 0% growth, scale up from there
@@ -281,10 +287,10 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
     console.log(`[Treemap] Normalized ${normalizedValues.length} values. Range: ${Math.min(...normalizedValues)} to ${Math.max(...normalizedValues)}`);
 
     return validItems.map((item, index) => {
-      // Safe field access with fallbacks
-      const name = item.name || item.twitter_username || 'Unknown';
+      // Name fallback: name -> display_name -> twitter_username -> 'Unknown'
+      const name = item.name || (item as any).display_name || item.twitter_username || 'Unknown';
       const growthPct = typeof item.growth_pct === 'number' ? item.growth_pct : 0;
-      const projectId = item.projectId || '';
+      const projectId = (item as any).projectId || (item as any).projectid || '';
       
       // arc_active ONLY controls clickability (visual/UX)
       // arc_access_level controls routing (and also locks if 'none')
@@ -303,13 +309,13 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         slug: item.slug || null,
         arc_access_level: item.arc_access_level || 'none',
         arc_active: typeof item.arc_active === 'boolean' ? item.arc_active : false,
-        fill: isClickable ? getGrowthColor(growthPct) : 'rgba(107, 114, 128, 0.3)', // Gray for locked
+        fill: getTileFill(growthPct), // Always use growth-based color (locked gets overlay in CustomCell)
         isClickable,
         isLocked,
         originalItem: item, // Store original item for onProjectClick callback
       };
     });
-  }, [validItems]);
+  }, [validItems, items]);
 
   // Helper function to get navigation path based on arc_access_level (matches backend logic)
   // Routing rules:
@@ -386,10 +392,28 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           : 'rgba(156, 163, 175, 0.4)')
       : 'rgba(107, 114, 128, 0.4)'; // Gray border for locked
     
-    // Determine box size category for text display
+    // Determine if tile is tiny
+    const isTiny = width < 70 || height < 38;
+    
+    // Determine box size category for name truncation
     const isSmall = width < 100 || height < 50;
     const isMedium = !isSmall && (width < 150 || height < 70);
     const isLarge = !isSmall && !isMedium;
+    
+    // Truncate name based on tile size
+    let truncatedName = name;
+    if (isTiny) {
+      truncatedName = name.length > 8 ? name.substring(0, 8) + '...' : name;
+    } else if (isSmall) {
+      truncatedName = name.length > 12 ? name.substring(0, 12) + '...' : name;
+    } else if (isMedium) {
+      truncatedName = name.length > 16 ? name.substring(0, 16) + '...' : name;
+    } else {
+      truncatedName = name.length > 22 ? name.substring(0, 22) + '...' : name;
+    }
+    
+    // Growth % color: positive -> #4ade80, negative -> #f87171, zero -> #facc15
+    const growthColor = growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : '#facc15';
 
     // Calculate rounded corners (subtle, max 4px)
     const cornerRadius = Math.min(4, Math.min(width, height) * 0.1);
@@ -475,83 +499,41 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           </>
         )}
         
-        {/* Text labels based on box size */}
-        {isSmall && (
-          // Small boxes: only show growth_pct
+        {/* Text labels: render after lock overlay to stay visible */}
+        {isTiny ? (
+          // Tiny tiles: only show growth % (centered)
           <text
             x={x + width / 2}
             y={y + height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.8)'}
+            fill={growthColor}
             fontSize={Math.min(width / 8, 12)}
             fontWeight="bold"
             className="pointer-events-none"
           >
             {formatGrowthPct(growthPct)}
           </text>
-        )}
-        
-        {isMedium && (
-          // Medium boxes: name + growth_pct
+        ) : (
+          // All other tiles: show name + growth %
           <>
             <text
               x={x + width / 2}
-              y={y + height / 2 - 6}
+              y={y + height * 0.45}
               textAnchor="middle"
               fill="white"
               fontSize={Math.min(width / 12, 12)}
               fontWeight="semibold"
               className="pointer-events-none"
             >
-              {name.length > 15 ? name.substring(0, 15) + '...' : name}
+              {truncatedName}
             </text>
             <text
               x={x + width / 2}
-              y={y + height / 2 + 8}
+              y={y + height * 0.70}
               textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
+              fill={growthColor}
               fontSize={Math.min(width / 14, 10)}
-              fontWeight="bold"
-              className="pointer-events-none"
-            >
-              {formatGrowthPct(growthPct)}
-            </text>
-          </>
-        )}
-        
-        {isLarge && (
-          // Large boxes: name + @handle + growth_pct
-          <>
-            <text
-              x={x + width / 2}
-              y={y + height / 2 - 12}
-              textAnchor="middle"
-              fill="white"
-              fontSize={Math.min(width / 10, 14)}
-              fontWeight="semibold"
-              className="pointer-events-none"
-            >
-              {name.length > 20 ? name.substring(0, 20) + '...' : name}
-            </text>
-            {twitterUsername && (
-              <text
-                x={x + width / 2}
-                y={y + height / 2 + 2}
-                textAnchor="middle"
-                fill="rgba(255, 255, 255, 0.7)"
-                fontSize={Math.min(width / 14, 11)}
-                className="pointer-events-none"
-              >
-                @{twitterUsername.length > 15 ? twitterUsername.substring(0, 15) + '...' : twitterUsername}
-              </text>
-            )}
-            <text
-              x={x + width / 2}
-              y={y + height / 2 + 16}
-              textAnchor="middle"
-              fill={growthPct > 0 ? '#4ade80' : growthPct < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.6)'}
-              fontSize={Math.min(width / 16, 10)}
               fontWeight="bold"
               className="pointer-events-none"
             >
@@ -624,7 +606,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         </div>
 
         {/* Fallback list view */}
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 min-h-[400px]">
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-6" style={{ minHeight: `${TREEMAP_HEIGHT}px` }}>
           {validItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-sm text-white/60 mb-2">No projects to display</p>
@@ -760,7 +742,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
       {/* Treemap with improved spacing and rounded corners */}
       {/* Only render treemap if we have data */}
       {treemapData.length === 0 ? (
-        <div className="h-[400px] flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/40" style={{ height: `${TREEMAP_HEIGHT}px` }}>
           <p className="text-sm text-white/60 mb-2">No projects to display</p>
           <p className="text-xs text-white/40 text-center max-w-md mb-2">
             Only projects with <span className="text-purple-400 font-semibold">profile_type = &apos;project&apos;</span> appear in ARC heatmap.
@@ -775,21 +757,8 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: '400px', height: '400px' }}>
-          <ResponsiveContainer width="100%" height={400}>
-            <Treemap
-              data={treemapData}
-              dataKey="value"
-              stroke="transparent"
-              content={<CustomCell />}
-              animationDuration={300}
-            >
-              {treemapData.map((entry, index) => (
-                <Cell key={`cell-${entry.projectId}-${index}`} fill={entry.fill} />
-              ))}
-              <Tooltip content={<CustomTooltip />} />
-            </Treemap>
-          </ResponsiveContainer>
+        <div className="rounded-xl border border-white/10 bg-black/40 overflow-hidden" style={{ minHeight: `${TREEMAP_HEIGHT}px`, height: `${TREEMAP_HEIGHT}px` }}>
+          <ArcTopProjectsTreemapClient data={treemapData} />
         </div>
       )}
     </div>

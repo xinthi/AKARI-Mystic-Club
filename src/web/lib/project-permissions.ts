@@ -171,18 +171,8 @@ export async function checkProjectPermissions(
     }
   }
 
-  // Check akari_user_roles for project_admin
-  const { data: userRoles } = await supabase
-    .from('akari_user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'project_admin');
-
-  if (userRoles && userRoles.length > 0) {
-    result.hasProjectAdminRole = true;
-    // Note: project_admin in akari_user_roles is a global role, not project-specific
-    // For project-specific management, we still need team_members or owner status
-  }
+  // Note: akari_user_roles does not support 'project_admin' role
+  // Only profiles.real_roles supports 'project_admin' as a global elevated role
 
   return result;
 }

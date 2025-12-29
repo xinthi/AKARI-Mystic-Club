@@ -9,7 +9,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 // =============================================================================
 // TYPES
@@ -22,76 +23,6 @@ interface MarkReadRequest {
 type MarkReadResponse =
   | { ok: true; message: string; marked: number }
   | { ok: false; error: string };
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
-
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ profileId: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
-      .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    return null;
-  }
-
-  const { data: xIdentity } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
-
-  if (!xIdentity?.username) {
-    return null;
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-    .single();
-
-  if (!profile) {
-    return null;
-  }
-
-  return {
-    profileId: profile.id,
-  };
-}
 
 // =============================================================================
 // HANDLER
@@ -107,15 +38,10 @@ export default async function handler(
 
   const supabase = getSupabaseAdmin();
 
-  // Get current user
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
-  }
-
-  const currentUser = await getCurrentUserProfile(supabase, sessionToken);
-  if (!currentUser) {
-    return res.status(401).json({ ok: false, error: 'Invalid session' });
+  // Get current user using shared auth helper
+  const portalUser = await requirePortalUser(req, res);
+  if (!portalUser || !portalUser.profileId) {
+    return; // requirePortalUser already sent 401 response
   }
 
   const body: MarkReadRequest = req.body;
@@ -124,7 +50,7 @@ export default async function handler(
     let query = supabase
       .from('notifications')
       .update({ is_read: true })
-      .eq('profile_id', currentUser.profileId)
+      .eq('profile_id', portalUser.profileId)
       .eq('is_read', false);
 
     // If specific IDs provided, filter by them

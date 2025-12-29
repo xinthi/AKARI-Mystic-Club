@@ -7,8 +7,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { PortalLayout } from '@/components/portal/PortalLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getArcFeatureName, getArcFeatureDescription } from '@/lib/arc-naming';
 
 // =============================================================================
 // TYPES
@@ -78,13 +79,17 @@ interface LeaderboardRequest {
 }
 
 interface LeaderboardEntry {
-  creator_profile_id: string;
   twitter_username: string;
   avatar_url: string | null;
-  total_arc_points: number;
-  xp: number;
-  level: number;
-  class: string | null;
+  rank: number;
+  base_points: number;
+  multiplier: number;
+  score: number;
+  is_joined: boolean;
+  is_auto_tracked: boolean;
+  follow_verified: boolean;
+  ring: 'core' | 'momentum' | 'discovery' | null;
+  joined_at: string | null;
 }
 
 export default function ArcProjectPage() {
@@ -105,6 +110,10 @@ export default function ArcProjectPage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [followVerified, setFollowVerified] = useState<boolean | null>(null);
+  const [checkingFollow, setCheckingFollow] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   // Fetch project by ID or slug
   useEffect(() => {
@@ -119,7 +128,9 @@ export default function ArcProjectPage() {
         setError(null);
 
         // Fetch project via API route instead of direct Supabase call
-        const res = await fetch(`/api/portal/arc/project/${projectId}`);
+        const res = await fetch(`/api/portal/arc/project/${projectId}`, {
+          credentials: 'include',
+        });
         
         // Check content type
         const contentType = res.headers.get('content-type');
@@ -164,7 +175,9 @@ export default function ArcProjectPage() {
       }
 
       try {
-        const res = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`);
+        const res = await fetch(`/api/portal/arc/check-leaderboard-permission?projectId=${project.id}`, {
+          credentials: 'include',
+        });
         
         if (!res.ok) {
           setCanRequest(false);
@@ -200,7 +213,9 @@ export default function ArcProjectPage() {
       // Only check for requests if project is not enabled
       if (arcAccessLevel === 'none' || !arcActive) {
         try {
-          const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`);
+          const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${project.id}`, {
+            credentials: 'include',
+          });
           
           // If not authenticated or forbidden, silently return
           if (res.status === 401 || res.status === 403) {
@@ -244,13 +259,17 @@ export default function ArcProjectPage() {
       setLeaderboardError(null);
 
       try {
-        const res = await fetch(`/api/portal/arc/projects/${project.id}/leaderboard`);
+        // Use the new arena-based leaderboard endpoint
+        const res = await fetch(`/api/portal/arc/leaderboard/${project.id}`, {
+          credentials: 'include',
+        });
         const data = await res.json();
 
         if (!res.ok || !data.ok) {
           throw new Error(data.error || 'Failed to load leaderboard');
         }
 
+        // Use entries directly (already in correct format)
         setLeaderboardEntries(data.entries || []);
       } catch (err: any) {
         console.error('[ArcProjectPage] Leaderboard fetch error:', err);
@@ -262,6 +281,100 @@ export default function ArcProjectPage() {
 
     fetchLeaderboard();
   }, [project]);
+
+  // Check follow status for Mindshare Leaderboard
+  useEffect(() => {
+    async function checkFollowStatus() {
+      if (!project || !akariUser.isLoggedIn) {
+        setFollowVerified(false);
+        return;
+      }
+
+      const arcAccessLevel = project.arc_access_level || 'none';
+      if (arcAccessLevel !== 'leaderboard') {
+        return; // Only for Mindshare Leaderboard
+      }
+
+      try {
+        const res = await fetch(`/api/portal/arc/follow-status?projectId=${project.id}`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          setFollowVerified(data.verified || false);
+        } else {
+          setFollowVerified(false);
+        }
+      } catch (err) {
+        console.debug('[ArcProjectPage] Could not check follow status:', err);
+        setFollowVerified(false);
+      }
+    }
+
+    if (project && akariUser.isLoggedIn) {
+      checkFollowStatus();
+    }
+  }, [project, akariUser.isLoggedIn]);
+
+  // Handle verify follow
+  const handleVerifyFollow = async () => {
+    if (!project || checkingFollow) return;
+
+    setCheckingFollow(true);
+    setJoinError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/verify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok && data.verified) {
+        setFollowVerified(true);
+      } else {
+        setJoinError(data.error || 'Follow verification failed. Please make sure you follow the project on X.');
+      }
+    } catch (err: any) {
+      setJoinError(err.message || 'Failed to verify follow');
+    } finally {
+      setCheckingFollow(false);
+    }
+  };
+
+  // Handle join leaderboard
+  const handleJoinLeaderboard = async () => {
+    if (!project || joining || !followVerified) return;
+
+    setJoining(true);
+    setJoinError(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/join-leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId: project.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        // Reload leaderboard to show new entry
+        window.location.reload();
+      } else {
+        setJoinError(data.error || 'Failed to join leaderboard');
+      }
+    } catch (err: any) {
+      setJoinError(err.message || 'Failed to join leaderboard');
+    } finally {
+      setJoining(false);
+    }
+  };
 
   // Filter leaderboard by search query
   const filteredLeaderboard = useMemo(() => {
@@ -286,6 +399,7 @@ export default function ArcProjectPage() {
       const res = await fetch('/api/portal/arc/leaderboard-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           projectId: project.id,
           justification: justification.trim() || null,
@@ -320,14 +434,14 @@ export default function ArcProjectPage() {
   // Loading state
   if (loading) {
     return (
-      <PortalLayout title="ARC Project">
+      <ArcPageShell>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent mx-auto mb-4" />
-            <p className="text-akari-muted">Loading project...</p>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent mx-auto mb-4" />
+            <p className="text-white/60">Loading project...</p>
           </div>
         </div>
-      </PortalLayout>
+      </ArcPageShell>
     );
   }
 
@@ -345,7 +459,7 @@ export default function ArcProjectPage() {
   const statusLabel = arcActive ? 'Active' : 'Inactive';
 
   return (
-    <PortalLayout title={displayName}>
+    <ArcPageShell>
       <div className="space-y-6">
         {/* Error Message (if any) */}
         {error && (
@@ -429,7 +543,38 @@ export default function ArcProjectPage() {
             </div>
           ) : arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified' ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white mb-4">Leaderboard</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Leaderboard</h3>
+                {/* Join CTA - Only for Mindshare Leaderboard and normal users */}
+                {arcAccessLevel === 'leaderboard' && akariUser.isLoggedIn && (
+                  <div className="flex items-center gap-2">
+                    {followVerified === false && (
+                      <button
+                        onClick={handleVerifyFollow}
+                        disabled={checkingFollow}
+                        className="px-4 py-2 bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {checkingFollow ? 'Verifying...' : 'Verify Follow'}
+                      </button>
+                    )}
+                    {followVerified === true && (
+                      <button
+                        onClick={handleJoinLeaderboard}
+                        disabled={joining}
+                        className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {joining ? 'Joining...' : 'Join Leaderboard'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {joinError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 mb-4">
+                  <p className="text-red-400 text-sm">{joinError}</p>
+                </div>
+              )}
 
               {/* Search */}
               <div className="mb-4">
@@ -443,6 +588,15 @@ export default function ArcProjectPage() {
               </div>
 
               {/* Leaderboard Table */}
+              {/* Auto-tracking Banner */}
+              {filteredLeaderboard.length > 0 && (
+                <div className="rounded-lg border border-akari-neon-teal/30 bg-akari-neon-teal/10 p-4 mb-4">
+                  <p className="text-sm text-white/90">
+                    We auto-track public CT signal. Join and follow to boost your points.
+                  </p>
+                </div>
+              )}
+
               {leaderboardLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
@@ -457,7 +611,7 @@ export default function ArcProjectPage() {
                   <div className="text-4xl mb-4">📊</div>
                   <h3 className="text-lg font-semibold text-white mb-2">No creators yet</h3>
                   <p className="text-white/60 text-sm">
-                    Invite creators or open a public program.
+                    Creators who generate signal will appear here automatically.
                   </p>
                 </div>
               ) : (
@@ -468,66 +622,102 @@ export default function ArcProjectPage() {
                         <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">ARC Points</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">XP</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Level</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Class</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Base Points</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Multiplier</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredLeaderboard.map((entry, index) => (
-                          <tr
-                            key={entry.creator_profile_id}
-                            className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
-                          >
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              {index < 3 ? (
-                                <span className="text-lg">{['🥇', '🥈', '🥉'][index]}</span>
-                              ) : (
-                                <span className="text-white/60">#{index + 1}</span>
-                              )}
-                            </td>
-                            <td className="py-4 px-5">
-                              <div className="flex items-center gap-3">
-                                {entry.avatar_url && (
-                                  <img
-                                    src={entry.avatar_url}
-                                    alt={entry.twitter_username}
-                                    className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
+                        {filteredLeaderboard.map((entry) => {
+                          const userIsThisEntry = akariUser.isLoggedIn && 
+                            akariUser.user?.xUsername?.toLowerCase().replace('@', '') === entry.twitter_username.toLowerCase();
+                          
+                          return (
+                            <tr
+                              key={entry.twitter_username}
+                              className="border-b border-akari-neon-teal/10 last:border-0 transition-all duration-300 hover:bg-gradient-to-r hover:from-akari-neon-teal/5 hover:via-akari-neon-blue/5 hover:to-akari-neon-teal/5"
+                            >
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.rank <= 3 ? (
+                                  <span className="text-lg">{['🥇', '🥈', '🥉'][entry.rank - 1]}</span>
+                                ) : (
+                                  <span className="text-white/60">#{entry.rank}</span>
                                 )}
-                                <div>
-                                  <div className="text-sm font-semibold text-white">
-                                    @{entry.twitter_username}
+                              </td>
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-3">
+                                  {entry.avatar_url && (
+                                    <img
+                                      src={entry.avatar_url}
+                                      alt={entry.twitter_username}
+                                      className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  )}
+                                  <div>
+                                    <div className="text-sm font-semibold text-white">
+                                      @{entry.twitter_username.replace(/^@+/, '')}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-4 px-5 text-akari-text font-semibold">
-                              {entry.total_arc_points.toLocaleString()}
-                            </td>
-                            <td className="py-4 px-5 text-akari-muted">
-                              {entry.xp.toLocaleString()}
-                            </td>
-                            <td className="py-4 px-5">
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
-                                L{entry.level}
-                              </span>
-                            </td>
-                            <td className="py-4 px-5">
-                              {entry.class ? (
-                                <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
-                                  {entry.class}
-                                </span>
-                              ) : (
-                                <span className="text-akari-muted/60 text-xs">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.base_points.toLocaleString()}
+                              </td>
+                              <td className="py-4 px-5">
+                                {entry.multiplier > 1.0 ? (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                    {entry.multiplier}x
+                                  </span>
+                                ) : (
+                                  <span className="text-akari-muted/60 text-xs">1.0x</span>
+                                )}
+                              </td>
+                              <td className="py-4 px-5 text-akari-text font-semibold">
+                                {entry.score.toLocaleString()}
+                              </td>
+                              <td className="py-4 px-5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {entry.is_auto_tracked && !entry.is_joined && (
+                                    <>
+                                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50">
+                                        Auto-tracked
+                                      </span>
+                                      {akariUser.isLoggedIn && userIsThisEntry && (
+                                        <button
+                                          onClick={async () => {
+                                            if (!followVerified) {
+                                              await handleVerifyFollow();
+                                            }
+                                            if (followVerified) {
+                                              await handleJoinLeaderboard();
+                                            }
+                                          }}
+                                          className="px-2 py-1 rounded text-xs font-medium bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors"
+                                        >
+                                          Join to boost points
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                  {entry.is_joined && entry.follow_verified && entry.multiplier > 1.0 && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                                      Boost active
+                                    </span>
+                                  )}
+                                  {entry.ring && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50">
+                                      {entry.ring}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -568,9 +758,7 @@ export default function ArcProjectPage() {
                   {existingRequest.requested_arc_access_level && (
                     <p className="text-xs text-white/70 mt-2">
                       <span className="font-medium">Requested:</span>{' '}
-                      {existingRequest.requested_arc_access_level === 'creator_manager' && 'Creator Manager'}
-                      {existingRequest.requested_arc_access_level === 'leaderboard' && 'Campaign Leaderboard'}
-                      {existingRequest.requested_arc_access_level === 'gamified' && 'Gamified Leaderboard'}
+                      {existingRequest.requested_arc_access_level && getArcFeatureName(existingRequest.requested_arc_access_level)}
                     </p>
                   )}
                   {existingRequest.justification && (
@@ -602,14 +790,12 @@ export default function ArcProjectPage() {
                           onChange={(e) => setSelectedAccessLevel(e.target.value as 'creator_manager' | 'leaderboard' | 'gamified')}
                           className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                         >
-                          <option value="creator_manager">Creator Manager</option>
-                          <option value="leaderboard">Campaign Leaderboard</option>
-                          <option value="gamified">Gamified Leaderboard</option>
+                          <option value="creator_manager">{getArcFeatureName('creator_manager')}</option>
+                          <option value="leaderboard">{getArcFeatureName('leaderboard')}</option>
+                          <option value="gamified">{getArcFeatureName('gamified')}</option>
                         </select>
                         <p className="text-xs text-white/50 mt-1">
-                          {selectedAccessLevel === 'creator_manager' && 'Manage creator campaigns and programs'}
-                          {selectedAccessLevel === 'leaderboard' && 'Display project leaderboard with rankings'}
-                          {selectedAccessLevel === 'gamified' && 'Full gamified experience with missions and rewards'}
+                          {getArcFeatureDescription(selectedAccessLevel)}
                         </p>
                       </div>
                       <div>
@@ -671,7 +857,7 @@ export default function ArcProjectPage() {
           )}
         </div>
       </div>
-    </PortalLayout>
+    </ArcPageShell>
   );
 }
 
