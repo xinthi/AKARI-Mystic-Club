@@ -1633,109 +1633,11 @@ export default function ArenaDetailsPage() {
                                           {calculatedPoints}
                                         </span>
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-text">
-                                          {entry.signal ? entry.signal.toLocaleString() : '0'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-muted">
-                                          {entry.noise ? entry.noise.toLocaleString() : '0'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden xl:table-cell whitespace-nowrap">
-                                        <span className={`text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium ${
-                                          entry.sentiment !== null && entry.sentiment > 50 
-                                            ? 'text-green-400' 
-                                            : entry.sentiment !== null && entry.sentiment < 50 
-                                            ? 'text-red-400' 
-                                            : 'text-akari-muted'
-                                        }`}>
-                                          {entry.sentiment !== null ? entry.sentiment : 'N/A'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden xl:table-cell whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-text">
-                                          {entry.ct_heat !== null ? entry.ct_heat : 'N/A'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell">
-                                        <div className="flex flex-col items-end gap-0.5 sm:gap-1">
-                                          {Object.entries(engagementTypeCounts).some(([, count]) => (count as number) > 0) ? (
-                                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[10px] md:text-xs">
-                                              {engagementTypeCounts.threader > 0 && (
-                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                                  T:{engagementTypeCounts.threader}
-                                                </span>
-                                              )}
-                                              {engagementTypeCounts.video > 0 && (
-                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                                                  V:{engagementTypeCounts.video}
-                                                </span>
-                                              )}
-                                              {engagementTypeCounts.clipper > 0 && (
-                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                                                  C:{engagementTypeCounts.clipper}
-                                                </span>
-                                              )}
-                                              {engagementTypeCounts.meme > 0 && (
-                                                <span className="px-1 sm:px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 border border-pink-500/30">
-                                                  M:{engagementTypeCounts.meme}
-                                                </span>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
-                                          {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden xl:table-cell whitespace-nowrap">
-                                        {entry.smart_followers_count !== null ? (
-                                          <div className="flex flex-col items-end gap-0.5">
-                                            <span className="text-[9px] sm:text-[10px] md:text-xs font-medium text-akari-text">
-                                              {entry.smart_followers_count.toLocaleString()}
-                                            </span>
-                                            {entry.smart_followers_pct !== null && (
-                                              <span className="text-[8px] sm:text-[9px] text-akari-muted">
-                                                {entry.smart_followers_pct.toFixed(1)}%
-                                              </span>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
-                                        {entry.signal_score !== null ? (
-                                          <span className={`text-[9px] sm:text-[10px] md:text-xs font-medium ${
-                                            entry.signal_score >= 80 ? 'text-green-400' :
-                                            entry.signal_score >= 60 ? 'text-akari-primary' :
-                                            entry.signal_score >= 40 ? 'text-yellow-400' :
-                                            'text-akari-muted'
-                                          }`}>
-                                            {Math.round(entry.signal_score)}
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell">
+                                        {entry.ring && (
+                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-medium border ${getRingColor(entry.ring)}`}>
+                                            {entry.ring}
                                           </span>
-                                        ) : (
-                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
-                                        )}
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
-                                        {entry.trust_band ? (
-                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-medium border ${
-                                            entry.trust_band === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                                            entry.trust_band === 'B' ? 'bg-akari-primary/20 text-akari-primary border-akari-primary/30' :
-                                            entry.trust_band === 'C' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                                            'bg-akari-cardSoft/50 text-akari-muted border-akari-border/30'
-                                          }`}>
-                                            {entry.trust_band}
-                                          </span>
-                                        ) : (
-                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
                                         )}
                                       </td>
                                     </tr>
