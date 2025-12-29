@@ -250,12 +250,23 @@ export default async function handler(
       }
 
       if (xUserId) {
-        const smartFollowersResult = await getSmartFollowers(supabaseAdmin, xUserId);
-        const deltas = await getSmartFollowersDeltas(supabaseAdmin, xUserId);
+        const smartFollowersResult = await getSmartFollowers(
+          supabaseAdmin,
+          'creator',
+          xUserId, // entityId for creator is x_user_id
+          xUserId,
+          new Date()
+        );
+        const deltas = await getSmartFollowersDeltas(
+          supabaseAdmin,
+          'creator',
+          xUserId, // entityId for creator is x_user_id
+          xUserId
+        );
 
         smartFollowersData = {
-          count: smartFollowersResult.count,
-          pct: smartFollowersResult.pct,
+          count: smartFollowersResult.smart_followers_count,
+          pct: smartFollowersResult.smart_followers_pct,
           delta_7d: deltas.delta_7d,
           delta_30d: deltas.delta_30d,
         };

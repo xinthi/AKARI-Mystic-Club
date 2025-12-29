@@ -393,7 +393,7 @@ export default async function handler(
 
     try {
       // Get project's X user ID
-      const xHandle = project.x_handle || project.twitter_username;
+      const xHandle = project.x_handle;
       let xUserId: string | null = null;
 
       if (xHandle) {
@@ -419,12 +419,23 @@ export default async function handler(
       }
 
       if (xUserId) {
-        const smartFollowersResult = await getSmartFollowers(supabaseAdmin, xUserId);
-        smartFollowersData.count = smartFollowersResult.count;
-        smartFollowersData.pct = smartFollowersResult.pct;
+        const smartFollowersResult = await getSmartFollowers(
+          supabaseAdmin,
+          'project',
+          project.id, // entityId for project is project.id
+          xUserId,
+          new Date()
+        );
+        smartFollowersData.count = smartFollowersResult.smart_followers_count;
+        smartFollowersData.pct = smartFollowersResult.smart_followers_pct;
 
         // Get deltas
-        const deltas = await getSmartFollowersDeltas(supabaseAdmin, xUserId);
+        const deltas = await getSmartFollowersDeltas(
+          supabaseAdmin,
+          'project',
+          project.id, // entityId for project is project.id
+          xUserId
+        );
         smartFollowersData.delta_7d = deltas.delta_7d;
         smartFollowersData.delta_30d = deltas.delta_30d;
       }
