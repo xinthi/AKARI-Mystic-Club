@@ -34,6 +34,12 @@ interface ProjectWithMetrics {
   followersDirection24h: 'up' | 'down' | 'flat';
   sentimentDirection24h: ChangeDirection;
   ctHeatDirection24h: ChangeDirection;
+  // New optional fields for mindshare and smart followers
+  mindshare_bps_24h?: number | null;
+  mindshare_bps_7d?: number | null;
+  mindshare_bps_30d?: number | null;
+  smart_followers_count?: number | null;
+  smart_followers_pct?: number | null;
 }
 
 interface TopMover {
@@ -1553,6 +1559,12 @@ export default function SentimentOverview() {
                         <SortIcon active={sortColumn === 'followers'} direction={sortDirection} />
                       </span>
                     </th>
+                    <th className="py-4 px-5 text-left text-xs uppercase tracking-wider font-semibold text-akari-muted hidden xl:table-cell">
+                      Mindshare (7d)
+                    </th>
+                    <th className="py-4 px-5 text-left text-xs uppercase tracking-wider font-semibold text-akari-muted hidden lg:table-cell">
+                      Smart Followers
+                    </th>
                     <th className="py-4 px-5 text-left text-xs uppercase tracking-wider font-semibold text-akari-muted">
                       Status
                     </th>
@@ -1663,6 +1675,34 @@ export default function SentimentOverview() {
                             </span>
                             <ChangeIndicator change={project.followersChange24h} direction={project.followersDirection24h} formatLargeNumbers />
                           </div>
+                        </td>
+                        <td className="py-4 px-5 hidden xl:table-cell">
+                          {project.mindshare_bps_7d !== null && project.mindshare_bps_7d !== undefined ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-mono font-medium text-sm text-akari-primary">
+                                {(project.mindshare_bps_7d / 100).toFixed(2)}%
+                              </span>
+                              <span className="text-xs text-akari-muted">{(project.mindshare_bps_7d).toFixed(0)} bps</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-akari-muted">-</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-5 hidden lg:table-cell">
+                          {project.smart_followers_count !== null && project.smart_followers_count !== undefined ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-mono font-medium text-sm text-akari-text">
+                                {formatNumber(project.smart_followers_count)}
+                              </span>
+                              {project.smart_followers_pct !== null && project.smart_followers_pct !== undefined && (
+                                <span className="text-xs text-akari-muted">
+                                  {project.smart_followers_pct.toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-akari-muted">-</span>
+                          )}
                         </td>
                         <td className="py-4 px-5">
                           {(() => {
