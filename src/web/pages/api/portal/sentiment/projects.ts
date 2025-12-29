@@ -8,8 +8,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient, getProjectsWithLatestMetrics, type ProjectWithMetrics } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { calculateProjectMindshare } from '../../../../../server/mindshare/calculate';
-import { getSmartFollowers, getSmartFollowersDeltas } from '../../../../../server/smart-followers/calculate';
+import { calculateProjectMindshare } from '../../../../../../server/mindshare/calculate';
+import { getSmartFollowers, getSmartFollowersDeltas } from '../../../../../../server/smart-followers/calculate';
 
 type ProjectsResponse =
   | {
