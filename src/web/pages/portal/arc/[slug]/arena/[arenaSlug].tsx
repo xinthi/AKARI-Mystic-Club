@@ -1539,17 +1539,13 @@ export default function ArenaDetailsPage() {
                           <table className="w-full border-collapse min-w-[280px] sm:min-w-[400px] md:min-w-[600px] lg:min-w-[800px] xl:min-w-[900px]">
                             <thead>
                               <tr className="border-b border-akari-border/30">
-                                <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
-                                <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider min-w-[100px] sm:min-w-[120px] md:min-w-[140px]">Name</th>
-                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap">ARC Points</th>
-                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap">
-                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
-                                    <span className="text-akari-primary font-bold text-[10px] sm:text-xs">X</span>
-                                    <span className="hidden md:inline">Mindshare</span>
-                                  </span>
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Sentiment</th>
-                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell">
+                                <th className="text-left py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
+                                <th className="text-left py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">Name</th>
+                                <th className="text-right py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap">ARC</th>
+                                <th className="text-right py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap">MS</th>
+                                <th className="text-right py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell whitespace-nowrap">SF</th>
+                                <th className="text-right py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell whitespace-nowrap">Sentiment</th>
+                                <th className="text-right py-1.5 px-1 sm:py-1.5 sm:px-1.5 md:px-2 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap">
                                   Ring
                                 </th>
                               </tr>
@@ -1600,18 +1596,18 @@ export default function ArenaDetailsPage() {
                                         isTopThree ? 'bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5' : ''
                                       }`}
                                     >
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3">
-                                        <span className={`text-[10px] sm:text-[11px] md:text-xs lg:text-sm font-semibold whitespace-nowrap ${isTopThree ? 'text-akari-primary' : 'text-akari-text'}`}>
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2">
+                                        <span className={`text-[10px] sm:text-[11px] md:text-xs font-semibold whitespace-nowrap ${isTopThree ? 'text-akari-primary' : 'text-akari-text'}`}>
                                           #{entry.rank}
                                         </span>
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3">
-                                        <Link href={creatorUrl} className="flex items-center gap-1 sm:gap-1.5 md:gap-2 group">
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2">
+                                        <Link href={creatorUrl} className="flex items-center gap-1 sm:gap-1.5 group">
                                           {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                             <img
                                               src={entry.avatar_url}
                                               alt={entry.twitter_username}
-                                              className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
+                                              className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
                                               onError={(e) => {
                                                 const target = e.target as HTMLImageElement;
                                                 target.style.display = 'none';
@@ -1620,21 +1616,21 @@ export default function ArenaDetailsPage() {
                                               }}
                                             />
                                           ) : null}
-                                          <div className={`w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[9px] sm:text-[10px] md:text-xs lg:text-sm text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
+                                          <div className={`w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[9px] sm:text-[10px] md:text-xs text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
                                             {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
                                           </div>
                                           <div className="flex flex-col min-w-0">
-                                            <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
+                                            <span className="text-[9px] sm:text-[10px] md:text-xs font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
                                               @{entry.twitter_username.replace(/^@+/, '')}
                                             </span>
                                             <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5">
                                               {entry.ring && (
-                                                <span className={`px-0.5 sm:px-1 md:px-1.5 lg:px-2 py-0.5 rounded-full text-[7px] sm:text-[8px] md:text-[10px] lg:text-xs font-medium border ${getRingColor(entry.ring)}`}>
+                                                <span className={`px-0.5 sm:px-1 md:px-1.5 py-0.5 rounded-full text-[7px] sm:text-[8px] md:text-[9px] font-medium border ${getRingColor(entry.ring)}`}>
                                                   {entry.ring}
                                                 </span>
                                               )}
                                               {primaryEngagementType && (
-                                                <span className="text-[7px] sm:text-[8px] md:text-[10px] lg:text-xs text-akari-muted capitalize hidden md:inline">
+                                                <span className="text-[7px] sm:text-[8px] md:text-[9px] text-akari-muted capitalize hidden md:inline">
                                                   {primaryEngagementType}
                                                 </span>
                                               )}
@@ -1642,26 +1638,33 @@ export default function ArenaDetailsPage() {
                                           </div>
                                         </Link>
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right">
-                                        <span className={`text-[10px] sm:text-[11px] md:text-xs lg:text-sm font-bold whitespace-nowrap ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2 text-right">
+                                        <span className={`text-[10px] sm:text-[11px] md:text-xs font-bold whitespace-nowrap ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
                                           {calculatedPoints}
                                         </span>
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell whitespace-nowrap">
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2 text-right hidden sm:table-cell whitespace-nowrap">
                                         {(() => {
                                           const mindshareValue = entry.mindshare || entry.score || 0;
                                           const percentage = totalMindshare > 0 
                                             ? (mindshareValue / totalMindshare) * 100 
                                             : 0;
                                           return (
-                                            <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
+                                            <span className="text-[9px] sm:text-[10px] md:text-xs font-semibold text-akari-primary">
                                               {percentage > 0 ? percentage.toFixed(1) : '0.0'}%
                                             </span>
                                           );
                                         })()}
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
-                                        <span className={`text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium ${
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2 text-right hidden md:table-cell whitespace-nowrap">
+                                        <span className="text-[9px] sm:text-[10px] md:text-xs font-semibold text-akari-text">
+                                          {entry.smart_followers_count !== null && entry.smart_followers_count !== undefined 
+                                            ? entry.smart_followers_count.toLocaleString() 
+                                            : 'N/A'}
+                                        </span>
+                                      </td>
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2 text-right hidden lg:table-cell whitespace-nowrap">
+                                        <span className={`text-[9px] sm:text-[10px] md:text-xs font-medium ${
                                           entry.sentiment !== null && entry.sentiment > 50 
                                             ? 'text-green-400' 
                                             : entry.sentiment !== null && entry.sentiment < 50 
@@ -1671,9 +1674,9 @@ export default function ArenaDetailsPage() {
                                           {entry.sentiment !== null ? entry.sentiment : 'N/A'}
                                         </span>
                                       </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell">
+                                      <td className="py-1.5 px-1 sm:px-1.5 md:px-2 text-right hidden sm:table-cell whitespace-nowrap">
                                         {entry.ring && (
-                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-medium border ${getRingColor(entry.ring)}`}>
+                                          <span className={`px-1 sm:px-1.5 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-medium border ${getRingColor(entry.ring)}`}>
                                             {entry.ring}
                                           </span>
                                         )}
