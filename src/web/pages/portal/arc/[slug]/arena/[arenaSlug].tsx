@@ -1549,21 +1549,27 @@ export default function ArenaDetailsPage() {
                                   </span>
                                 </th>
                                 <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Sentiment</th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">CT Heat</th>
                                 <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell">
                                   Ring
                                 </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {leaderboardEntries
-                                .filter((entry) => {
+                              {(() => {
+                                // Calculate total mindshare for percentage calculation
+                                const filteredEntries = leaderboardEntries.filter((entry) => {
                                   if (!leaderboardSearch.trim()) return true;
                                   const searchLower = leaderboardSearch.toLowerCase();
                                   const username = entry.twitter_username.replace(/^@+/, '').toLowerCase();
                                   return username.includes(searchLower);
-                                })
-                                .map((entry, index) => {
+                                });
+                                
+                                const totalMindshare = filteredEntries.reduce((sum, entry) => {
+                                  const mindshareValue = entry.mindshare || entry.score || 0;
+                                  return sum + mindshareValue;
+                                }, 0);
+                                
+                                return filteredEntries.map((entry, index) => {
                                   const creatorUrl = `/portal/arc/creator/${encodeURIComponent(entry.twitter_username.replace(/^@/, '').toLowerCase())}`;
                                   const isTopThree = entry.rank <= 3;
                                   const engagementTypeCounts = entry.engagement_types || { threader: 0, video: 0, clipper: 0, meme: 0 };
@@ -1642,9 +1648,17 @@ export default function ArenaDetailsPage() {
                                         </span>
                                       </td>
                                       <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
-                                          {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
-                                        </span>
+                                        {(() => {
+                                          const mindshareValue = entry.mindshare || entry.score || 0;
+                                          const percentage = totalMindshare > 0 
+                                            ? (mindshareValue / totalMindshare) * 100 
+                                            : 0;
+                                          return (
+                                            <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
+                                              {percentage > 0 ? percentage.toFixed(1) : '0.0'}%
+                                            </span>
+                                          );
+                                        })()}
                                       </td>
                                       <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
                                         <span className={`text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium ${
@@ -1655,11 +1669,6 @@ export default function ArenaDetailsPage() {
                                             : 'text-akari-muted'
                                         }`}>
                                           {entry.sentiment !== null ? entry.sentiment : 'N/A'}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
-                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-text">
-                                          {entry.ct_heat !== null ? entry.ct_heat : 'N/A'}
                                         </span>
                                       </td>
                                       <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell">
