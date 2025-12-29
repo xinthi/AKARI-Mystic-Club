@@ -1541,43 +1541,9 @@ export default function ArenaDetailsPage() {
                               <tr className="border-b border-akari-border/30">
                                 <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
                                 <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider min-w-[100px] sm:min-w-[120px] md:min-w-[140px]">Name</th>
-                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap">ARC</th>
-                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap">
-                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
-                                    <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                                    </svg>
-                                    <span className="hidden md:inline">Signal</span>
-                                  </span>
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Noise</th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">Sentiment</th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">CT Heat</th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
-                                  <span className="flex items-center justify-end gap-1 group relative">
-                                    Engagement
-                                    <svg className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span className="absolute right-0 top-full mt-2 w-64 p-2 bg-black/95 border border-akari-border/50 rounded-lg text-[10px] text-akari-muted opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-                                      Content types: Threads, Videos, Clips, Memes. Earned by posting tweets that mention the project.
-                                    </span>
-                                  </span>
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">
-                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
-                                    <span className="text-akari-primary font-bold text-[10px] sm:text-xs">X</span>
-                                    <span className="hidden md:inline">Mindshare</span>
-                                  </span>
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">
-                                  Smart Followers
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
-                                  Signal Score
-                                </th>
-                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
-                                  Trust
+                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap">ARC Points</th>
+                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell">
+                                  Ring
                                 </th>
                               </tr>
                             </thead>
