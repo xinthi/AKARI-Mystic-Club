@@ -7,7 +7,7 @@
 
 ## ✅ COMPLETE INTEGRATION STATUS
 
-### Core User-Facing Pages: ✅ 6/6 (100%)
+### Core User-Facing Pages: ✅ 7/7 (100%)
 
 1. **✅ Sentiment Overview** (`/portal/sentiment`)
    - Mindshare BPS (7d) column
@@ -29,7 +29,12 @@
 5. **✅ ARC Project Hub** (`/portal/arc/[slug]`)
    - Uses API that returns smart followers, signal score, trust band
 
-6. **✅ Creator Profile** (`/portal/arc/creator/[twitterUsername]`)
+6. **✅ ARC Project Page** (`/portal/arc/project/[projectId]`) ✨ **UPDATED**
+   - Smart Followers column (count + %, lg+ screens)
+   - Signal Score column (0-100, color-coded, md+ screens)
+   - Trust Band column (A/B/C/D badges, md+ screens)
+
+7. **✅ Creator Profile** (`/portal/arc/creator/[twitterUsername]`)
    - Smart Followers card (count, %, deltas)
 
 ---
@@ -70,19 +75,23 @@
 - **Decision:** Mark as optional enhancement, LOW PRIORITY
 
 ### 2. ARC Project Page (`/portal/arc/project/[projectId]`)
-**Status:** ✅ **VERIFIED COMPLETE**
+**Status:** ✅ **COMPLETE** ✨ **UPDATED**
 
 **Verification:**
 - Uses `/api/portal/arc/leaderboard/[projectId]` which returns all required fields
-- Leaderboard table displays base_points, multiplier, score, status
-- API provides smart_followers_count, signal_score, trust_band but table focuses on points/score
-- **Decision:** Complete - API provides data, UI focuses on leaderboard-specific metrics (points/score)
+- Leaderboard table now displays:
+  - Base Points, Multiplier, Score, Status (existing)
+  - Smart Followers column (count + %, lg+ screens) ✨ **NEW**
+  - Signal Score column (0-100, color-coded, md+ screens) ✨ **NEW**
+  - Trust Band column (A/B/C/D badges, md+ screens) ✨ **NEW**
+- Columns conditionally displayed based on data availability
+- **Decision:** ✅ **COMPLETE** - All metrics now displayed in UI
 
 ---
 
 ## ✅ FINAL VERIFICATION CHECKLIST
 
-- [x] All 6 core user-facing pages integrated
+- [x] All 7 core user-facing pages integrated
 - [x] All 5 APIs return required data
 - [x] UI gracefully handles missing data
 - [x] Type-safe implementations
@@ -100,7 +109,7 @@
 
 All **required** integrations for Smart Followers, Mindshare, and Signal Score are complete and verified:
 
-- ✅ **6/6 core pages** fully integrated
+- ✅ **7/7 core pages** fully integrated
 - ✅ **5/5 APIs** return all required data
 - ✅ **All UI components** handle data gracefully
 - ✅ **No breaking changes**
@@ -109,7 +118,6 @@ All **required** integrations for Smart Followers, Mindshare, and Signal Score a
 
 **Optional Enhancements** (Not Required):
 - Compare page could add mindshare/smart followers columns (LOW PRIORITY)
-- ARC Project page leaderboard could display smart followers/signal score columns (already in API, UI focuses on points)
 
 **All required work is complete! The system is ready for deployment.** 🚀
 

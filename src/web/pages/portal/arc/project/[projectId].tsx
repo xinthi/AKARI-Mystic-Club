@@ -90,6 +90,12 @@ interface LeaderboardEntry {
   follow_verified: boolean;
   ring: 'core' | 'momentum' | 'discovery' | null;
   joined_at: string | null;
+  // Smart Followers (new)
+  smart_followers_count?: number | null;
+  smart_followers_pct?: number | null;
+  // Signal Score (new)
+  signal_score?: number | null;
+  trust_band?: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 export default function ArcProjectPage() {
@@ -625,6 +631,15 @@ export default function ArcProjectPage() {
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Base Points</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Multiplier</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
+                          {leaderboardEntries.length > 0 && leaderboardEntries[0]?.smart_followers_count !== undefined && (
+                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden lg:table-cell">Smart Followers</th>
+                          )}
+                          {leaderboardEntries.length > 0 && leaderboardEntries[0]?.signal_score !== undefined && (
+                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden md:table-cell">Signal</th>
+                          )}
+                          {leaderboardEntries.length > 0 && leaderboardEntries[0]?.trust_band !== undefined && (
+                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden md:table-cell">Trust</th>
+                          )}
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
                         </tr>
                       </thead>
@@ -679,6 +694,56 @@ export default function ArcProjectPage() {
                               <td className="py-4 px-5 text-akari-text font-semibold">
                                 {entry.score.toLocaleString()}
                               </td>
+                              {entry.smart_followers_count !== undefined && (
+                                <td className="py-4 px-5 hidden lg:table-cell">
+                                  {entry.smart_followers_count !== null ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-sm font-medium text-akari-text">
+                                        {entry.smart_followers_count.toLocaleString()}
+                                      </span>
+                                      {entry.smart_followers_pct !== null && (
+                                        <span className="text-xs text-akari-muted">
+                                          {entry.smart_followers_pct.toFixed(1)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-akari-muted">-</span>
+                                  )}
+                                </td>
+                              )}
+                              {entry.signal_score !== undefined && (
+                                <td className="py-4 px-5 hidden md:table-cell">
+                                  {entry.signal_score !== null ? (
+                                    <span className={`text-sm font-medium ${
+                                      entry.signal_score >= 80 ? 'text-green-400' :
+                                      entry.signal_score >= 60 ? 'text-akari-primary' :
+                                      entry.signal_score >= 40 ? 'text-yellow-400' :
+                                      'text-akari-muted'
+                                    }`}>
+                                      {Math.round(entry.signal_score)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-akari-muted">-</span>
+                                  )}
+                                </td>
+                              )}
+                              {entry.trust_band !== undefined && (
+                                <td className="py-4 px-5 hidden md:table-cell">
+                                  {entry.trust_band ? (
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                      entry.trust_band === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                                      entry.trust_band === 'B' ? 'bg-akari-primary/20 text-akari-primary border-akari-primary/30' :
+                                      entry.trust_band === 'C' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                                      'bg-akari-cardSoft/50 text-akari-muted border-akari-border/30'
+                                    }`}>
+                                      {entry.trust_band}
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-akari-muted">-</span>
+                                  )}
+                                </td>
+                              )}
                               <td className="py-4 px-5">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {entry.is_auto_tracked && !entry.is_joined && (
