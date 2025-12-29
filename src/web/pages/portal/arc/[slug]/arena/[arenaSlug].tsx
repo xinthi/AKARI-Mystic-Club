@@ -1542,6 +1542,14 @@ export default function ArenaDetailsPage() {
                                 <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">#</th>
                                 <th className="text-left py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider min-w-[100px] sm:min-w-[120px] md:min-w-[140px]">Name</th>
                                 <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap">ARC Points</th>
+                                <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap">
+                                  <span className="flex items-center justify-end gap-0.5 sm:gap-1">
+                                    <span className="text-akari-primary font-bold text-[10px] sm:text-xs">X</span>
+                                    <span className="hidden md:inline">Mindshare</span>
+                                  </span>
+                                </th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">Sentiment</th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">CT Heat</th>
                                 <th className="text-right py-2 px-1 sm:py-2 sm:px-1.5 md:px-3 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell">
                                   Ring
                                 </th>
@@ -1631,6 +1639,27 @@ export default function ArenaDetailsPage() {
                                       <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right">
                                         <span className={`text-[10px] sm:text-[11px] md:text-xs lg:text-sm font-bold whitespace-nowrap ${isTopThree ? 'text-akari-neon-teal' : 'text-akari-primary'}`}>
                                           {calculatedPoints}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell whitespace-nowrap">
+                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
+                                          {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
+                                        <span className={`text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium ${
+                                          entry.sentiment !== null && entry.sentiment > 50 
+                                            ? 'text-green-400' 
+                                            : entry.sentiment !== null && entry.sentiment < 50 
+                                            ? 'text-red-400' 
+                                            : 'text-akari-muted'
+                                        }`}>
+                                          {entry.sentiment !== null ? entry.sentiment : 'N/A'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
+                                        <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-akari-text">
+                                          {entry.ct_heat !== null ? entry.ct_heat : 'N/A'}
                                         </span>
                                       </td>
                                       <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden sm:table-cell">
