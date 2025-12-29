@@ -696,12 +696,12 @@ export default function ArcProjectPage() {
                               </td>
                               {entry.smart_followers_count !== undefined && (
                                 <td className="py-4 px-5 hidden lg:table-cell">
-                                  {entry.smart_followers_count !== null ? (
+                                  {entry.smart_followers_count !== null && entry.smart_followers_count !== undefined ? (
                                     <div className="flex flex-col gap-0.5">
                                       <span className="text-sm font-medium text-akari-text">
                                         {entry.smart_followers_count.toLocaleString()}
                                       </span>
-                                      {entry.smart_followers_pct !== null && (
+                                      {entry.smart_followers_pct !== null && entry.smart_followers_pct !== undefined && (
                                         <span className="text-xs text-akari-muted">
                                           {entry.smart_followers_pct.toFixed(1)}%
                                         </span>
