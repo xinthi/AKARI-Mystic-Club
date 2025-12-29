@@ -7,6 +7,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
 
 // =============================================================================
 // TYPES
@@ -24,6 +26,12 @@ interface CreatorProfile {
     discovery: number;
   };
   avatar_url: string | null;
+  smart_followers?: {
+    count: number | null;
+    pct: number | null;
+    delta_7d: number | null;
+    delta_30d: number | null;
+  } | null;
 }
 
 interface CreatorArenaEntry {
@@ -70,8 +78,9 @@ export default async function handler(
   }
 
   try {
-    // Create Supabase client (read-only with anon key)
+    // Create Supabase clients
     const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Extract query parameter
     const { twitterUsername } = req.query;
@@ -208,6 +217,54 @@ export default async function handler(
       // Continue without avatar
     }
 
+    // Calculate Smart Followers for the creator
+    let smartFollowersData: {
+      count: number | null;
+      pct: number | null;
+      delta_7d: number | null;
+      delta_30d: number | null;
+    } | null = null;
+
+    try {
+      // Get creator's X user ID
+      const cleanUsername = twitterUsernameActual.replace('@', '').toLowerCase().trim();
+      let xUserId: string | null = null;
+
+      // Try to get x_user_id from profiles or tracked_profiles
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('twitter_id')
+        .eq('username', cleanUsername)
+        .maybeSingle();
+
+      if (profile?.twitter_id) {
+        xUserId = profile.twitter_id;
+      } else {
+        const { data: tracked } = await supabaseAdmin
+          .from('tracked_profiles')
+          .select('x_user_id')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+
+        xUserId = tracked?.x_user_id || null;
+      }
+
+      if (xUserId) {
+        const smartFollowersResult = await getSmartFollowers(supabaseAdmin, xUserId);
+        const deltas = await getSmartFollowersDeltas(supabaseAdmin, xUserId);
+
+        smartFollowersData = {
+          count: smartFollowersResult.count,
+          pct: smartFollowersResult.pct,
+          delta_7d: deltas.delta_7d,
+          delta_30d: deltas.delta_30d,
+        };
+      }
+    } catch (error) {
+      console.error(`[API /portal/arc/creator] Error calculating smart followers:`, error);
+      // Continue with null
+    }
+
     // Build response
     const response: CreatorResponse = {
       ok: true,
@@ -219,6 +276,7 @@ export default async function handler(
         arenas_count: arenasCount,
         ring_points: ringPoints,
         avatar_url: avatar_url,
+        smart_followers: smartFollowersData,
       },
       arenas: arenas.sort((a, b) => b.arc_points - a.arc_points), // Sort by points descending
     };

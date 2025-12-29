@@ -25,6 +25,9 @@ import {
   InfluencerWithRelation,
 } from '@/lib/portal/supabase';
 import { getProjectTopicStats, TopicScore } from '@/lib/portal/topic-stats';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { calculateProjectMindshare } from '@/server/mindshare/calculate';
+import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
 
 // =============================================================================
 // TYPES
@@ -70,6 +73,21 @@ type SentimentDetailResponse =
       innerCircle: InnerCircleSummary;
       topics30d: TopicScore[];
       metricsHistoryLong?: MetricsDaily[]; // 90-day history for Deep Explorer
+      // Mindshare and Smart Followers data
+      mindshare?: {
+        bps_24h: number | null;
+        bps_48h: number | null;
+        bps_7d: number | null;
+        bps_30d: number | null;
+        delta_1d: number | null;
+        delta_7d: number | null;
+      };
+      smartFollowers?: {
+        count: number | null;
+        pct: number | null;
+        delta_7d: number | null;
+        delta_30d: number | null;
+      };
     }
   | {
       ok: false;
@@ -96,6 +114,7 @@ export default async function handler(
 
   try {
     const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Fetch project by slug
     const project = await getProjectBySlug(supabase, slug);
@@ -323,6 +342,97 @@ export default async function handler(
       last_updated_at: latestMetrics?.updated_at ?? latestMetrics?.created_at ?? null,
     };
 
+    // Calculate mindshare for all windows
+    const mindshareData: {
+      bps_24h: number | null;
+      bps_48h: number | null;
+      bps_7d: number | null;
+      bps_30d: number | null;
+      delta_1d: number | null;
+      delta_7d: number | null;
+    } = {
+      bps_24h: null,
+      bps_48h: null,
+      bps_7d: null,
+      bps_30d: null,
+      delta_1d: null,
+      delta_7d: null,
+    };
+
+    try {
+      const [mindshare24h, mindshare48h, mindshare7d, mindshare30d] = await Promise.all([
+        calculateProjectMindshare(supabaseAdmin, project.id, '24h').catch(() => ({ mindshare_bps: 0, delta_bps_1d: null, delta_bps_7d: null })),
+        calculateProjectMindshare(supabaseAdmin, project.id, '48h').catch(() => ({ mindshare_bps: 0, delta_bps_1d: null, delta_bps_7d: null })),
+        calculateProjectMindshare(supabaseAdmin, project.id, '7d').catch(() => ({ mindshare_bps: 0, delta_bps_1d: null, delta_bps_7d: null })),
+        calculateProjectMindshare(supabaseAdmin, project.id, '30d').catch(() => ({ mindshare_bps: 0, delta_bps_1d: null, delta_bps_7d: null })),
+      ]);
+
+      mindshareData.bps_24h = mindshare24h.mindshare_bps > 0 ? mindshare24h.mindshare_bps : null;
+      mindshareData.bps_48h = mindshare48h.mindshare_bps > 0 ? mindshare48h.mindshare_bps : null;
+      mindshareData.bps_7d = mindshare7d.mindshare_bps > 0 ? mindshare7d.mindshare_bps : null;
+      mindshareData.bps_30d = mindshare30d.mindshare_bps > 0 ? mindshare30d.mindshare_bps : null;
+      mindshareData.delta_1d = mindshare7d.delta_bps_1d;
+      mindshareData.delta_7d = mindshare7d.delta_bps_7d;
+    } catch (error) {
+      console.error(`[API /portal/sentiment/${slug}] Error calculating mindshare:`, error);
+      // Continue with null values
+    }
+
+    // Calculate Smart Followers
+    const smartFollowersData: {
+      count: number | null;
+      pct: number | null;
+      delta_7d: number | null;
+      delta_30d: number | null;
+    } = {
+      count: null,
+      pct: null,
+      delta_7d: null,
+      delta_30d: null,
+    };
+
+    try {
+      // Get project's X user ID
+      const xHandle = project.x_handle || project.twitter_username;
+      let xUserId: string | null = null;
+
+      if (xHandle) {
+        const cleanHandle = xHandle.replace('@', '').toLowerCase().trim();
+        // Try to get x_user_id from profiles or tracked_profiles
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('twitter_id')
+          .eq('username', cleanHandle)
+          .maybeSingle();
+
+        if (profile?.twitter_id) {
+          xUserId = profile.twitter_id;
+        } else {
+          const { data: tracked } = await supabaseAdmin
+            .from('tracked_profiles')
+            .select('x_user_id')
+            .eq('username', cleanHandle)
+            .maybeSingle();
+
+          xUserId = tracked?.x_user_id || null;
+        }
+      }
+
+      if (xUserId) {
+        const smartFollowersResult = await getSmartFollowers(supabaseAdmin, xUserId);
+        smartFollowersData.count = smartFollowersResult.count;
+        smartFollowersData.pct = smartFollowersResult.pct;
+
+        // Get deltas
+        const deltas = await getSmartFollowersDeltas(supabaseAdmin, xUserId);
+        smartFollowersData.delta_7d = deltas.delta_7d;
+        smartFollowersData.delta_30d = deltas.delta_30d;
+      }
+    } catch (error) {
+      console.error(`[API /portal/sentiment/${slug}] Error calculating smart followers:`, error);
+      // Continue with null values
+    }
+
     return res.status(200).json({
       ok: true,
       project: enhancedProject,
@@ -335,6 +445,8 @@ export default async function handler(
       innerCircle,
       topics30d,
       metricsHistoryLong: metrics90d, // 90-day history for Deep Explorer
+      mindshare: mindshareData,
+      smartFollowers: smartFollowersData,
     });
   } catch (error: any) {
     console.error(`[API /portal/sentiment/${slug}] Error:`, error);

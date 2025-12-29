@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
 
 // =============================================================================
 // TYPES
@@ -27,6 +28,12 @@ interface CreatorProfile {
     momentum: number;
     discovery: number;
   };
+  smart_followers?: {
+    count: number | null;
+    pct: number | null;
+    delta_7d: number | null;
+    delta_30d: number | null;
+  } | null;
 }
 
 interface CreatorArenaEntry {
@@ -307,6 +314,33 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                   {creator.arenas_count}
                 </p>
               </div>
+
+              {/* Smart Followers */}
+              {creator.smart_followers && creator.smart_followers.count !== null && (
+                <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                  <p className="text-xs text-akari-muted mb-1">Smart Followers</p>
+                  <p className="text-2xl font-bold text-akari-text mb-1">
+                    {creator.smart_followers.count.toLocaleString()}
+                  </p>
+                  {creator.smart_followers.pct !== null && (
+                    <p className="text-xs text-akari-muted mb-2">{creator.smart_followers.pct.toFixed(1)}% of total</p>
+                  )}
+                  {(creator.smart_followers.delta_7d !== null || creator.smart_followers.delta_30d !== null) && (
+                    <div className="flex gap-3 text-xs">
+                      {creator.smart_followers.delta_7d !== null && (
+                        <span className={creator.smart_followers.delta_7d > 0 ? 'text-green-400' : creator.smart_followers.delta_7d < 0 ? 'text-red-400' : 'text-akari-muted'}>
+                          7d: {creator.smart_followers.delta_7d > 0 ? '+' : ''}{creator.smart_followers.delta_7d.toLocaleString()}
+                        </span>
+                      )}
+                      {creator.smart_followers.delta_30d !== null && (
+                        <span className={creator.smart_followers.delta_30d > 0 ? 'text-green-400' : creator.smart_followers.delta_30d < 0 ? 'text-red-400' : 'text-akari-muted'}>
+                          30d: {creator.smart_followers.delta_30d > 0 ? '+' : ''}{creator.smart_followers.delta_30d.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Points by Ring */}
               <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
@@ -603,6 +637,54 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       // Continue without avatar - will show placeholder
     }
 
+    // Calculate Smart Followers for the creator
+    let smartFollowersData: {
+      count: number | null;
+      pct: number | null;
+      delta_7d: number | null;
+      delta_30d: number | null;
+    } | null = null;
+
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const cleanUsername = twitterUsernameActual.replace('@', '').toLowerCase().trim();
+      let xUserId: string | null = null;
+
+      // Try to get x_user_id from profiles or tracked_profiles
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('twitter_id')
+        .eq('username', cleanUsername)
+        .maybeSingle();
+
+      if (profile?.twitter_id) {
+        xUserId = profile.twitter_id;
+      } else {
+        const { data: tracked } = await supabaseAdmin
+          .from('tracked_profiles')
+          .select('x_user_id')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+
+        xUserId = tracked?.x_user_id || null;
+      }
+
+      if (xUserId) {
+        const smartFollowersResult = await getSmartFollowers(supabaseAdmin, xUserId);
+        const deltas = await getSmartFollowersDeltas(supabaseAdmin, xUserId);
+
+        smartFollowersData = {
+          count: smartFollowersResult.count,
+          pct: smartFollowersResult.pct,
+          delta_7d: deltas.delta_7d,
+          delta_30d: deltas.delta_30d,
+        };
+      }
+    } catch (error) {
+      console.error('[CreatorProfilePage] Error calculating smart followers:', error);
+      // Continue with null
+    }
+
     const creator: CreatorProfile = {
       twitter_username: twitterUsernameActual,
       avatar_url: avatarUrl,
@@ -611,6 +693,7 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       total_points: totalPoints,
       arenas_count: arenasCount,
       ring_points: ringPoints,
+      smart_followers: smartFollowersData,
     };
 
     return {

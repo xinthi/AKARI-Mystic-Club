@@ -91,6 +91,20 @@ interface SentimentDetailResponse {
   tweets?: ProjectTweet[];
   influencers?: Influencer[];
   innerCircle?: InnerCircleSummary;
+  mindshare?: {
+    bps_24h: number | null;
+    bps_48h: number | null;
+    bps_7d: number | null;
+    bps_30d: number | null;
+    delta_1d: number | null;
+    delta_7d: number | null;
+  };
+  smartFollowers?: {
+    count: number | null;
+    pct: number | null;
+    delta_7d: number | null;
+    delta_30d: number | null;
+  };
   error?: string;
 }
 
@@ -940,6 +954,8 @@ export default function SentimentDetail() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mindshare, setMindshare] = useState<SentimentDetailResponse['mindshare'] | null>(null);
+  const [smartFollowers, setSmartFollowers] = useState<SentimentDetailResponse['smartFollowers'] | null>(null);
   
   // NEW: Twitter Analytics state
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -999,6 +1015,8 @@ export default function SentimentDetail() {
         if (data.changes24h) setChanges24h(data.changes24h);
         if (data.influencers) setInfluencers(data.influencers);
         if (data.innerCircle) setInnerCircle(data.innerCircle);
+        if (data.mindshare) setMindshare(data.mindshare);
+        if (data.smartFollowers) setSmartFollowers(data.smartFollowers);
 
         // Track page view for Smart Refresh System (fire and forget)
         if (data.project?.id) {
@@ -1302,7 +1320,7 @@ export default function SentimentDetail() {
 
           {/* Stats Cards */}
           {latestMetrics && (
-            <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
               <div className="metric-card-neon p-4 sm:p-5">
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-2">Sentiment</p>
                 <p className={`text-3xl sm:text-4xl font-bold ${latestMetrics.sentiment_score !== null ? 'text-gradient-sentiment' : 'text-akari-muted'}`}>
@@ -1338,6 +1356,72 @@ export default function SentimentDetail() {
                 <p className="text-xs uppercase tracking-wider text-akari-muted mb-1">Tweets Today</p>
                 <p className="text-2xl font-bold text-akari-text">{latestMetrics.tweet_count || '-'}</p>
               </div>
+            </section>
+          )}
+
+          {/* Mindshare & Smart Followers Cards */}
+          {(mindshare || smartFollowers) && (
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              {mindshare && (
+                <div className="card-neon p-4 sm:p-5">
+                  <p className="text-xs uppercase tracking-wider text-akari-muted mb-3">Mindshare (BPS)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {mindshare.bps_24h !== null && (
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">24h</p>
+                        <p className="text-xl font-bold text-akari-primary">{(mindshare.bps_24h / 100).toFixed(2)}%</p>
+                        <p className="text-xs text-akari-muted">{mindshare.bps_24h.toFixed(0)} bps</p>
+                      </div>
+                    )}
+                    {mindshare.bps_7d !== null && (
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">7d</p>
+                        <p className="text-xl font-bold text-akari-primary">{(mindshare.bps_7d / 100).toFixed(2)}%</p>
+                        <p className="text-xs text-akari-muted">{mindshare.bps_7d.toFixed(0)} bps</p>
+                        {mindshare.delta_7d !== null && (
+                          <p className={`text-xs mt-1 ${mindshare.delta_7d > 0 ? 'text-green-400' : mindshare.delta_7d < 0 ? 'text-red-400' : 'text-akari-muted'}`}>
+                            {mindshare.delta_7d > 0 ? '+' : ''}{mindshare.delta_7d.toFixed(0)} bps
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {mindshare.bps_30d !== null && (
+                      <div>
+                        <p className="text-xs text-akari-muted mb-1">30d</p>
+                        <p className="text-xl font-bold text-akari-primary">{(mindshare.bps_30d / 100).toFixed(2)}%</p>
+                        <p className="text-xs text-akari-muted">{mindshare.bps_30d.toFixed(0)} bps</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {smartFollowers && (
+                <div className="card-neon p-4 sm:p-5">
+                  <p className="text-xs uppercase tracking-wider text-akari-muted mb-3">Smart Followers</p>
+                  {smartFollowers.count !== null ? (
+                    <>
+                      <p className="text-2xl sm:text-3xl font-bold text-akari-text mb-1">{formatNumber(smartFollowers.count)}</p>
+                      {smartFollowers.pct !== null && (
+                        <p className="text-sm text-akari-muted mb-2">{smartFollowers.pct.toFixed(1)}% of total</p>
+                      )}
+                      <div className="flex gap-3 text-xs">
+                        {smartFollowers.delta_7d !== null && (
+                          <span className={`${smartFollowers.delta_7d > 0 ? 'text-green-400' : smartFollowers.delta_7d < 0 ? 'text-red-400' : 'text-akari-muted'}`}>
+                            7d: {smartFollowers.delta_7d > 0 ? '+' : ''}{formatNumber(smartFollowers.delta_7d)}
+                          </span>
+                        )}
+                        {smartFollowers.delta_30d !== null && (
+                          <span className={`${smartFollowers.delta_30d > 0 ? 'text-green-400' : smartFollowers.delta_30d < 0 ? 'text-red-400' : 'text-akari-muted'}`}>
+                            30d: {smartFollowers.delta_30d > 0 ? '+' : ''}{formatNumber(smartFollowers.delta_30d)}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-akari-muted">Not available</p>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
