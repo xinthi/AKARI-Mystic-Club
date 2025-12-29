@@ -35,6 +35,12 @@ interface LeaderboardEntry {
     meme: number;
   };
   mindshare: number; // Total mindshare points
+  // Smart Followers (new)
+  smart_followers_count: number | null;
+  smart_followers_pct: number | null;
+  // Signal Score (new)
+  signal_score: number | null; // 0-100 derived signal score
+  trust_band: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 type LeaderboardResponse =
@@ -632,6 +638,12 @@ export default async function handler(
         noise: data.noise,
         engagement_types: data.engagementTypes,
         mindshare: data.mindshare,
+        // Smart Followers (TODO: integrate calculation)
+        smart_followers_count: null,
+        smart_followers_pct: null,
+        // Signal Score (TODO: integrate calculation)
+        signal_score: null,
+        trust_band: null,
       });
     }
 
