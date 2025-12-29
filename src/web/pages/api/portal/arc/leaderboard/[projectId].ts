@@ -16,6 +16,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { getSmartFollowers } from '../../../../../../server/smart-followers/calculate';
+import { calculateCreatorSignalScore, type CreatorPostMetrics } from '../../../../../../server/arc/signal-score';
 
 // =============================================================================
 // TYPES
@@ -33,6 +35,12 @@ interface LeaderboardEntry {
   follow_verified: boolean;
   ring: 'core' | 'momentum' | 'discovery' | null;
   joined_at: string | null;
+  // Smart Followers (new)
+  smart_followers_count: number | null;
+  smart_followers_pct: number | null;
+  // Signal Score (new)
+  signal_score: number | null; // 0-100 derived signal score
+  trust_band: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 type LeaderboardResponse =
@@ -49,6 +57,139 @@ type LeaderboardResponse =
 function normalizeTwitterUsername(username: string | null | undefined): string {
   if (!username) return '';
   return username.toLowerCase().replace(/^@/, '').trim();
+}
+
+/**
+ * Get x_user_id from username (look up in profiles or tracked_profiles)
+ */
+async function getXUserIdFromUsername(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  username: string
+): Promise<string | null> {
+  // Try profiles first
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('twitter_id')
+    .eq('username', username.toLowerCase().replace('@', '').trim())
+    .maybeSingle();
+
+  if (profile?.twitter_id) {
+    return profile.twitter_id;
+  }
+
+  // Try tracked_profiles
+  const { data: tracked } = await supabase
+    .from('tracked_profiles')
+    .select('x_user_id')
+    .eq('username', username.toLowerCase().replace('@', '').trim())
+    .maybeSingle();
+
+  return tracked?.x_user_id || null;
+}
+
+/**
+ * Build CreatorPostMetrics from project_tweets for a creator
+ */
+async function buildCreatorPostMetrics(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  projectId: string,
+  username: string,
+  window: '24h' | '7d' | '30d' = '7d'
+): Promise<CreatorPostMetrics[]> {
+  const now = new Date();
+  const windowStart = new Date(now);
+  
+  switch (window) {
+    case '24h':
+      windowStart.setHours(windowStart.getHours() - 24);
+      break;
+    case '7d':
+      windowStart.setDate(windowStart.getDate() - 7);
+      break;
+    case '30d':
+      windowStart.setDate(windowStart.getDate() - 30);
+      break;
+  }
+
+  const { data: tweets } = await supabase
+    .from('project_tweets')
+    .select('tweet_id, author_handle, likes, replies, retweets, text, sentiment_score, created_at')
+    .eq('project_id', projectId)
+    .eq('is_official', false)
+    .ilike('author_handle', username.replace('@', ''))
+    .gte('created_at', windowStart.toISOString());
+
+  if (!tweets || tweets.length === 0) {
+    return [];
+  }
+
+  // Get creator's smart score and audience org score (if available)
+  const xUserId = await getXUserIdFromUsername(supabase, username);
+  let smartScore: number | null = null;
+  let audienceOrgScore: number | null = null;
+
+  if (xUserId) {
+    const { data: smartAccount } = await supabase
+      .from('smart_account_scores')
+      .select('smart_score')
+      .eq('x_user_id', xUserId)
+      .eq('as_of_date', now.toISOString().split('T')[0])
+      .order('as_of_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    smartScore = smartAccount?.smart_score ? Number(smartAccount.smart_score) : null;
+
+    // Get audience org score from profile (if available)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('authenticity_score')
+      .eq('username', username.toLowerCase().replace('@', '').trim())
+      .maybeSingle();
+
+    audienceOrgScore = profile?.authenticity_score || null;
+  }
+
+  // Track seen tweet texts for duplicate detection
+  const seenTexts = new Set<string>();
+
+  return tweets.map(tweet => {
+    const text = tweet.text || '';
+    const normalizedText = text.toLowerCase().trim();
+    const isOriginal = !seenTexts.has(normalizedText);
+    if (isOriginal) {
+      seenTexts.add(normalizedText);
+    }
+
+    // Classify content type
+    let contentType: CreatorPostMetrics['contentType'] = 'other';
+    if (/\d+\/\d+/.test(text) || text.toLowerCase().includes('thread') || text.includes('🧵')) {
+      contentType = 'thread';
+    } else if (text.toLowerCase().includes('analysis') || text.toLowerCase().includes('deep dive')) {
+      contentType = 'analysis';
+    } else if (text.toLowerCase().includes('meme') || text.includes('😂')) {
+      contentType = 'meme';
+    } else if (text.toLowerCase().includes('quote')) {
+      contentType = 'quote_rt';
+    } else if (text.toLowerCase().startsWith('rt @') || text.toLowerCase().startsWith('retweet')) {
+      contentType = 'retweet';
+    } else if (text.toLowerCase().startsWith('@')) {
+      contentType = 'reply';
+    }
+
+    const engagementPoints = (tweet.likes || 0) + (tweet.replies || 0) * 2 + (tweet.retweets || 0) * 3;
+
+    return {
+      tweetId: tweet.tweet_id || '',
+      engagementPoints,
+      createdAt: new Date(tweet.created_at || now),
+      contentType,
+      isOriginal,
+      sentimentScore: tweet.sentiment_score,
+      smartScore,
+      audienceOrgScore,
+    };
+  });
 }
 
 /**
@@ -225,6 +366,43 @@ export default async function handler(
       const multiplier = followVerified ? 1.5 : 1.0;
       const score = Math.floor(basePoints * multiplier);
 
+      // Get Smart Followers and Signal Score
+      let smartFollowersCount: number | null = null;
+      let smartFollowersPct: number | null = null;
+      let signalScore: number | null = null;
+      let trustBand: 'A' | 'B' | 'C' | 'D' | null = null;
+
+      try {
+        const xUserId = await getXUserIdFromUsername(supabase, username);
+        if (xUserId) {
+          const smartFollowers = await getSmartFollowers(
+            supabase,
+            'creator',
+            xUserId,
+            xUserId,
+            new Date()
+          );
+          smartFollowersCount = smartFollowers.smart_followers_count;
+          smartFollowersPct = smartFollowers.smart_followers_pct;
+
+          // Calculate Signal Score
+          const postMetrics = await buildCreatorPostMetrics(supabase, pid, username, '7d');
+          if (postMetrics.length > 0) {
+            const signalResult = calculateCreatorSignalScore(
+              postMetrics,
+              '7d',
+              true, // isJoined
+              smartFollowersCount || 0
+            );
+            signalScore = signalResult.signal_score;
+            trustBand = signalResult.trust_band;
+          }
+        }
+      } catch (error) {
+        console.error(`[ARC Leaderboard] Error calculating Smart Followers/Signal Score for ${username}:`, error);
+        // Continue with null values
+      }
+
       entriesMap.set(username, {
         twitter_username: username,
         avatar_url: null, // Will be populated later
@@ -237,12 +415,53 @@ export default async function handler(
         follow_verified: followVerified,
         ring: creator.ring as 'core' | 'momentum' | 'discovery' | null,
         joined_at: creator.joined_at,
+        smart_followers_count: smartFollowersCount,
+        smart_followers_pct: smartFollowersPct,
+        signal_score: signalScore,
+        trust_band: trustBand,
       });
     }
 
     // 2. Add auto-tracked creators (if not already joined)
     for (const [username, points] of autoTrackedPoints.entries()) {
       if (!entriesMap.has(username) && points > 0) {
+        // Get Smart Followers and Signal Score for auto-tracked creators
+        let smartFollowersCount: number | null = null;
+        let smartFollowersPct: number | null = null;
+        let signalScore: number | null = null;
+        let trustBand: 'A' | 'B' | 'C' | 'D' | null = null;
+
+        try {
+          const xUserId = await getXUserIdFromUsername(supabase, username);
+          if (xUserId) {
+            const smartFollowers = await getSmartFollowers(
+              supabase,
+              'creator',
+              xUserId,
+              xUserId,
+              new Date()
+            );
+            smartFollowersCount = smartFollowers.smart_followers_count;
+            smartFollowersPct = smartFollowers.smart_followers_pct;
+
+            // Calculate Signal Score
+            const postMetrics = await buildCreatorPostMetrics(supabase, pid, username, '7d');
+            if (postMetrics.length > 0) {
+              const signalResult = calculateCreatorSignalScore(
+                postMetrics,
+                '7d',
+                false, // isJoined
+                smartFollowersCount || 0
+              );
+              signalScore = signalResult.signal_score;
+              trustBand = signalResult.trust_band;
+            }
+          }
+        } catch (error) {
+          console.error(`[ARC Leaderboard] Error calculating Smart Followers/Signal Score for ${username}:`, error);
+          // Continue with null values
+        }
+
         entriesMap.set(username, {
           twitter_username: username,
           avatar_url: null,
@@ -255,6 +474,10 @@ export default async function handler(
           follow_verified: false,
           ring: null,
           joined_at: null,
+          smart_followers_count: smartFollowersCount,
+          smart_followers_pct: smartFollowersPct,
+          signal_score: signalScore,
+          trust_band: trustBand,
         });
       } else if (entriesMap.has(username)) {
         // If already joined, add auto-tracked points to base_points

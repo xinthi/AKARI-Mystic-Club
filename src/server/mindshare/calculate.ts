@@ -165,7 +165,7 @@ export async function calculateProjectMindshare(
   if (hasKeywords) {
     relevantTweets = tweets.filter(tweet => {
       const text = (tweet.text || '').toLowerCase();
-      return keywords.some(keyword => 
+      return keywords.some((keyword: string) => 
         text.includes(keyword.toLowerCase()) || 
         text.includes(`$${keyword.toLowerCase()}`) ||
         text.includes(`@${keyword.toLowerCase()}`)
@@ -221,12 +221,39 @@ export async function calculateProjectMindshare(
     keywordMatchStrength,
   });
 
+  // Get deltas from snapshots
+  let deltaBps1d: number | null = null;
+  let deltaBps7d: number | null = null;
+
+  try {
+    // Get 1-day delta using function
+    const { data: delta1d } = await supabase
+      .rpc('get_mindshare_delta', {
+        p_project_id: projectId,
+        p_time_window: window,
+        p_days_ago: 1,
+      });
+    deltaBps1d = delta1d;
+
+    // Get 7-day delta using function
+    const { data: delta7d } = await supabase
+      .rpc('get_mindshare_delta', {
+        p_project_id: projectId,
+        p_time_window: window,
+        p_days_ago: 7,
+      });
+    deltaBps7d = delta7d;
+  } catch (error) {
+    // If function doesn't exist or fails, deltas remain null
+    console.warn(`[Mindshare] Could not calculate deltas for project ${projectId}:`, error);
+  }
+
   // For now, return attention value as-is (normalization happens at aggregate level)
   // In production, we'd normalize across all projects in the window
   return {
     mindshare_bps: Math.round(attentionValue), // Will be normalized in aggregate function
-    delta_bps_1d: null, // TODO: Calculate from snapshots
-    delta_bps_7d: null, // TODO: Calculate from snapshots
+    delta_bps_1d: deltaBps1d,
+    delta_bps_7d: deltaBps7d,
     attention_value: attentionValue,
   };
 }

@@ -1570,6 +1570,15 @@ export default function ArenaDetailsPage() {
                                     <span className="hidden md:inline">Mindshare</span>
                                   </span>
                                 </th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden xl:table-cell">
+                                  Smart Followers
+                                </th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
+                                  Signal
+                                </th>
+                                <th className="text-right py-2 px-1.5 sm:py-3 sm:px-2 md:px-4 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell">
+                                  Trust
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1718,6 +1727,50 @@ export default function ArenaDetailsPage() {
                                         <span className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-semibold text-akari-primary">
                                           {entry.mindshare ? entry.mindshare.toLocaleString() : entry.score.toLocaleString()}
                                         </span>
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden xl:table-cell whitespace-nowrap">
+                                        {entry.smart_followers_count !== null ? (
+                                          <div className="flex flex-col items-end gap-0.5">
+                                            <span className="text-[9px] sm:text-[10px] md:text-xs font-medium text-akari-text">
+                                              {entry.smart_followers_count.toLocaleString()}
+                                            </span>
+                                            {entry.smart_followers_pct !== null && (
+                                              <span className="text-[8px] sm:text-[9px] text-akari-muted">
+                                                {entry.smart_followers_pct.toFixed(1)}%
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
+                                        {entry.signal_score !== null ? (
+                                          <span className={`text-[9px] sm:text-[10px] md:text-xs font-medium ${
+                                            entry.signal_score >= 80 ? 'text-green-400' :
+                                            entry.signal_score >= 60 ? 'text-akari-primary' :
+                                            entry.signal_score >= 40 ? 'text-yellow-400' :
+                                            'text-akari-muted'
+                                          }`}>
+                                            {Math.round(entry.signal_score)}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2 sm:py-2.5 md:py-3 px-1 sm:px-1.5 md:px-3 text-right hidden lg:table-cell whitespace-nowrap">
+                                        {entry.trust_band ? (
+                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-medium border ${
+                                            entry.trust_band === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                                            entry.trust_band === 'B' ? 'bg-akari-primary/20 text-akari-primary border-akari-primary/30' :
+                                            entry.trust_band === 'C' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                                            'bg-akari-cardSoft/50 text-akari-muted border-akari-border/30'
+                                          }`}>
+                                            {entry.trust_band}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] sm:text-[10px] md:text-xs text-akari-muted">N/A</span>
+                                        )}
                                       </td>
                                     </tr>
                                   );

@@ -125,6 +125,17 @@ export interface ProjectWithMetrics extends Project, MetricsChange24h {
   followers: number | null;
   date: string | null;
   last_updated_at: string | null; // Timestamp of the most recent metrics update
+  // Mindshare fields (optional, calculated on demand)
+  mindshare_bps_24h?: number | null;
+  mindshare_bps_7d?: number | null;
+  mindshare_bps_30d?: number | null;
+  delta_bps_1d?: number | null;
+  delta_bps_7d?: number | null;
+  // Smart Followers fields (optional, calculated on demand)
+  smart_followers_count?: number | null;
+  smart_followers_pct?: number | null;
+  smart_followers_delta_7d?: number | null;
+  smart_followers_delta_30d?: number | null;
 }
 
 /**
