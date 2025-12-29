@@ -1680,7 +1680,8 @@ export default function ArenaDetailsPage() {
                                       </td>
                                     </tr>
                                   );
-                                })}
+                                });
+                              })()}
                             </tbody>
                           </table>
                         </div>
