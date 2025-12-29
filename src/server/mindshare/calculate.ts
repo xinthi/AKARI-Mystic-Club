@@ -102,18 +102,18 @@ function calculateAttentionValue(inputs: ProjectMindshareInputs): number {
 }
 
 // =============================================================================
-// MAIN: Calculate Mindshare (BPS Normalized)
+// CORE: Calculate Attention Value Only (for snapshot computation)
 // =============================================================================
 
 /**
- * Calculate mindshare for a single project in a given window
- * Returns BPS normalized to 10,000 per window
+ * Calculate raw attention value for a project (without normalization)
+ * Used by snapshot script to compute attention values before normalization
  */
-export async function calculateProjectMindshare(
+export async function calculateProjectAttentionValue(
   supabase: SupabaseClient,
   projectId: string,
   window: MindshareWindow
-): Promise<MindshareResult> {
+): Promise<number> {
   // Calculate time boundaries
   const now = new Date();
   const windowStart = new Date(now);
@@ -152,12 +152,7 @@ export async function calculateProjectMindshare(
     .gte('created_at', windowStart.toISOString());
 
   if (!tweets || tweets.length === 0) {
-    return {
-      mindshare_bps: 0,
-      delta_bps_1d: null,
-      delta_bps_7d: null,
-      attention_value: 0,
-    };
+    return 0;
   }
 
   // Filter by keyword relevance if keywords exist
@@ -183,27 +178,103 @@ export async function calculateProjectMindshare(
   // Get CT Heat (normalized 0-100) - use latest metrics_daily
   const { data: metrics } = await supabase
     .from('metrics_daily')
-    .select('ct_heat')
+    .select('ct_heat_score')
     .eq('project_id', projectId)
     .order('date', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const ctHeatNorm = metrics?.ct_heat || 0;
+  const ctHeatNorm = metrics?.ct_heat_score || 0;
 
-  // Get quality scores (simplified - would need more sophisticated calculation)
+  // Calculate sentiment multiplier from average sentiment
   const avgSentiment = relevantTweets.length > 0
     ? relevantTweets.reduce((sum, t) => sum + (t.sentiment_score || 50), 0) / relevantTweets.length
     : 50;
   
-  const sentimentMultiplier = 0.8 + (avgSentiment / 100) * 0.4; // 0.8-1.2 range
+  const sentimentMultiplier = clamp(0.8 + (avgSentiment / 100) * 0.4, SENTIMENT_FLOOR, SENTIMENT_CAP); // 0.8-1.2 range
 
-  // Placeholder quality scores (would need actual calculation)
-  const creatorOrganicScore = 75; // TODO: Calculate from creator profiles
-  const audienceOrganicScore = 75; // TODO: Calculate from audience quality
-  const originalityScore = 80; // TODO: Calculate from content uniqueness
-  const smartFollowersBoost = 1.0; // TODO: Get from smart followers system
-  const keywordMatchStrength = hasKeywords ? 1.0 : 0.8; // Penalty if no keywords matched
+  // Get Smart Followers boost (if available)
+  let smartFollowersBoost = SMART_FOLLOWERS_FLOOR; // Default to floor
+  try {
+    // Try to get project's X user ID
+    const { data: proj } = await supabase
+      .from('projects')
+      .select('x_handle, twitter_username')
+      .eq('id', projectId)
+      .maybeSingle();
+    
+    const handle = proj?.x_handle || proj?.twitter_username;
+    if (handle) {
+      const cleanHandle = handle.replace('@', '').toLowerCase().trim();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('twitter_id')
+        .eq('username', cleanHandle)
+        .maybeSingle();
+      
+      if (profile?.twitter_id) {
+        // Get smart followers snapshot
+        const { data: smartSnapshot } = await supabase
+          .from('smart_followers_snapshots')
+          .select('smart_followers_pct, is_estimate')
+          .eq('entity_type', 'project')
+          .eq('entity_id', projectId)
+          .eq('x_user_id', profile.twitter_id)
+          .eq('as_of_date', now.toISOString().split('T')[0])
+          .maybeSingle();
+        
+        if (smartSnapshot && !smartSnapshot.is_estimate) {
+          // Boost based on smart followers percentage (1.0 to 1.5 multiplier)
+          const pct = Number(smartSnapshot.smart_followers_pct || 0);
+          // Map 0-20% smart followers to 1.0-1.5 boost
+          smartFollowersBoost = clamp(SMART_FOLLOWERS_FLOOR + (pct / 20) * (SMART_FOLLOWERS_CAP - SMART_FOLLOWERS_FLOOR), SMART_FOLLOWERS_FLOOR, SMART_FOLLOWERS_CAP);
+        }
+      }
+    }
+  } catch (error) {
+    // If smart followers lookup fails, use default
+    console.warn(`[Mindshare] Could not get smart followers boost for project ${projectId}:`, error);
+  }
+
+  // Calculate quality scores
+  // Creator organic score: average from unique creators' profiles
+  let creatorOrganicScore = 75; // Default
+  try {
+    const uniqueUsernames = Array.from(new Set(relevantTweets.map(t => t.author_handle?.toLowerCase()).filter(Boolean)));
+    if (uniqueUsernames.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('authenticity_score')
+        .in('username', uniqueUsernames.slice(0, 100)); // Limit to 100 for performance
+      
+      if (profiles && profiles.length > 0) {
+        const validScores = profiles.map(p => p.authenticity_score).filter((s): s is number => s !== null && s !== undefined);
+        if (validScores.length > 0) {
+          creatorOrganicScore = Math.round(validScores.reduce((sum, s) => sum + s, 0) / validScores.length);
+        }
+      }
+    }
+  } catch (error) {
+    // Use default if lookup fails
+  }
+
+  // Audience organic score: similar to creator organic (can be enhanced later)
+  const audienceOrganicScore = creatorOrganicScore; // Simplified - use creator score as proxy
+
+  // Originality score: check for duplicate/repeated content
+  let originalityScore = 80; // Default
+  try {
+    const texts = relevantTweets.map(t => (t.text || '').toLowerCase().trim()).filter(Boolean);
+    const uniqueTexts = new Set(texts);
+    if (texts.length > 0) {
+      const uniquenessRatio = uniqueTexts.size / texts.length;
+      originalityScore = Math.round(50 + uniquenessRatio * 50); // 50-100 range
+    }
+  } catch (error) {
+    // Use default if calculation fails
+  }
+
+  const keywordMatchStrength = hasKeywords ? 1.0 : 0.8; // Penalty if no keywords configured
 
   // Calculate attention value
   const attentionValue = calculateAttentionValue({
@@ -221,37 +292,95 @@ export async function calculateProjectMindshare(
     keywordMatchStrength,
   });
 
+  return attentionValue;
+}
+
+// =============================================================================
+// MAIN: Calculate Mindshare (BPS Normalized)
+// =============================================================================
+
+/**
+ * Calculate mindshare for a single project in a given window
+ * Returns BPS normalized to 10,000 per window
+ * Reads from snapshots if available, otherwise returns 0
+ */
+export async function calculateProjectMindshare(
+  supabase: SupabaseClient,
+  projectId: string,
+  window: MindshareWindow
+): Promise<MindshareResult> {
+  // Try to get normalized BPS from snapshot first (if snapshot exists)
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const { data: snapshot } = await supabase
+    .from('project_mindshare_snapshots')
+    .select('mindshare_bps, attention_value')
+    .eq('project_id', projectId)
+    .eq('time_window', window)
+    .eq('as_of_date', dateStr)
+    .maybeSingle();
+
+  let mindshareBps: number;
+  let attentionValue: number;
+
+  if (snapshot?.mindshare_bps !== null && snapshot?.mindshare_bps !== undefined) {
+    // Use normalized BPS from snapshot
+    mindshareBps = snapshot.mindshare_bps;
+    attentionValue = Number(snapshot.attention_value || 0);
+  } else {
+    // No snapshot - calculate attention value for display, but BPS is 0 (not normalized)
+    attentionValue = await calculateProjectAttentionValue(supabase, projectId, window);
+    mindshareBps = 0; // Will be normalized when snapshot runs
+  }
+
   // Get deltas from snapshots
   let deltaBps1d: number | null = null;
   let deltaBps7d: number | null = null;
 
   try {
-    // Get 1-day delta using function
-    const { data: delta1d } = await supabase
-      .rpc('get_mindshare_delta', {
-        p_project_id: projectId,
-        p_time_window: window,
-        p_days_ago: 1,
-      });
-    deltaBps1d = delta1d;
+    // Get current BPS (from snapshot or 0)
+    const currentBps = mindshareBps;
 
-    // Get 7-day delta using function
-    const { data: delta7d } = await supabase
-      .rpc('get_mindshare_delta', {
-        p_project_id: projectId,
-        p_time_window: window,
-        p_days_ago: 7,
-      });
-    deltaBps7d = delta7d;
+    // Get 1-day ago snapshot
+    const oneDayAgo = new Date(now);
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    const oneDayAgoStr = oneDayAgo.toISOString().split('T')[0];
+    
+    const { data: snapshot1d } = await supabase
+      .from('project_mindshare_snapshots')
+      .select('mindshare_bps')
+      .eq('project_id', projectId)
+      .eq('time_window', window)
+      .eq('as_of_date', oneDayAgoStr)
+      .maybeSingle();
+
+    if (snapshot1d?.mindshare_bps !== null && snapshot1d?.mindshare_bps !== undefined) {
+      deltaBps1d = currentBps - snapshot1d.mindshare_bps;
+    }
+
+    // Get 7-day ago snapshot
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    
+    const { data: snapshot7d } = await supabase
+      .from('project_mindshare_snapshots')
+      .select('mindshare_bps')
+      .eq('project_id', projectId)
+      .eq('time_window', window)
+      .eq('as_of_date', sevenDaysAgoStr)
+      .maybeSingle();
+
+    if (snapshot7d?.mindshare_bps !== null && snapshot7d?.mindshare_bps !== undefined) {
+      deltaBps7d = currentBps - snapshot7d.mindshare_bps;
+    }
   } catch (error) {
-    // If function doesn't exist or fails, deltas remain null
+    // If query fails, deltas remain null
     console.warn(`[Mindshare] Could not calculate deltas for project ${projectId}:`, error);
   }
 
-  // For now, return attention value as-is (normalization happens at aggregate level)
-  // In production, we'd normalize across all projects in the window
   return {
-    mindshare_bps: Math.round(attentionValue), // Will be normalized in aggregate function
+    mindshare_bps: mindshareBps,
     delta_bps_1d: deltaBps1d,
     delta_bps_7d: deltaBps7d,
     attention_value: attentionValue,

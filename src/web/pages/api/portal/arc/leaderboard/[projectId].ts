@@ -16,8 +16,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { getSmartFollowers } from '../../../../../../../server/smart-followers/calculate';
-import { calculateCreatorSignalScore, type CreatorPostMetrics } from '../../../../../../../server/arc/signal-score';
+import { getSmartFollowers } from '@/server/smart-followers/calculate';
+import { calculateCreatorSignalScore, type CreatorPostMetrics } from '@/server/arc/signal-score';
 
 // =============================================================================
 // TYPES

@@ -21,8 +21,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
-    }
+      "@/*": ["./*"],
+      "@/server/*": ["../server/*"]
+    },
+    "baseUrl": "."
   },
   "include": [
     "next-env.d.ts",

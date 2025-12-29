@@ -40,6 +40,12 @@ const nextConfig = {
       };
     }
 
+    // Add alias for server directory
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/server': require('path').resolve(__dirname, '../../server'),
+    };
+
     // Transpile TypeScript files from src/server directory
     // These files are imported by API routes but are outside the Next.js build context
     // Use Next.js's default babel loader to handle TypeScript (same as it uses for app files)

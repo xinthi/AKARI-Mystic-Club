@@ -11,8 +11,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { fetchProfileImagesForHandles } from '@/lib/portal/supabase';
-import { getSmartFollowers } from '../../../../../../../server/smart-followers/calculate';
-import { calculateCreatorSignalScore, type CreatorPostMetrics } from '../../../../../../../server/arc/signal-score';
+import { getSmartFollowers } from '@/server/smart-followers/calculate';
+import { calculateCreatorSignalScore, type CreatorPostMetrics } from '@/server/arc/signal-score';
 
 interface LeaderboardEntry {
   rank: number;

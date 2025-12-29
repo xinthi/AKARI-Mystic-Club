@@ -8,7 +8,7 @@
  */
 
 import { createServiceClient } from '@/web/lib/portal/supabase';
-import { calculateProjectMindshare, normalizeMindshareBPS, type MindshareWindow } from '@/server/mindshare/calculate';
+import { calculateProjectAttentionValue, normalizeMindshareBPS, type MindshareWindow } from '@/server/mindshare/calculate';
 
 // =============================================================================
 // MAIN
@@ -45,13 +45,13 @@ async function main() {
 
     for (const project of projects || []) {
       try {
-        const result = await calculateProjectMindshare(supabase, project.id, window);
+        const attentionValue = await calculateProjectAttentionValue(supabase, project.id, window);
         attentionValues.push({
           projectId: project.id,
-          attention_value: result.attention_value,
+          attention_value: attentionValue,
         });
       } catch (error: any) {
-        console.error(`[Mindshare Snapshot] Error calculating mindshare for project ${project.id} (${window}):`, error.message);
+        console.error(`[Mindshare Snapshot] Error calculating attention value for project ${project.id} (${window}):`, error.message);
         // Continue with next project
       }
     }
