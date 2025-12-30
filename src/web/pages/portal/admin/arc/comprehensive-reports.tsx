@@ -33,7 +33,7 @@ interface ComprehensiveReport {
     totalProjects: number;
     activeProjects: number;
     projectsRunningCampaigns: number;
-    totalUsers: number;
+    totalTrackedProfiles: number;
     activeUsers: number;
   };
   userActivity: {
@@ -244,9 +244,9 @@ export default function ComprehensiveReportsPage() {
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-600/50 p-4 bg-akari-cardSoft/30">
-                  <p className="text-xs text-akari-muted mb-1">Total Users</p>
+                  <p className="text-xs text-akari-muted mb-1">Total Tracked Profiles</p>
                   <p className="text-2xl font-bold text-akari-text">
-                    {report.platform.totalUsers.toLocaleString()}
+                    {report.platform.totalTrackedProfiles.toLocaleString()}
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-600/50 p-4 bg-akari-cardSoft/30">

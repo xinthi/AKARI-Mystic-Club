@@ -31,7 +31,7 @@ interface ComprehensiveReport {
     totalProjects: number;
     activeProjects: number;
     projectsRunningCampaigns: number;
-    totalUsers: number;
+    totalTrackedProfiles: number;
     activeUsers: number;
   };
   // User activity
@@ -180,7 +180,8 @@ export default async function handler(
     const projectsWithCampaigns = new Set((activeCampaignsData || []).map((c: any) => c.project_id));
 
     // Platform metrics
-    const { count: totalUsersCount } = await supabase
+    // Count total tracked profiles (includes users, projects, and other tracked accounts)
+    const { count: totalTrackedProfilesCount } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
@@ -240,7 +241,7 @@ export default async function handler(
         totalProjects,
         activeProjects,
         projectsRunningCampaigns: projectsWithCampaigns.size,
-        totalUsers: totalUsersCount || 0,
+        totalTrackedProfiles: totalTrackedProfilesCount || 0,
         activeUsers: activeUsersCount || 0,
       },
       userActivity: {
