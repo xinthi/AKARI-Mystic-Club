@@ -311,13 +311,6 @@ export default async function handler(
                     status: createdArena.status,
                   });
                 }
-              } else {
-                summary.errors.push({
-                  projectSlug,
-                  projectId: request.project_id,
-                  requestId: request.id,
-                  message: 'Project not found',
-                });
               }
             } else {
               summary.createdCount++;

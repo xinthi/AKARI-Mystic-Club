@@ -963,28 +963,27 @@ export default async function handler(
             }
           }
 
-            // Also create creator_manager_program for gamified (enables UTM link generator per creator)
-            // This allows project admins to generate UTM links for each creator in the gamified leaderboard
-            const programTitle = `${project.name} Gamified Program`;
-            const { error: programError } = await supabase
-              .from('creator_manager_programs')
-              .insert({
-                project_id: request.project_id,
-                title: programTitle,
-                description: `Gamified program for ${project.name} - UTM link generator for creators`,
-                visibility: 'private', // Default to private, can be changed to public later
-                status: 'active',
-                start_at: start_at ? new Date(start_at).toISOString() : null,
-                end_at: end_at ? new Date(end_at).toISOString() : null,
-                created_by: adminProfile.profileId, // Required field
-              });
+          // Also create creator_manager_program for gamified (enables UTM link generator per creator)
+          // This allows project admins to generate UTM links for each creator in the gamified leaderboard
+          const programTitle = `${project.name} Gamified Program`;
+          const { error: programError } = await supabase
+            .from('creator_manager_programs')
+            .insert({
+              project_id: request.project_id,
+              title: programTitle,
+              description: `Gamified program for ${project.name} - UTM link generator for creators`,
+              visibility: 'private', // Default to private, can be changed to public later
+              status: 'active',
+              start_at: start_at ? new Date(start_at).toISOString() : null,
+              end_at: end_at ? new Date(end_at).toISOString() : null,
+              created_by: adminProfile.profileId, // Required field
+            });
 
-            if (programError) {
-              console.error('[Admin Leaderboard Request Update API] Error creating creator_manager_program for gamified:', programError);
-            } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created creator_manager_program for gamified request:', id);
-              console.log('[Admin Leaderboard Request Update API] Note: This enables UTM link generator per creator');
-            }
+          if (programError) {
+            console.error('[Admin Leaderboard Request Update API] Error creating creator_manager_program for gamified:', programError);
+          } else {
+            console.log('[Admin Leaderboard Request Update API] Successfully created creator_manager_program for gamified request:', id);
+            console.log('[Admin Leaderboard Request Update API] Note: This enables UTM link generator per creator');
           }
         } catch (gamifiedErr: any) {
           console.error('[Admin Leaderboard Request Update API] CRITICAL: Unexpected error in gamified creation:', gamifiedErr);
