@@ -128,11 +128,15 @@ export default async function handler(
       projectId = arena.project_id;
 
       // If not super admin, check if user can manage this project
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && projectId) {
         const permissions = await checkProjectPermissions(supabase, userId, projectId);
         if (!permissions.canManage) {
           return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
         }
+      }
+      
+      if (!projectId) {
+        return res.status(400).json({ ok: false, error: 'Arena missing project_id' });
       }
 
       // Get creators in this arena
@@ -192,11 +196,15 @@ export default async function handler(
       projectId = campaign.project_id;
 
       // If not super admin, check if user can manage this project
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && projectId) {
         const permissions = await checkProjectPermissions(supabase, userId, projectId);
         if (!permissions.canManage) {
           return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
         }
+      }
+      
+      if (!projectId) {
+        return res.status(400).json({ ok: false, error: 'Campaign missing project_id' });
       }
 
       // Get participants in this campaign
@@ -256,11 +264,15 @@ export default async function handler(
       projectId = program.project_id;
 
       // If not super admin, check if user can manage this project
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && projectId) {
         const permissions = await checkProjectPermissions(supabase, userId, projectId);
         if (!permissions.canManage) {
           return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
         }
+      }
+      
+      if (!projectId) {
+        return res.status(400).json({ ok: false, error: 'Program missing project_id' });
       }
 
       // Get creators in this program
