@@ -324,9 +324,16 @@ export default function ComprehensiveReportsPage() {
   );
 }
 
-export const getServerSideProps: GetServerSideProps = requireSuperAdmin(async () => {
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  // Require Super Admin access
+  const redirect = await requireSuperAdmin(context);
+  if (redirect) {
+    return redirect;
+  }
+
+  // User is authenticated and is Super Admin
   return {
     props: {},
   };
-});
+};
 
