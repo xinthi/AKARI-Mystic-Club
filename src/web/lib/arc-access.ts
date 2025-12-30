@@ -173,7 +173,19 @@ export async function requireArcAccess(
   // Type-safe access to the option field
   const isUnlocked = (features as Record<string, any>)[optionField] === true;
 
+  console.log(`[requireArcAccess] Checking unlock status for project ${projectId}, option ${option}:`, {
+    optionField,
+    isUnlocked,
+    featureValue: (features as Record<string, any>)[optionField],
+    allFeatureFields: {
+      option1_crm_unlocked: (features as Record<string, any>).option1_crm_unlocked,
+      option2_normal_unlocked: (features as Record<string, any>).option2_normal_unlocked,
+      option3_gamified_unlocked: (features as Record<string, any>).option3_gamified_unlocked,
+    },
+  });
+
   if (!isUnlocked) {
+    console.log(`[requireArcAccess] ❌ Option ${option} is NOT unlocked for project ${projectId}`);
     return {
       ok: false,
       error: `ARC Option ${option} is not unlocked for this project`,
@@ -181,6 +193,7 @@ export async function requireArcAccess(
     };
   }
 
+  console.log(`[requireArcAccess] ✅ Option ${option} IS unlocked for project ${projectId}`);
   return {
     ok: true,
     approved: true,

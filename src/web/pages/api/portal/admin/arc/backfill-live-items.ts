@@ -220,16 +220,26 @@ export default async function handler(
           if (!targetArenaId) {
             // Create arena (use same slug pattern as approval flow for consistency)
             if (!isDryRun) {
-              const { data: projectData } = await supabase
+              const { data: projectData, error: projectFetchError } = await supabase
                 .from('projects')
-                .select('name, slug')
+                .select('id, name, slug, display_name')
                 .eq('id', request.project_id)
                 .single();
 
-              if (projectData) {
+              if (projectFetchError || !projectData) {
+                console.error(`[Backfill Live Items] Error fetching project ${request.project_id}:`, projectFetchError);
+                summary.errors.push({
+                  projectSlug,
+                  projectId: request.project_id,
+                  requestId: request.id,
+                  message: `Failed to fetch project: ${projectFetchError?.message || 'Project not found'}`,
+                });
+              } else {
                 // Use same slug pattern as approval flow: ${project.slug}-leaderboard-${requestIdShort}
+                // Use slug if available, otherwise use project ID
                 const requestIdShort = request.id.substring(0, 8);
-                let baseSlug = `${projectData.slug}-leaderboard-${requestIdShort}`;
+                const projectSlugForArena = projectData.slug || projectData.id.substring(0, 8);
+                let baseSlug = `${projectSlugForArena}-leaderboard-${requestIdShort}`;
                 let arenaSlug = baseSlug;
                 let suffix = 2;
 
@@ -253,28 +263,53 @@ export default async function handler(
                   }
                 }
 
-                const { error: arenaError } = await supabase
+                const arenaName = `${projectData.display_name || projectData.name} Leaderboard`;
+
+                console.log(`[Backfill Live Items] Creating arena for request ${request.id}:`, {
+                  projectId: request.project_id,
+                  projectName: projectData.name,
+                  projectSlug: projectData.slug,
+                  arenaSlug,
+                  arenaName,
+                });
+
+                const { data: createdArena, error: arenaError } = await supabase
                   .from('arenas')
                   .insert({
                     project_id: request.project_id,
-                    name: `${projectData.name} Leaderboard`,
+                    name: arenaName,
                     slug: arenaSlug,
                     status: 'active',
                     starts_at: null,
                     ends_at: null,
                     created_by: adminProfile?.id || null,
-                  });
+                  })
+                  .select('id, slug, status')
+                  .single();
 
                 if (arenaError) {
+                  console.error(`[Backfill Live Items] Error creating arena:`, arenaError);
                   summary.errors.push({
                     projectSlug,
                     projectId: request.project_id,
                     requestId: request.id,
                     message: `Failed to create arena: ${arenaError.message}`,
                   });
+                } else if (!createdArena) {
+                  console.error(`[Backfill Live Items] Arena insert succeeded but no data returned`);
+                  summary.errors.push({
+                    projectSlug,
+                    projectId: request.project_id,
+                    requestId: request.id,
+                    message: 'Arena insert succeeded but no data returned',
+                  });
                 } else {
                   summary.createdCount++;
-                  console.log(`[Backfill Live Items] Created arena for request ${request.id}, slug: ${arenaSlug}`);
+                  console.log(`[Backfill Live Items] ✅ Created arena for request ${request.id}:`, {
+                    id: createdArena.id,
+                    slug: createdArena.slug,
+                    status: createdArena.status,
+                  });
                 }
               } else {
                 summary.errors.push({
@@ -335,9 +370,9 @@ export default async function handler(
             // Gamified features run alongside this normal leaderboard
             // Use same slug pattern as approval flow for consistency
             if (!isDryRun) {
-              const { data: projectData } = await supabase
+              const { data: projectData, error: projectFetchError } = await supabase
                 .from('projects')
-                .select('name, slug')
+                .select('id, name, slug, display_name')
                 .eq('id', request.project_id)
                 .single();
 
