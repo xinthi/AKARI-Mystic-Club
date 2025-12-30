@@ -130,18 +130,8 @@ export default function ArcEndReportPage() {
     );
   }
 
-  // Not super admin
-  if (!userIsSuperAdmin) {
-    return (
-      <PortalLayout title="ARC End Report">
-        <div className="px-4 py-4 md:px-6 lg:px-10">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center">
-            <p className="text-slate-400">You need super admin access to view this page.</p>
-          </div>
-        </div>
-      </PortalLayout>
-    );
-  }
+  // Note: Access control is now handled by the API endpoint
+  // Both project admins and superadmins can view reports, but admins can only see their own projects
 
   return (
     <PortalLayout title="ARC End Report">

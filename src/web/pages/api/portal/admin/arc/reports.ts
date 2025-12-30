@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 type ReportResponse =
   | {
@@ -94,11 +95,8 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: 'Invalid session' });
     }
 
-    // Check super admin
+    // Check if user is super admin
     const isSuperAdmin = await isSuperAdminServerSide(userId);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
-    }
 
     const { kind, id } = req.query as { kind?: string; id?: string };
 
@@ -112,6 +110,9 @@ export default async function handler(
 
     const supabase = getSupabaseAdmin();
 
+    // Get the project_id for the item to check permissions
+    let projectId: string | null = null;
+
     if (kind === 'arena') {
       // Get arena report
       const { data: arena, error: arenaError } = await supabase
@@ -122,6 +123,16 @@ export default async function handler(
 
       if (arenaError || !arena) {
         return res.status(404).json({ ok: false, error: 'Arena not found' });
+      }
+
+      projectId = arena.project_id;
+
+      // If not super admin, check if user can manage this project
+      if (!isSuperAdmin) {
+        const permissions = await checkProjectPermissions(supabase, userId, projectId);
+        if (!permissions.canManage) {
+          return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
+        }
       }
 
       // Get creators in this arena
@@ -178,6 +189,16 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Campaign not found' });
       }
 
+      projectId = campaign.project_id;
+
+      // If not super admin, check if user can manage this project
+      if (!isSuperAdmin) {
+        const permissions = await checkProjectPermissions(supabase, userId, projectId);
+        if (!permissions.canManage) {
+          return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
+        }
+      }
+
       // Get participants in this campaign
       const { data: participants } = await supabase
         .from('arc_campaign_participants')
@@ -230,6 +251,16 @@ export default async function handler(
 
       if (programError || !program) {
         return res.status(404).json({ ok: false, error: 'Program not found' });
+      }
+
+      projectId = program.project_id;
+
+      // If not super admin, check if user can manage this project
+      if (!isSuperAdmin) {
+        const permissions = await checkProjectPermissions(supabase, userId, projectId);
+        if (!permissions.canManage) {
+          return res.status(403).json({ ok: false, error: 'You do not have permission to view reports for this project' });
+        }
       }
 
       // Get creators in this program
