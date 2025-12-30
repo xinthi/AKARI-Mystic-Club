@@ -9,7 +9,6 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient } from '../../../../lib/portal/supabase';
-import { getSessionToken } from '../../../../lib/server-auth';
 import { getSupabaseAdmin } from '../../../../lib/supabase-admin';
 
 // =============================================================================
@@ -41,6 +40,16 @@ type MindshareResponse =
 // =============================================================================
 // HANDLER
 // =============================================================================
+
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
 
 export default async function handler(
   req: NextApiRequest,

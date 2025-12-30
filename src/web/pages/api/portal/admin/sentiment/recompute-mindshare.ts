@@ -9,7 +9,6 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '../../../../../lib/supabase-admin';
-import { getSessionToken } from '../../../../../lib/server-auth';
 import { computeAllMindshareSnapshots } from '../../../../../../server/mindshare/snapshot';
 
 const DEV_MODE = process.env.NODE_ENV === 'development';
@@ -38,6 +37,16 @@ type RecomputeResponse =
 // =============================================================================
 // AUTHENTICATION
 // =============================================================================
+
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
 
 async function checkSuperAdmin(
   supabase: ReturnType<typeof getSupabaseAdmin>,
