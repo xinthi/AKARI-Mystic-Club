@@ -8,8 +8,8 @@ import { LiveItem } from '@/lib/arc/useArcLiveItems';
  * Get route href for a live item based on project access level and kind
  * 
  * Routing rules:
- * - leaderboard access level (Option 2) → /portal/arc/[slug] or /portal/arc/[slug]/arena/[arenaSlug] if arena exists
- * - gamified access level (Option 3) → /portal/arc/gamified/[projectId]
+ * - leaderboard access level (Option 2) → /portal/arc/[slug]/arena/[arenaSlug] if arena exists
+ * - gamified access level (Option 3) → /portal/arc/[slug]/arena/[arenaSlug] (same as Option 2, quests run alongside)
  * - creator_manager access level (Option 1) → /portal/arc/creator-manager?projectId=[slug|id] (visibility checked on page)
  * - Fallback to kind-based routing if access level not available
  */
@@ -35,10 +35,10 @@ export function getLiveItemRoute(item: LiveItem): string | null {
   }
 
   // Fallback: route based on kind (backward compatibility)
-  if (item.kind === 'arena' && item.project.slug && item.arenaSlug) {
+  // For both 'arena' and 'gamified' kinds, route to arena page
+  // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
+  if ((item.kind === 'arena' || item.kind === 'gamified') && item.project.slug && item.arenaSlug) {
     return `/portal/arc/${item.project.slug}/arena/${item.arenaSlug}`;
-  } else if (item.kind === 'gamified') {
-    return `/portal/arc/gamified/${item.project.id}`;
   } else if (item.kind === 'campaign') {
     // Campaign (CRM): Route to creator manager
     return `/portal/arc/creator-manager?projectId=${projectIdentifier}`;
