@@ -184,6 +184,8 @@ export default async function handler(
     }
 
     // Fetch all requests with project info
+    // Using service role (getSupabaseAdmin) which bypasses RLS
+    console.log('[Admin Leaderboard Requests API] Fetching all requests (service role bypasses RLS)');
     const { data: requests, error: requestsError } = await supabase
       .from('arc_leaderboard_requests')
       .select(`
@@ -209,7 +211,17 @@ export default async function handler(
 
     if (requestsError) {
       console.error('[Admin Leaderboard Requests API] Error fetching requests:', requestsError);
+      console.error('[Admin Leaderboard Requests API] Error details:', JSON.stringify(requestsError, null, 2));
       return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
+    }
+
+    console.log(`[Admin Leaderboard Requests API] Successfully fetched ${requests?.length || 0} requests`);
+    if (requests && requests.length > 0) {
+      const statusCounts = requests.reduce((acc: any, r: any) => {
+        acc[r.status] = (acc[r.status] || 0) + 1;
+        return acc;
+      }, {});
+      console.log('[Admin Leaderboard Requests API] Request status breakdown:', statusCounts);
     }
 
     // Fetch requester profiles separately (more reliable than complex joins)

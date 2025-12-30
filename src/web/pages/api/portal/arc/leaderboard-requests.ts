@@ -152,6 +152,12 @@ export default async function handler(
       // Handle "my requests" scope
       if (scope === 'my') {
         // Fetch all user's requests
+        // Using service role (getSupabaseAdmin) which bypasses RLS
+        console.log('[Leaderboard Request API] Fetching user requests:', {
+          profileId: userProfile.profileId,
+          scope: 'my',
+        });
+        
         const { data: requests, error: requestsError } = await supabase
           .from('arc_leaderboard_requests')
           .select(`
@@ -176,8 +182,11 @@ export default async function handler(
 
         if (requestsError) {
           console.error('[Leaderboard Request API] Fetch my requests error:', requestsError);
+          console.error('[Leaderboard Request API] Error details:', JSON.stringify(requestsError, null, 2));
           return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
         }
+
+        console.log(`[Leaderboard Request API] Successfully fetched ${requests?.length || 0} user requests`);
 
         // Normalize the data structure
         const normalizedRequests = (requests || []).map((req: any) => ({
@@ -206,6 +215,11 @@ export default async function handler(
       }
 
       // Fetch user's request for this project
+      console.log('[Leaderboard Request API] Fetching user request for project:', {
+        projectId,
+        profileId: userProfile.profileId,
+      });
+      
       const { data: request, error: requestError } = await supabase
         .from('arc_leaderboard_requests')
         .select('id, status, justification, requested_arc_access_level, created_at')
@@ -217,12 +231,20 @@ export default async function handler(
 
       if (requestError) {
         console.error('[Leaderboard Request API] Fetch error:', requestError);
+        console.error('[Leaderboard Request API] Error details:', JSON.stringify(requestError, null, 2));
         return res.status(500).json({ ok: false, error: 'Failed to fetch request' });
       }
 
       if (!request) {
+        console.log('[Leaderboard Request API] No request found for project');
         return res.status(200).json({ ok: true, request: null });
       }
+
+      console.log('[Leaderboard Request API] Found request:', {
+        id: request.id,
+        status: request.status,
+        created_at: request.created_at,
+      });
 
       return res.status(200).json({ ok: true, request });
     } catch (error: any) {
@@ -306,12 +328,12 @@ export default async function handler(
       });
     }
 
-    // Check if user already has a pending request for this project (dedupe)
+    // Check if there's already a pending request for this project (unique constraint allows only one pending per project)
+    // IMPORTANT: Check for ANY pending request, not just the user's, because the unique constraint is on project_id only
     const { data: existingRequest, error: checkError } = await supabase
       .from('arc_leaderboard_requests')
-      .select('id, status')
+      .select('id, status, requested_by')
       .eq('project_id', projectId)
-      .eq('requested_by', userProfile.profileId)
       .eq('status', 'pending')
       .maybeSingle();
 
@@ -320,16 +342,32 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to check existing requests' });
     }
 
-    // If pending request exists, return it
+    // If pending request exists, check if it's the user's request
     if (existingRequest) {
-      return res.status(200).json({
-        ok: true,
-        requestId: existingRequest.id,
-        status: 'existing',
-      });
+      if (existingRequest.requested_by === userProfile.profileId) {
+        // User's own pending request - return it
+        return res.status(200).json({
+          ok: true,
+          requestId: existingRequest.id,
+          status: 'existing',
+        });
+      } else {
+        // Another user already has a pending request for this project
+        return res.status(409).json({
+          ok: false,
+          error: 'There is already a pending request for this project. Please wait for it to be processed before submitting a new request.',
+        });
+      }
     }
 
     // Insert new request
+    console.log('[Leaderboard Request API] Creating new request:', {
+      projectId,
+      requested_by: userProfile.profileId,
+      requested_arc_access_level,
+      hasJustification: !!justification,
+    });
+    
     const { data: newRequest, error: insertError } = await supabase
       .from('arc_leaderboard_requests')
       .insert({
@@ -341,13 +379,73 @@ export default async function handler(
         decided_by: null,
         decided_at: null,
       })
-      .select('id')
+      .select('id, status, created_at')
       .single();
 
     if (insertError) {
       console.error('[Leaderboard Request API] Insert error:', insertError);
-      return res.status(500).json({ ok: false, error: 'Failed to create request' });
+      console.error('[Leaderboard Request API] Error code:', insertError.code);
+      console.error('[Leaderboard Request API] Error message:', insertError.message);
+      console.error('[Leaderboard Request API] Error details:', insertError.details);
+      console.error('[Leaderboard Request API] Error hint:', insertError.hint);
+      
+      // Handle unique constraint violation (23505 is PostgreSQL unique violation error code)
+      if (insertError.code === '23505' || insertError.message?.includes('unique') || insertError.message?.includes('duplicate')) {
+        console.log('[Leaderboard Request API] Unique constraint violation detected - fetching existing request');
+        // Race condition: another request was created between our check and insert
+        // Fetch the existing request
+        const { data: raceConditionRequest, error: fetchError } = await supabase
+          .from('arc_leaderboard_requests')
+          .select('id, requested_by, status')
+          .eq('project_id', projectId)
+          .eq('status', 'pending')
+          .maybeSingle();
+        
+        if (fetchError) {
+          console.error('[Leaderboard Request API] Error fetching race condition request:', fetchError);
+        }
+        
+        if (raceConditionRequest) {
+          console.log('[Leaderboard Request API] Found existing pending request:', {
+            id: raceConditionRequest.id,
+            requested_by: raceConditionRequest.requested_by,
+            isUserRequest: raceConditionRequest.requested_by === userProfile.profileId,
+          });
+          
+          if (raceConditionRequest.requested_by === userProfile.profileId) {
+            return res.status(200).json({
+              ok: true,
+              requestId: raceConditionRequest.id,
+              status: 'existing',
+            });
+          } else {
+            return res.status(409).json({
+              ok: false,
+              error: 'There is already a pending request for this project. Please wait for it to be processed before submitting a new request.',
+            });
+          }
+        } else {
+          console.error('[Leaderboard Request API] Unique constraint violation but no existing request found - this is unexpected');
+        }
+      }
+      
+      return res.status(500).json({ 
+        ok: false, 
+        error: insertError.message || 'Failed to create request',
+        details: insertError.details || null,
+      });
     }
+
+    if (!newRequest || !newRequest.id) {
+      console.error('[Leaderboard Request API] Insert succeeded but no request data returned');
+      return res.status(500).json({ ok: false, error: 'Request created but failed to retrieve request ID' });
+    }
+
+    console.log('[Leaderboard Request API] Successfully created request:', {
+      id: newRequest.id,
+      status: newRequest.status,
+      created_at: newRequest.created_at,
+    });
 
     return res.status(200).json({
       ok: true,
