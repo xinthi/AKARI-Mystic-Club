@@ -526,18 +526,70 @@ export default async function handler(
       if (arc_access_level === 'leaderboard') {
         // Leaderboard: Create a new arena for this specific request
         // CRITICAL: Arena creation MUST succeed for the approval to be complete
+        let arenaCreated = false;
         try {
-          const { data: project, error: projectFetchError } = await supabase
+          // Fetch project - retry once if it fails
+          let project: any = null;
+          let projectFetchError: any = null;
+          
+          const { data: projectData, error: projectError } = await supabase
             .from('projects')
             .select('id, name, slug, display_name')
             .eq('id', request.project_id)
             .single();
 
+          if (projectError || !projectData) {
+            console.error('[Admin Leaderboard Request Update API] First attempt failed, retrying project fetch:', projectError);
+            // Retry once
+            const { data: retryProjectData, error: retryError } = await supabase
+              .from('projects')
+              .select('id, name, slug, display_name')
+              .eq('id', request.project_id)
+              .single();
+            
+            if (retryError || !retryProjectData) {
+              projectFetchError = retryError || projectError;
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Project fetch failed after retry:', projectFetchError);
+            } else {
+              project = retryProjectData;
+            }
+          } else {
+            project = projectData;
+          }
+
           if (projectFetchError || !project) {
             console.error('[Admin Leaderboard Request Update API] CRITICAL: Error fetching project for arena creation:', projectFetchError);
             console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
-            // Don't fail approval, but log the error - backfill can fix this later
-            console.warn('[Admin Leaderboard Request Update API] Arena not created due to project fetch error. Use backfill to create it.');
+            // Try to create arena with minimal data using project ID
+            console.warn('[Admin Leaderboard Request Update API] Attempting to create arena with fallback data...');
+            
+            const requestIdShort = id.substring(0, 8);
+            const projectIdShort = request.project_id.substring(0, 8);
+            const fallbackSlug = `${projectIdShort}-leaderboard-${requestIdShort}`;
+            
+            const fallbackArenaData = {
+              project_id: request.project_id,
+              name: 'Leaderboard',
+              slug: fallbackSlug,
+              status: 'active' as const,
+              starts_at: start_at ? new Date(start_at).toISOString() : null,
+              ends_at: end_at ? new Date(end_at).toISOString() : null,
+              created_by: adminProfile.profileId,
+            };
+
+            const { data: fallbackArena, error: fallbackError } = await supabase
+              .from('arenas')
+              .insert(fallbackArenaData)
+              .select('id, slug, status')
+              .single();
+
+            if (fallbackError) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Fallback arena creation also failed:', fallbackError);
+              console.error('[Admin Leaderboard Request Update API] Fallback arena data:', JSON.stringify(fallbackArenaData, null, 2));
+            } else if (fallbackArena) {
+              console.log('[Admin Leaderboard Request Update API] ✅ Created arena using fallback data:', fallbackArena);
+              arenaCreated = true;
+            }
           } else {
             // Generate unique arena slug based on request ID to ensure uniqueness
             const requestIdShort = id.substring(0, 8);
@@ -617,31 +669,149 @@ export default async function handler(
                 projectId: request.project_id,
               });
               console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
+              arenaCreated = true;
+            }
+          }
+
+          // Final check: if arena wasn't created, try emergency fallback
+          if (!arenaCreated) {
+            console.error('[Admin Leaderboard Request Update API] ⚠️ WARNING: Arena was NOT created for request:', id);
+            console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+            console.error('[Admin Leaderboard Request Update API] Attempting emergency fallback creation...');
+            
+            try {
+              const requestIdShort = id.substring(0, 8);
+              const projectIdShort = request.project_id.substring(0, 8);
+              const emergencySlug = `arena-${projectIdShort}-${requestIdShort}-${Date.now().toString().slice(-6)}`;
+              
+              const { data: emergencyArena, error: emergencyError } = await supabase
+                .from('arenas')
+                .insert({
+                  project_id: request.project_id,
+                  name: 'Leaderboard',
+                  slug: emergencySlug,
+                  status: 'active',
+                  created_by: adminProfile.profileId,
+                })
+                .select('id, slug, status')
+                .single();
+
+              if (emergencyError) {
+                console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation also failed:', emergencyError);
+                console.error('[Admin Leaderboard Request Update API] Error code:', emergencyError.code);
+                console.error('[Admin Leaderboard Request Update API] Error message:', emergencyError.message);
+                console.error('[Admin Leaderboard Request Update API] Please use the "Fix" button or backfill to create the arena manually.');
+              } else if (emergencyArena) {
+                console.log('[Admin Leaderboard Request Update API] ✅ Created arena using emergency fallback:', emergencyArena);
+                arenaCreated = true;
+              }
+            } catch (emergencyErr: any) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation failed:', emergencyErr);
+              console.error('[Admin Leaderboard Request Update API] Please use the "Fix" button or backfill to create the arena manually.');
             }
           }
         } catch (arenaErr: any) {
           console.error('[Admin Leaderboard Request Update API] CRITICAL: Unexpected error in arena creation:', arenaErr);
           console.error('[Admin Leaderboard Request Update API] Error stack:', arenaErr.stack);
-          // Don't fail approval, but log the error - backfill can fix this later
-          console.warn('[Admin Leaderboard Request Update API] Arena not created due to unexpected error. Use backfill to create it.');
+          console.error('[Admin Leaderboard Request Update API] Request ID:', id);
+          console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+          
+          // Try emergency fallback even in catch block
+          try {
+            const requestIdShort = id.substring(0, 8);
+            const projectIdShort = request.project_id.substring(0, 8);
+            const emergencySlug = `arena-${projectIdShort}-${requestIdShort}-${Date.now().toString().slice(-6)}`;
+            
+            const { data: emergencyArena, error: emergencyError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: request.project_id,
+                name: 'Leaderboard',
+                slug: emergencySlug,
+                status: 'active',
+                created_by: adminProfile.profileId,
+              })
+              .select('id, slug')
+              .single();
+
+            if (emergencyError) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation in catch block also failed:', emergencyError);
+            } else if (emergencyArena) {
+              console.log('[Admin Leaderboard Request Update API] ✅ Created arena using emergency fallback in catch block:', emergencyArena);
+            }
+          } catch (emergencyErr: any) {
+            console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation in catch block failed:', emergencyErr);
+          }
         }
       } else if (arc_access_level === 'gamified') {
         // Gamified: Create a NORMAL arena (same as Option 2)
         // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
         // The arena is the normal leaderboard, gamified features are additional
         // CRITICAL: Arena creation MUST succeed for the approval to be complete
+        let arenaCreated = false;
         try {
-          const { data: project, error: projectFetchError } = await supabase
+          // Fetch project - retry once if it fails
+          let project: any = null;
+          let projectFetchError: any = null;
+          
+          const { data: projectData, error: projectError } = await supabase
             .from('projects')
             .select('id, name, slug, display_name')
             .eq('id', request.project_id)
             .single();
 
+          if (projectError || !projectData) {
+            console.error('[Admin Leaderboard Request Update API] First attempt failed for gamified, retrying project fetch:', projectError);
+            // Retry once
+            const { data: retryProjectData, error: retryError } = await supabase
+              .from('projects')
+              .select('id, name, slug, display_name')
+              .eq('id', request.project_id)
+              .single();
+            
+            if (retryError || !retryProjectData) {
+              projectFetchError = retryError || projectError;
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Project fetch failed after retry for gamified:', projectFetchError);
+            } else {
+              project = retryProjectData;
+            }
+          } else {
+            project = projectData;
+          }
+
           if (projectFetchError || !project) {
             console.error('[Admin Leaderboard Request Update API] CRITICAL: Error fetching project for gamified creation:', projectFetchError);
             console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
-            // Don't fail approval, but log the error - backfill can fix this later
-            console.warn('[Admin Leaderboard Request Update API] Arena not created due to project fetch error. Use backfill to create it.');
+            // Try to create arena with minimal data using project ID
+            console.warn('[Admin Leaderboard Request Update API] Attempting to create arena with fallback data for gamified...');
+            
+            const requestIdShort = id.substring(0, 8);
+            const projectIdShort = request.project_id.substring(0, 8);
+            const fallbackSlug = `${projectIdShort}-leaderboard-${requestIdShort}`;
+            
+            const fallbackArenaData = {
+              project_id: request.project_id,
+              name: 'Leaderboard',
+              slug: fallbackSlug,
+              status: 'active' as const,
+              starts_at: start_at ? new Date(start_at).toISOString() : null,
+              ends_at: end_at ? new Date(end_at).toISOString() : null,
+              created_by: adminProfile.profileId,
+            };
+
+            const { data: fallbackArena, error: fallbackError } = await supabase
+              .from('arenas')
+              .insert(fallbackArenaData)
+              .select('id, slug, status')
+              .single();
+
+            if (fallbackError) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Fallback arena creation also failed for gamified:', fallbackError);
+              console.error('[Admin Leaderboard Request Update API] Fallback arena data:', JSON.stringify(fallbackArenaData, null, 2));
+            } else if (fallbackArena) {
+              console.log('[Admin Leaderboard Request Update API] ✅ Created arena using fallback data for gamified:', fallbackArena);
+              arenaCreated = true;
+            }
           } else {
             // Create NORMAL arena for gamified (same as Option 2)
             // Gamified features run alongside this normal leaderboard
@@ -722,7 +892,45 @@ export default async function handler(
               });
               console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
               console.log('[Admin Leaderboard Request Update API] Note: Gamified features (sprints/quests) run alongside this normal leaderboard');
+              arenaCreated = true;
             }
+          }
+
+          // Final check: if arena wasn't created, try emergency fallback
+          if (!arenaCreated) {
+            console.error('[Admin Leaderboard Request Update API] ⚠️ WARNING: Arena was NOT created for gamified request:', id);
+            console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+            console.error('[Admin Leaderboard Request Update API] Attempting emergency fallback creation...');
+            
+            try {
+              const requestIdShort = id.substring(0, 8);
+              const projectIdShort = request.project_id.substring(0, 8);
+              const emergencySlug = `arena-${projectIdShort}-${requestIdShort}-${Date.now().toString().slice(-6)}`;
+              
+              const { data: emergencyArena, error: emergencyError } = await supabase
+                .from('arenas')
+                .insert({
+                  project_id: request.project_id,
+                  name: 'Leaderboard',
+                  slug: emergencySlug,
+                  status: 'active',
+                  created_by: adminProfile.profileId,
+                })
+                .select('id, slug, status')
+                .single();
+
+              if (emergencyError) {
+                console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation also failed for gamified:', emergencyError);
+                console.error('[Admin Leaderboard Request Update API] Please use the "Fix" button or backfill to create the arena manually.');
+              } else if (emergencyArena) {
+                console.log('[Admin Leaderboard Request Update API] ✅ Created arena using emergency fallback for gamified:', emergencyArena);
+                arenaCreated = true;
+              }
+            } catch (emergencyErr: any) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation failed for gamified:', emergencyErr);
+              console.error('[Admin Leaderboard Request Update API] Please use the "Fix" button or backfill to create the arena manually.');
+            }
+          }
 
             // Also create creator_manager_program for gamified (enables UTM link generator per creator)
             // This allows project admins to generate UTM links for each creator in the gamified leaderboard
@@ -748,7 +956,37 @@ export default async function handler(
             }
           }
         } catch (gamifiedErr: any) {
-          console.error('[Admin Leaderboard Request Update API] Unexpected error in gamified creation:', gamifiedErr);
+          console.error('[Admin Leaderboard Request Update API] CRITICAL: Unexpected error in gamified creation:', gamifiedErr);
+          console.error('[Admin Leaderboard Request Update API] Error stack:', gamifiedErr.stack);
+          console.error('[Admin Leaderboard Request Update API] Request ID:', id);
+          console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+          
+          // Try emergency fallback even in catch block
+          try {
+            const requestIdShort = id.substring(0, 8);
+            const projectIdShort = request.project_id.substring(0, 8);
+            const emergencySlug = `arena-${projectIdShort}-${requestIdShort}-${Date.now().toString().slice(-6)}`;
+            
+            const { data: emergencyArena, error: emergencyError } = await supabase
+              .from('arenas')
+              .insert({
+                project_id: request.project_id,
+                name: 'Leaderboard',
+                slug: emergencySlug,
+                status: 'active',
+                created_by: adminProfile.profileId,
+              })
+              .select('id, slug')
+              .single();
+
+            if (emergencyError) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation in catch block also failed for gamified:', emergencyError);
+            } else if (emergencyArena) {
+              console.log('[Admin Leaderboard Request Update API] ✅ Created arena using emergency fallback in catch block for gamified:', emergencyArena);
+            }
+          } catch (emergencyErr: any) {
+            console.error('[Admin Leaderboard Request Update API] CRITICAL: Emergency arena creation in catch block failed for gamified:', emergencyErr);
+          }
         }
       } else if (arc_access_level === 'creator_manager') {
         // Creator Manager: Create arc_campaign and optionally creator_manager_program
