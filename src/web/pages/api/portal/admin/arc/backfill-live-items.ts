@@ -208,7 +208,7 @@ export default async function handler(
           }
 
           if (!targetArenaId) {
-            // Create arena
+            // Create arena (use same slug pattern as approval flow for consistency)
             if (!isDryRun) {
               const { data: projectData } = await supabase
                 .from('projects')
@@ -217,11 +217,13 @@ export default async function handler(
                 .single();
 
               if (projectData) {
-                let baseSlug = `${projectData.slug}-leaderboard`;
+                // Use same slug pattern as approval flow: ${project.slug}-leaderboard-${requestIdShort}
+                const requestIdShort = request.id.substring(0, 8);
+                let baseSlug = `${projectData.slug}-leaderboard-${requestIdShort}`;
                 let arenaSlug = baseSlug;
                 let suffix = 2;
 
-                // Check if base slug exists
+                // Check if slug exists and find next available
                 const { data: slugCheck } = await supabase
                   .from('arenas')
                   .select('slug')
@@ -262,6 +264,7 @@ export default async function handler(
                   });
                 } else {
                   summary.createdCount++;
+                  console.log(`[Backfill Live Items] Created arena for request ${request.id}, slug: ${arenaSlug}`);
                 }
               } else {
                 summary.errors.push({
@@ -320,6 +323,7 @@ export default async function handler(
           if (!arenas || arenas.length === 0) {
             // Create normal arena for gamified (same as Option 2)
             // Gamified features run alongside this normal leaderboard
+            // Use same slug pattern as approval flow for consistency
             if (!isDryRun) {
               const { data: projectData } = await supabase
                 .from('projects')
@@ -328,7 +332,9 @@ export default async function handler(
                 .single();
 
               if (projectData) {
-                let baseSlug = `${projectData.slug}-leaderboard`;
+                // Use same slug pattern as approval flow: ${project.slug}-leaderboard-${requestIdShort}
+                const requestIdShort = request.id.substring(0, 8);
+                let baseSlug = `${projectData.slug}-leaderboard-${requestIdShort}`;
                 let arenaSlug = baseSlug;
                 let suffix = 2;
 
@@ -372,6 +378,7 @@ export default async function handler(
                   });
                 } else {
                   summary.createdCount++;
+                  console.log(`[Backfill Live Items] Created arena for gamified request ${request.id}, slug: ${arenaSlug}`);
                 }
               }
             } else {
