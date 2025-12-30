@@ -64,12 +64,13 @@ export async function requireArcAccess(
     };
   }
 
-  // Check ARC approval status
+  // Check ARC approval status - get the latest row and check if it's approved
   const { data: access, error: accessError } = await supabase
     .from('arc_project_access')
     .select('application_status')
     .eq('project_id', projectId)
-    .eq('application_status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (accessError) {
@@ -86,7 +87,7 @@ export async function requireArcAccess(
     };
   }
 
-  if (!access) {
+  if (!access || access.application_status !== 'approved') {
     return {
       ok: false,
       error: 'ARC access not approved for this project',
@@ -180,15 +181,16 @@ export async function hasAnyArcAccess(
   supabase: SupabaseClient,
   projectId: string
 ): Promise<boolean> {
-  // Check approval
+  // Check approval - get the latest row and check if it's approved
   const { data: access } = await supabase
     .from('arc_project_access')
     .select('application_status')
     .eq('project_id', projectId)
-    .eq('application_status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  if (!access) {
+  if (!access || access.application_status !== 'approved') {
     return false;
   }
 
