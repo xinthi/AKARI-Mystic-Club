@@ -113,6 +113,7 @@ export default async function handler(
     if (!isSuperAdmin) {
       // For each item, check if user can manage the project
       for (const arena of arenas || []) {
+        if (!arena.project_id) continue; // Skip if project_id is missing
         const permissions = await checkProjectPermissions(supabase, userId, arena.project_id);
         if (permissions.canManage) {
           reports.push({
@@ -130,6 +131,7 @@ export default async function handler(
       }
 
       for (const campaign of campaigns || []) {
+        if (!campaign.project_id) continue; // Skip if project_id is missing
         const permissions = await checkProjectPermissions(supabase, userId, campaign.project_id);
         if (permissions.canManage) {
           reports.push({
@@ -147,6 +149,7 @@ export default async function handler(
       }
 
       for (const program of programs || []) {
+        if (!program.project_id) continue; // Skip if project_id is missing
         const permissions = await checkProjectPermissions(supabase, userId, program.project_id);
         if (permissions.canManage) {
           reports.push({
