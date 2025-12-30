@@ -18,11 +18,13 @@ type BackfillResponse =
       ok: true;
       dryRun: boolean;
       summary: {
+        totalEligible?: number;
         scannedCount: number;
         createdCount: number;
         updatedCount: number;
         skippedCount: number;
         errors: Array<{ projectSlug: string; projectId: string; requestId: string; message: string }>;
+        warnings: Array<{ projectSlug: string; projectId: string; requestId: string; message: string }>;
       };
     }
   | { ok: false; error: string };
@@ -106,6 +108,7 @@ export default async function handler(
       updatedCount: 0,
       skippedCount: 0,
       errors: [] as Array<{ projectSlug: string; projectId: string; requestId: string; message: string }>,
+      warnings: [] as Array<{ projectSlug: string; projectId: string; requestId: string; message: string }>,
     };
 
     // Build query for approved requests
@@ -143,9 +146,15 @@ export default async function handler(
       return res.status(200).json({
         ok: true,
         dryRun: isDryRun,
-        summary,
+        summary: {
+          ...summary,
+          totalEligible: 0,
+        },
       });
     }
+
+    // Set total eligible count
+    summary.totalEligible = approvedRequests.length;
 
     // Process each approved request
     for (const request of approvedRequests) {
@@ -410,6 +419,7 @@ export default async function handler(
           }
         } else if (accessLevel === 'creator_manager') {
           // Option 1: Check for campaigns (report but don't auto-create)
+          // This is expected - campaigns must be created manually, so we report as warning, not error
           const { data: campaigns } = await supabase
             .from('arc_campaigns')
             .select('id')
@@ -418,11 +428,11 @@ export default async function handler(
             .limit(1);
 
           if (!campaigns || campaigns.length === 0) {
-            summary.errors.push({
+            summary.warnings.push({
               projectSlug,
               projectId: request.project_id,
               requestId: request.id,
-              message: 'No live/paused campaigns found. Campaigns must be created manually.',
+              message: 'No live/paused campaigns found. Campaigns must be created manually for Option 1 (CRM) requests.',
             });
           } else {
             summary.skippedCount++;

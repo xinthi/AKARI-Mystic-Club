@@ -575,13 +575,33 @@ export default function AdminLeaderboardRequestsPage() {
                 <p>{backfillResult.dryRun ? 'Would Create' : 'Created'}: {backfillResult.summary.createdCount}</p>
                 <p>{backfillResult.dryRun ? 'Would Update' : 'Updated'}: {backfillResult.summary.updatedCount}</p>
                 <p>Skipped: {backfillResult.summary.skippedCount}</p>
+                {backfillResult.summary.warnings && backfillResult.summary.warnings.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-yellow-400 font-semibold">Warnings ({backfillResult.summary.warnings.length}):</p>
+                    <ul className="list-disc list-inside text-akari-muted text-xs">
+                      {backfillResult.summary.warnings.slice(0, 5).map((warn: any, idx: number) => (
+                        <li key={idx} className="truncate" title={warn.message}>
+                          {warn.projectSlug || warn.projectId || warn.requestId}: {warn.message}
+                        </li>
+                      ))}
+                      {backfillResult.summary.warnings.length > 5 && (
+                        <li className="text-akari-muted/60">... and {backfillResult.summary.warnings.length - 5} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
                 {backfillResult.summary.errors.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-akari-danger font-semibold">Errors ({backfillResult.summary.errors.length}):</p>
-                    <ul className="list-disc list-inside text-akari-muted">
+                    <p className="text-red-400 font-semibold">Errors ({backfillResult.summary.errors.length}):</p>
+                    <ul className="list-disc list-inside text-akari-muted text-xs">
                       {backfillResult.summary.errors.slice(0, 5).map((err: any, idx: number) => (
-                        <li key={idx}>{err.slug || err.projectId}: {err.message}</li>
+                        <li key={idx} className="truncate" title={err.message}>
+                          {err.projectSlug || err.projectId || err.requestId}: {err.message}
+                        </li>
                       ))}
+                      {backfillResult.summary.errors.length > 5 && (
+                        <li className="text-akari-muted/60">... and {backfillResult.summary.errors.length - 5} more</li>
+                      )}
                     </ul>
                   </div>
                 )}
