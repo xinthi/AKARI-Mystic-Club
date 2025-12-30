@@ -66,20 +66,30 @@ export async function getArcLiveItems(
     const accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
     if (!accessCheck.ok) {
       console.log(`[getArcLiveItems] Arena ${arena.id} (project ${arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
+      console.log(`[getArcLiveItems] Arena details: slug=${arena.slug}, status=${arena.status}, starts_at=${arena.startsAt}, ends_at=${arena.endsAt}`);
       continue;
     }
+
+    console.log(`[getArcLiveItems] Arena ${arena.id} (project ${arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
 
     const item = createArenaItem(arena);
     const itemStatus = determineStatus(item.startsAt, item.endsAt, now);
     
+    console.log(`[getArcLiveItems] Arena ${item.title} (project: ${item.projectName}) status determination:`, {
+      startsAt: item.startsAt,
+      endsAt: item.endsAt,
+      determinedStatus: itemStatus,
+      now: now.toISOString(),
+    });
+    
     if (itemStatus === 'live') {
       live.push(item);
-      console.log(`[getArcLiveItems] Added live arena: ${item.title} (project: ${item.projectName})`);
+      console.log(`[getArcLiveItems] ✅ Added live arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug})`);
     } else if (itemStatus === 'upcoming') {
       upcoming.push(item);
-      console.log(`[getArcLiveItems] Added upcoming arena: ${item.title} (project: ${item.projectName})`);
+      console.log(`[getArcLiveItems] ⏳ Added upcoming arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug})`);
     } else {
-      console.log(`[getArcLiveItems] Arena ${item.title} (project: ${item.projectName}) status is null (ended or invalid dates)`);
+      console.log(`[getArcLiveItems] ❌ Arena ${item.title} (project: ${item.projectName}) status is null (ended or invalid dates)`);
     }
   }
 

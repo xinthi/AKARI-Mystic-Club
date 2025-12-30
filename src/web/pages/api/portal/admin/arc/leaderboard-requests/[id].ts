@@ -563,22 +563,44 @@ export default async function handler(
 
             const arenaName = `${project.name} Leaderboard`;
 
-            const { error: arenaError } = await supabase
+            const arenaInsertData = {
+              project_id: request.project_id,
+              name: arenaName,
+              slug: arenaSlug,
+              status: 'active' as const,
+              starts_at: start_at ? new Date(start_at).toISOString() : null,
+              ends_at: end_at ? new Date(end_at).toISOString() : null,
+              created_by: adminProfile.profileId,
+            };
+
+            console.log('[Admin Leaderboard Request Update API] Creating arena for leaderboard request:', {
+              requestId: id,
+              projectId: request.project_id,
+              arenaSlug,
+              status: 'active',
+              starts_at: arenaInsertData.starts_at,
+              ends_at: arenaInsertData.ends_at,
+            });
+
+            const { data: createdArena, error: arenaError } = await supabase
               .from('arenas')
-              .insert({
-                project_id: request.project_id,
-                name: arenaName,
-                slug: arenaSlug,
-                status: 'active',
-                starts_at: start_at ? new Date(start_at).toISOString() : null,
-                ends_at: end_at ? new Date(end_at).toISOString() : null,
-                created_by: adminProfile.profileId,
-              });
+              .insert(arenaInsertData)
+              .select('id, slug, status, starts_at, ends_at')
+              .single();
 
             if (arenaError) {
               console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] Arena insert data:', JSON.stringify(arenaInsertData, null, 2));
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created arena for request:', id, 'slug:', arenaSlug);
+              console.log('[Admin Leaderboard Request Update API] Successfully created arena:', {
+                id: createdArena?.id,
+                slug: createdArena?.slug,
+                status: createdArena?.status,
+                starts_at: createdArena?.starts_at,
+                ends_at: createdArena?.ends_at,
+                projectId: request.project_id,
+              });
+              console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
             }
           }
         } catch (arenaErr: any) {
@@ -626,22 +648,44 @@ export default async function handler(
 
             const arenaName = `${project.name} Leaderboard`;
 
-            const { error: arenaError } = await supabase
+            const arenaInsertData = {
+              project_id: request.project_id,
+              name: arenaName,
+              slug: arenaSlug,
+              status: 'active' as const,
+              starts_at: start_at ? new Date(start_at).toISOString() : null,
+              ends_at: end_at ? new Date(end_at).toISOString() : null,
+              created_by: adminProfile.profileId,
+            };
+
+            console.log('[Admin Leaderboard Request Update API] Creating arena for gamified request:', {
+              requestId: id,
+              projectId: request.project_id,
+              arenaSlug,
+              status: 'active',
+              starts_at: arenaInsertData.starts_at,
+              ends_at: arenaInsertData.ends_at,
+            });
+
+            const { data: createdArena, error: arenaError } = await supabase
               .from('arenas')
-              .insert({
-                project_id: request.project_id,
-                name: arenaName,
-                slug: arenaSlug,
-                status: 'active',
-                starts_at: start_at ? new Date(start_at).toISOString() : null,
-                ends_at: end_at ? new Date(end_at).toISOString() : null,
-                created_by: adminProfile.profileId,
-              });
+              .insert(arenaInsertData)
+              .select('id, slug, status, starts_at, ends_at')
+              .single();
 
             if (arenaError) {
               console.error('[Admin Leaderboard Request Update API] Error creating arena for gamified:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] Arena insert data:', JSON.stringify(arenaInsertData, null, 2));
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created normal arena for gamified request:', id, 'slug:', arenaSlug);
+              console.log('[Admin Leaderboard Request Update API] Successfully created normal arena for gamified request:', {
+                id: createdArena?.id,
+                slug: createdArena?.slug,
+                status: createdArena?.status,
+                starts_at: createdArena?.starts_at,
+                ends_at: createdArena?.ends_at,
+                projectId: request.project_id,
+              });
+              console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
               console.log('[Admin Leaderboard Request Update API] Note: Gamified features (sprints/quests) run alongside this normal leaderboard');
             }
 
