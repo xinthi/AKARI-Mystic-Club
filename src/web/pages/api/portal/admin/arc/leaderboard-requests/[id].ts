@@ -525,19 +525,25 @@ export default async function handler(
       
       if (arc_access_level === 'leaderboard') {
         // Leaderboard: Create a new arena for this specific request
+        // CRITICAL: Arena creation MUST succeed for the approval to be complete
         try {
           const { data: project, error: projectFetchError } = await supabase
             .from('projects')
-            .select('name, slug')
+            .select('id, name, slug, display_name')
             .eq('id', request.project_id)
             .single();
 
           if (projectFetchError || !project) {
-            console.error('[Admin Leaderboard Request Update API] Error fetching project for arena creation:', projectFetchError);
+            console.error('[Admin Leaderboard Request Update API] CRITICAL: Error fetching project for arena creation:', projectFetchError);
+            console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+            // Don't fail approval, but log the error - backfill can fix this later
+            console.warn('[Admin Leaderboard Request Update API] Arena not created due to project fetch error. Use backfill to create it.');
           } else {
             // Generate unique arena slug based on request ID to ensure uniqueness
             const requestIdShort = id.substring(0, 8);
-            let baseSlug = `${project.slug}-leaderboard-${requestIdShort}`;
+            // Use slug if available, otherwise use project ID
+            const projectSlug = project.slug || project.id.substring(0, 8);
+            let baseSlug = `${projectSlug}-leaderboard-${requestIdShort}`;
             let arenaSlug = baseSlug;
             let suffix = 2;
 
@@ -561,7 +567,7 @@ export default async function handler(
               }
             }
 
-            const arenaName = `${project.name} Leaderboard`;
+            const arenaName = `${project.display_name || project.name} Leaderboard`;
 
             const arenaInsertData = {
               project_id: request.project_id,
@@ -576,6 +582,8 @@ export default async function handler(
             console.log('[Admin Leaderboard Request Update API] Creating arena for leaderboard request:', {
               requestId: id,
               projectId: request.project_id,
+              projectName: project.name,
+              projectSlug: project.slug,
               arenaSlug,
               status: 'active',
               starts_at: arenaInsertData.starts_at,
@@ -589,41 +597,58 @@ export default async function handler(
               .single();
 
             if (arenaError) {
-              console.error('[Admin Leaderboard Request Update API] Error creating arena:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Error creating arena:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] Error code:', arenaError.code);
+              console.error('[Admin Leaderboard Request Update API] Error message:', arenaError.message);
+              console.error('[Admin Leaderboard Request Update API] Error details:', arenaError.details);
               console.error('[Admin Leaderboard Request Update API] Arena insert data:', JSON.stringify(arenaInsertData, null, 2));
+              // Don't fail approval, but log the error - backfill can fix this later
+              console.warn('[Admin Leaderboard Request Update API] Arena not created due to insert error. Use backfill to create it.');
+            } else if (!createdArena) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Arena insert succeeded but no data returned');
+              console.warn('[Admin Leaderboard Request Update API] Arena may not have been created. Use backfill to verify and create if needed.');
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created arena:', {
-                id: createdArena?.id,
-                slug: createdArena?.slug,
-                status: createdArena?.status,
-                starts_at: createdArena?.starts_at,
-                ends_at: createdArena?.ends_at,
+              console.log('[Admin Leaderboard Request Update API] ✅ Successfully created arena:', {
+                id: createdArena.id,
+                slug: createdArena.slug,
+                status: createdArena.status,
+                starts_at: createdArena.starts_at,
+                ends_at: createdArena.ends_at,
                 projectId: request.project_id,
               });
               console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
             }
           }
         } catch (arenaErr: any) {
-          console.error('[Admin Leaderboard Request Update API] Unexpected error in arena creation:', arenaErr);
+          console.error('[Admin Leaderboard Request Update API] CRITICAL: Unexpected error in arena creation:', arenaErr);
+          console.error('[Admin Leaderboard Request Update API] Error stack:', arenaErr.stack);
+          // Don't fail approval, but log the error - backfill can fix this later
+          console.warn('[Admin Leaderboard Request Update API] Arena not created due to unexpected error. Use backfill to create it.');
         }
       } else if (arc_access_level === 'gamified') {
         // Gamified: Create a NORMAL arena (same as Option 2)
         // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
         // The arena is the normal leaderboard, gamified features are additional
+        // CRITICAL: Arena creation MUST succeed for the approval to be complete
         try {
           const { data: project, error: projectFetchError } = await supabase
             .from('projects')
-            .select('name, slug')
+            .select('id, name, slug, display_name')
             .eq('id', request.project_id)
             .single();
 
           if (projectFetchError || !project) {
-            console.error('[Admin Leaderboard Request Update API] Error fetching project for gamified creation:', projectFetchError);
+            console.error('[Admin Leaderboard Request Update API] CRITICAL: Error fetching project for gamified creation:', projectFetchError);
+            console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+            // Don't fail approval, but log the error - backfill can fix this later
+            console.warn('[Admin Leaderboard Request Update API] Arena not created due to project fetch error. Use backfill to create it.');
           } else {
             // Create NORMAL arena for gamified (same as Option 2)
             // Gamified features run alongside this normal leaderboard
             const requestIdShort = id.substring(0, 8);
-            let baseSlug = `${project.slug}-leaderboard-${requestIdShort}`;
+            // Use slug if available, otherwise use project ID
+            const projectSlug = project.slug || project.id.substring(0, 8);
+            let baseSlug = `${projectSlug}-leaderboard-${requestIdShort}`;
             let arenaSlug = baseSlug;
             let suffix = 2;
 
@@ -646,7 +671,7 @@ export default async function handler(
               }
             }
 
-            const arenaName = `${project.name} Leaderboard`;
+            const arenaName = `${project.display_name || project.name} Leaderboard`;
 
             const arenaInsertData = {
               project_id: request.project_id,
@@ -661,6 +686,8 @@ export default async function handler(
             console.log('[Admin Leaderboard Request Update API] Creating arena for gamified request:', {
               requestId: id,
               projectId: request.project_id,
+              projectName: project.name,
+              projectSlug: project.slug,
               arenaSlug,
               status: 'active',
               starts_at: arenaInsertData.starts_at,
@@ -674,15 +701,23 @@ export default async function handler(
               .single();
 
             if (arenaError) {
-              console.error('[Admin Leaderboard Request Update API] Error creating arena for gamified:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Error creating arena for gamified:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] Error code:', arenaError.code);
+              console.error('[Admin Leaderboard Request Update API] Error message:', arenaError.message);
+              console.error('[Admin Leaderboard Request Update API] Error details:', arenaError.details);
               console.error('[Admin Leaderboard Request Update API] Arena insert data:', JSON.stringify(arenaInsertData, null, 2));
+              // Don't fail approval, but log the error - backfill can fix this later
+              console.warn('[Admin Leaderboard Request Update API] Arena not created due to insert error. Use backfill to create it.');
+            } else if (!createdArena) {
+              console.error('[Admin Leaderboard Request Update API] CRITICAL: Arena insert succeeded but no data returned');
+              console.warn('[Admin Leaderboard Request Update API] Arena may not have been created. Use backfill to verify and create if needed.');
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created normal arena for gamified request:', {
-                id: createdArena?.id,
-                slug: createdArena?.slug,
-                status: createdArena?.status,
-                starts_at: createdArena?.starts_at,
-                ends_at: createdArena?.ends_at,
+              console.log('[Admin Leaderboard Request Update API] ✅ Successfully created normal arena for gamified request:', {
+                id: createdArena.id,
+                slug: createdArena.slug,
+                status: createdArena.status,
+                starts_at: createdArena.starts_at,
+                ends_at: createdArena.ends_at,
                 projectId: request.project_id,
               });
               console.log('[Admin Leaderboard Request Update API] Arena should appear in live section immediately (no start date = always live)');
