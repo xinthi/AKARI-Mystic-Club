@@ -436,9 +436,15 @@ export default async function handler(
         }
         // If dates are not provided, leave them as null - module will be always active
       } else if (arc_access_level === 'gamified') {
-        featuresData.option3_gamified_unlocked = true;
+        // Gamified: Unlock BOTH Option 2 (normal leaderboard) and Option 3 (gamified features)
+        // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
+        featuresData.option2_normal_unlocked = true; // Normal leaderboard (required base)
+        featuresData.leaderboard_enabled = true;
+        featuresData.option3_gamified_unlocked = true; // Gamified features (additional)
         featuresData.gamefi_enabled = true;
         if (start_at && end_at) {
+          featuresData.leaderboard_start_at = new Date(start_at).toISOString();
+          featuresData.leaderboard_end_at = new Date(end_at).toISOString();
           featuresData.gamefi_start_at = new Date(start_at).toISOString();
           featuresData.gamefi_end_at = new Date(end_at).toISOString();
         }
@@ -579,7 +585,9 @@ export default async function handler(
           console.error('[Admin Leaderboard Request Update API] Unexpected error in arena creation:', arenaErr);
         }
       } else if (arc_access_level === 'gamified') {
-        // Gamified: Create a new arena AND a creator_manager_program (as quest)
+        // Gamified: Create a NORMAL arena (same as Option 2)
+        // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
+        // The arena is the normal leaderboard, gamified features are additional
         try {
           const { data: project, error: projectFetchError } = await supabase
             .from('projects')
@@ -590,9 +598,10 @@ export default async function handler(
           if (projectFetchError || !project) {
             console.error('[Admin Leaderboard Request Update API] Error fetching project for gamified creation:', projectFetchError);
           } else {
-            // Create arena for gamified
+            // Create NORMAL arena for gamified (same as Option 2)
+            // Gamified features run alongside this normal leaderboard
             const requestIdShort = id.substring(0, 8);
-            let baseSlug = `${project.slug}-gamified-${requestIdShort}`;
+            let baseSlug = `${project.slug}-leaderboard-${requestIdShort}`;
             let arenaSlug = baseSlug;
             let suffix = 2;
 
@@ -615,7 +624,7 @@ export default async function handler(
               }
             }
 
-            const arenaName = `${project.name} Gamified Leaderboard`;
+            const arenaName = `${project.name} Leaderboard`;
 
             const { error: arenaError } = await supabase
               .from('arenas')
@@ -630,30 +639,10 @@ export default async function handler(
               });
 
             if (arenaError) {
-              console.error('[Admin Leaderboard Request Update API] Error creating gamified arena:', arenaError);
+              console.error('[Admin Leaderboard Request Update API] Error creating arena for gamified:', arenaError);
             } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created gamified arena for request:', id, 'slug:', arenaSlug);
-            }
-
-            // Also create creator_manager_program as a quest for gamified
-            const programTitle = `${project.name} Quest Program`;
-            const { error: programError } = await supabase
-              .from('creator_manager_programs')
-              .insert({
-                project_id: request.project_id,
-                title: programTitle,
-                description: `Quest program for ${project.name} gamified leaderboard`,
-                visibility: 'public', // Gamified quests are public
-                status: 'active',
-                start_at: start_at ? new Date(start_at).toISOString() : null,
-                end_at: end_at ? new Date(end_at).toISOString() : null,
-                created_by: adminProfile.profileId,
-              });
-
-            if (programError) {
-              console.error('[Admin Leaderboard Request Update API] Error creating creator_manager_program for gamified:', programError);
-            } else {
-              console.log('[Admin Leaderboard Request Update API] Successfully created creator_manager_program for gamified request:', id);
+              console.log('[Admin Leaderboard Request Update API] Successfully created normal arena for gamified request:', id, 'slug:', arenaSlug);
+              console.log('[Admin Leaderboard Request Update API] Note: Gamified features (sprints/quests) run alongside this normal leaderboard');
             }
           }
         } catch (gamifiedErr: any) {
@@ -757,26 +746,20 @@ export default async function handler(
         }
       }
 
-      // Regression guard: Option 3 (Gamified) - Check if quest exists or arena is linked
+      // Regression guard: Option 3 (Gamified) - Check if normal arena exists
+      // Gamified uses the same normal arena as Option 2, with gamified features running alongside
       if (arc_access_level === 'gamified') {
-        const { data: quests, error: questsCheckError } = await supabase
-          .from('arc_quests')
-          .select('id')
-          .eq('project_id', request.project_id)
-          .in('status', ['active', 'paused'])
-          .limit(1);
-
-        const { data: gamifiedArenas, error: arenasCheckError } = await supabase
+        const { data: arenas, error: arenasCheckError } = await supabase
           .from('arenas')
           .select('id')
           .eq('project_id', request.project_id)
           .in('status', ['active', 'scheduled'])
           .limit(1);
 
-        if (questsCheckError || arenasCheckError) {
-          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to check gamified items for project ${projectSlug} (${request.project_id}):`, questsCheckError || arenasCheckError);
-        } else if ((!quests || quests.length === 0) && (!gamifiedArenas || gamifiedArenas.length === 0)) {
-          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD WARNING: Project ${projectSlug} (${request.project_id}) approved for Option 3 (Gamified) but no active quests or arenas found. Request ID: ${request.id}`);
+        if (arenasCheckError) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD ERROR: Failed to check arenas for project ${projectSlug} (${request.project_id}):`, arenasCheckError);
+        } else if (!arenas || arenas.length === 0) {
+          console.error(`[Admin Leaderboard Request Update API] REGRESSION GUARD WARNING: Project ${projectSlug} (${request.project_id}) approved for Option 3 (Gamified) but no active/scheduled arena found. Gamified requires a normal leaderboard arena. Request ID: ${request.id}`);
         }
       }
 

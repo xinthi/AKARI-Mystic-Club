@@ -2,8 +2,8 @@
  * API Route: POST /api/portal/admin/arc/backfill-live-items
  * 
  * Backfill endpoint to ensure approved requests have required records for Live/Upcoming visibility.
- * - Option 2: Ensures arenas exist and are active
- * - Option 3: Ensures gamified quests/arenas exist
+ * - Option 2: Ensures normal arenas exist and are active
+ * - Option 3: Ensures normal arenas exist and are active (gamified features run alongside)
  * - Option 1: Reports missing campaigns (does not auto-create)
  * 
  * Super admin only.
@@ -308,14 +308,8 @@ export default async function handler(
             }
           }
         } else if (accessLevel === 'gamified') {
-          // Option 3: Check for creator_manager_programs first, then arenas as fallback
-          const { data: programs } = await supabase
-            .from('creator_manager_programs')
-            .select('id, status')
-            .eq('project_id', request.project_id)
-            .in('status', ['active', 'paused'])
-            .limit(1);
-
+          // Option 3: Check for normal arena (same as Option 2)
+          // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
           const { data: arenas } = await supabase
             .from('arenas')
             .select('id, status')
@@ -323,8 +317,9 @@ export default async function handler(
             .in('status', ['active', 'scheduled'])
             .limit(1);
 
-          if ((!programs || programs.length === 0) && (!arenas || arenas.length === 0)) {
-            // Create arena for gamified (fallback)
+          if (!arenas || arenas.length === 0) {
+            // Create normal arena for gamified (same as Option 2)
+            // Gamified features run alongside this normal leaderboard
             if (!isDryRun) {
               const { data: projectData } = await supabase
                 .from('projects')
@@ -333,7 +328,7 @@ export default async function handler(
                 .single();
 
               if (projectData) {
-                let baseSlug = `${projectData.slug}-gamified`;
+                let baseSlug = `${projectData.slug}-leaderboard`;
                 let arenaSlug = baseSlug;
                 let suffix = 2;
 
@@ -360,7 +355,7 @@ export default async function handler(
                   .from('arenas')
                   .insert({
                     project_id: request.project_id,
-                    name: `${projectData.name} Gamified Leaderboard`,
+                    name: `${projectData.name} Leaderboard`,
                     slug: arenaSlug,
                     status: 'active',
                     starts_at: null,
@@ -373,7 +368,7 @@ export default async function handler(
                     projectSlug,
                     projectId: request.project_id,
                     requestId: request.id,
-                    message: `Failed to create gamified arena: ${arenaError.message}`,
+                    message: `Failed to create arena for gamified: ${arenaError.message}`,
                   });
                 } else {
                   summary.createdCount++;
@@ -381,27 +376,6 @@ export default async function handler(
               }
             } else {
               summary.createdCount++;
-            }
-          } else if (programs && programs.length > 0 && programs[0].status !== 'active') {
-            // Update program to active
-            if (!isDryRun) {
-              const { error: updateError } = await supabase
-                .from('creator_manager_programs')
-                .update({ status: 'active' })
-                .eq('id', programs[0].id);
-
-              if (updateError) {
-                summary.errors.push({
-                  projectSlug,
-                  projectId: request.project_id,
-                  requestId: request.id,
-                  message: `Failed to activate program: ${updateError.message}`,
-                });
-              } else {
-                summary.updatedCount++;
-              }
-            } else {
-              summary.updatedCount++;
             }
           } else if (arenas && arenas.length > 0 && arenas[0].status !== 'active') {
             // Update arena to active

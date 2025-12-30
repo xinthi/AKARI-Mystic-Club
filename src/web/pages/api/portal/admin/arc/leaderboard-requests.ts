@@ -461,123 +461,71 @@ export default async function handler(
             missingReasonMap.set(req.id, 'No arena exists for this project');
           }
         } else if (req.requested_arc_access_level === 'gamified') {
-          // For Gamified: Check creator_manager_programs first, then arenas as fallback
-          liveItemKindMap.set(req.id, 'gamified');
-          const projectPrograms = (programs || [])
-            .filter((p: any) => p.project_id === req.project_id)
-            .filter((p: any) => !matchedProgramIds.has(p.id)); // Exclude already matched programs
+          // For Gamified: Look for normal arena (same as Option 2)
+          // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
+          liveItemKindMap.set(req.id, 'arena'); // Same as Option 2 - normal arena
+          const projectArenas = (arenas || [])
+            .filter((a: any) => a.project_id === req.project_id)
+            .filter((a: any) => !matchedArenaIds.has(a.id)); // Exclude already matched arenas
           
-          if (projectPrograms.length > 0) {
-            interface ProgramItem {
+          if (projectArenas.length > 0) {
+            interface ArenaItem {
               id: string;
               project_id: string;
-              status: 'active' | 'paused' | 'ended';
+              status: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended';
               created_at: string;
-              start_at?: string | null;
-              end_at?: string | null;
+              starts_at?: string | null;
+              ends_at?: string | null;
               updated_at?: string | null;
             }
-            let closestProgram: ProgramItem | null = null;
+            let closestArena: ArenaItem | null = null;
             let minTimeDiff = Infinity;
             
-            for (const p of projectPrograms) {
-              const program = p as ProgramItem;
-              const programTime = new Date(program.created_at).getTime();
-              const timeDiff = Math.abs(programTime - decidedAt);
+            // First, try to find arena within 1 hour window
+            for (const a of projectArenas) {
+              const arena = a as ArenaItem;
+              const arenaTime = new Date(arena.created_at).getTime();
+              const timeDiff = Math.abs(arenaTime - decidedAt);
               if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
                 minTimeDiff = timeDiff;
-                closestProgram = program;
+                closestArena = arena;
               }
             }
             
-            // Fallback: use program created closest to decided_at
-            if (closestProgram === null && projectPrograms.length > 0) {
-              for (const p of projectPrograms) {
-                const program = p as ProgramItem;
-                const programTime = new Date(program.created_at).getTime();
-                const timeDiff = Math.abs(programTime - decidedAt);
-                if (timeDiff < minTimeDiff) {
-                  minTimeDiff = timeDiff;
-                  closestProgram = program;
-                }
-              }
-            }
-            
-            if (closestProgram !== null) {
-              matchedProgramIds.add(closestProgram.id);
-              liveItemIdMap.set(req.id, closestProgram.id);
-              liveItemStatusMap.set(req.id, closestProgram.status);
-              liveItemStartsAtMap.set(req.id, closestProgram.start_at || null);
-              liveItemEndsAtMap.set(req.id, closestProgram.end_at || null);
-            } else {
-              liveItemIdMap.set(req.id, null);
-              liveItemStatusMap.set(req.id, 'missing');
-              missingReasonMap.set(req.id, 'No program found for this approved request');
-            }
-          } else {
-            // Fallback to arenas for gamified
-            const projectArenas = (arenas || [])
-              .filter((a: any) => a.project_id === req.project_id)
-              .filter((a: any) => !matchedArenaIds.has(a.id)); // Exclude already matched arenas
-            
-            if (projectArenas.length > 0) {
-              interface ArenaItem {
-                id: string;
-                project_id: string;
-                status: 'active' | 'scheduled' | 'paused' | 'cancelled' | 'ended';
-                created_at: string;
-                starts_at?: string | null;
-                ends_at?: string | null;
-                updated_at?: string | null;
-              }
-              let closestArena: ArenaItem | null = null;
-              let minTimeDiff = Infinity;
-              
+            // Fallback: use arena created closest to decided_at (even if > 1 hour)
+            if (closestArena === null && projectArenas.length > 0) {
               for (const a of projectArenas) {
                 const arena = a as ArenaItem;
                 const arenaTime = new Date(arena.created_at).getTime();
                 const timeDiff = Math.abs(arenaTime - decidedAt);
-                if (timeDiff < 3600000 && timeDiff < minTimeDiff) {
+                if (timeDiff < minTimeDiff) {
                   minTimeDiff = timeDiff;
                   closestArena = arena;
                 }
               }
+            }
+            
+            if (closestArena !== null) {
+              matchedArenaIds.add(closestArena.id);
+              liveItemIdMap.set(req.id, closestArena.id);
+              liveItemStatusMap.set(req.id, closestArena.status);
+              liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
+              liveItemEndsAtMap.set(req.id, closestArena.ends_at || null);
               
-              // Fallback: use arena created closest to decided_at
-              if (closestArena === null && projectArenas.length > 0) {
-                for (const a of projectArenas) {
-                  const arena = a as ArenaItem;
-                  const arenaTime = new Date(arena.created_at).getTime();
-                  const timeDiff = Math.abs(arenaTime - decidedAt);
-                  if (timeDiff < minTimeDiff) {
-                    minTimeDiff = timeDiff;
-                    closestArena = arena;
-                  }
-                }
-              }
-              
-              if (closestArena !== null) {
-                matchedArenaIds.add(closestArena.id);
-                liveItemIdMap.set(req.id, closestArena.id);
-                liveItemStatusMap.set(req.id, closestArena.status);
-                liveItemStartsAtMap.set(req.id, closestArena.starts_at || null);
-                liveItemEndsAtMap.set(req.id, closestArena.ends_at || null);
-                
-                // Legacy maps
-                arenaStatusMap.set(req.id, closestArena.status);
-                if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
-                  arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
-                }
-              } else {
-                liveItemIdMap.set(req.id, null);
-                liveItemStatusMap.set(req.id, 'missing');
-                missingReasonMap.set(req.id, 'No arena or program found for this approved request');
+              // Legacy maps
+              arenaStatusMap.set(req.id, closestArena.status);
+              if (closestArena.status === 'ended' || closestArena.status === 'cancelled') {
+                arenaEndedAtMap.set(req.id, closestArena.updated_at || closestArena.ends_at || null);
               }
             } else {
               liveItemIdMap.set(req.id, null);
               liveItemStatusMap.set(req.id, 'missing');
-              missingReasonMap.set(req.id, 'No program or arena exists for this project');
+              missingReasonMap.set(req.id, 'No arena found for this approved request');
             }
+          } else {
+            liveItemIdMap.set(req.id, null);
+            liveItemStatusMap.set(req.id, 'missing');
+            missingReasonMap.set(req.id, 'No arena exists for this project');
           }
         }
       });
