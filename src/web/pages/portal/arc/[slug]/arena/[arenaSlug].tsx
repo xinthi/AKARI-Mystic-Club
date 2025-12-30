@@ -1540,7 +1540,7 @@ export default function ArenaDetailsPage() {
                             <thead>
                               <tr className="border-b border-akari-border/30">
                                 <th className="text-left py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-8">#</th>
-                                <th className="text-left py-1.5 px-1.5 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider">Name</th>
+                                <th className="text-left py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-24 sm:w-32 md:w-40">Name</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap w-12">ARC</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-14">MS</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell whitespace-nowrap w-12">SF</th>
