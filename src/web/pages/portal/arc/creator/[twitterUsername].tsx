@@ -374,7 +374,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
               <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                 <p className="text-sm text-akari-muted mb-4">
                   These metrics are calculated per project and available in individual arena leaderboards. 
-                  Visit each arena's leaderboard to see detailed Signal, Noise, CT Heat, Engagement, Signal Score, and Trust Band metrics.
+                  Visit each arena&apos;s leaderboard to see detailed Signal, Noise, CT Heat, Engagement, Signal Score, and Trust Band metrics.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
