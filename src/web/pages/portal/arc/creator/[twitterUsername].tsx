@@ -368,6 +368,43 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
               </div>
             </div>
 
+            {/* Detailed Metrics Section - Metrics removed from leaderboard */}
+            <section>
+              <h2 className="text-xl font-semibold text-akari-text mb-4">Detailed Metrics</h2>
+              <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
+                <p className="text-sm text-akari-muted mb-4">
+                  These metrics are calculated per project and available in individual arena leaderboards. 
+                  Visit each arena's leaderboard to see detailed Signal, Noise, CT Heat, Engagement, Signal Score, and Trust Band metrics.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">Signal</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">Noise</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">CT Heat</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">Engagement Types</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">Signal Score</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                    <p className="text-xs text-akari-muted mb-1">Trust Band</p>
+                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Narrative Summary Section */}
             {creator && (
               <section>
