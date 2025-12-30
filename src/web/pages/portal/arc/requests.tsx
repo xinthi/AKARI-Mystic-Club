@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
 import Link from 'next/link';
 import { getArcFeatureName, getArcFeatureDescription } from '@/lib/arc-naming';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
@@ -374,15 +375,32 @@ export default function ArcRequestsPage() {
   }
 
   // Render normal requests list
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
   return (
     <ArcPageShell>
       <div>
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">My ARC Leaderboard Requests</h1>
-            <p className="text-white/60">
-              View the status of your ARC leaderboard access requests.
-            </p>
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">My ARC Leaderboard Requests</h1>
+                <p className="text-white/60">
+                  View the status of your ARC leaderboard access requests.
+                </p>
+              </div>
+              {userIsSuperAdmin && (
+                <Link
+                  href="/portal/admin/arc/leaderboard-requests"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-400/20 to-cyan-400/20 text-teal-400 border border-teal-400/50 rounded-lg hover:bg-teal-400/30 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Approve Requests (Admin)
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Loading State */}
