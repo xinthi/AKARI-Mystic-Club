@@ -1540,7 +1540,7 @@ export default function ArenaDetailsPage() {
                             <thead>
                               <tr className="border-b border-akari-border/30">
                                 <th className="text-left py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-8">#</th>
-                                <th className="text-left py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-24 sm:w-32 md:w-40">Name</th>
+                                <th className="text-left py-1.5 px-1.5 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-32 sm:w-40 max-w-[160px]">Name</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap w-12">ARC</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-14">MS</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell whitespace-nowrap w-12">SF</th>
@@ -1601,13 +1601,13 @@ export default function ArenaDetailsPage() {
                                           #{entry.rank}
                                         </span>
                                       </td>
-                                      <td className="py-1.5 px-1 max-w-[160px] sm:max-w-[200px] md:max-w-[240px]">
-                                        <Link href={creatorUrl} className="flex items-center gap-0.5 sm:gap-1 group">
+                                      <td className="py-1.5 px-1.5">
+                                        <Link href={creatorUrl} className="flex items-center gap-1 group">
                                           {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                             <img
                                               src={entry.avatar_url}
                                               alt={entry.twitter_username}
-                                              className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
+                                              className="w-5 h-5 rounded-full border border-akari-border/30 object-cover flex-shrink-0"
                                               onError={(e) => {
                                                 const target = e.target as HTMLImageElement;
                                                 target.style.display = 'none';
@@ -1616,21 +1616,21 @@ export default function ArenaDetailsPage() {
                                               }}
                                             />
                                           ) : null}
-                                          <div className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[8px] sm:text-[9px] text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
+                                          <div className={`w-5 h-5 rounded-full bg-akari-cardSoft/50 border border-akari-border/30 flex items-center justify-center font-semibold text-[9px] text-akari-text flex-shrink-0 ${entry.avatar_url && entry.avatar_url.trim() !== '' ? 'hidden' : ''}`}>
                                             {entry.twitter_username.replace(/^@/, '')[0]?.toUpperCase() || '?'}
                                           </div>
-                                          <div className="flex flex-col min-w-0 flex-1">
+                                          <div className="flex flex-col min-w-0">
                                             <span className="text-[9px] sm:text-[10px] font-medium text-akari-text group-hover:text-akari-primary transition-colors truncate">
                                               @{entry.twitter_username.replace(/^@+/, '')}
                                             </span>
                                             <div className="flex items-center gap-0.5 mt-0.5">
                                               {entry.ring && (
-                                                <span className={`px-0.5 sm:px-1 py-0.5 rounded-full text-[7px] sm:text-[8px] font-medium border ${getRingColor(entry.ring)}`}>
+                                                <span className={`px-0.5 py-0.5 rounded-full text-[7px] sm:text-[8px] font-medium border ${getRingColor(entry.ring)}`}>
                                                   {entry.ring}
                                                 </span>
                                               )}
                                               {primaryEngagementType && (
-                                                <span className="text-[7px] sm:text-[8px] text-akari-muted capitalize hidden lg:inline">
+                                                <span className="text-[7px] sm:text-[8px] text-akari-muted capitalize hidden md:inline">
                                                   {primaryEngagementType}
                                                 </span>
                                               )}
