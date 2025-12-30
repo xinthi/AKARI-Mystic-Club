@@ -1,10 +1,13 @@
 /**
  * Cron Endpoint: Daily Mindshare Snapshot
  * 
- * GET /api/portal/cron/mindshare-snapshot?secret=CRON_SECRET
+ * GET /api/portal/cron/mindshare-snapshot
  * 
  * Scheduled job that computes mindshare snapshots for all windows.
- * Protected by CRON_SECRET.
+ * Protected by CRON_SECRET (via Authorization header) or x-vercel-cron header.
+ * 
+ * Vercel automatically sends Authorization: Bearer <CRON_SECRET> for cron jobs.
+ * Also accepts x-vercel-cron header (Vercel's automatic cron header).
  */
 
 import { NextApiRequest, NextApiResponse } from 'next';
@@ -45,7 +48,14 @@ function validateCronSecret(req: NextApiRequest): boolean {
     return false;
   }
 
-  // Extract authorization header - Vercel sends "Bearer <CRON_SECRET>"
+  // Vercel automatically sends x-vercel-cron header for cron jobs (most secure)
+  const vercelCronHeader = req.headers['x-vercel-cron'];
+  if (vercelCronHeader === '1') {
+    console.log('[MindshareSnapshotCron] Validated via x-vercel-cron header');
+    return true;
+  }
+
+  // Fallback: Extract authorization header - Vercel sends "Bearer <CRON_SECRET>"
   const authHeader = req.headers.authorization;
   const authSecret = authHeader?.startsWith('Bearer ')
     ? authHeader.slice(7)
