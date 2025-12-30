@@ -432,7 +432,6 @@ export default async function handler(
       return res.status(500).json({ 
         ok: false, 
         error: insertError.message || 'Failed to create request',
-        details: insertError.details || null,
       });
     }
 
