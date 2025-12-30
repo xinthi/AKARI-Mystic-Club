@@ -217,21 +217,33 @@ export default async function handler(
     const requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
     
     if (requesterProfileIds.length > 0) {
+      console.log(`[Admin Leaderboard Requests API] Fetching ${requesterProfileIds.length} requester profiles:`, requesterProfileIds.slice(0, 5));
+      
       const { data: requesters, error: requestersError } = await supabase
         .from('profiles')
-        .select('id, username, display_name')
+        .select('id, username, display_name, name')
         .in('id', requesterProfileIds);
 
       if (requestersError) {
         console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
       } else if (requesters) {
+        console.log(`[Admin Leaderboard Requests API] Found ${requesters.length} requester profiles`);
         requesters.forEach((p: any) => {
           requesterMap.set(p.id, {
             id: p.id,
-            username: p.username || '',
-            display_name: p.display_name || null,
+            username: p.username || p.name || '',
+            display_name: p.display_name || p.name || null,
           });
         });
+        
+        // Log any missing profiles
+        const foundIds = new Set(requesters.map((p: any) => p.id));
+        const missingIds = requesterProfileIds.filter(id => !foundIds.has(id));
+        if (missingIds.length > 0) {
+          console.warn(`[Admin Leaderboard Requests API] ${missingIds.length} requester profiles not found:`, missingIds);
+        }
+      } else {
+        console.warn(`[Admin Leaderboard Requests API] No requester profiles found for ${requesterProfileIds.length} profile IDs`);
       }
     }
 
@@ -571,8 +583,12 @@ export default async function handler(
             requestedByUsername = requester.username || undefined;
           }
         } else if (r.requested_by) {
-          // Log when requester profile is missing (should not happen if requested_by is valid)
+          // Profile not found - this can happen for old/deleted profiles
+          // Try to at least show the profile ID as a fallback
           console.warn(`[Admin Leaderboard Requests API] Requester profile not found for request ${r.id} (requested_by: ${r.requested_by})`);
+          // Set a fallback using the profile ID (first 8 chars for readability)
+          requestedByDisplayName = `Profile ${r.requested_by.substring(0, 8)}...`;
+          requestedByUsername = r.requested_by.substring(0, 8);
         }
 
         // Get status for this specific request (matched by request ID)
