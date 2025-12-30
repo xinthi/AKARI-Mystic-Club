@@ -38,6 +38,8 @@ interface ProjectWithMetrics {
   mindshare_bps_24h?: number | null;
   mindshare_bps_7d?: number | null;
   mindshare_bps_30d?: number | null;
+  delta_bps_1d?: number | null;
+  delta_bps_7d?: number | null;
   smart_followers_count?: number | null;
   smart_followers_pct?: number | null;
 }
@@ -1679,10 +1681,18 @@ export default function SentimentOverview() {
                         <td className="py-4 px-5 hidden xl:table-cell">
                           {project.mindshare_bps_7d !== null && project.mindshare_bps_7d !== undefined ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-mono font-medium text-sm text-akari-primary">
-                                {(project.mindshare_bps_7d / 100).toFixed(2)}%
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-medium text-sm text-akari-primary">
+                                  {(project.mindshare_bps_7d / 100).toFixed(2)}%
+                                </span>
+                              </div>
                               <span className="text-xs text-akari-muted">{(project.mindshare_bps_7d).toFixed(0)} bps</span>
+                              {project.delta_bps_7d !== null && project.delta_bps_7d !== undefined && (
+                                <ChangeIndicator 
+                                  change={project.delta_bps_7d} 
+                                  direction={project.delta_bps_7d > 0 ? 'up' : project.delta_bps_7d < 0 ? 'down' : 'flat'}
+                                />
+                              )}
                             </div>
                           ) : (
                             <span className="text-sm text-akari-muted">-</span>

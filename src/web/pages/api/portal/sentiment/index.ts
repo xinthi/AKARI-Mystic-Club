@@ -17,6 +17,8 @@ import {
   TopEngagement,
   TrendingUp,
 } from '@/lib/portal/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { calculateProjectMindshare } from '@/server/mindshare/calculate';
 
 /**
  * Response type for this endpoint
@@ -53,8 +55,27 @@ export default async function handler(
     // Fetch projects with their latest metrics and 24h changes
     const projects = await getProjectsWithLatestMetrics(supabase);
 
+    // Add mindshare data from snapshots (7d window for overview page)
+    const supabaseAdmin = getSupabaseAdmin();
+    const projectsWithMindshare = await Promise.all(
+      projects.map(async (project) => {
+        try {
+          const mindshare = await calculateProjectMindshare(supabaseAdmin, project.id, '7d');
+          return {
+            ...project,
+            mindshare_bps_7d: mindshare.mindshare_bps > 0 ? mindshare.mindshare_bps : null,
+            delta_bps_1d: mindshare.delta_bps_1d,
+            delta_bps_7d: mindshare.delta_bps_7d,
+          };
+        } catch (error) {
+          console.error(`[Sentiment API] Error calculating mindshare for ${project.id}:`, error);
+          return project;
+        }
+      })
+    );
+
     // Sort by AKARI score descending (projects with score first, then null scores)
-    projects.sort((a, b) => {
+    projectsWithMindshare.sort((a, b) => {
       if (a.akari_score === null && b.akari_score === null) return 0;
       if (a.akari_score === null) return 1;
       if (b.akari_score === null) return -1;
@@ -62,13 +83,13 @@ export default async function handler(
     });
 
     // Compute widgets
-    const topMovers = computeTopMovers(projects, 3);
-    const topEngagement = computeTopEngagement(projects, 3);
-    const trendingUp = computeTrendingUp(projects, 3);
+    const topMovers = computeTopMovers(projectsWithMindshare, 3);
+    const topEngagement = computeTopEngagement(projectsWithMindshare, 3);
+    const trendingUp = computeTrendingUp(projectsWithMindshare, 3);
 
     return res.status(200).json({
       ok: true,
-      projects,
+      projects: projectsWithMindshare,
       topMovers,
       topEngagement,
       trendingUp,
