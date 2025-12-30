@@ -204,6 +204,11 @@ export default async function handler(
           display_name,
           slug,
           twitter_username
+        ),
+        requester_profile:profiles!arc_leaderboard_requests_requested_by_fkey (
+          id,
+          username,
+          display_name
         )
       `)
       .order('created_at', { ascending: false });
@@ -213,63 +218,8 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
     }
 
-    // Fetch requester profiles with fallback logic
-    // Priority: requested_by > decided_by > project.claimed_by > "N/A"
-    
-    // Collect all possible profile IDs for fallback lookup
-    const allProfileIds = new Set<string>();
-    (requests || []).forEach((r: any) => {
-      if (r.requested_by) allProfileIds.add(r.requested_by);
-      if (r.decided_by) allProfileIds.add(r.decided_by);
-      if (r.projects?.claimed_by) allProfileIds.add(r.projects.claimed_by);
-    });
-
-    // Get project claimed_by values
-    const projectIds = [...new Set((requests || []).map((r: any) => r.project_id).filter(Boolean))];
-    const { data: projectsWithClaimedBy } = await supabase
-      .from('projects')
-      .select('id, claimed_by')
-      .in('id', projectIds);
-
-    const projectClaimedByMap = new Map<string, string>();
-    if (projectsWithClaimedBy) {
-      projectsWithClaimedBy.forEach((p: any) => {
-        if (p.claimed_by) {
-          allProfileIds.add(p.claimed_by);
-          projectClaimedByMap.set(p.id, p.claimed_by);
-        }
-      });
-    }
-
-    // Fetch all potential requester profiles
-    let requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
-    
-    if (allProfileIds.size > 0) {
-      const profileIdsArray = Array.from(allProfileIds);
-      console.log(`[Admin Leaderboard Requests API] Fetching ${profileIdsArray.length} profiles for requester lookup:`, profileIdsArray.slice(0, 5), profileIdsArray.length > 5 ? '...' : '');
-      
-      const { data: requesters, error: requestersError } = await supabase
-        .from('profiles')
-        .select('id, username, display_name')
-        .in('id', profileIdsArray);
-
-      if (requestersError) {
-        console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
-      } else if (requesters) {
-        console.log(`[Admin Leaderboard Requests API] Found ${requesters.length} profiles`);
-        requesters.forEach((p: any) => {
-          requesterMap.set(p.id, {
-            id: p.id,
-            username: p.username || null,
-            display_name: p.display_name || null,
-          });
-        });
-      } else {
-        console.warn(`[Admin Leaderboard Requests API] No profiles found for ${profileIdsArray.length} profile IDs`);
-      }
-    } else {
-      console.warn('[Admin Leaderboard Requests API] No profile IDs collected for requester lookup');
-    }
+    // Requester profiles are now joined directly via Supabase foreign key join
+    // No need for manual lookup - requester_profile is included in the query result
 
     // Get campaign and arena statuses for approved requests
     // Match each request to its specific arena/campaign by timing (created around decided_at)
@@ -592,50 +542,27 @@ export default async function handler(
       });
     }
 
-    // Format response with fallback requester logic
+    // Format response - requester profile is now joined directly
     const formattedRequests: LeaderboardRequest[] = (requests || [])
       .map((r: any) => {
-        // Determine requester with fallback priority:
-        // 1. requested_by profile
-        // 2. decided_by profile (approver)
-        // 3. project.claimed_by profile
-        // 4. null (UI will show "Unknown")
+        // Use the joined requester_profile directly
+        const requesterProfile = r.requester_profile as { id: string; username: string; display_name: string | null } | null;
         
         let requester: { id: string; username: string; display_name: string | null } | undefined;
         let requestedByDisplayName: string | undefined;
         let requestedByUsername: string | undefined;
 
-        if (r.requested_by) {
-          if (requesterMap.has(r.requested_by)) {
-            requester = requesterMap.get(r.requested_by);
-          } else {
-            console.warn(`[Admin Leaderboard Requests API] Profile not found for requested_by: ${r.requested_by} (request ID: ${r.id})`);
-          }
-        }
-        
-        // Only use fallbacks if requested_by profile not found
-        if (!requester) {
-          if (r.decided_by && requesterMap.has(r.decided_by)) {
-            // Fallback to approver
-            requester = requesterMap.get(r.decided_by);
-            console.log(`[Admin Leaderboard Requests API] Using decided_by as fallback for request ${r.id}`);
-          } else if (r.projects) {
-            const claimedBy = projectClaimedByMap.get(r.project_id);
-            if (claimedBy && requesterMap.has(claimedBy)) {
-              // Fallback to project owner
-              requester = requesterMap.get(claimedBy);
-              console.log(`[Admin Leaderboard Requests API] Using project claimed_by as fallback for request ${r.id}`);
-            }
-          }
-        }
-
-        // Set display fields for UI
-        if (requester) {
-          requestedByDisplayName = requester.display_name || requester.username || undefined;
-          requestedByUsername = requester.username || undefined;
+        if (requesterProfile) {
+          requester = {
+            id: requesterProfile.id,
+            username: requesterProfile.username || '',
+            display_name: requesterProfile.display_name || null,
+          };
+          requestedByDisplayName = requesterProfile.display_name || requesterProfile.username || undefined;
+          requestedByUsername = requesterProfile.username || undefined;
         } else {
-          // Log when no requester found at all
-          console.warn(`[Admin Leaderboard Requests API] No requester found for request ${r.id} (requested_by: ${r.requested_by}, decided_by: ${r.decided_by})`);
+          // Log when requester profile is missing (should not happen if requested_by is valid)
+          console.warn(`[Admin Leaderboard Requests API] Requester profile not found for request ${r.id} (requested_by: ${r.requested_by})`);
         }
 
         // Get status for this specific request (matched by request ID)
