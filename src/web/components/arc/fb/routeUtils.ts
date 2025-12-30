@@ -18,18 +18,15 @@ export function getLiveItemRoute(item: LiveItem): string | null {
   const projectIdentifier = item.project.slug || item.project.id;
 
   // Route based on access level (preferred method)
-  if (accessLevel === 'leaderboard') {
-    // Normal Leaderboard (Option 2): Route to arena leaderboard if available, otherwise leaderboard page
+  if (accessLevel === 'leaderboard' || accessLevel === 'gamified') {
+    // Normal Leaderboard (Option 2) OR Gamified (Option 3): Both use normal arena leaderboard
+    // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
+    // Route to arena leaderboard if available, otherwise leaderboard page
     if (item.kind === 'arena' && item.project.slug && item.arenaSlug) {
       return `/portal/arc/${item.project.slug}/arena/${item.arenaSlug}`;
     }
     // Route to dedicated leaderboard page
     return `/portal/arc/leaderboard/${item.project.id}`;
-  }
-
-  if (accessLevel === 'gamified') {
-    // Gamified Leaderboard (Option 3)
-    return `/portal/arc/gamified/${item.project.id}`;
   }
 
   if (accessLevel === 'creator_manager') {
