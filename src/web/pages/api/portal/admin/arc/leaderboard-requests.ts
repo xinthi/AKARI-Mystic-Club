@@ -226,8 +226,9 @@ export default async function handler(
 
       if (requestersError) {
         console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
+        console.error('[Admin Leaderboard Requests API] Profile IDs attempted:', requesterProfileIds);
       } else if (requesters) {
-        console.log(`[Admin Leaderboard Requests API] Found ${requesters.length} requester profiles`);
+        console.log(`[Admin Leaderboard Requests API] Found ${requesters.length} requester profiles out of ${requesterProfileIds.length} requested`);
         requesters.forEach((p: any) => {
           requesterMap.set(p.id, {
             id: p.id,
@@ -236,14 +237,28 @@ export default async function handler(
           });
         });
         
-        // Log any missing profiles
+        // Log any missing profiles with more detail
         const foundIds = new Set(requesters.map((p: any) => p.id));
         const missingIds = requesterProfileIds.filter(id => !foundIds.has(id));
         if (missingIds.length > 0) {
-          console.warn(`[Admin Leaderboard Requests API] ${missingIds.length} requester profiles not found:`, missingIds);
+          console.error(`[Admin Leaderboard Requests API] ${missingIds.length} requester profiles NOT FOUND in database:`, missingIds);
+          console.error('[Admin Leaderboard Requests API] These profile IDs are stored in arc_leaderboard_requests.requested_by but do not exist in profiles table');
+          // Try to look up these IDs directly to see what the error is
+          for (const missingId of missingIds.slice(0, 3)) {
+            const { data: testProfile, error: testError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('id', missingId)
+              .maybeSingle();
+            if (testError) {
+              console.error(`[Admin Leaderboard Requests API] Direct lookup error for ${missingId}:`, testError);
+            } else if (!testProfile) {
+              console.error(`[Admin Leaderboard Requests API] Profile ${missingId} does not exist in profiles table`);
+            }
+          }
         }
       } else {
-        console.warn(`[Admin Leaderboard Requests API] No requester profiles found for ${requesterProfileIds.length} profile IDs`);
+        console.error(`[Admin Leaderboard Requests API] No requester profiles found for ${requesterProfileIds.length} profile IDs - requesters is null/undefined`);
       }
     }
 
