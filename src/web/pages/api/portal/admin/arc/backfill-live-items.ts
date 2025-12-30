@@ -103,6 +103,7 @@ export default async function handler(
       .single();
 
     const summary = {
+      totalEligible: 0,
       scannedCount: 0,
       createdCount: 0,
       updatedCount: 0,
