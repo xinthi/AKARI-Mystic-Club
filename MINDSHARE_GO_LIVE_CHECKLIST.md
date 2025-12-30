@@ -161,9 +161,30 @@
 
 ---
 
-## 6. CI/Local Testing
+## 6. Pre-Deployment: Commit Lockfile
 
-### 6.1 Guard Script
+**Action Required:** Commit updated `pnpm-lock.yaml`
+
+The lockfile was updated when we added Vitest dependencies. You must commit it before deploying:
+
+```bash
+git add pnpm-lock.yaml
+git commit -m "chore: update pnpm-lock.yaml with vitest dependencies"
+git push
+```
+
+**Status:** 
+- [x] Lockfile updated locally (`pnpm install` completed)
+- [ ] Lockfile committed to git
+- [ ] Lockfile pushed to remote
+
+**Why:** Vercel CI uses `--frozen-lockfile` which requires the lockfile to match package.json exactly.
+
+---
+
+## 7. CI/Local Testing
+
+### 7.1 Guard Script
 
 **Command:** `pnpm guard:forbidden`
 
@@ -180,7 +201,7 @@
 
 **Action:** Run guard script to ensure no formula disclosure.
 
-### 6.2 Unit Tests
+### 7.2 Unit Tests
 
 **Command:** `pnpm test` (or `pnpm --filter web test:run`)
 
@@ -204,9 +225,10 @@
 
 ---
 
-## 7. Production Deployment
+## 8. Production Deployment
 
 ### Pre-Deployment
+- [ ] **Lockfile committed** (see section 6 above)
 - [ ] All environment variables set in Vercel
 - [ ] Guard script passes
 - [ ] Tests pass
