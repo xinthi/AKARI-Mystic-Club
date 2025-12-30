@@ -452,18 +452,49 @@ export default async function handler(
       }
 
       // Upsert arc_project_features (this table has UNIQUE constraint on project_id, so upsert works)
-      const { error: featuresError } = await supabase
+      // CRITICAL: This MUST succeed for the project to appear in live section
+      const { data: upsertedFeatures, error: featuresError } = await supabase
         .from('arc_project_features')
         .upsert(featuresData, {
           onConflict: 'project_id',
-        });
+        })
+        .select('project_id, option2_normal_unlocked, option3_gamified_unlocked, option1_crm_unlocked')
+        .single();
 
       if (featuresError) {
-        console.error('[Admin Leaderboard Request Update API] Error updating arc_project_features:', featuresError);
+        console.error('[Admin Leaderboard Request Update API] CRITICAL: Error updating arc_project_features:', featuresError);
+        console.error('[Admin Leaderboard Request Update API] Error code:', featuresError.code);
+        console.error('[Admin Leaderboard Request Update API] Error message:', featuresError.message);
+        console.error('[Admin Leaderboard Request Update API] Error details:', featuresError.details);
         console.error('[Admin Leaderboard Request Update API] Features data:', JSON.stringify(featuresData, null, 2));
-        // Continue - don't fail the request, but log the error
+        console.error('[Admin Leaderboard Request Update API] Project ID:', request.project_id);
+        // Try to insert instead of upsert in case of conflict issues
+        try {
+          const { data: insertFeatures, error: insertError } = await supabase
+            .from('arc_project_features')
+            .insert(featuresData)
+            .select('project_id, option2_normal_unlocked')
+            .single();
+          
+          if (insertError) {
+            console.error('[Admin Leaderboard Request Update API] CRITICAL: Insert also failed:', insertError);
+          } else {
+            console.log('[Admin Leaderboard Request Update API] ✅ Successfully inserted arc_project_features (fallback):', insertFeatures);
+          }
+        } catch (insertErr: any) {
+          console.error('[Admin Leaderboard Request Update API] CRITICAL: Insert fallback also failed:', insertErr);
+        }
+      } else if (!upsertedFeatures) {
+        console.error('[Admin Leaderboard Request Update API] CRITICAL: Upsert succeeded but no data returned');
+        console.error('[Admin Leaderboard Request Update API] Features may not have been set correctly');
       } else {
-        console.log('[Admin Leaderboard Request Update API] Successfully updated arc_project_features for project:', request.project_id);
+        console.log('[Admin Leaderboard Request Update API] ✅ Successfully updated arc_project_features for project:', request.project_id);
+        console.log('[Admin Leaderboard Request Update API] Features:', {
+          project_id: upsertedFeatures.project_id,
+          option2_normal_unlocked: upsertedFeatures.option2_normal_unlocked,
+          option3_gamified_unlocked: upsertedFeatures.option3_gamified_unlocked,
+          option1_crm_unlocked: upsertedFeatures.option1_crm_unlocked,
+        });
       }
 
       // Step 4: Create billing record with pricing

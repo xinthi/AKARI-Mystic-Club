@@ -114,6 +114,8 @@ export async function requireArcAccess(
 
   if (featuresError) {
     console.error('[requireArcAccess] Error checking features:', featuresError);
+    console.error('[requireArcAccess] Project ID:', projectId);
+    console.error('[requireArcAccess] Option:', option);
     // If table doesn't exist, allow for backward compatibility in dev
     if (process.env.NODE_ENV === 'development') {
       console.warn('[requireArcAccess] DEV MODE - allowing access despite features error');
@@ -124,6 +126,19 @@ export async function requireArcAccess(
       error: 'Failed to check option unlock status',
       code: 'option_locked',
     };
+  }
+
+  // Log what we found for debugging
+  if (features) {
+    console.log(`[requireArcAccess] Found features for project ${projectId}:`, {
+      option1_crm_unlocked: features.option1_crm_unlocked,
+      option2_normal_unlocked: features.option2_normal_unlocked,
+      option3_gamified_unlocked: features.option3_gamified_unlocked,
+      checkingOption: option,
+      checkingField: optionField,
+    });
+  } else {
+    console.log(`[requireArcAccess] No features row found for project ${projectId}, will check legacy fallback`);
   }
 
   // If features row doesn't exist, check legacy arc_access_level as fallback
