@@ -627,7 +627,7 @@ export default function ArcProjectPage() {
                       <thead>
                         <tr className="border-b border-akari-neon-teal/20 bg-gradient-to-r from-akari-neon-teal/5 via-akari-neon-blue/5 to-akari-neon-teal/5">
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Rank</th>
-                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal">Creator</th>
+                          <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-gradient-teal w-32 sm:w-40 max-w-[160px]">Creator</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Base Points</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Multiplier</th>
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Score</th>
@@ -635,10 +635,10 @@ export default function ArcProjectPage() {
                             <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden lg:table-cell">Smart Followers</th>
                           )}
                           {leaderboardEntries.length > 0 && leaderboardEntries[0]?.signal_score !== undefined && (
-                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden md:table-cell">Signal</th>
+                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Signal</th>
                           )}
                           {leaderboardEntries.length > 0 && leaderboardEntries[0]?.trust_band !== undefined && (
-                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted hidden md:table-cell">Trust</th>
+                            <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Trust</th>
                           )}
                           <th className="text-left py-4 px-5 text-xs uppercase tracking-wider font-semibold text-akari-muted">Status</th>
                         </tr>
@@ -660,20 +660,20 @@ export default function ArcProjectPage() {
                                   <span className="text-white/60">#{entry.rank}</span>
                                 )}
                               </td>
-                              <td className="py-4 px-5">
-                                <div className="flex items-center gap-3">
+                              <td className="py-4 px-5 w-32 sm:w-40 max-w-[160px]">
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                                   {entry.avatar_url && (
                                     <img
                                       src={entry.avatar_url}
                                       alt={entry.twitter_username}
-                                      className="w-8 h-8 rounded-full border border-white/10 flex-shrink-0"
+                                      className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border border-white/10 flex-shrink-0"
                                       onError={(e) => {
                                         (e.target as HTMLImageElement).style.display = 'none';
                                       }}
                                     />
                                   )}
-                                  <div>
-                                    <div className="text-sm font-semibold text-white">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs sm:text-sm font-semibold text-white truncate">
                                       @{entry.twitter_username.replace(/^@+/, '')}
                                     </div>
                                   </div>
@@ -713,7 +713,7 @@ export default function ArcProjectPage() {
                                 </td>
                               )}
                               {entry.signal_score !== undefined && (
-                                <td className="py-4 px-5 hidden md:table-cell">
+                                <td className="py-4 px-5">
                                   {entry.signal_score !== null ? (
                                     <span className={`text-sm font-medium ${
                                       entry.signal_score >= 80 ? 'text-green-400' :
@@ -729,7 +729,7 @@ export default function ArcProjectPage() {
                                 </td>
                               )}
                               {entry.trust_band !== undefined && (
-                                <td className="py-4 px-5 hidden md:table-cell">
+                                <td className="py-4 px-5">
                                   {entry.trust_band ? (
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
                                       entry.trust_band === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :

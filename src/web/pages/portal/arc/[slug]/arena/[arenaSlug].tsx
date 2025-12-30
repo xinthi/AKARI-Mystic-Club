@@ -1540,11 +1540,13 @@ export default function ArenaDetailsPage() {
                             <thead>
                               <tr className="border-b border-akari-border/30">
                                 <th className="text-left py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-8">#</th>
-                                <th className="text-left py-1.5 px-1.5 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-32 sm:w-40 max-w-[160px]">Name</th>
+                                <th className="text-left py-1.5 px-1.5 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider w-24 sm:w-28 max-w-[120px]">Name</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider whitespace-nowrap w-12">ARC</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-14">MS</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden md:table-cell whitespace-nowrap w-12">SF</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden lg:table-cell whitespace-nowrap w-16">Sentiment</th>
+                                <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-14">Signal</th>
+                                <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-12">Trust</th>
                                 <th className="text-right py-1.5 px-1 text-[10px] sm:text-xs font-semibold text-akari-muted uppercase tracking-wider hidden sm:table-cell whitespace-nowrap w-16">
                                   Ring
                                 </th>
@@ -1601,7 +1603,7 @@ export default function ArenaDetailsPage() {
                                           #{entry.rank}
                                         </span>
                                       </td>
-                                      <td className="py-1.5 px-1.5 w-32 sm:w-40 max-w-[160px]">
+                                      <td className="py-1.5 px-1.5 w-24 sm:w-28 max-w-[120px]">
                                         <Link href={creatorUrl} className="flex items-center gap-1 sm:gap-1.5 group min-w-0">
                                           {entry.avatar_url && entry.avatar_url.trim() !== '' ? (
                                             <img
@@ -1673,6 +1675,34 @@ export default function ArenaDetailsPage() {
                                         }`}>
                                           {entry.sentiment !== null ? entry.sentiment : 'N/A'}
                                         </span>
+                                      </td>
+                                      <td className="py-1.5 px-1 text-right hidden sm:table-cell whitespace-nowrap">
+                                        {entry.signal_score !== null && entry.signal_score !== undefined ? (
+                                          <span className={`text-[9px] sm:text-[10px] font-medium ${
+                                            entry.signal_score >= 80 ? 'text-green-400' :
+                                            entry.signal_score >= 60 ? 'text-akari-primary' :
+                                            entry.signal_score >= 40 ? 'text-yellow-400' :
+                                            'text-akari-muted'
+                                          }`}>
+                                            {Math.round(entry.signal_score)}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] sm:text-[10px] text-akari-muted">N/A</span>
+                                        )}
+                                      </td>
+                                      <td className="py-1.5 px-1 text-right hidden sm:table-cell whitespace-nowrap">
+                                        {entry.trust_band ? (
+                                          <span className={`px-1 py-0.5 rounded-full text-[8px] sm:text-[9px] font-medium border ${
+                                            entry.trust_band === 'A' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                                            entry.trust_band === 'B' ? 'bg-akari-primary/20 text-akari-primary border-akari-primary/30' :
+                                            entry.trust_band === 'C' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                                            'bg-akari-cardSoft/50 text-akari-muted border-akari-border/30'
+                                          }`}>
+                                            {entry.trust_band}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] sm:text-[10px] text-akari-muted">N/A</span>
+                                        )}
                                       </td>
                                       <td className="py-1.5 px-1 text-right hidden sm:table-cell whitespace-nowrap">
                                         {entry.ring && (
