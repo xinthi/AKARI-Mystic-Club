@@ -8,13 +8,10 @@
  * - Zero attention values handled (distributed evenly)
  * - Single project gets all 10000 bps
  * - Order preserved (higher attention = higher bps)
- * 
- * NOTE: These are test stubs. Requires test framework setup (Jest/Vitest).
  */
 
-// Import normalizeToBps from snapshot.ts
-// Note: This test file requires test framework setup (Jest/Vitest)
-// For now, this is a stub that documents the expected test cases
+import { describe, test, expect } from 'vitest';
+import { normalizeToBps } from '../snapshot';
 
 describe('Mindshare Snapshot Normalization', () => {
   describe('normalizeToBps', () => {

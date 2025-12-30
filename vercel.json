@@ -37,6 +37,10 @@
     {
       "path": "/api/portal/cron/project-audience-geo",
       "schedule": "0 4 * * 2,5"
+    },
+    {
+      "path": "/api/portal/cron/mindshare-snapshot",
+      "schedule": "0 1 * * *"
     }
   ]
 }

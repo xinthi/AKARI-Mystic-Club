@@ -14,6 +14,7 @@
     "lint": "pnpm --filter web lint",
     "guard:forbidden": "node scripts/guard-forbidden.mjs",
     "verify": "pnpm guard:forbidden && pnpm lint && pnpm build",
+    "test": "pnpm --filter web test:run",
     "postinstall": "pnpm exec prisma generate --schema=./prisma/schema.prisma",
     "prisma:push": "pnpm exec prisma db push --schema=./prisma/schema.prisma",
     "prisma:generate": "pnpm exec prisma generate --schema=./prisma/schema.prisma",

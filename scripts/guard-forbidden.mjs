@@ -30,6 +30,19 @@ const FORBIDDEN_KEYWORDS = [
   'katana',
 ];
 
+// Forbidden numeric constants in mindshare files (formula disclosure prevention)
+const FORBIDDEN_MINDSHARE_CONSTANTS = [
+  /0\.25\b/g,
+  /0\.30\b/g,
+  /0\.20\b/g,
+  /0\.8\b/g,
+  /1\.2\b/g,
+  /1\.5\b/g,
+  /0\.7\b/g,
+  /1\.3\b/g,
+  /0\.5\b/g,
+];
+
 const EMDASH_CHAR = '\u2014'; // Unicode em dash
 
 const BINARY_EXTENSIONS = new Set([
@@ -189,6 +202,38 @@ function checkHorizontalRule(content, filePath, relPath) {
   return issues;
 }
 
+function checkMindshareConstants(content, filePath, relPath) {
+  const issues = [];
+  // Only check mindshare files
+  if (!relPath.includes('mindshare') && !relPath.includes('MINDSHARE')) {
+    return issues;
+  }
+  
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Skip comments that are just explaining neutral fallbacks
+    if (line.includes('neutral') || line.includes('fallback') || line.includes('getEnvFloat')) {
+      continue;
+    }
+    
+    for (const pattern of FORBIDDEN_MINDSHARE_CONSTANTS) {
+      if (pattern.test(line)) {
+        const snippet = getSnippet(content, i + 1);
+        issues.push({
+          type: 'mindshare_constant',
+          file: relPath,
+          line: i + 1,
+          snippet,
+          constant: pattern.source,
+        });
+      }
+    }
+  }
+  
+  return issues;
+}
+
 function main() {
   console.log('🔍 Scanning git-tracked files for competitor names and forbidden patterns...\n');
   
@@ -236,6 +281,10 @@ function main() {
     // Check for horizontal rules (all files)
     const hrIssues = checkHorizontalRule(content, filePath, normalizedRelPath);
     allIssues.push(...hrIssues);
+    
+    // Check for mindshare constants (mindshare files only)
+    const mindshareIssues = checkMindshareConstants(content, filePath, normalizedRelPath);
+    allIssues.push(...mindshareIssues);
   }
   
   // Print summary
@@ -263,6 +312,10 @@ function main() {
       console.error('');
     } else if (issue.type === 'horizontal_rule') {
       console.error(`${issue.file}:${issue.line}: found horizontal rule (---)`);
+      console.error(`  ${issue.snippet}`);
+      console.error('');
+    } else if (issue.type === 'mindshare_constant') {
+      console.error(`${issue.file}:${issue.line}: found forbidden mindshare constant (formula disclosure)`);
       console.error(`  ${issue.snippet}`);
       console.error('');
     }

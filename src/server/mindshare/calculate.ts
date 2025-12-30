@@ -34,8 +34,8 @@ export interface ProjectMindshareInputs {
   creatorOrganicScore: number; // 0-100
   audienceOrganicScore: number; // 0-100
   originalityScore: number; // 0-100
-  sentimentMultiplier: number; // 0-2 (typically 0.8-1.2)
-  smartFollowersBoost: number; // 0-2 (typically 1.0-1.5)
+  sentimentMultiplier: number;
+  smartFollowersBoost: number;
   keywordMatchStrength: number; // 0-1 (match strength multiplier)
 }
 
@@ -43,23 +43,35 @@ export interface ProjectMindshareInputs {
 // CONFIGURATION (from env vars - safe fallbacks)
 // =============================================================================
 
-// Core weights (log-scaled inputs)
-const W1_POSTS = parseFloat(process.env.MINDSHARE_W1_POSTS || '0.25');
-const W2_CREATORS = parseFloat(process.env.MINDSHARE_W2_CREATORS || '0.25');
-const W3_ENGAGEMENT = parseFloat(process.env.MINDSHARE_W3_ENGAGEMENT || '0.30');
-const W4_CT_HEAT = parseFloat(process.env.MINDSHARE_W4_CT_HEAT || '0.20');
+/**
+ * Get environment variable with neutral fallback.
+ * Weights: if missing, disable (0) to prevent secret defaults.
+ * Multipliers: if missing, use neutral (1.0) to prevent secret defaults.
+ */
+function getEnvFloat(name: string, neutralValue: number): number {
+  const value = process.env[name];
+  if (!value) return neutralValue; // Neutral fallback, not secret default
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? neutralValue : parsed;
+}
 
-// Quality multiplier floors and caps
-const CREATOR_ORG_FLOOR = parseFloat(process.env.MINDSHARE_CREATOR_ORG_FLOOR || '0.5');
-const CREATOR_ORG_CAP = parseFloat(process.env.MINDSHARE_CREATOR_ORG_CAP || '1.5');
-const AUDIENCE_ORG_FLOOR = parseFloat(process.env.MINDSHARE_AUDIENCE_ORG_FLOOR || '0.5');
-const AUDIENCE_ORG_CAP = parseFloat(process.env.MINDSHARE_AUDIENCE_ORG_CAP || '1.5');
-const ORIGINALITY_FLOOR = parseFloat(process.env.MINDSHARE_ORIGINALITY_FLOOR || '0.7');
-const ORIGINALITY_CAP = parseFloat(process.env.MINDSHARE_ORIGINALITY_CAP || '1.3');
-const SENTIMENT_FLOOR = parseFloat(process.env.MINDSHARE_SENTIMENT_FLOOR || '0.8');
-const SENTIMENT_CAP = parseFloat(process.env.MINDSHARE_SENTIMENT_CAP || '1.2');
-const SMART_FOLLOWERS_FLOOR = parseFloat(process.env.MINDSHARE_SMART_FOLLOWERS_FLOOR || '1.0');
-const SMART_FOLLOWERS_CAP = parseFloat(process.env.MINDSHARE_SMART_FOLLOWERS_CAP || '1.5');
+// Core weights: if missing, disable (0) to prevent secret defaults
+const W1_POSTS = getEnvFloat('MINDSHARE_W1_POSTS', 0);
+const W2_CREATORS = getEnvFloat('MINDSHARE_W2_CREATORS', 0);
+const W3_ENGAGEMENT = getEnvFloat('MINDSHARE_W3_ENGAGEMENT', 0);
+const W4_CT_HEAT = getEnvFloat('MINDSHARE_W4_CT_HEAT', 0);
+
+// Quality multiplier floors and caps: if missing, use neutral (1.0) to prevent secret defaults
+const CREATOR_ORG_FLOOR = getEnvFloat('MINDSHARE_CREATOR_ORG_FLOOR', 1.0);
+const CREATOR_ORG_CAP = getEnvFloat('MINDSHARE_CREATOR_ORG_CAP', 1.0);
+const AUDIENCE_ORG_FLOOR = getEnvFloat('MINDSHARE_AUDIENCE_ORG_FLOOR', 1.0);
+const AUDIENCE_ORG_CAP = getEnvFloat('MINDSHARE_AUDIENCE_ORG_CAP', 1.0);
+const ORIGINALITY_FLOOR = getEnvFloat('MINDSHARE_ORIGINALITY_FLOOR', 1.0);
+const ORIGINALITY_CAP = getEnvFloat('MINDSHARE_ORIGINALITY_CAP', 1.0);
+const SENTIMENT_FLOOR = getEnvFloat('MINDSHARE_SENTIMENT_FLOOR', 1.0);
+const SENTIMENT_CAP = getEnvFloat('MINDSHARE_SENTIMENT_CAP', 1.0);
+const SMART_FOLLOWERS_FLOOR = getEnvFloat('MINDSHARE_SMART_FOLLOWERS_FLOOR', 1.0);
+const SMART_FOLLOWERS_CAP = getEnvFloat('MINDSHARE_SMART_FOLLOWERS_CAP', 1.0);
 
 // =============================================================================
 // HELPER: Clamp value between min and max
@@ -191,7 +203,11 @@ export async function calculateProjectAttentionValue(
     ? relevantTweets.reduce((sum, t) => sum + (t.sentiment_score || 50), 0) / relevantTweets.length
     : 50;
   
-  const sentimentMultiplier = clamp(0.8 + (avgSentiment / 100) * 0.4, SENTIMENT_FLOOR, SENTIMENT_CAP); // 0.8-1.2 range
+  // Calculate sentiment multiplier (neutral if floors/caps are 1.0)
+  const sentimentBase = SENTIMENT_FLOOR === 1.0 && SENTIMENT_CAP === 1.0 
+    ? 1.0 
+    : SENTIMENT_FLOOR + ((avgSentiment - 50) / 50) * (SENTIMENT_CAP - SENTIMENT_FLOOR);
+  const sentimentMultiplier = clamp(sentimentBase, SENTIMENT_FLOOR, SENTIMENT_CAP);
 
   // Get Smart Followers boost (if available)
   let smartFollowersBoost = SMART_FOLLOWERS_FLOOR; // Default to floor
@@ -224,10 +240,11 @@ export async function calculateProjectAttentionValue(
           .maybeSingle();
         
         if (smartSnapshot && !smartSnapshot.is_estimate) {
-          // Boost based on smart followers percentage (1.0 to 1.5 multiplier)
+          // Boost based on smart followers percentage (neutral if floors/caps are 1.0)
           const pct = Number(smartSnapshot.smart_followers_pct || 0);
-          // Map 0-20% smart followers to 1.0-1.5 boost
-          smartFollowersBoost = clamp(SMART_FOLLOWERS_FLOOR + (pct / 20) * (SMART_FOLLOWERS_CAP - SMART_FOLLOWERS_FLOOR), SMART_FOLLOWERS_FLOOR, SMART_FOLLOWERS_CAP);
+          if (SMART_FOLLOWERS_FLOOR !== 1.0 || SMART_FOLLOWERS_CAP !== 1.0) {
+            smartFollowersBoost = clamp(SMART_FOLLOWERS_FLOOR + (pct / 20) * (SMART_FOLLOWERS_CAP - SMART_FOLLOWERS_FLOOR), SMART_FOLLOWERS_FLOOR, SMART_FOLLOWERS_CAP);
+          }
         }
       }
     }
@@ -274,7 +291,8 @@ export async function calculateProjectAttentionValue(
     // Use default if calculation fails
   }
 
-  const keywordMatchStrength = hasKeywords ? 1.0 : 0.8; // Penalty if no keywords configured
+  // Keyword match strength: neutral (1.0) regardless of keywords
+  const keywordMatchStrength = 1.0;
 
   // Calculate attention value
   const attentionValue = calculateAttentionValue({

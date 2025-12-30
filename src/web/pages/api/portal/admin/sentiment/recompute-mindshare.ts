@@ -112,27 +112,66 @@ export default async function handler(
     // ==========================================================================
     const body = req.body || {};
     const asOfDateStr = body.asOfDate as string | undefined;
-    const asOfDate = asOfDateStr ? new Date(asOfDateStr) : new Date();
-
-    // ==========================================================================
-    // COMPUTE SNAPSHOTS
-    // ==========================================================================
-    console.log(`[RecomputeMindshare] Starting computation for asOfDate=${asOfDate.toISOString().split('T')[0]}`);
+    const backfillDays = body.backfillDays as number | undefined;
     
-    const results = await computeAllMindshareSnapshots(supabase, asOfDate);
-
-    console.log(`[RecomputeMindshare] Completed: ${results.length} windows processed`);
-
-    return res.status(200).json({
-      ok: true,
-      results: results.map(r => ({
+    // ==========================================================================
+    // COMPUTE SNAPSHOTS (with optional backfill)
+    // ==========================================================================
+    const allResults: Array<{
+      window: string;
+      asOfDate: string;
+      totalProjects: number;
+      snapshotsCreated: number;
+      snapshotsUpdated: number;
+      errors: string[];
+    }> = [];
+    
+    if (backfillDays && backfillDays > 0 && backfillDays <= 30) {
+      // Backfill mode: compute for last N days
+      console.log(`[RecomputeMindshare] Starting backfill for last ${backfillDays} days`);
+      
+      const today = new Date();
+      for (let i = 0; i < backfillDays; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+        
+        console.log(`[RecomputeMindshare] Processing date: ${date.toISOString().split('T')[0]}`);
+        const results = await computeAllMindshareSnapshots(supabase, date);
+        
+        allResults.push(...results.map(r => ({
+          window: r.window,
+          asOfDate: r.asOfDate,
+          totalProjects: r.totalProjects,
+          snapshotsCreated: r.snapshotsCreated,
+          snapshotsUpdated: r.snapshotsUpdated,
+          errors: r.errors,
+        })));
+      }
+      
+      console.log(`[RecomputeMindshare] Backfill completed: ${allResults.length} snapshots processed`);
+    } else {
+      // Single date mode
+      const asOfDate = asOfDateStr ? new Date(asOfDateStr) : new Date();
+      console.log(`[RecomputeMindshare] Starting computation for asOfDate=${asOfDate.toISOString().split('T')[0]}`);
+      
+      const results = await computeAllMindshareSnapshots(supabase, asOfDate);
+      
+      allResults.push(...results.map(r => ({
         window: r.window,
         asOfDate: r.asOfDate,
         totalProjects: r.totalProjects,
         snapshotsCreated: r.snapshotsCreated,
         snapshotsUpdated: r.snapshotsUpdated,
         errors: r.errors,
-      })),
+      })));
+      
+      console.log(`[RecomputeMindshare] Completed: ${results.length} windows processed`);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      results: allResults,
     });
   } catch (error) {
     console.error('[RecomputeMindshare] Error:', error);

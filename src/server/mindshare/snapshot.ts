@@ -38,20 +38,27 @@ export interface SnapshotResult {
 // CONFIGURATION (from env vars)
 // =============================================================================
 
-function getEnvFloat(name: string, defaultValue: number): number {
+/**
+ * Get environment variable as float with neutral fallback.
+ * If env var is missing, returns neutral value (multiplier=1.0, weights=0).
+ * This prevents secret defaults from being committed.
+ */
+function getEnvFloat(name: string, neutralValue: number): number {
   const value = process.env[name];
-  if (!value) return defaultValue;
+  if (!value) return neutralValue; // Neutral fallback, not secret default
   const parsed = parseFloat(value);
-  return isNaN(parsed) ? defaultValue : parsed;
+  return isNaN(parsed) ? neutralValue : parsed;
 }
 
-const W1_POSTS = getEnvFloat('MINDSHARE_W1_POSTS', 0.25);
-const W2_CREATORS = getEnvFloat('MINDSHARE_W2_CREATORS', 0.25);
-const W3_ENGAGEMENT = getEnvFloat('MINDSHARE_W3_ENGAGEMENT', 0.30);
-const W4_CT_HEAT = getEnvFloat('MINDSHARE_W4_CT_HEAT', 0.20);
+// Weights: if missing, disable (0) to prevent secret defaults
+const W1_POSTS = getEnvFloat('MINDSHARE_W1_POSTS', 0);
+const W2_CREATORS = getEnvFloat('MINDSHARE_W2_CREATORS', 0);
+const W3_ENGAGEMENT = getEnvFloat('MINDSHARE_W3_ENGAGEMENT', 0);
+const W4_CT_HEAT = getEnvFloat('MINDSHARE_W4_CT_HEAT', 0);
 
-const SENTIMENT_FLOOR = getEnvFloat('MINDSHARE_SENTIMENT_FLOOR', 0.8);
-const SENTIMENT_CAP = getEnvFloat('MINDSHARE_SENTIMENT_CAP', 1.2);
+// Multipliers: if missing, use neutral (1.0) to prevent secret defaults
+const SENTIMENT_FLOOR = getEnvFloat('MINDSHARE_SENTIMENT_FLOOR', 1.0);
+const SENTIMENT_CAP = getEnvFloat('MINDSHARE_SENTIMENT_CAP', 1.0);
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -263,13 +270,9 @@ async function aggregateProjectMetrics(
   // Calculate quality multiplier (simplified MVP: sentiment only)
   const sentimentMultiplier = calculateSentimentMultiplier(avgSentiment);
   
-  // Keyword match strength (1.0 if keywords exist, 0.8 if not)
-  // Keyword match strength: 1.0 if keywords exist, 0.8 if not
-  const arcKeywords = project.arc_keywords;
-  const hasKeywords = arcKeywords && (
-    Array.isArray(arcKeywords) ? arcKeywords.length > 0 : String(arcKeywords).trim() !== ''
-  );
-  const keywordMatchStrength = hasKeywords ? 1.0 : 0.8;
+  // Keyword match strength: neutral (1.0) if keywords exist, neutral (1.0) if not
+  // No penalty applied - neutral behavior
+  const keywordMatchStrength = 1.0;
   
   // Calculate attention value
   const attentionValue = core * sentimentMultiplier * keywordMatchStrength;
