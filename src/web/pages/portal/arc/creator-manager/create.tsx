@@ -70,6 +70,8 @@ export default function CreateProgramPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
   
   const [formData, setFormData] = useState({
     projectId: '',
@@ -78,6 +80,17 @@ export default function CreateProgramPage() {
     visibility: 'private' as 'private' | 'public' | 'hybrid',
     startAt: '',
     endAt: '',
+  });
+
+  // Filter projects based on search query
+  const filteredProjects = projects.filter((project) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      project.name.toLowerCase().includes(query) ||
+      project.twitter_username?.toLowerCase().includes(query) ||
+      project.slug.toLowerCase().includes(query)
+    );
   });
 
   // Load projects user has access to
@@ -331,7 +344,7 @@ export default function CreateProgramPage() {
           <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Project Selection */}
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium text-white mb-2">
                   Project <span className="text-red-400">*</span>
                 </label>
@@ -352,24 +365,115 @@ export default function CreateProgramPage() {
                     </div>
                   </div>
                 ) : (
-                  <select
-                    value={formData.projectId}
-                    onChange={(e) => {
-                      const project = projects.find((p) => p.id === e.target.value);
-                      setSelectedProject(project || null);
-                      setFormData({ ...formData, projectId: e.target.value });
-                    }}
-                    required
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
-                    disabled={submitting}
-                  >
-                    <option value="">Select a project...</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name} {project.twitter_username ? `(@${project.twitter_username})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    {/* Search Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowSearchResults(true);
+                        }}
+                        onFocus={() => setShowSearchResults(true)}
+                        placeholder="Search for your project..."
+                        className="w-full px-3 py-2 pl-10 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
+                        disabled={submitting}
+                      />
+                      <svg
+                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/40"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+
+                    {/* Search Results Dropdown */}
+                    {showSearchResults && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowSearchResults(false)}
+                        />
+                        <div className="absolute z-20 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-white/10 bg-black/95 backdrop-blur-sm shadow-xl">
+                          {filteredProjects.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-white/60">
+                              {searchQuery.trim() ? 'No projects found matching your search.' : 'No projects available.'}
+                            </div>
+                          ) : (
+                            filteredProjects.map((project) => (
+                              <button
+                                key={project.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedProject(project);
+                                  setFormData({ ...formData, projectId: project.id });
+                                  setSearchQuery(project.name);
+                                  setShowSearchResults(false);
+                                }}
+                                className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 flex items-center gap-3"
+                              >
+                                {project.avatar_url && (
+                                  <img
+                                    src={project.avatar_url}
+                                    alt={project.name}
+                                    className="w-8 h-8 rounded-full flex-shrink-0"
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-white truncate">{project.name}</div>
+                                  {project.twitter_username && (
+                                    <div className="text-xs text-white/60 truncate">@{project.twitter_username}</div>
+                                  )}
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Selected Project Display (when selected but search is active) */}
+                    {selectedProject && formData.projectId && !showSearchResults && (
+                      <div className="mt-2 flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
+                        {selectedProject.avatar_url && (
+                          <img
+                            src={selectedProject.avatar_url}
+                            alt={selectedProject.name}
+                            className="w-8 h-8 rounded-full"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-white">{selectedProject.name}</div>
+                          {selectedProject.twitter_username && (
+                            <div className="text-xs text-white/60">@{selectedProject.twitter_username}</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProject(null);
+                            setFormData({ ...formData, projectId: '' });
+                            setSearchQuery('');
+                          }}
+                          className="text-white/60 hover:text-white transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Hidden input for form validation */}
+                    <input
+                      type="hidden"
+                      value={formData.projectId}
+                      required
+                    />
+                  </div>
                 )}
               </div>
 
