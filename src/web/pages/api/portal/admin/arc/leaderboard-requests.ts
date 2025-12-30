@@ -183,8 +183,7 @@ export default async function handler(
       return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
     }
 
-    // Fetch all requests with project and requester info
-    // requested_by is a profile ID (foreign key to profiles.id)
+    // Fetch all requests with project info
     const { data: requests, error: requestsError } = await supabase
       .from('arc_leaderboard_requests')
       .select(`
@@ -204,11 +203,6 @@ export default async function handler(
           display_name,
           slug,
           twitter_username
-        ),
-        requester_profile:profiles!arc_leaderboard_requests_requested_by_fkey (
-          id,
-          username,
-          display_name
         )
       `)
       .order('created_at', { ascending: false });
@@ -218,8 +212,28 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
     }
 
-    // Requester profiles are now joined directly via Supabase foreign key join
-    // No need for manual lookup - requester_profile is included in the query result
+    // Fetch requester profiles separately (more reliable than complex joins)
+    const requesterProfileIds = [...new Set((requests || []).map((r: any) => r.requested_by).filter(Boolean))];
+    const requesterMap = new Map<string, { id: string; username: string; display_name: string | null }>();
+    
+    if (requesterProfileIds.length > 0) {
+      const { data: requesters, error: requestersError } = await supabase
+        .from('profiles')
+        .select('id, username, display_name')
+        .in('id', requesterProfileIds);
+
+      if (requestersError) {
+        console.error('[Admin Leaderboard Requests API] Error fetching requester profiles:', requestersError);
+      } else if (requesters) {
+        requesters.forEach((p: any) => {
+          requesterMap.set(p.id, {
+            id: p.id,
+            username: p.username || '',
+            display_name: p.display_name || null,
+          });
+        });
+      }
+    }
 
     // Get campaign and arena statuses for approved requests
     // Match each request to its specific arena/campaign by timing (created around decided_at)
@@ -542,25 +556,21 @@ export default async function handler(
       });
     }
 
-    // Format response - requester profile is now joined directly
+    // Format response - use requester profile from map
     const formattedRequests: LeaderboardRequest[] = (requests || [])
       .map((r: any) => {
-        // Use the joined requester_profile directly
-        const requesterProfile = r.requester_profile as { id: string; username: string; display_name: string | null } | null;
-        
+        // Get requester profile from map
         let requester: { id: string; username: string; display_name: string | null } | undefined;
         let requestedByDisplayName: string | undefined;
         let requestedByUsername: string | undefined;
 
-        if (requesterProfile) {
-          requester = {
-            id: requesterProfile.id,
-            username: requesterProfile.username || '',
-            display_name: requesterProfile.display_name || null,
-          };
-          requestedByDisplayName = requesterProfile.display_name || requesterProfile.username || undefined;
-          requestedByUsername = requesterProfile.username || undefined;
-        } else {
+        if (r.requested_by && requesterMap.has(r.requested_by)) {
+          requester = requesterMap.get(r.requested_by);
+          if (requester) {
+            requestedByDisplayName = requester.display_name || requester.username || undefined;
+            requestedByUsername = requester.username || undefined;
+          }
+        } else if (r.requested_by) {
           // Log when requester profile is missing (should not happen if requested_by is valid)
           console.warn(`[Admin Leaderboard Requests API] Requester profile not found for request ${r.id} (requested_by: ${r.requested_by})`);
         }
