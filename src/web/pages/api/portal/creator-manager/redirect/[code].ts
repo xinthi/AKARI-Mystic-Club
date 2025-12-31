@@ -80,23 +80,26 @@ export default async function handler(
     const userAgent = req.headers['user-agent'] || null;
     const referrer = req.headers.referer || null;
 
-    supabase
-      .from('creator_manager_link_clicks')
-      .insert({
-        link_id: link.id,
-        program_id: link.program_id,
-        creator_profile_id: creator && typeof creator === 'string' ? creator : null,
-        user_agent: userAgent,
-        referrer: referrer,
-      })
-      .then(({ error }) => {
+    // Log click asynchronously (don't block redirect)
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('creator_manager_link_clicks')
+          .insert({
+            link_id: link.id,
+            program_id: link.program_id,
+            creator_profile_id: creator && typeof creator === 'string' ? creator : null,
+            user_agent: userAgent,
+            referrer: referrer,
+          });
+        
         if (error) {
           console.error('[Creator Manager Redirect API] Error logging click:', error);
         }
-      })
-      .catch((err) => {
+      } catch (err: any) {
         console.error('[Creator Manager Redirect API] Error logging click:', err);
-      });
+      }
+    })();
 
     return res.status(200).json({
       ok: true,
