@@ -75,7 +75,7 @@ export default function CreatorProgramDetail() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; username: string; arc_points: number; xp: number; level: number }>>([]);
   const [totalCreators, setTotalCreators] = useState(0);
-  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string }>>([]);
+  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string; code: string | null }>>([]);
   const [creatorProfileId, setCreatorProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -436,9 +436,11 @@ export default function CreatorProgramDetail() {
             <h2 className="text-xl font-semibold text-akari-text mb-4">Campaign Links</h2>
             <div className="space-y-3">
               {links.map((link) => {
+                // Use short code if available, fallback to link ID for backward compatibility
+                const linkCode = (link as any).code || link.id;
                 const redirectUrl = creatorProfileId
-                  ? `/r/cm/${link.id}?creator=${creatorProfileId}`
-                  : `/r/cm/${link.id}`;
+                  ? `/r/cm/${linkCode}?creator=${creatorProfileId}`
+                  : `/r/cm/${linkCode}`;
                 return (
                   <a
                     key={link.id}

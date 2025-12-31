@@ -541,7 +541,12 @@ export default function CreateProgramPage() {
                     type="date"
                     value={formData.startAt}
                     onChange={(e) => setFormData({ ...formData, startAt: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                    min={new Date().toISOString().split('T')[0]}
+                    max="2099-12-31"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                    style={{
+                      colorScheme: 'dark',
+                    }}
                     disabled={submitting}
                   />
                 </div>
@@ -553,7 +558,12 @@ export default function CreateProgramPage() {
                     type="date"
                     value={formData.endAt}
                     onChange={(e) => setFormData({ ...formData, endAt: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                    min={formData.startAt || new Date().toISOString().split('T')[0]}
+                    max="2099-12-31"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+                    style={{
+                      colorScheme: 'dark',
+                    }}
                     disabled={submitting}
                   />
                 </div>
@@ -596,8 +606,8 @@ export default function CreateProgramPage() {
         />
       )}
 
-      {/* CSS for toast animation */}
-      <style jsx>{`
+      {/* CSS for toast animation and date input styling */}
+      <style jsx global>{`
         @keyframes slideIn {
           from {
             transform: translateX(100%);
@@ -610,6 +620,34 @@ export default function CreateProgramPage() {
         }
         :global(.fixed.top-4.right-4) {
           animation: slideIn 0.3s ease-out;
+        }
+        
+        /* Fix date input year picker width */
+        input[type="date"] {
+          max-width: 100%;
+        }
+        
+        /* Constrain date picker dropdown */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          cursor: pointer;
+          opacity: 0.6;
+          transition: opacity 0.2s;
+        }
+        
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+          opacity: 1;
+        }
+        
+        /* For Firefox */
+        input[type="date"] {
+          color-scheme: dark;
+        }
+        
+        /* Limit year range display in date picker */
+        @supports (-webkit-appearance: none) {
+          input[type="date"] {
+            min-width: 0;
+          }
         }
       `}</style>
     </>

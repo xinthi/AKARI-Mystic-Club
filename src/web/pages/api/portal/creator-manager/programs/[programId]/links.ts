@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { randomBytes } from 'crypto';
 
 // =============================================================================
 // TYPES
@@ -26,6 +27,7 @@ interface Link {
   label: string;
   url: string;
   utm_url: string;
+  code: string | null;
   created_at: string;
 }
 
@@ -82,6 +84,11 @@ async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, ses
   };
 }
 
+function generateUniqueCode(): string {
+  // Generate a short unique code (8 characters)
+  return randomBytes(4).toString('hex');
+}
+
 function buildUtmUrl(baseUrl: string, programId: string, projectId: string): string {
   try {
     const url = new URL(baseUrl);
@@ -117,7 +124,7 @@ export default async function handler(
     try {
       const { data: links, error: linksError } = await supabase
         .from('creator_manager_links')
-        .select('*')
+        .select('id, program_id, label, url, utm_url, code, created_at')
         .eq('program_id', programId)
         .order('created_at', { ascending: false });
 
@@ -173,6 +180,29 @@ export default async function handler(
       // Build UTM URL
       const utmUrl = buildUtmUrl(body.url, programId, program.project_id);
 
+      // Generate unique short code
+      let code: string;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      do {
+        code = generateUniqueCode();
+        const { data: existing } = await supabase
+          .from('creator_manager_links')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle();
+        
+        if (!existing) {
+          break; // Code is unique
+        }
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+          return res.status(500).json({ ok: false, error: 'Failed to generate unique code' });
+        }
+      } while (true);
+
       // Create link
       const { data: link, error: createError } = await supabase
         .from('creator_manager_links')
@@ -181,8 +211,9 @@ export default async function handler(
           label: body.label,
           url: body.url,
           utm_url: utmUrl,
+          code: code,
         })
-        .select()
+        .select('id, program_id, label, url, utm_url, code, created_at')
         .single();
 
       if (createError) {

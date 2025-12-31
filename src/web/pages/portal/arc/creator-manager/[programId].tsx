@@ -148,7 +148,7 @@ export default function CreatorManagerProgramDetail() {
   });
   const [addingMission, setAddingMission] = useState(false);
   const [updatingMission, setUpdatingMission] = useState(false);
-  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string; created_at: string }>>([]);
+  const [links, setLinks] = useState<Array<{ id: string; label: string; url: string; utm_url: string; code: string | null; created_at: string }>>([]);
   const [newLink, setNewLink] = useState({ label: '', url: '' });
   const [addingLink, setAddingLink] = useState(false);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
@@ -1766,7 +1766,9 @@ export default function CreatorManagerProgramDetail() {
             ) : (
               <div className="space-y-3">
                 {links.map((link) => {
-                  const redirectUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/r/cm/${link.id}`;
+                  // Use short code if available, fallback to link ID for backward compatibility
+                  const linkCode = (link as any).code || link.id;
+                  const redirectUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/r/cm/${linkCode}`;
                   return (
                     <div
                       key={link.id}
@@ -1776,7 +1778,7 @@ export default function CreatorManagerProgramDetail() {
                         <div className="flex-1">
                           <div className="font-medium text-akari-text mb-1">{link.label}</div>
                           <div className="text-sm text-akari-muted mb-2">Original: {link.url}</div>
-                          <div className="text-sm text-akari-primary mb-2">Redirect: {redirectUrl}</div>
+                          <div className="text-sm text-akari-primary mb-2 font-mono">Short URL: {redirectUrl}</div>
                           <div className="text-xs text-akari-muted">
                             Created: {new Date(link.created_at).toLocaleString()}
                           </div>
