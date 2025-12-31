@@ -44,10 +44,15 @@ export interface ArcLiveItem {
 
 /**
  * Get all live and upcoming ARC items across all three option types
+ * 
+ * @param supabase - Supabase client
+ * @param limit - Maximum number of items to return
+ * @param bypassAccessCheck - If true, skip access checks (for superadmin)
  */
 export async function getArcLiveItems(
   supabase: SupabaseClient,
-  limit: number = 20
+  limit: number = 20,
+  bypassAccessCheck: boolean = false
 ): Promise<{ live: ArcLiveItem[]; upcoming: ArcLiveItem[] }> {
   const now = new Date();
   const live: ArcLiveItem[] = [];
@@ -73,15 +78,19 @@ export async function getArcLiveItems(
       projectName,
     });
 
-    // Check if project has Option 2 unlocked
-    const accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
-    if (!accessCheck.ok) {
-      console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
-      console.log(`[getArcLiveItems] Arena details: slug=${arena.slug}, status=${arena.status}, starts_at=${arena.startsAt}, ends_at=${arena.endsAt}`);
-      continue;
+    // Check if project has Option 2 unlocked (unless bypassed for superadmin)
+    let accessCheck: any = { ok: true, approved: true, optionUnlocked: true };
+    if (!bypassAccessCheck) {
+      accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
+      if (!accessCheck.ok) {
+        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
+        console.log(`[getArcLiveItems] Arena details: slug=${arena.slug}, status=${arena.status}, starts_at=${arena.startsAt}, ends_at=${arena.endsAt}`);
+        continue;
+      }
+      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
+    } else {
+      console.log(`[getArcLiveItems] 🔓 Arena ${arena.id} (project ${projectName || arena.projectId}) access check bypassed (superadmin mode)`);
     }
-
-    console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
 
     const item = createArenaItem(arena);
     const itemStatus = determineStatus(item.startsAt, item.endsAt, now);
@@ -108,10 +117,12 @@ export async function getArcLiveItems(
 
   // Process campaigns (Option 1)
   for (const campaign of campaignsResult) {
-    // Check if project has Option 1 unlocked
-    const accessCheck = await requireArcAccess(supabase, campaign.projectId, 1);
-    if (!accessCheck.ok) {
-      continue;
+    // Check if project has Option 1 unlocked (unless bypassed for superadmin)
+    if (!bypassAccessCheck) {
+      const accessCheck = await requireArcAccess(supabase, campaign.projectId, 1);
+      if (!accessCheck.ok) {
+        continue;
+      }
     }
 
     const item = createCampaignItem(campaign);
@@ -126,10 +137,12 @@ export async function getArcLiveItems(
 
   // Process quests (Option 3)
   for (const quest of questsResult) {
-    // Check if project has Option 3 unlocked
-    const accessCheck = await requireArcAccess(supabase, quest.projectId, 3);
-    if (!accessCheck.ok) {
-      continue;
+    // Check if project has Option 3 unlocked (unless bypassed for superadmin)
+    if (!bypassAccessCheck) {
+      const accessCheck = await requireArcAccess(supabase, quest.projectId, 3);
+      if (!accessCheck.ok) {
+        continue;
+      }
     }
 
     const item = createQuestItem(quest);
@@ -142,25 +155,77 @@ export async function getArcLiveItems(
     }
   }
 
+  // Deduplicate: Remove duplicates by arena.id (same arena appearing multiple times)
+  // Also deduplicate by projectId + kind (same project with multiple arenas of same kind)
+  const seenArenaIds = new Set<string>();
+  const seenProjectKind = new Set<string>();
+  
+  const deduplicatedLive: ArcLiveItem[] = [];
+  const deduplicatedUpcoming: ArcLiveItem[] = [];
+  
+  for (const item of live) {
+    // Primary deduplication: by arena ID
+    const arenaKey = item.arenaId || item.id;
+    if (seenArenaIds.has(arenaKey)) {
+      console.log(`[getArcLiveItems] ⚠️ Duplicate arena ID detected in live: ${arenaKey} (${item.title}) - skipping`);
+      continue;
+    }
+    seenArenaIds.add(arenaKey);
+    
+    // Secondary deduplication: by projectId + kind (prefer first occurrence)
+    const projectKindKey = `${item.projectId}-${item.kind}`;
+    if (seenProjectKind.has(projectKindKey)) {
+      console.log(`[getArcLiveItems] ⚠️ Duplicate project+kind in live: ${item.projectName} (${item.kind}) - skipping duplicate`);
+      continue;
+    }
+    seenProjectKind.add(projectKindKey);
+    
+    deduplicatedLive.push(item);
+  }
+  
+  // Reset for upcoming
+  seenArenaIds.clear();
+  seenProjectKind.clear();
+  
+  for (const item of upcoming) {
+    const arenaKey = item.arenaId || item.id;
+    if (seenArenaIds.has(arenaKey)) {
+      console.log(`[getArcLiveItems] ⚠️ Duplicate arena ID detected in upcoming: ${arenaKey} (${item.title}) - skipping`);
+      continue;
+    }
+    seenArenaIds.add(arenaKey);
+    
+    const projectKindKey = `${item.projectId}-${item.kind}`;
+    if (seenProjectKind.has(projectKindKey)) {
+      console.log(`[getArcLiveItems] ⚠️ Duplicate project+kind in upcoming: ${item.projectName} (${item.kind}) - skipping duplicate`);
+      continue;
+    }
+    seenProjectKind.add(projectKindKey);
+    
+    deduplicatedUpcoming.push(item);
+  }
+
   // Sort by start date (earliest first for live, upcoming first for upcoming)
-  live.sort((a, b) => {
+  deduplicatedLive.sort((a, b) => {
     if (!a.startsAt && !b.startsAt) return 0;
     if (!a.startsAt) return 1;
     if (!b.startsAt) return -1;
     return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
   });
 
-  upcoming.sort((a, b) => {
+  deduplicatedUpcoming.sort((a, b) => {
     if (!a.startsAt && !b.startsAt) return 0;
     if (!a.startsAt) return 1;
     if (!b.startsAt) return -1;
     return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
   });
+
+  console.log(`[getArcLiveItems] After deduplication: ${deduplicatedLive.length} live, ${deduplicatedUpcoming.length} upcoming (was ${live.length} live, ${upcoming.length} upcoming)`);
 
   // Apply limit
   return {
-    live: live.slice(0, limit),
-    upcoming: upcoming.slice(0, limit),
+    live: deduplicatedLive.slice(0, limit),
+    upcoming: deduplicatedUpcoming.slice(0, limit),
   };
 }
 

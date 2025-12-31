@@ -8,6 +8,32 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getArcLiveItems, ArcLiveItem } from '@/lib/arc/live-upcoming';
+import { isSuperAdminServerSide } from '@/lib/server-auth';
+
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
+
+async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data: session } = await supabase
+    .from('akari_user_sessions')
+    .select('user_id, expires_at')
+    .eq('session_token', sessionToken)
+    .single();
+
+  if (!session || new Date(session.expires_at) < new Date()) {
+    return null;
+  }
+
+  return session.user_id;
+}
 
 // =============================================================================
 // TYPES
@@ -50,11 +76,29 @@ export default async function handler(
   try {
     const supabase = getSupabaseAdmin();
 
+    // Check if user is superadmin (for bypassing access checks)
+    let bypassAccessCheck = false;
+    try {
+      const sessionToken = getSessionToken(req);
+      if (sessionToken) {
+        const userId = await getUserIdFromSession(sessionToken);
+        if (userId) {
+          bypassAccessCheck = await isSuperAdminServerSide(userId);
+          if (bypassAccessCheck) {
+            console.log('[Live Leaderboards API] 🔓 SuperAdmin detected - bypassing access checks');
+          }
+        }
+      }
+    } catch (err) {
+      // If auth check fails, continue without bypass
+      console.warn('[Live Leaderboards API] Could not check superadmin status:', err);
+    }
+
     // Get limit from query (default 15)
     const limit = Math.min(parseInt(req.query.limit as string) || 15, 20);
 
     // Get all live and upcoming items using unified helper
-    const { live, upcoming } = await getArcLiveItems(supabase, limit);
+    const { live, upcoming } = await getArcLiveItems(supabase, limit, bypassAccessCheck);
     
     // Log summary for debugging
     console.log(`[Live Leaderboards API] ========================================`);
