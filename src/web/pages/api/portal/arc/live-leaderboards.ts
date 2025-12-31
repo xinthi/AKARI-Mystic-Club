@@ -77,22 +77,36 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // Check if user is superadmin (for bypassing access checks)
+    // IMPORTANT: Always try to bypass for superadmin to ensure they see all items
     let bypassAccessCheck = false;
+    let bypassReason = 'not_checked';
     try {
       const sessionToken = getSessionToken(req);
       if (sessionToken) {
         const userId = await getUserIdFromSession(sessionToken);
         if (userId) {
           bypassAccessCheck = await isSuperAdminServerSide(userId);
+          bypassReason = bypassAccessCheck ? 'superadmin' : 'not_superadmin';
           if (bypassAccessCheck) {
             console.log('[Live Leaderboards API] 🔓 SuperAdmin detected - bypassing access checks');
+          } else {
+            console.log('[Live Leaderboards API] User is not superadmin - access checks will be enforced');
           }
+        } else {
+          bypassReason = 'no_user_id';
+          console.log('[Live Leaderboards API] No user ID found in session');
         }
+      } else {
+        bypassReason = 'no_session_token';
+        console.log('[Live Leaderboards API] No session token found');
       }
-    } catch (err) {
-      // If auth check fails, continue without bypass
+    } catch (err: any) {
+      // If auth check fails, log but continue without bypass
+      bypassReason = `error: ${err.message}`;
       console.warn('[Live Leaderboards API] Could not check superadmin status:', err);
     }
+    
+    console.log(`[Live Leaderboards API] Access check bypass: ${bypassAccessCheck} (reason: ${bypassReason})`);
 
     // Get limit from query (default 15)
     const limit = Math.min(parseInt(req.query.limit as string) || 15, 20);

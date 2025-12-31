@@ -66,9 +66,13 @@ export async function getArcLiveItems(
   ]);
 
   // Process arenas (Option 2)
+  console.log(`[getArcLiveItems] Processing ${arenasResult.length} arenas (bypassAccessCheck: ${bypassAccessCheck})`);
+  
   for (const arena of arenasResult) {
     // Log arena details before access check
     const projectName = arena.project?.name || 'Unknown';
+    const hasProjectData = !!arena.project;
+    
     console.log(`[getArcLiveItems] Processing arena ${arena.id} for project ${arena.projectId}:`, {
       name: arena.name,
       slug: arena.slug,
@@ -76,6 +80,8 @@ export async function getArcLiveItems(
       startsAt: arena.startsAt,
       endsAt: arena.endsAt,
       projectName,
+      hasProjectData,
+      projectId: arena.projectId,
     });
 
     // Check if project has Option 2 unlocked (unless bypassed for superadmin)
@@ -83,13 +89,22 @@ export async function getArcLiveItems(
     if (!bypassAccessCheck) {
       accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
       if (!accessCheck.ok) {
-        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
-        console.log(`[getArcLiveItems] Arena details: slug=${arena.slug}, status=${arena.status}, starts_at=${arena.startsAt}, ends_at=${arena.endsAt}`);
+        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED access check:`, {
+          error: accessCheck.error,
+          code: accessCheck.code,
+          arenaSlug: arena.slug,
+          arenaStatus: arena.status,
+          startsAt: arena.startsAt,
+          endsAt: arena.endsAt,
+        });
         continue;
       }
-      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
+      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) PASSED access check:`, {
+        approved: accessCheck.approved,
+        optionUnlocked: accessCheck.optionUnlocked,
+      });
     } else {
-      console.log(`[getArcLiveItems] 🔓 Arena ${arena.id} (project ${projectName || arena.projectId}) access check bypassed (superadmin mode)`);
+      console.log(`[getArcLiveItems] 🔓 Arena ${arena.id} (project ${projectName || arena.projectId}) ACCESS CHECK BYPASSED (superadmin mode)`);
     }
 
     const item = createArenaItem(arena);
@@ -106,12 +121,12 @@ export async function getArcLiveItems(
     
     if (itemStatus === 'live') {
       live.push(item);
-      console.log(`[getArcLiveItems] ✅ Added live arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug})`);
+      console.log(`[getArcLiveItems] ✅✅✅ ADDED TO LIVE: ${item.title} (project: ${item.projectName}, slug: ${item.slug}, id: ${item.id})`);
     } else if (itemStatus === 'upcoming') {
       upcoming.push(item);
-      console.log(`[getArcLiveItems] ⏳ Added upcoming arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug}) - Start date is in the future`);
+      console.log(`[getArcLiveItems] ⏳⏳⏳ ADDED TO UPCOMING: ${item.title} (project: ${item.projectName}, slug: ${item.slug}) - Start date is in the future`);
     } else {
-      console.log(`[getArcLiveItems] ❌ Arena ${item.title} (project: ${item.projectName}) status is null (ended or invalid dates)`);
+      console.log(`[getArcLiveItems] ❌❌❌ EXCLUDED: Arena ${item.title} (project: ${item.projectName}) status is null - ended or invalid dates`);
     }
   }
 
@@ -221,11 +236,24 @@ export async function getArcLiveItems(
   });
 
   console.log(`[getArcLiveItems] After deduplication: ${deduplicatedLive.length} live, ${deduplicatedUpcoming.length} upcoming (was ${live.length} live, ${upcoming.length} upcoming)`);
+  
+  // Final summary log
+  console.log(`[getArcLiveItems] ========== FINAL SUMMARY ==========`);
+  console.log(`[getArcLiveItems] Total arenas processed: ${arenasResult.length}`);
+  console.log(`[getArcLiveItems] Live items (after dedup): ${deduplicatedLive.length}`);
+  console.log(`[getArcLiveItems] Upcoming items (after dedup): ${deduplicatedUpcoming.length}`);
+  console.log(`[getArcLiveItems] Live items by project:`, deduplicatedLive.map(item => `${item.projectName} (${item.projectId.substring(0, 8)})`));
+  console.log(`[getArcLiveItems] ===================================`);
 
   // Apply limit
+  const finalLive = deduplicatedLive.slice(0, limit);
+  const finalUpcoming = deduplicatedUpcoming.slice(0, limit);
+  
+  console.log(`[getArcLiveItems] Returning (after limit ${limit}): ${finalLive.length} live, ${finalUpcoming.length} upcoming`);
+  
   return {
-    live: deduplicatedLive.slice(0, limit),
-    upcoming: deduplicatedUpcoming.slice(0, limit),
+    live: finalLive,
+    upcoming: finalUpcoming,
   };
 }
 
