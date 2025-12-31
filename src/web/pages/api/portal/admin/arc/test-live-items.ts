@@ -315,7 +315,12 @@ export default async function handler(
       projectArenaMap.get(arena.project_id)!.push(arena.id);
     }
 
-    const duplicates: TestResponse['ok'] extends true ? TestResponse['duplicates'] : never = [];
+    const duplicates: Array<{
+      projectName: string;
+      projectId: string;
+      arenaIds: string[];
+      arenaNames: string[];
+    }> = [];
     for (const [projectId, arenaIds] of projectArenaMap.entries()) {
       if (arenaIds.length > 1) {
         const project = (arenas || []).find(a => a.project_id === projectId)?.projects as any;
