@@ -126,17 +126,26 @@ export const getServerSideProps: GetServerSideProps<RedirectPageProps> = async (
         }
       }
 
-      // Log click
-      supabase
-        .from('creator_manager_link_clicks')
-        .insert({
-          link_id: link.id,
-          program_id: link.program_id,
-          creator_profile_id: creator && typeof creator === 'string' ? creator : null,
-          user_agent: context.req.headers['user-agent'] || null,
-          referrer: context.req.headers.referer || null,
-        })
-        .catch((err) => console.error('[Link Redirect] Error logging click:', err));
+      // Log click (async, don't block redirect)
+      (async () => {
+        try {
+          const { error } = await supabase
+            .from('creator_manager_link_clicks')
+            .insert({
+              link_id: link.id,
+              program_id: link.program_id,
+              creator_profile_id: creator && typeof creator === 'string' ? creator : null,
+              user_agent: context.req.headers['user-agent'] || null,
+              referrer: context.req.headers.referer || null,
+            });
+          
+          if (error) {
+            console.error('[Link Redirect] Error logging click:', error);
+          }
+        } catch (err: any) {
+          console.error('[Link Redirect] Error logging click:', err);
+        }
+      })();
 
       return {
         redirect: {
