@@ -118,8 +118,33 @@ export function useArcLiveItems(): ArcLiveItemsData {
         throw new Error(data.error || 'Failed to load live leaderboards');
       }
 
+      // Log raw API response for debugging
+      console.log('[ARC Live Items] Raw API response:', {
+        liveCount: data.leaderboards?.length || 0,
+        upcomingCount: data.upcoming?.length || 0,
+        liveItems: data.leaderboards?.map((item: any) => ({
+          project: item.projectName,
+          projectId: item.projectId,
+          kind: item.kind,
+          title: item.title,
+          startAt: item.startAt,
+          endAt: item.endAt,
+          status: item.status,
+        })) || [],
+      });
+
       const normalizedLive = (data.leaderboards || []).map(normalizeItem);
       const normalizedUpcoming = (data.upcoming || []).map(normalizeItem);
+
+      console.log('[ARC Live Items] Normalized items:', {
+        liveCount: normalizedLive.length,
+        upcomingCount: normalizedUpcoming.length,
+        liveItems: normalizedLive.map(item => ({
+          project: item.project.name,
+          title: item.title,
+          statusLabel: item.statusLabel,
+        })),
+      });
 
       setLiveItems(normalizedLive);
       setUpcomingItems(normalizedUpcoming);

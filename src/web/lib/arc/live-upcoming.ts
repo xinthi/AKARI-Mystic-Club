@@ -280,6 +280,32 @@ async function fetchArenas(supabase: SupabaseClient) {
     });
   }
 
+  // Check if any arenas are missing project data and fetch separately if needed
+  const arenasMissingProject = (arenas || []).filter((a: any) => !a.projects);
+  if (arenasMissingProject.length > 0) {
+    console.warn(`[getArcLiveItems] ⚠️ ${arenasMissingProject.length} arena(s) missing project data. Fetching separately...`);
+    
+    const projectIds = [...new Set(arenasMissingProject.map((a: any) => a.project_id))];
+    const { data: missingProjects } = await supabase
+      .from('projects')
+      .select('id, name, slug, x_handle, arc_access_level')
+      .in('id', projectIds);
+    
+    if (missingProjects) {
+      const projectMap = new Map(missingProjects.map((p: any) => [p.id, p]));
+      // Fill in missing project data
+      for (const arena of arenasMissingProject) {
+        const project = projectMap.get(arena.project_id);
+        if (project) {
+          arena.projects = project;
+          console.log(`[getArcLiveItems] ✅ Fetched project data for arena ${arena.id}: ${project.name}`);
+        } else {
+          console.error(`[getArcLiveItems] ❌ Could not find project ${arena.project_id} for arena ${arena.id}`);
+        }
+      }
+    }
+  }
+
   const mappedArenas = arenas.map((arena: any) => ({
     id: arena.id,
     name: arena.name,
@@ -446,6 +472,11 @@ async function fetchQuests(supabase: SupabaseClient) {
  * Create ArcLiveItem from arena data
  */
 function createArenaItem(arena: any): ArcLiveItem {
+  // Log if project data is missing
+  if (!arena.project) {
+    console.warn(`[createArenaItem] ⚠️ Arena ${arena.id} (${arena.name}) has no project data! Project ID: ${arena.projectId}`);
+  }
+
   return {
     kind: 'arena',
     id: arena.id,
