@@ -230,6 +230,12 @@ async function fetchArenas(supabase: SupabaseClient) {
   }
 
   console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/scheduled`);
+  
+  // Log project names for debugging
+  if (arenas.length > 0) {
+    const projectNames = arenas.map((a: any) => a.projects?.name || a.projects?.id || 'Unknown').filter(Boolean);
+    console.log(`[getArcLiveItems] Projects with arenas:`, [...new Set(projectNames)]);
+  }
 
   // Get creator counts
   const arenaIds = arenas.map(a => a.id);

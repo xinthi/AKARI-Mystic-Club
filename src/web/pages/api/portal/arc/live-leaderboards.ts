@@ -58,6 +58,18 @@ export default async function handler(
     
     // Log summary for debugging
     console.log(`[Live Leaderboards API] Returning ${live.length} live and ${upcoming.length} upcoming items`);
+    
+    // Log which projects are included
+    if (live.length > 0) {
+      console.log(`[Live Leaderboards API] Live items:`, live.map(item => ({
+        project: item.projectName,
+        projectId: item.projectId,
+        kind: item.kind,
+        title: item.title,
+      })));
+    } else {
+      console.log(`[Live Leaderboards API] No live items found. Check server logs for access check failures.`);
+    }
 
     // Convert ArcLiveItem to LiveLeaderboard format (backward compatible)
     const convertToLiveLeaderboard = (item: ArcLiveItem): LiveLeaderboard => {
