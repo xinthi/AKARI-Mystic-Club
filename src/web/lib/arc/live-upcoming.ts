@@ -62,15 +62,26 @@ export async function getArcLiveItems(
 
   // Process arenas (Option 2)
   for (const arena of arenasResult) {
+    // Log arena details before access check
+    const projectName = arena.project?.name || 'Unknown';
+    console.log(`[getArcLiveItems] Processing arena ${arena.id} for project ${arena.projectId}:`, {
+      name: arena.name,
+      slug: arena.slug,
+      status: arena.status,
+      startsAt: arena.startsAt,
+      endsAt: arena.endsAt,
+      projectName,
+    });
+
     // Check if project has Option 2 unlocked
     const accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
     if (!accessCheck.ok) {
-      console.log(`[getArcLiveItems] Arena ${arena.id} (project ${arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
+      console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) failed access check: ${accessCheck.error} (code: ${accessCheck.code})`);
       console.log(`[getArcLiveItems] Arena details: slug=${arena.slug}, status=${arena.status}, starts_at=${arena.startsAt}, ends_at=${arena.endsAt}`);
       continue;
     }
 
-    console.log(`[getArcLiveItems] Arena ${arena.id} (project ${arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
+    console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) passed access check - approved: ${accessCheck.approved}, optionUnlocked: ${accessCheck.optionUnlocked}`);
 
     const item = createArenaItem(arena);
     const itemStatus = determineStatus(item.startsAt, item.endsAt, now);
@@ -80,6 +91,8 @@ export async function getArcLiveItems(
       endsAt: item.endsAt,
       determinedStatus: itemStatus,
       now: now.toISOString(),
+      startDateInFuture: item.startsAt ? new Date(item.startsAt) > now : false,
+      endDateInPast: item.endsAt ? new Date(item.endsAt) < now : false,
     });
     
     if (itemStatus === 'live') {
@@ -87,7 +100,7 @@ export async function getArcLiveItems(
       console.log(`[getArcLiveItems] ✅ Added live arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug})`);
     } else if (itemStatus === 'upcoming') {
       upcoming.push(item);
-      console.log(`[getArcLiveItems] ⏳ Added upcoming arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug})`);
+      console.log(`[getArcLiveItems] ⏳ Added upcoming arena: ${item.title} (project: ${item.projectName}, slug: ${item.slug}) - Start date is in the future`);
     } else {
       console.log(`[getArcLiveItems] ❌ Arena ${item.title} (project: ${item.projectName}) status is null (ended or invalid dates)`);
     }
