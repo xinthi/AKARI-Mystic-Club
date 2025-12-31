@@ -953,6 +953,8 @@ export default function AdminLeaderboardRequestsPage() {
                   type="datetime-local"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  min="2000-01-01T00:00"
+                  max="2099-12-31T23:59"
                   className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                 />
                 <p className="text-xs text-slate-500 mt-1">When the leaderboard access should become active</p>
@@ -964,6 +966,8 @@ export default function AdminLeaderboardRequestsPage() {
                   type="datetime-local"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  min="2000-01-01T00:00"
+                  max="2099-12-31T23:59"
                   className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-akari-primary"
                 />
                 <p className="text-xs text-slate-500 mt-1">When the leaderboard access should expire</p>

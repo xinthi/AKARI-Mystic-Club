@@ -2377,6 +2377,8 @@ export default function ArenaDetailsPage() {
                       type="datetime-local"
                       value={questForm.starts_at}
                       onChange={(e) => setQuestForm({ ...questForm, starts_at: e.target.value })}
+                      min="2000-01-01T00:00"
+                      max="2099-12-31T23:59"
                       className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
                     />
                   </div>
@@ -2386,6 +2388,8 @@ export default function ArenaDetailsPage() {
                       type="datetime-local"
                       value={questForm.ends_at}
                       onChange={(e) => setQuestForm({ ...questForm, ends_at: e.target.value })}
+                      min="2000-01-01T00:00"
+                      max="2099-12-31T23:59"
                       className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
                     />
                   </div>

@@ -376,6 +376,8 @@ export default function AdminPredictionsPage() {
                   type="datetime-local"
                   value={newEndsAt}
                   onChange={(e) => setNewEndsAt(e.target.value)}
+                  min="2000-01-01T00:00"
+                  max="2099-12-31T23:59"
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
                 />
               </div>

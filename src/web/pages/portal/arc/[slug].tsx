@@ -2924,6 +2924,8 @@ export default function ArcProjectHub() {
                     type="datetime-local"
                     value={campaignForm.start_at}
                     onChange={(e) => setCampaignForm({ ...campaignForm, start_at: e.target.value })}
+                    min="2000-01-01T00:00"
+                    max="2099-12-31T23:59"
                     className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
                   />
                 </div>
@@ -2933,6 +2935,8 @@ export default function ArcProjectHub() {
                     type="datetime-local"
                     value={campaignForm.end_at}
                     onChange={(e) => setCampaignForm({ ...campaignForm, end_at: e.target.value })}
+                    min="2000-01-01T00:00"
+                    max="2099-12-31T23:59"
                     className="w-full px-3 py-2 bg-black/60 border border-white/20 rounded-lg text-white"
                   />
                 </div>

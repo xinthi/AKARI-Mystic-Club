@@ -598,6 +598,8 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
                 type="datetime-local"
                 value={formData.starts_at}
                 onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
+                min="2000-01-01T00:00"
+                max="2099-12-31T23:59"
                 className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
@@ -608,6 +610,8 @@ function ArenaModal({ title, formData, setFormData, onSubmit, onClose, loading, 
                 type="datetime-local"
                 value={formData.ends_at}
                 onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
+                min="2000-01-01T00:00"
+                max="2099-12-31T23:59"
                 className="w-full px-3 py-2 text-sm bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-400/50 transition-colors"
                 disabled={loading}
               />
