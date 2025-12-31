@@ -242,12 +242,27 @@ async function fetchArenas(supabase: SupabaseClient) {
     return [];
   }
 
-  console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/scheduled`);
+  console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/scheduled/paused`);
   
   // Log project names for debugging
   if (arenas.length > 0) {
     const projectNames = arenas.map((a: any) => a.projects?.name || a.projects?.id || 'Unknown').filter(Boolean);
     console.log(`[getArcLiveItems] Projects with arenas:`, [...new Set(projectNames)]);
+    
+    // Log detailed arena info for debugging
+    console.log(`[getArcLiveItems] Arena details:`, arenas.map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      slug: a.slug,
+      projectId: a.project_id,
+      projectName: a.projects?.name || 'NO PROJECT DATA',
+      projectSlug: a.projects?.slug || null,
+      status: a.status,
+      startsAt: a.starts_at,
+      endsAt: a.ends_at,
+    })));
+  } else {
+    console.log(`[getArcLiveItems] ⚠️ No arenas found in database with status active/scheduled/paused`);
   }
 
   // Get creator counts

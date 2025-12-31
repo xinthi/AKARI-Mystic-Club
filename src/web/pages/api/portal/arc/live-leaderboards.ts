@@ -57,19 +57,35 @@ export default async function handler(
     const { live, upcoming } = await getArcLiveItems(supabase, limit);
     
     // Log summary for debugging
+    console.log(`[Live Leaderboards API] ========================================`);
     console.log(`[Live Leaderboards API] Returning ${live.length} live and ${upcoming.length} upcoming items`);
     
     // Log which projects are included
     if (live.length > 0) {
-      console.log(`[Live Leaderboards API] Live items:`, live.map(item => ({
+      console.log(`[Live Leaderboards API] ✅ Live items found:`, live.map(item => ({
+        project: item.projectName,
+        projectId: item.projectId,
+        projectSlug: item.projectSlug,
+        kind: item.kind,
+        title: item.title,
+        slug: item.slug,
+        startsAt: item.startsAt,
+        endsAt: item.endsAt,
+      })));
+    } else {
+      console.log(`[Live Leaderboards API] ⚠️ No live items found. Check server logs above for access check failures.`);
+    }
+    
+    if (upcoming.length > 0) {
+      console.log(`[Live Leaderboards API] ⏳ Upcoming items found:`, upcoming.map(item => ({
         project: item.projectName,
         projectId: item.projectId,
         kind: item.kind,
         title: item.title,
+        startsAt: item.startsAt,
       })));
-    } else {
-      console.log(`[Live Leaderboards API] No live items found. Check server logs for access check failures.`);
     }
+    console.log(`[Live Leaderboards API] ========================================`);
 
     // Convert ArcLiveItem to LiveLeaderboard format (backward compatible)
     const convertToLiveLeaderboard = (item: ArcLiveItem): LiveLeaderboard => {
