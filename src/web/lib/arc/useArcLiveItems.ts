@@ -139,7 +139,7 @@ export function useArcLiveItems(): ArcLiveItemsData {
       console.log('[ARC Live Items] Normalized items:', {
         liveCount: normalizedLive.length,
         upcomingCount: normalizedUpcoming.length,
-        liveItems: normalizedLive.map(item => ({
+        liveItems: normalizedLive.map((item: LiveItem) => ({
           project: item.project.name,
           title: item.title,
           statusLabel: item.statusLabel,
