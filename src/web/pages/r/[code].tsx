@@ -62,7 +62,7 @@ function getUserAgentHash(req: any): string | null {
 // =============================================================================
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const { code } = context.params;
+  const code = context.params?.code;
 
   if (!code || typeof code !== 'string') {
     return {
