@@ -4,7 +4,7 @@
  * View ARC audit log events for observability and debugging.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
@@ -115,17 +115,13 @@ export default function AdminActivityPage() {
   // Check if user is super admin
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
-  // Load events
-  useEffect(() => {
+  // Load events (memoized with useCallback to avoid infinite loops)
+  const loadEvents = useCallback(async () => {
     if (!userIsSuperAdmin) {
       setLoading(false);
       return;
     }
 
-    loadEvents();
-  }, [userIsSuperAdmin, projectFilter]);
-
-  const loadEvents = async () => {
     setLoading(true);
     setError(null);
 
@@ -152,7 +148,12 @@ export default function AdminActivityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userIsSuperAdmin, projectFilter]);
+
+  // Load events on mount and when dependencies change
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
 
   // Not logged in
   if (!akariUser.isLoggedIn) {
@@ -234,7 +235,6 @@ export default function AdminActivityPage() {
         {/* Error state */}
         {error && !loading && (
           <ErrorState
-            title="Failed to load activity"
             message={error}
             onRetry={loadEvents}
           />
