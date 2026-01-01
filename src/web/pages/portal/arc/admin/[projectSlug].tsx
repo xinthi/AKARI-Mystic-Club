@@ -15,6 +15,8 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { checkProjectPermissions, type ProjectPermissionCheck } from '@/lib/project-permissions';
 import { getSessionTokenFromRequest } from '@/lib/server-auth';
+import { useCurrentMsArena } from '@/lib/arc/hooks';
+import { activateMsArena } from '@/lib/arc/api';
 
 // =============================================================================
 // TYPES
@@ -30,6 +32,7 @@ interface Arena {
   starts_at: string | null;
   ends_at: string | null;
   reward_depth: number;
+  kind?: string | null;
 }
 
 interface ProjectInfo {
@@ -60,6 +63,11 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   const [arenas, setArenas] = useState<Arena[]>(initialArenas);
+  const [activateSuccess, setActivateSuccess] = useState<string | null>(null);
+  const [activatingArenaId, setActivatingArenaId] = useState<string | null>(null);
+
+  // Load current MS arena
+  const { arena: currentArena, debug, loading: arenaLoading, error: arenaError, refresh: refreshCurrentArena } = useCurrentMsArena(project?.id || null);
 
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
@@ -165,6 +173,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
       // Refresh list and close modal
       await refreshArenas();
+      refreshCurrentArena();
       closeModals();
     } catch (err: any) {
       console.error('[ArenaManager] Error creating arena:', err);
@@ -214,6 +223,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
       // Refresh list and close modal
       await refreshArenas();
+      refreshCurrentArena();
       closeModals();
     } catch (err: any) {
       console.error('[ArenaManager] Error updating arena:', err);
@@ -281,6 +291,31 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
       case 'draft':
       default:
         return 'bg-white/10 border-white/20 text-white/60';
+    }
+  };
+
+  // Handle Activate Arena
+  const handleActivateArena = async (arenaId: string) => {
+    setActivatingArenaId(arenaId);
+    setActivateSuccess(null);
+
+    try {
+      await activateMsArena(arenaId);
+      setActivateSuccess(`Arena activated successfully`);
+      
+      // Refresh both arenas list and current arena
+      await refreshArenas();
+      refreshCurrentArena();
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setActivateSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      console.error('[ArenaManager] Error activating arena:', err);
+      setModalError(err?.message || 'Failed to activate arena. Please try again.');
+    } finally {
+      setActivatingArenaId(null);
     }
   };
 
@@ -407,6 +442,90 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
               )}
             </div>
 
+            {/* Current Active MS Arena Card */}
+            <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+              <h2 className="text-lg font-semibold text-white mb-4">Current Active MS Arena</h2>
+              
+              {arenaLoading ? (
+                <div className="text-white/60 text-sm">Loading current arena...</div>
+              ) : arenaError ? (
+                <div className="text-red-400 text-sm">{arenaError}</div>
+              ) : !currentArena ? (
+                <div className="text-center py-4">
+                  <p className="text-white/60 mb-1">No active Mindshare arena</p>
+                  <p className="text-white/40 text-xs">Activate an arena to start tracking.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-white/60">Name:</span>
+                      <span className="ml-2 text-white">{currentArena.name || currentArena.slug || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">ID:</span>
+                      <span className="ml-2 text-white font-mono text-xs">{currentArena.id}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Kind:</span>
+                      <span className="ml-2 text-white">{currentArena.kind || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Status:</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${getStatusColor(currentArena.status)}`}>
+                        {currentArena.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Starts:</span>
+                      <span className="ml-2 text-white">
+                        {currentArena.starts_at ? new Date(currentArena.starts_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Ends:</span>
+                      <span className="ml-2 text-white">
+                        {currentArena.ends_at ? new Date(currentArena.ends_at).toLocaleString() : 'No end date'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Updated:</span>
+                      <span className="ml-2 text-white">
+                        {currentArena.updated_at ? new Date(currentArena.updated_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {debug && (
+                    <div className="pt-3 border-t border-white/10">
+                      <p className="text-xs text-white/60 mb-2">Debug Info:</p>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <span className="text-white/40">Live Active:</span>
+                          <span className="ml-1 text-white">{debug.live_active_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/40">Live:</span>
+                          <span className="ml-1 text-white">{debug.live_count}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/40">Active:</span>
+                          <span className="ml-1 text-white">{debug.active_count}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Success message */}
+            {activateSuccess && (
+              <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+                <p className="text-sm text-green-400">{activateSuccess}</p>
+              </div>
+            )}
+
             {/* Arenas table */}
             <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden">
               {arenas.length === 0 ? (
@@ -462,6 +581,15 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
+                              {userIsSuperAdmin && (arena.kind === 'ms' || arena.kind === 'legacy_ms') && (
+                                <button
+                                  onClick={() => handleActivateArena(arena.id)}
+                                  disabled={activatingArenaId === arena.id}
+                                  className="px-2 py-1 text-xs bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {activatingArenaId === arena.id ? 'Activating...' : 'Activate'}
+                                </button>
+                              )}
                               {canManage && (
                                 <button
                                   onClick={() => openEditModal(arena)}
@@ -792,7 +920,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
     // Load arenas for this project
     const { data: arenasData, error: arenasError } = await supabaseAdmin
       .from('arenas')
-      .select('id, project_id, slug, name, description, status, starts_at, ends_at, reward_depth')
+      .select('id, project_id, slug, name, description, status, starts_at, ends_at, reward_depth, kind')
       .eq('project_id', projectData.id)
       .order('created_at', { ascending: false });
 
@@ -825,6 +953,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
       starts_at: row.starts_at,
       ends_at: row.ends_at,
       reward_depth: row.reward_depth,
+      kind: row.kind ?? null,
     }));
 
     return {
