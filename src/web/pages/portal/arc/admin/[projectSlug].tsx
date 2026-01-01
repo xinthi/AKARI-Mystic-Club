@@ -125,6 +125,47 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState<string | null>(null);
 
+  // CRM Campaigns state
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+  const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
+  
+  // Campaign form state
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    starts_at: '',
+    ends_at: '',
+    visibility: 'private' as 'private' | 'public',
+  });
+  const [campaignFormSubmitting, setCampaignFormSubmitting] = useState(false);
+  const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
+  const [campaignFormSuccess, setCampaignFormSuccess] = useState<string | null>(null);
+
+  // Participants state
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const [participantLinks, setParticipantLinks] = useState<Record<string, any>>({});
+  
+  // Add participant form state
+  const [participantForm, setParticipantForm] = useState({
+    twitter_username: '',
+  });
+  const [participantFormSubmitting, setParticipantFormSubmitting] = useState(false);
+  const [participantFormError, setParticipantFormError] = useState<string | null>(null);
+
+  // Leaderboard state
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+
+  // UTM link generation state
+  const [utmForm, setUtmForm] = useState<Record<string, { label: string; destination_url: string }>>({});
+  const [utmGenerating, setUtmGenerating] = useState<string | null>(null);
+
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
     async function fetchPermissions() {
@@ -237,6 +278,271 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
     fetchActivity();
   }, [project?.id, userIsSuperAdmin]);
+
+  // Fetch CRM Campaigns
+  const fetchCampaigns = async () => {
+    if (!project?.id) {
+      setCampaignsLoading(false);
+      return;
+    }
+
+    setCampaignsLoading(true);
+    setCampaignsError(null);
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns?projectId=${encodeURIComponent(project.id)}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to load campaigns');
+      }
+
+      setCampaigns(data.campaigns || []);
+    } catch (err: any) {
+      setCampaignsError(err.message || 'Failed to load campaigns');
+    } finally {
+      setCampaignsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialFeatures?.crm_enabled && (canManage || userIsSuperAdmin)) {
+      fetchCampaigns();
+    }
+  }, [project?.id, initialFeatures?.crm_enabled, canManage, userIsSuperAdmin]);
+
+  // Fetch participants for selected campaign
+  const fetchParticipants = async (campaignId: string) => {
+    setParticipantsLoading(true);
+    setParticipantsError(null);
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns/${campaignId}/participants`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to load participants');
+      }
+
+      const participantsList = data.participants || [];
+      setParticipants(participantsList);
+
+      // Fetch existing links for participants
+      // Query links via a helper API or fetch individually
+      // For now, we'll show "Generate UTM" button and links will appear after generation
+      const linksMap: Record<string, any> = {};
+      for (const participant of participantsList) {
+        // Try to get link if it exists (we'll show generate button if not)
+        // Links will be populated when generated via handleGenerateUtmLink
+      }
+      setParticipantLinks(linksMap);
+    } catch (err: any) {
+      setParticipantsError(err.message || 'Failed to load participants');
+    } finally {
+      setParticipantsLoading(false);
+    }
+  };
+
+  // Fetch leaderboard for selected campaign
+  const fetchLeaderboard = async (campaignId: string) => {
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns/${campaignId}/leaderboard`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Failed to load leaderboard');
+      }
+
+      setLeaderboard(data.entries || []);
+    } catch (err: any) {
+      setLeaderboardError(err.message || 'Failed to load leaderboard');
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  // Handle campaign selection
+  useEffect(() => {
+    if (selectedCampaign) {
+      fetchParticipants(selectedCampaign);
+      fetchLeaderboard(selectedCampaign);
+    } else {
+      setParticipants([]);
+      setLeaderboard([]);
+      setParticipantLinks({});
+    }
+  }, [selectedCampaign]);
+
+  // Handle create campaign
+  const handleCreateCampaign = async () => {
+    if (!project?.id) {
+      setCampaignFormError('Project ID is required');
+      return;
+    }
+
+    if (!campaignForm.name.trim()) {
+      setCampaignFormError('Campaign name is required');
+      return;
+    }
+
+    // Validate dates if both provided
+    if (campaignForm.starts_at && campaignForm.ends_at) {
+      const startDate = new Date(campaignForm.starts_at);
+      const endDate = new Date(campaignForm.ends_at);
+      if (startDate >= endDate) {
+        setCampaignFormError('End date must be after start date');
+        return;
+      }
+    }
+
+    setCampaignFormSubmitting(true);
+    setCampaignFormError(null);
+    setCampaignFormSuccess(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          project_id: project.id,
+          name: campaignForm.name.trim(),
+          starts_at: campaignForm.starts_at || undefined,
+          ends_at: campaignForm.ends_at || undefined,
+          leaderboard_visibility: campaignForm.visibility,
+          participation_mode: 'invite_only',
+          type: 'crm',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to create campaign');
+      }
+
+      setCampaignFormSuccess('Campaign created successfully');
+      setCampaignForm({
+        name: '',
+        starts_at: '',
+        ends_at: '',
+        visibility: 'private',
+      });
+      setShowCreateCampaignModal(false);
+      await fetchCampaigns();
+
+      setTimeout(() => setCampaignFormSuccess(null), 3000);
+    } catch (err: any) {
+      setCampaignFormError(err.message || 'Failed to create campaign');
+    } finally {
+      setCampaignFormSubmitting(false);
+    }
+  };
+
+  // Handle add participant
+  const handleAddParticipant = async () => {
+    if (!selectedCampaign) {
+      setParticipantFormError('No campaign selected');
+      return;
+    }
+
+    const username = participantForm.twitter_username.trim().toLowerCase().replace('@', '');
+    if (!username) {
+      setParticipantFormError('Twitter username is required');
+      return;
+    }
+
+    if (username.includes(' ') || username.includes('@')) {
+      setParticipantFormError('Username must not contain spaces or @ symbol');
+      return;
+    }
+
+    setParticipantFormSubmitting(true);
+    setParticipantFormError(null);
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          twitter_username: username,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to add participant');
+      }
+
+      setParticipantForm({ twitter_username: '' });
+      setShowAddParticipantModal(false);
+      await fetchParticipants(selectedCampaign);
+    } catch (err: any) {
+      setParticipantFormError(err.message || 'Failed to add participant');
+    } finally {
+      setParticipantFormSubmitting(false);
+    }
+  };
+
+  // Handle generate UTM link
+  const handleGenerateUtmLink = async (participantId: string, label: string, destinationUrl: string) => {
+    if (!selectedCampaign) return;
+
+    if (!destinationUrl.trim()) {
+      alert('Destination URL is required');
+      return;
+    }
+
+    try {
+      new URL(destinationUrl);
+    } catch {
+      alert('Invalid URL format');
+      return;
+    }
+
+    setUtmGenerating(participantId);
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign}/participants/${participantId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          target_url: destinationUrl,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to generate UTM link');
+      }
+
+      // Update participant links and refetch participants to get updated data
+      setParticipantLinks((prev) => ({
+        ...prev,
+        [participantId]: data.link,
+      }));
+
+      // Refetch participants to get updated link info
+      await fetchParticipants(selectedCampaign);
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate UTM link');
+    } finally {
+      setUtmGenerating(null);
+    }
+  };
 
   // Handle request form submission
   const handleSubmitRequest = async () => {
@@ -1198,6 +1504,372 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
               </div>
             )}
 
+            {/* CRM Campaigns Card */}
+            {initialFeatures?.crm_enabled && (canManage || userIsSuperAdmin) ? (
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white">CRM Campaigns</h2>
+                  {canManage && (
+                    <button
+                      onClick={() => {
+                        setCampaignForm({
+                          name: '',
+                          starts_at: '',
+                          ends_at: '',
+                          visibility: 'private',
+                        });
+                        setCampaignFormError(null);
+                        setCampaignFormSuccess(null);
+                        setShowCreateCampaignModal(true);
+                      }}
+                      className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity"
+                    >
+                      Create Campaign
+                    </button>
+                  )}
+                </div>
+
+                {campaignsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <span className="ml-3 text-white/60 text-sm">Loading campaigns...</span>
+                  </div>
+                ) : campaignsError ? (
+                  <ErrorState
+                    message={campaignsError}
+                    onRetry={fetchCampaigns}
+                  />
+                ) : campaigns.length === 0 ? (
+                  <EmptyState
+                    title="No CRM campaigns yet"
+                    description="Create a campaign to onboard creators and track performance."
+                    icon="📢"
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {/* Campaign List */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-white/5 border-b border-white/10">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Campaign Name</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Date Range</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Visibility</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Participants</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Status</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/10">
+                          {campaigns.map((campaign) => {
+                            const now = new Date();
+                            const startAt = campaign.start_at ? new Date(campaign.start_at) : null;
+                            const endAt = campaign.end_at ? new Date(campaign.end_at) : null;
+                            let status = 'upcoming';
+                            if (startAt && endAt) {
+                              if (now >= startAt && now <= endAt) {
+                                status = 'active';
+                              } else if (now > endAt) {
+                                status = 'ended';
+                              }
+                            } else if (startAt && now >= startAt) {
+                              status = 'active';
+                            } else if (endAt && now > endAt) {
+                              status = 'ended';
+                            }
+
+                            return (
+                              <tr
+                                key={campaign.id}
+                                className={`hover:bg-white/5 transition-colors cursor-pointer ${selectedCampaign === campaign.id ? 'bg-white/10' : ''}`}
+                                onClick={() => setSelectedCampaign(selectedCampaign === campaign.id ? null : campaign.id)}
+                              >
+                                <td className="px-4 py-3 text-sm text-white font-medium">{campaign.name}</td>
+                                <td className="px-4 py-3 text-sm text-white/80">
+                                  {startAt && endAt
+                                    ? `${startAt.toLocaleDateString()} - ${endAt.toLocaleDateString()}`
+                                    : startAt
+                                    ? `From ${startAt.toLocaleDateString()}`
+                                    : endAt
+                                    ? `Until ${endAt.toLocaleDateString()}`
+                                    : 'No dates'}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    campaign.leaderboard_visibility === 'public'
+                                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                  }`}>
+                                    {campaign.leaderboard_visibility}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-white/80">
+                                  {selectedCampaign === campaign.id ? participants.length : '-'}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    status === 'active'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                      : status === 'ended'
+                                      ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                      : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                                  }`}>
+                                    {status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedCampaign(campaign.id);
+                                      }}
+                                      className="px-2 py-1 text-xs text-white/60 hover:text-white transition-colors"
+                                    >
+                                      View
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedCampaign(campaign.id);
+                                        // Scroll to leaderboard
+                                        setTimeout(() => {
+                                          const leaderboardEl = document.getElementById(`leaderboard-${campaign.id}`);
+                                          leaderboardEl?.scrollIntoView({ behavior: 'smooth' });
+                                        }, 100);
+                                      }}
+                                      className="px-2 py-1 text-xs text-white/60 hover:text-white transition-colors"
+                                    >
+                                      Leaderboard
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Campaign Detail View */}
+                    {selectedCampaign && (
+                      <div className="mt-6 pt-6 border-t border-white/10 space-y-6">
+                        {(() => {
+                          const campaign = campaigns.find((c) => c.id === selectedCampaign);
+                          if (!campaign) return null;
+
+                          return (
+                            <>
+                              {/* Campaign Header */}
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-white mb-2">{campaign.name}</h3>
+                                  <div className="flex items-center gap-4 text-sm text-white/60">
+                                    {campaign.start_at && (
+                                      <span>Start: {new Date(campaign.start_at).toLocaleString()}</span>
+                                    )}
+                                    {campaign.end_at && (
+                                      <span>End: {new Date(campaign.end_at).toLocaleString()}</span>
+                                    )}
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      campaign.leaderboard_visibility === 'public'
+                                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+                                        : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                    }`}>
+                                      {campaign.leaderboard_visibility}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedCampaign(null)}
+                                  className="text-white/60 hover:text-white transition-colors"
+                                >
+                                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Participants Section */}
+                              <div>
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="text-md font-semibold text-white">Participants</h4>
+                                  {canManage && (
+                                    <button
+                                      onClick={() => {
+                                        setParticipantForm({ twitter_username: '' });
+                                        setParticipantFormError(null);
+                                        setShowAddParticipantModal(true);
+                                      }}
+                                      className="px-3 py-1.5 text-xs font-medium bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded hover:bg-teal-500/30 transition-colors"
+                                    >
+                                      Add Participant
+                                    </button>
+                                  )}
+                                </div>
+
+                                {participantsLoading ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                                    <span className="ml-3 text-white/60 text-sm">Loading participants...</span>
+                                  </div>
+                                ) : participantsError ? (
+                                  <ErrorState
+                                    message={participantsError}
+                                    onRetry={() => fetchParticipants(selectedCampaign)}
+                                  />
+                                ) : participants.length === 0 ? (
+                                  <EmptyState
+                                    title="No participants yet"
+                                    description="Add participants to start tracking their performance."
+                                    icon="👥"
+                                  />
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                      <thead className="bg-white/5 border-b border-white/10">
+                                        <tr>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Twitter Username</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Joined At</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">UTM Links</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Actions</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-white/10">
+                                        {participants.map((participant) => {
+                                          const link = participantLinks[participant.id];
+                                          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                                          const shortUrl = link ? `${baseUrl}/r/${link.code || link.short_code}` : null;
+
+                                          return (
+                                            <tr key={participant.id} className="hover:bg-white/5 transition-colors">
+                                              <td className="px-4 py-3 text-sm text-white">@{participant.twitter_username}</td>
+                                              <td className="px-4 py-3 text-sm text-white/80">
+                                                {participant.joined_at ? new Date(participant.joined_at).toLocaleString() : 'N/A'}
+                                              </td>
+                                              <td className="px-4 py-3 text-sm text-white/80">
+                                                {link ? (
+                                                  <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                      <a
+                                                        href={shortUrl || '#'}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-teal-400 hover:text-teal-300 text-xs font-mono"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                      >
+                                                        {shortUrl}
+                                                      </a>
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (shortUrl) {
+                                                            navigator.clipboard.writeText(shortUrl);
+                                                            alert('Link copied to clipboard!');
+                                                          }
+                                                        }}
+                                                        className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded transition-colors"
+                                                      >
+                                                        Copy
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-white/40 text-xs">No link</span>
+                                                )}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                {canManage && (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      const url = prompt('Enter destination URL:');
+                                                      if (url) {
+                                                        handleGenerateUtmLink(participant.id, '', url);
+                                                      }
+                                                    }}
+                                                    disabled={utmGenerating === participant.id}
+                                                    className="px-2 py-1 text-xs bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded hover:bg-teal-500/30 transition-colors disabled:opacity-50"
+                                                  >
+                                                    {utmGenerating === participant.id ? 'Generating...' : link ? 'Regenerate' : 'Generate UTM'}
+                                                  </button>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Leaderboard Section */}
+                              <div id={`leaderboard-${campaign.id}`}>
+                                <h4 className="text-md font-semibold text-white mb-4">Leaderboard</h4>
+
+                                {leaderboardLoading ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                                    <span className="ml-3 text-white/60 text-sm">Loading leaderboard...</span>
+                                  </div>
+                                ) : leaderboardError ? (
+                                  <ErrorState
+                                    message={leaderboardError}
+                                    onRetry={() => fetchLeaderboard(selectedCampaign)}
+                                  />
+                                ) : leaderboard.length === 0 ? (
+                                  <EmptyState
+                                    title="No leaderboard data yet"
+                                    description="Participants will appear here once they generate UTM links and receive clicks."
+                                    icon="🏆"
+                                  />
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                      <thead className="bg-white/5 border-b border-white/10">
+                                        <tr>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Rank</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Twitter Username</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Unique Clicks</th>
+                                          <th className="px-4 py-3 text-left text-xs font-medium text-white/60">Total Clicks</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-white/10">
+                                        {leaderboard.map((entry, idx) => (
+                                          <tr key={entry.participant_id} className="hover:bg-white/5 transition-colors">
+                                            <td className="px-4 py-3 text-sm font-semibold text-white">#{idx + 1}</td>
+                                            <td className="px-4 py-3 text-sm text-white">@{entry.twitter_username}</td>
+                                            <td className="px-4 py-3 text-sm text-white font-medium">{entry.unique_clicks}</td>
+                                            <td className="px-4 py-3 text-sm text-white">{entry.clicks}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : initialFeatures && !initialFeatures.crm_enabled ? (
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">CRM Campaigns</h2>
+                <EmptyState
+                  title="CRM is not enabled"
+                  description={userIsSuperAdmin 
+                    ? "Enable CRM in the CRM Settings section above to start creating campaigns."
+                    : "CRM is not enabled for this project. Contact a project admin to request access."}
+                  icon="🔒"
+                />
+              </div>
+            ) : null}
+
             {/* Arenas table */}
             <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden">
               {arenas.length === 0 ? (
@@ -1312,6 +1984,180 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             loading={modalLoading}
             error={modalError}
           />
+        )}
+
+        {/* Create Campaign Modal */}
+        {showCreateCampaignModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Create Campaign</h3>
+                <button
+                  onClick={() => {
+                    setShowCreateCampaignModal(false);
+                    setCampaignFormError(null);
+                    setCampaignFormSuccess(null);
+                  }}
+                  className="text-white/60 hover:text-white transition-colors"
+                  disabled={campaignFormSubmitting}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {campaignFormSuccess && (
+                <div className="mb-4 p-3 rounded bg-green-500/10 border border-green-500/30">
+                  <p className="text-green-400 text-sm">{campaignFormSuccess}</p>
+                </div>
+              )}
+
+              {campaignFormError && (
+                <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/30">
+                  <p className="text-red-400 text-sm">{campaignFormError}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">
+                    Campaign Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={campaignForm.name}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
+                    placeholder="e.g., Q1 Creator Campaign"
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    disabled={campaignFormSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Start Date (Optional)</label>
+                  <input
+                    type="datetime-local"
+                    value={campaignForm.starts_at}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, starts_at: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    disabled={campaignFormSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">End Date (Optional)</label>
+                  <input
+                    type="datetime-local"
+                    value={campaignForm.ends_at}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, ends_at: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    disabled={campaignFormSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Visibility</label>
+                  <select
+                    value={campaignForm.visibility}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, visibility: e.target.value as 'private' | 'public' })}
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    disabled={campaignFormSubmitting}
+                  >
+                    <option value="private">Private</option>
+                    <option value="public">Public</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3 pt-4">
+                  <button
+                    onClick={handleCreateCampaign}
+                    disabled={campaignFormSubmitting || !campaignForm.name.trim()}
+                    className="flex-1 px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {campaignFormSubmitting ? 'Creating...' : 'Create Campaign'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCreateCampaignModal(false);
+                      setCampaignFormError(null);
+                      setCampaignFormSuccess(null);
+                    }}
+                    disabled={campaignFormSubmitting}
+                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Participant Modal */}
+        {showAddParticipantModal && selectedCampaign && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Add Participant</h3>
+                <button
+                  onClick={() => {
+                    setShowAddParticipantModal(false);
+                    setParticipantFormError(null);
+                  }}
+                  className="text-white/60 hover:text-white transition-colors"
+                  disabled={participantFormSubmitting}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {participantFormError && (
+                <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/30">
+                  <p className="text-red-400 text-sm">{participantFormError}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">
+                    Twitter Username <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={participantForm.twitter_username}
+                    onChange={(e) => setParticipantForm({ twitter_username: e.target.value })}
+                    placeholder="username (without @)"
+                    className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    disabled={participantFormSubmitting}
+                  />
+                  <p className="mt-1 text-xs text-white/40">Enter username without @ symbol</p>
+                </div>
+
+                <div className="flex items-center gap-3 pt-4">
+                  <button
+                    onClick={handleAddParticipant}
+                    disabled={participantFormSubmitting || !participantForm.twitter_username.trim()}
+                    className="flex-1 px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {participantFormSubmitting ? 'Adding...' : 'Add Participant'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddParticipantModal(false);
+                      setParticipantFormError(null);
+                    }}
+                    disabled={participantFormSubmitting}
+                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </ArcPageShell>
