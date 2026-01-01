@@ -344,16 +344,15 @@ export default async function handler(
     // Send notification to requester if approved
     if (body.status === 'approved' && request.requested_by) {
       try {
-        await createNotification({
-          userId: request.requested_by,
-          type: 'arc_request_approved',
-          title: 'ARC Request Approved',
-          message: `Your ARC leaderboard request has been approved.`,
-          metadata: {
+        await createNotification(
+          supabase,
+          request.requested_by,
+          'arc_request_approved',
+          {
             requestId: requestId,
             projectId: request.project_id,
-          },
-        });
+          }
+        );
       } catch (notifError) {
         console.error('[Update Request API] Error creating notification:', notifError);
         // Don't fail the request if notification fails
