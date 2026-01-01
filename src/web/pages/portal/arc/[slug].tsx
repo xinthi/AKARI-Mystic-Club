@@ -2415,7 +2415,6 @@ export default function ArcProjectHub() {
                   {/* Quest Leaderboard (arena-based, legacy) */}
                   {!unifiedState?.modules?.leaderboard?.enabled && (
                     <>
-                    <>
                       {arenas.length === 0 ? (
                         <p className="text-sm text-akari-muted text-center py-8">
                           No arenas available for this project.
@@ -2598,8 +2597,6 @@ export default function ArcProjectHub() {
                               )}
                             </>
                           )}
-                        </>
-                      )}
                     </>
                   )}
                 </div>
