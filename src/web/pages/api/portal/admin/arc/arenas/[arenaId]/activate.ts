@@ -21,7 +21,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { isSuperAdminServerSide } from '@/lib/server-auth';
+import { requireSuperAdmin } from '@/lib/server/require-superadmin';
 
 // =============================================================================
 // TYPES
@@ -51,46 +51,6 @@ function isValidUUID(uuid: string): boolean {
   return uuidRegex.test(uuid);
 }
 
-/**
- * Extract session token from request cookies
- */
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-/**
- * Get user ID from session token
- */
-async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: session, error } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (error || !session) {
-      return null;
-    }
-
-    if (new Date(session.expires_at) < new Date()) {
-      await supabase.from('akari_user_sessions').delete().eq('session_token', sessionToken);
-      return null;
-    }
-
-    return session.user_id;
-  } catch (err) {
-    return null;
-  }
-}
-
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -107,29 +67,12 @@ export default async function handler(
     });
   }
 
-  // Check authentication
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({
+  // Check authentication and SuperAdmin status
+  const auth = await requireSuperAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({
       ok: false,
-      error: 'Not authenticated',
-    });
-  }
-
-  const userId = await getUserIdFromSession(sessionToken);
-  if (!userId) {
-    return res.status(401).json({
-      ok: false,
-      error: 'Invalid session',
-    });
-  }
-
-  // Check super admin
-  const isSuperAdmin = await isSuperAdminServerSide(userId);
-  if (!isSuperAdmin) {
-    return res.status(403).json({
-      ok: false,
-      error: 'SuperAdmin only',
+      error: auth.error,
     });
   }
 

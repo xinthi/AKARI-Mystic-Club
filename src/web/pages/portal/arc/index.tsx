@@ -19,6 +19,8 @@ import { useArcLiveItems } from '@/lib/arc/useArcLiveItems';
 import { useArcNotifications } from '@/lib/arc/useArcNotifications';
 import { DesktopArcShell } from '@/components/arc/fb/DesktopArcShell';
 import { MobileLayout } from '@/components/arc/fb/mobile/MobileLayout';
+import { EmptyState } from '@/components/arc/EmptyState';
+import { ErrorState } from '@/components/arc/ErrorState';
 
 // =============================================================================
 // TYPES
@@ -344,6 +346,15 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
     }
 
     loadArcProjects();
+
+    // Listen for reload event
+    const handleReload = () => {
+      loadArcProjects();
+    };
+    window.addEventListener('arc-projects-reload', handleReload);
+    return () => {
+      window.removeEventListener('arc-projects-reload', handleReload);
+    };
   }, [canViewArc]);
 
 
@@ -428,14 +439,18 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           <span className="ml-3 text-white/60 text-sm">Loading products...</span>
         </div>
       ) : arcProjectsError ? (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
-          <p className="text-sm text-red-400">{arcProjectsError}</p>
-        </div>
+        <ErrorState
+          message={arcProjectsError}
+          onRetry={() => {
+            window.dispatchEvent(new Event('arc-projects-reload'));
+          }}
+        />
       ) : productCards.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-black/40 p-12 text-center">
-          <p className="text-sm text-white/60 mb-1">No active ARC projects yet</p>
-          <p className="text-xs text-white/40">Projects with enabled features will appear here</p>
-        </div>
+        <EmptyState
+          title="No active ARC projects yet"
+          description="Projects with enabled features will appear here"
+          icon="📭"
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {productCards.map((card, index) => {
@@ -596,13 +611,16 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
             <span className="ml-3 text-white/60">Loading projects...</span>
           </div>
         ) : topProjectsError ? (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-6 text-center">
-            <p className="text-sm text-red-400">{topProjectsError}</p>
-          </div>
+          <ErrorState
+            message={topProjectsError}
+            onRetry={loadTopProjects}
+          />
         ) : topProjectsData.length === 0 ? (
-          <div className="rounded-lg border border-white/10 bg-black/40 p-12 text-center">
-            <p className="text-sm text-white/60">No projects available</p>
-          </div>
+          <EmptyState
+            title="No projects available"
+            description="Top projects will appear here when data is available"
+            icon="📊"
+          />
         ) : (
           <>
             {topProjectsDisplayMode === 'cards' ? (

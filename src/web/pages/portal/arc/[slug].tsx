@@ -18,6 +18,10 @@ import type { ProjectPermissionCheck } from '@/lib/project-permissions';
 import { getAllTemplates, getTemplate, type CampaignTemplate } from '@/lib/arc-campaign-templates';
 import { getRankBadgeFromRank, getBadgeDisplayInfo } from '@/lib/arc-ui-helpers';
 import { ActiveQuestsPanel } from '@/components/arc/fb/ActiveQuestsPanel';
+import { useCurrentMsArena } from '@/lib/arc/hooks';
+import { EmptyState } from '@/components/arc/EmptyState';
+import { ErrorState } from '@/components/arc/ErrorState';
+import { getEnabledProducts, getCrmVisibilityLabel } from '@/lib/arc/features';
 
 // =============================================================================
 // TYPES
@@ -196,26 +200,26 @@ function buildMissions(
 
 export default function ArcProjectHub() {
   const router = useRouter();
-  const rawSlug = router.query.slug;
-  // Normalize slug: string, trim, toLowerCase
-  const slug = typeof rawSlug === 'string' ? String(rawSlug).trim().toLowerCase() : null;
+  const rawProjectSlug = router.query.projectSlug;
+  // Normalize projectSlug: string, trim, toLowerCase
+  const projectSlug = typeof rawProjectSlug === 'string' ? String(rawProjectSlug).trim().toLowerCase() : null;
   const akariUser = useAkariUser();
   const userTwitterUsername = akariUser.user?.xUsername || null;
 
-  // Canonicalize slug: redirect if normalized differs from original
+  // Canonicalize projectSlug: redirect if normalized differs from original
   useEffect(() => {
     if (!router.isReady) return;
     
-    const rawSlugValue = router.query.slug;
-    if (typeof rawSlugValue === 'string' && rawSlugValue) {
-      const normalized = String(rawSlugValue).trim().toLowerCase();
-      if (normalized !== rawSlugValue) {
+    const rawProjectSlugValue = router.query.projectSlug;
+    if (typeof rawProjectSlugValue === 'string' && rawProjectSlugValue) {
+      const normalized = String(rawProjectSlugValue).trim().toLowerCase();
+      if (normalized !== rawProjectSlugValue) {
         // Redirect to canonical URL (no full reload)
         router.replace(`/portal/arc/${encodeURIComponent(normalized)}`, undefined, { shallow: false });
         return;
       }
     }
-  }, [router.isReady, router.query.slug, router]);
+  }, [router.isReady, router.query.projectSlug, router]);
 
   const [project, setProject] = useState<ArcProject | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -319,10 +323,13 @@ export default function ArcProjectHub() {
   const [questsLoading, setQuestsLoading] = useState(false);
   const [questArenaId, setQuestArenaId] = useState<string | null>(null);
 
-  // Fetch project by slug and unified state
+  // Load current MS arena
+  const { arena: currentMsArena, loading: currentArenaLoading, error: currentArenaError } = useCurrentMsArena(projectId);
+
+  // Fetch project by projectSlug and unified state
   useEffect(() => {
     async function fetchProject() {
-      if (!slug) {
+      if (!projectSlug) {
         setLoading(false);
         return;
       }
@@ -331,13 +338,13 @@ export default function ArcProjectHub() {
         setLoading(true);
         setError(null);
 
-        // Step 1: Resolve project by slug (already normalized)
-        const projectUrl = `/api/portal/arc/project-by-slug?slug=${encodeURIComponent(slug)}`;
+        // Step 1: Resolve project by projectSlug (already normalized)
+        const projectUrl = `/api/portal/arc/project-by-slug?slug=${encodeURIComponent(projectSlug)}`;
         
         // Debug logging (development only)
         if (process.env.NODE_ENV === 'development') {
           console.log('[ArcProjectHub] Fetching project:', {
-            slug,
+            projectSlug,
             fetchUrl: projectUrl,
           });
         }
@@ -474,7 +481,7 @@ export default function ArcProjectHub() {
 
     fetchProject();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [projectSlug]);
 
   // Fetch arenas for this project
   useEffect(() => {
@@ -484,11 +491,11 @@ export default function ArcProjectHub() {
       }
 
       try {
-        // Use projectId if available, otherwise fall back to normalized slug
+        // Use projectId if available, otherwise fall back to normalized projectSlug
         const res = await fetch(projectId 
           ? `/api/portal/arc/arenas?projectId=${encodeURIComponent(projectId)}`
-          : slug
-          ? `/api/portal/arc/arenas?slug=${encodeURIComponent(slug)}`
+          : projectSlug
+          ? `/api/portal/arc/arenas?slug=${encodeURIComponent(projectSlug)}`
           : '/api/portal/arc/arenas');
         const data: ArenasResponse = await res.json();
 
@@ -514,7 +521,7 @@ export default function ArcProjectHub() {
     }
 
     fetchArenas();
-  }, [projectId, slug, project, selectedArenaId]);
+  }, [projectId, projectSlug, project, selectedArenaId]);
 
   // Fetch creators for selected arena
   useEffect(() => {
@@ -1363,14 +1370,27 @@ export default function ArcProjectHub() {
   // Prepare right rail content (quests panel when gamified enabled)
   const rightRailContent = React.useMemo(() => {
     if (unifiedState?.modules?.gamefi?.enabled && projectId) {
-      return (
-        <ActiveQuestsPanel
-          projectId={projectId}
-          quests={quests}
-          userCompletions={questCompletions}
-          loading={questsLoading}
-        />
-      );
+      // If quests are loaded, show ActiveQuestsPanel, otherwise show placeholder
+      if (quests.length > 0 || questsLoading) {
+        return (
+          <ActiveQuestsPanel
+            projectId={projectId}
+            quests={quests}
+            userCompletions={questCompletions}
+            loading={questsLoading}
+          />
+        );
+      } else {
+        // Placeholder for GameFi when no quests yet
+        return (
+          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3">Quests</h3>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-6 text-center">
+              <p className="text-sm text-white/60">No quests yet</p>
+            </div>
+          </div>
+        );
+      }
     }
     return undefined; // Use default right rail
   }, [unifiedState?.modules?.gamefi?.enabled, projectId, quests, questCompletions, questsLoading]);
@@ -1397,13 +1417,26 @@ export default function ArcProjectHub() {
           </div>
         )}
 
+        {/* Error state */}
+        {!loading && error && (
+          <ErrorState
+            message={error}
+            onRetry={() => {
+              setError(null);
+              setLoading(true);
+              // Trigger reload
+              window.location.reload();
+            }}
+          />
+        )}
+
         {/* Project not found or no modules enabled */}
-        {!loading && (!project || (unifiedState && !unifiedState.modules?.leaderboard?.enabled && !unifiedState.modules?.gamefi?.enabled && !unifiedState.modules?.crm?.enabled)) && (
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-muted">
-              {error || 'ARC is not enabled for this project.'}
-            </p>
-          </div>
+        {!loading && !error && (!project || (unifiedState && !unifiedState.modules?.leaderboard?.enabled && !unifiedState.modules?.gamefi?.enabled && !unifiedState.modules?.crm?.enabled)) && (
+          <EmptyState
+            title={error || 'ARC is not enabled for this project'}
+            description="This project does not have any ARC modules enabled."
+            icon="🔒"
+          />
         )}
 
         {/* Project found - show content */}
@@ -1776,6 +1809,193 @@ export default function ArcProjectHub() {
                     </div>
                   </div>
 
+                  {/* Product Cards Section */}
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-white">ARC Products</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Mindshare Card */}
+                      <div className={`rounded-lg border p-4 ${
+                        unifiedState?.modules?.leaderboard?.enabled
+                          ? 'border-teal-500/30 bg-teal-500/10'
+                          : 'border-white/10 bg-black/20 opacity-60'
+                      }`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="text-base font-semibold text-white mb-1">Mindshare</h3>
+                            <p className="text-xs text-white/60">Leaderboard & Signal Tracking</p>
+                          </div>
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${
+                            unifiedState?.modules?.leaderboard?.enabled
+                              ? 'from-teal-400 to-cyan-400'
+                              : 'from-gray-500 to-gray-600'
+                          } flex items-center justify-center flex-shrink-0`}>
+                            <span className="text-white text-xs font-bold">MS</span>
+                          </div>
+                        </div>
+                        {unifiedState?.modules?.leaderboard?.enabled ? (
+                          <div className="mt-3 space-y-2">
+                            {currentMsArena ? (
+                              <Link
+                                href={`/portal/arc/${encodeURIComponent(project?.slug || projectId || '')}`}
+                                onClick={() => setActiveTab('leaderboard')}
+                                className="block w-full px-3 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity text-center"
+                              >
+                                View Leaderboard
+                              </Link>
+                            ) : (
+                              <div className="text-xs text-white/60">
+                                No active arena
+                              </div>
+                            )}
+                            {canWrite && project?.slug && (
+                              <Link
+                                href={`/portal/arc/admin/${encodeURIComponent(project.slug)}`}
+                                className="block w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all text-center"
+                              >
+                                Manage
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <p className="text-xs text-white/60 mb-2">Mindshare not enabled for this project</p>
+                            {canWrite && (
+                              <button
+                                onClick={() => {
+                                  // Scroll to request form or navigate to admin page
+                                  if (project?.slug) {
+                                    router.push(`/portal/arc/admin/${encodeURIComponent(project.slug)}`);
+                                  }
+                                }}
+                                className="w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                              >
+                                Request Access
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* GameFi Card */}
+                      <div className={`rounded-lg border p-4 ${
+                        unifiedState?.modules?.gamefi?.enabled
+                          ? 'border-purple-500/30 bg-purple-500/10'
+                          : 'border-white/10 bg-black/20 opacity-60'
+                      }`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="text-base font-semibold text-white mb-1">GameFi</h3>
+                            <p className="text-xs text-white/60">Quests & Gamified Leaderboard</p>
+                          </div>
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${
+                            unifiedState?.modules?.gamefi?.enabled
+                              ? 'from-purple-400 to-pink-400'
+                              : 'from-gray-500 to-gray-600'
+                          } flex items-center justify-center flex-shrink-0`}>
+                            <span className="text-white text-xs font-bold">GF</span>
+                          </div>
+                        </div>
+                        {unifiedState?.modules?.gamefi?.enabled ? (
+                          <div className="mt-3 space-y-2">
+                            {projectId && (
+                              <Link
+                                href={`/portal/arc/gamified/${projectId}`}
+                                className="block w-full px-3 py-2 text-sm font-medium bg-gradient-to-r from-purple-400 to-pink-400 text-black rounded-lg hover:opacity-90 transition-opacity text-center"
+                              >
+                                View GameFi
+                              </Link>
+                            )}
+                            {canWrite && project?.slug && (
+                              <Link
+                                href={`/portal/arc/admin/${encodeURIComponent(project.slug)}`}
+                                className="block w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all text-center"
+                              >
+                                Manage
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <p className="text-xs text-white/60 mb-2">GameFi not enabled</p>
+                            {canWrite && (
+                              <button
+                                onClick={() => {
+                                  if (project?.slug) {
+                                    router.push(`/portal/arc/admin/${encodeURIComponent(project.slug)}`);
+                                  }
+                                }}
+                                className="w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                              >
+                                Request Access
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CRM Card */}
+                      <div className={`rounded-lg border p-4 ${
+                        unifiedState?.modules?.crm?.enabled && unifiedState?.modules?.crm?.visibility === 'public'
+                          ? 'border-orange-500/30 bg-orange-500/10'
+                          : 'border-white/10 bg-black/20 opacity-60'
+                      }`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="text-base font-semibold text-white mb-1">CRM</h3>
+                            <p className="text-xs text-white/60">Creator Manager</p>
+                          </div>
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${
+                            unifiedState?.modules?.crm?.enabled && unifiedState?.modules?.crm?.visibility === 'public'
+                              ? 'from-orange-400 to-red-400'
+                              : 'from-gray-500 to-gray-600'
+                          } flex items-center justify-center flex-shrink-0`}>
+                            <span className="text-white text-xs font-bold">CRM</span>
+                          </div>
+                        </div>
+                        {unifiedState?.modules?.crm?.enabled && unifiedState?.modules?.crm?.visibility === 'public' ? (
+                          <div className="mt-3 space-y-2">
+                            {projectId && (
+                              <Link
+                                href={`/portal/arc/creator-manager?projectId=${projectId}`}
+                                className="block w-full px-3 py-2 text-sm font-medium bg-gradient-to-r from-orange-400 to-red-400 text-black rounded-lg hover:opacity-90 transition-opacity text-center"
+                              >
+                                View CRM
+                              </Link>
+                            )}
+                            {canWrite && project?.slug && (
+                              <Link
+                                href={`/portal/arc/admin/${encodeURIComponent(project.slug)}`}
+                                className="block w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all text-center"
+                              >
+                                Manage
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <p className="text-xs text-white/60 mb-2">
+                              {unifiedState?.modules?.crm?.enabled
+                                ? 'CRM is private'
+                                : 'CRM not enabled'}
+                            </p>
+                            {canWrite && (
+                              <button
+                                onClick={() => {
+                                  if (project?.slug) {
+                                    router.push(`/portal/arc/admin/${encodeURIComponent(project.slug)}`);
+                                  }
+                                }}
+                                className="w-full px-3 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-all"
+                              >
+                                Request Access
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Campaign Pulse Section (Founder Dashboard) */}
                   {canWrite && (
                     <div className="rounded-xl border border-white/10 bg-gradient-to-br from-akari-neon-teal/10 to-black/40 p-6">
@@ -1819,9 +2039,11 @@ export default function ArcProjectHub() {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-sm text-white/60 py-4">
-                          No active arena found for this project.
-                        </div>
+                        <EmptyState
+                          title="No active arena found"
+                          description="No active arena found for this project"
+                          icon="📊"
+                        />
                       )}
                     </div>
                   )}
@@ -1978,17 +2200,31 @@ export default function ArcProjectHub() {
               {/* Leaderboard Tab */}
               {activeTab === 'leaderboard' && (
                 <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-                  {/* Mindshare Leaderboard (auto-tracked + joined) */}
+                  {/* Only show leaderboard section if leaderboard_enabled is true */}
                   {unifiedState?.modules?.leaderboard?.enabled ? (
                     <>
-                      {/* Auto-tracking Banner */}
-                      {mindshareLeaderboardEntries.length > 0 && (
-                        <div className="rounded-lg border border-akari-neon-teal/30 bg-akari-neon-teal/10 p-4 mb-6">
-                          <p className="text-sm text-white/90">
-                            We auto-track public CT signal. Join and follow to boost your points.
-                          </p>
+                      {/* Check if current arena exists */}
+                      {currentArenaLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                          <span className="ml-3 text-white/60">Loading arena...</span>
                         </div>
-                      )}
+                      ) : !currentMsArena ? (
+                        <EmptyState
+                          title="No active leaderboard right now"
+                          description="This project has ARC enabled, but there is no live arena at the moment."
+                          icon="📊"
+                        />
+                      ) : (
+                        <>
+                          {/* Auto-tracking Banner */}
+                          {mindshareLeaderboardEntries.length > 0 && (
+                            <div className="rounded-lg border border-akari-neon-teal/30 bg-akari-neon-teal/10 p-4 mb-6">
+                              <p className="text-sm text-white/90">
+                                We auto-track public CT signal. Join and follow to boost your points.
+                              </p>
+                            </div>
+                          )}
 
                       {mindshareLeaderboardLoading ? (
                         <div className="flex items-center justify-center py-12">
@@ -1996,17 +2232,22 @@ export default function ArcProjectHub() {
                           <span className="ml-3 text-white/60">Loading leaderboard...</span>
                         </div>
                       ) : mindshareLeaderboardError ? (
-                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
-                          <p className="text-red-400 text-sm">{mindshareLeaderboardError}</p>
-                        </div>
+                        <ErrorState
+                          message={mindshareLeaderboardError}
+                          onRetry={() => {
+                            setMindshareLeaderboardError(null);
+                            // Trigger refetch by updating activeTab
+                            const currentTab = activeTab;
+                            setActiveTab('overview');
+                            setTimeout(() => setActiveTab(currentTab), 100);
+                          }}
+                        />
                       ) : visibleMindshareEntries.length === 0 ? (
-                        <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center">
-                          <div className="text-4xl mb-4">📊</div>
-                          <h3 className="text-lg font-semibold text-white mb-2">No creators yet</h3>
-                          <p className="text-white/60 text-sm">
-                            Creators who generate signal will appear here automatically.
-                          </p>
-                        </div>
+                        <EmptyState
+                          title="No creators yet"
+                          description="Creators who generate signal will appear here automatically."
+                          icon="📊"
+                        />
                       ) : (
                         <>
                           {/* Controls Bar */}
@@ -2161,9 +2402,19 @@ export default function ArcProjectHub() {
                           </div>
                         </>
                       )}
+                        </>
+                      )}
                     </>
-                  ) : (
-                    /* Quest Leaderboard (arena-based, legacy) */
+                  ) : null}
+                </div>
+              )}
+
+              {/* Missions Tab */}
+              {activeTab === 'missions' && (
+                <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                  {/* Quest Leaderboard (arena-based, legacy) */}
+                  {!unifiedState?.modules?.leaderboard?.enabled && (
+                    <>
                     <>
                       {arenas.length === 0 ? (
                         <p className="text-sm text-akari-muted text-center py-8">
@@ -2525,8 +2776,33 @@ export default function ArcProjectHub() {
               {activeTab === 'crm' && (
                 <div className="space-y-6">
                   {!unifiedState?.modules?.crm?.enabled ? (
-                    <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">
-                      <p className="text-sm text-white/60">CRM (Creator Manager) is not enabled for this project.</p>
+                    <EmptyState
+                      title="CRM (Creator Manager) is not enabled for this project"
+                      description="Request access to enable CRM features"
+                      icon="🔒"
+                      action={canWrite ? {
+                        label: 'Request Access',
+                        onClick: () => {
+                          if (project?.slug) {
+                            router.push(`/portal/arc/admin/${encodeURIComponent(project.slug)}`);
+                          }
+                        }
+                      } : undefined}
+                    />
+                  ) : unifiedState?.modules?.crm?.visibility !== 'public' && !canWrite ? (
+                    <EmptyState
+                      title="CRM (Creator Manager) is not publicly visible"
+                      description="This project's CRM is set to private visibility"
+                      icon="🔒"
+                    />
+                  ) : unifiedState?.modules?.crm?.enabled && unifiedState?.modules?.crm?.visibility === 'public' && !canWrite ? (
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+                      <h2 className="text-lg font-semibold text-white mb-4">CRM</h2>
+                      <EmptyState
+                        title="CRM functionality is coming soon"
+                        description="Creator Manager features will be available here"
+                        icon="🚀"
+                      />
                     </div>
                   ) : !canWrite ? (
                     <div className="rounded-xl border border-white/10 bg-black/40 p-8 text-center">

@@ -17,6 +17,8 @@ import { checkProjectPermissions, type ProjectPermissionCheck } from '@/lib/proj
 import { getSessionTokenFromRequest } from '@/lib/server-auth';
 import { useCurrentMsArena } from '@/lib/arc/hooks';
 import { activateMsArena } from '@/lib/arc/api';
+import { EmptyState } from '@/components/arc/EmptyState';
+import { ErrorState } from '@/components/arc/ErrorState';
 
 // =============================================================================
 // TYPES
@@ -111,6 +113,13 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
+  // CRM Settings state (SuperAdmin only)
+  const [crmEnabled, setCrmEnabled] = useState(initialFeatures?.crm_enabled || false);
+  const [crmVisibility, setCrmVisibility] = useState<'private' | 'public' | 'hybrid'>(initialFeatures?.crm_visibility || 'private');
+  const [crmSaving, setCrmSaving] = useState(false);
+  const [crmError, setCrmError] = useState<string | null>(null);
+  const [crmSuccess, setCrmSuccess] = useState<string | null>(null);
+
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
     async function fetchPermissions() {
@@ -180,6 +189,15 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
 
     fetchRequests();
+
+    // Listen for reload event
+    const handleReload = () => {
+      fetchRequests();
+    };
+    window.addEventListener('arc-requests-reload', handleReload);
+    return () => {
+      window.removeEventListener('arc-requests-reload', handleReload);
+    };
   }, [project?.id]);
 
   // Handle request form submission
@@ -480,6 +498,60 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
   };
 
+  // Update CRM settings when initialFeatures change
+  useEffect(() => {
+    if (initialFeatures) {
+      setCrmEnabled(initialFeatures.crm_enabled || false);
+      setCrmVisibility(initialFeatures.crm_visibility || 'private');
+    }
+  }, [initialFeatures]);
+
+  // Handle CRM Settings Update
+  const handleUpdateCrmSettings = async () => {
+    if (!project?.id || !userIsSuperAdmin) {
+      return;
+    }
+
+    setCrmSaving(true);
+    setCrmError(null);
+    setCrmSuccess(null);
+
+    try {
+      const res = await fetch(`/api/portal/admin/arc/projects/${encodeURIComponent(project.id)}/update-features`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          crm_enabled: crmEnabled,
+          crm_visibility: crmVisibility,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to update CRM settings');
+      }
+
+      setCrmSuccess('CRM settings updated successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setCrmSuccess(null);
+      }, 3000);
+
+      // Reload page to get updated features
+      setTimeout(() => {
+        router.reload();
+      }, 1500);
+    } catch (err: any) {
+      console.error('[ArenaManager] Error updating CRM settings:', err);
+      setCrmError(err.message || 'Failed to update CRM settings');
+    } finally {
+      setCrmSaving(false);
+    }
+  };
+
   // Handle Activate Arena
   const handleActivateArena = async (arenaId: string) => {
     setActivatingArenaId(arenaId);
@@ -633,12 +705,28 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
               <h2 className="text-lg font-semibold text-white mb-4">ARC Access Requests</h2>
               
               {requestsLoading ? (
-                <div className="text-white/60 text-sm">Loading requests...</div>
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60 text-sm">Loading requests...</span>
+                </div>
               ) : requestsError ? (
-                <div className="text-red-400 text-sm mb-4">{requestsError}</div>
+                <div className="mb-4">
+                  <ErrorState
+                    message={requestsError}
+                    onRetry={() => {
+                      setRequestsError(null);
+                      // Trigger reload
+                      window.dispatchEvent(new Event('arc-requests-reload'));
+                    }}
+                  />
+                </div>
               ) : !latestRequest ? (
-                <div className="text-center py-4 mb-4">
-                  <p className="text-white/60 mb-1">No requests yet</p>
+                <div className="mb-4">
+                  <EmptyState
+                    title="No requests yet"
+                    description="Submit a request to enable ARC features for this project"
+                    icon="📝"
+                  />
                 </div>
               ) : (
                 <div className="space-y-3 mb-4">
@@ -804,14 +892,21 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
               <h2 className="text-lg font-semibold text-white mb-4">Current Active MS Arena</h2>
               
               {arenaLoading ? (
-                <div className="text-white/60 text-sm">Loading current arena...</div>
-              ) : arenaError ? (
-                <div className="text-red-400 text-sm">{arenaError}</div>
-              ) : !currentArena ? (
-                <div className="text-center py-4">
-                  <p className="text-white/60 mb-1">No active Mindshare arena</p>
-                  <p className="text-white/40 text-xs">Activate an arena to start tracking.</p>
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                  <span className="ml-3 text-white/60 text-sm">Loading current arena...</span>
                 </div>
+              ) : arenaError ? (
+                <ErrorState
+                  message={arenaError}
+                  onRetry={refreshCurrentArena}
+                />
+              ) : !currentArena ? (
+                <EmptyState
+                  title="No active Mindshare arena"
+                  description="Activate an arena to start tracking."
+                  icon="📊"
+                />
               ) : (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -880,6 +975,102 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             {activateSuccess && (
               <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
                 <p className="text-sm text-green-400">{activateSuccess}</p>
+              </div>
+            )}
+
+            {/* CRM Settings Card (SuperAdmin only) */}
+            {userIsSuperAdmin && (
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">CRM Settings</h2>
+                
+                {/* Current Settings Display */}
+                <div className="mb-4 space-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-white/60">CRM Enabled:</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
+                        initialFeatures?.crm_enabled 
+                          ? 'bg-green-500/20 text-green-400' 
+                          : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {initialFeatures?.crm_enabled ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Visibility:</span>
+                      <span className="ml-2 text-white capitalize">
+                        {initialFeatures?.crm_visibility || 'private'}
+                      </span>
+                    </div>
+                    {initialFeatures?.crm_start_at && (
+                      <div>
+                        <span className="text-white/60">Start Date:</span>
+                        <span className="ml-2 text-white">
+                          {new Date(initialFeatures.crm_start_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {initialFeatures?.crm_end_at && (
+                      <div>
+                        <span className="text-white/60">End Date:</span>
+                        <span className="ml-2 text-white">
+                          {new Date(initialFeatures.crm_end_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Update Form */}
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={crmEnabled}
+                        onChange={(e) => setCrmEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded bg-black/60 border-white/20 text-teal-400 focus:ring-2 focus:ring-teal-400 focus:ring-offset-0"
+                      />
+                      <span className="text-sm text-white">Enable CRM</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-white/60 mb-1">Visibility</label>
+                    <select
+                      value={crmVisibility}
+                      onChange={(e) => setCrmVisibility(e.target.value as 'private' | 'public' | 'hybrid')}
+                      className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    >
+                      <option value="private">Private</option>
+                      <option value="public">Public</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </div>
+
+                  {/* Error state */}
+                  {crmError && (
+                    <ErrorState
+                      message={crmError}
+                      onRetry={() => setCrmError(null)}
+                    />
+                  )}
+
+                  {/* Success message */}
+                  {crmSuccess && (
+                    <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+                      <p className="text-sm text-green-400">{crmSuccess}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleUpdateCrmSettings}
+                    disabled={crmSaving}
+                    className="w-full px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {crmSaving ? 'Saving...' : 'Save CRM Settings'}
+                  </button>
+                </div>
               </div>
             )}
 

@@ -5,7 +5,8 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireSuperAdmin } from '@/lib/server/require-superadmin';
 
 // =============================================================================
 // TYPES
@@ -60,79 +61,6 @@ type LeaderboardRequestsResponse =
 // HELPERS
 // =============================================================================
 
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
-
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-async function checkSuperAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<boolean> {
-  try {
-    // Check akari_user_roles table
-    const { data: userRoles, error: rolesError } = await supabase
-      .from('akari_user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'super_admin');
-
-    if (rolesError) {
-      console.error('[Admin Leaderboard Requests API] Error checking akari_user_roles:', rolesError);
-    } else if (userRoles && userRoles.length > 0) {
-      return true;
-    }
-
-    // Also check profiles.real_roles via Twitter username
-    const { data: xIdentity, error: identityError } = await supabase
-      .from('akari_user_identities')
-      .select('username')
-      .eq('user_id', userId)
-      .eq('provider', 'x')
-      .single();
-
-    if (identityError) {
-      console.error('[Admin Leaderboard Requests API] Error checking akari_user_identities:', identityError);
-      return false;
-    }
-
-    if (xIdentity?.username) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('real_roles')
-        .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-        .single();
-
-      if (profileError) {
-        console.error('[Admin Leaderboard Requests API] Error checking profiles:', profileError);
-        return false;
-      }
-
-      if (profile?.real_roles?.includes('super_admin')) {
-        return true;
-      }
-    }
-
-    return false;
-  } catch (err: any) {
-    console.error('[Admin Leaderboard Requests API] Error in checkSuperAdmin:', err);
-    return false;
-  }
-}
-
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -146,42 +74,14 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // Get session token
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
+  // Check authentication and SuperAdmin status
+  const auth = await requireSuperAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, error: auth.error });
   }
 
   try {
     const supabase = getSupabaseAdmin();
-
-    // Validate session and get user ID
-    const { data: session, error: sessionError } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (sessionError || !session) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
-
-    // Check if session is expired
-    if (new Date(session.expires_at) < new Date()) {
-      await supabase
-        .from('akari_user_sessions')
-        .delete()
-        .eq('session_token', sessionToken);
-      return res.status(401).json({ ok: false, error: 'Session expired' });
-    }
-
-    const userId = session.user_id;
-
-    // Check if user is super admin
-    const isSuperAdmin = await checkSuperAdmin(supabase, userId);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'SuperAdmin only' });
-    }
 
     // Fetch all requests with project info
     // Using service role (getSupabaseAdmin) which bypasses RLS

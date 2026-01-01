@@ -13,6 +13,8 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArenaBubbleMap } from '@/components/arc/ArenaBubbleMap';
 import type { ProjectPermissionCheck } from '@/lib/project-permissions';
+import { EmptyState } from '@/components/arc/EmptyState';
+import { ErrorState } from '@/components/arc/ErrorState';
 
 // =============================================================================
 // TYPES
@@ -88,7 +90,7 @@ type ArenaResponse = ArenaDetailResponse | ArenaErrorResponse;
 
 export default function ArenaDetailsPage() {
   const router = useRouter();
-  const rawProjectSlug = router.query.slug;
+  const rawProjectSlug = router.query.projectSlug;
   const rawArenaSlug = router.query.arenaSlug;
   // Normalize slugs: string, trim, toLowerCase
   const projectSlug = typeof rawProjectSlug === 'string' ? String(rawProjectSlug).trim().toLowerCase() : null;
@@ -99,7 +101,7 @@ export default function ArenaDetailsPage() {
   useEffect(() => {
     if (!router.isReady) return;
     
-    const rawProjectSlugValue = router.query.slug;
+    const rawProjectSlugValue = router.query.projectSlug;
     const rawArenaSlugValue = router.query.arenaSlug;
     
     if (typeof rawProjectSlugValue === 'string' && rawProjectSlugValue && typeof rawArenaSlugValue === 'string' && rawArenaSlugValue) {
@@ -116,7 +118,7 @@ export default function ArenaDetailsPage() {
         return;
       }
     }
-  }, [router.isReady, router.query.slug, router.query.arenaSlug, router]);
+  }, [router.isReady, router.query.projectSlug, router.query.arenaSlug, router]);
 
   const [arena, setArena] = useState<ArenaDetail | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
@@ -407,7 +409,7 @@ export default function ArenaDetailsPage() {
     }
 
     fetchArenaDetails();
-  }, [router.isReady, arenaSlug, akariUser.user, projectSlug, rawArenaSlug, router]);
+  }, [router.isReady, arenaSlug, akariUser.user, projectSlug, rawArenaSlug, router.query.projectSlug, router]);
 
   // Fetch team members
   useEffect(() => {
@@ -1188,14 +1190,15 @@ export default function ArenaDetailsPage() {
 
         {/* Error state */}
         {!loading && error && (
-          <div className="rounded-xl border border-akari-danger/30 bg-akari-card p-6 text-center">
-            <p className="text-sm text-akari-danger">
-              Failed to load arena. Please try again later.
-            </p>
-            {error && error !== 'Failed to load arena. Please try again later.' && (
-              <p className="text-xs text-akari-muted mt-2">{error}</p>
-            )}
-          </div>
+          <ErrorState
+            message={error}
+            onRetry={() => {
+              setError(null);
+              setLoading(true);
+              // Trigger reload
+              window.location.reload();
+            }}
+          />
         )}
 
         {/* Arena content */}
@@ -1829,9 +1832,11 @@ export default function ArenaDetailsPage() {
                   {creators && creators.length > 0 ? (
                     <ArenaBubbleMap creators={creators.filter(c => c && c.twitter_username)} />
                   ) : (
-                    <div className="flex items-center justify-center py-12">
-                      <p className="text-sm text-akari-muted">No creators to display.</p>
-                    </div>
+                    <EmptyState
+                      title="No creators to display"
+                      description="Creators will appear here once they join the arena"
+                      icon="👥"
+                    />
                   )}
                 </div>
               )}
@@ -1840,9 +1845,11 @@ export default function ArenaDetailsPage() {
               {activeTab === 'quests' && (
                 <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
                   {!gamefiEnabled ? (
-                    <div className="flex items-center justify-center py-12">
-                      <p className="text-sm text-akari-muted">Quest Leaderboard is not enabled for this project.</p>
-                    </div>
+                    <EmptyState
+                      title="Quest Leaderboard is not enabled for this project"
+                      description="GameFi features are not available for this arena"
+                      icon="🔒"
+                    />
                   ) : (
                     <>
                       <div className="flex items-center justify-between mb-4">

@@ -18,7 +18,7 @@ import type { UserTier } from '../userTier';
 
 export type ArcRoute = 
   | '/portal/arc'
-  | '/portal/arc/[slug]'
+  | '/portal/arc/[projectSlug]'
   | '/portal/arc/gamified/[projectId]'
   | '/portal/arc/creator-manager'
   | '/portal/arc/requests'
@@ -45,7 +45,7 @@ export type ArcApiRoute =
  */
 export const ARC_PAGE_POLICY: Record<string, UserTier> = {
   '/portal/arc': 'seer', // Basic ARC overview (treemap view)
-  '/portal/arc/[slug]': 'analyst', // Project detail page
+  '/portal/arc/[projectSlug]': 'analyst', // Project detail page
   '/portal/arc/gamified/[projectId]': 'analyst', // Gamified leaderboard
   '/portal/arc/creator-manager': 'analyst', // Creator manager tools
   '/portal/arc/requests': 'seer', // Anyone can request ARC access
@@ -102,9 +102,9 @@ export function getRequiredTierForPage(route: string): UserTier | null {
     return ARC_PAGE_POLICY['/portal/arc/admin/*'];
   }
   
-  // Pattern matching for [slug] routes
+  // Pattern matching for [projectSlug] routes
   if (route.match(/^\/portal\/arc\/[^/]+$/)) {
-    return ARC_PAGE_POLICY['/portal/arc/[slug]'];
+    return ARC_PAGE_POLICY['/portal/arc/[projectSlug]'];
   }
   
   // Pattern matching for gamified/[projectId]

@@ -8,9 +8,9 @@ import { LiveItem } from '@/lib/arc/useArcLiveItems';
  * Get route href for a live item based on project access level and kind
  * 
  * Routing rules:
- * - leaderboard access level (Option 2) → /portal/arc/[slug]/arena/[arenaSlug] if arena exists
- * - gamified access level (Option 3) → /portal/arc/[slug]/arena/[arenaSlug] (same as Option 2, quests run alongside)
- * - creator_manager access level (Option 1) → /portal/arc/creator-manager?projectId=[slug|id] (visibility checked on page)
+ * - leaderboard access level (Option 2) → /portal/arc/[projectSlug]/arena/[arenaSlug] if arena exists
+ * - gamified access level (Option 3) → /portal/arc/[projectSlug]/arena/[arenaSlug] (same as Option 2, quests run alongside)
+ * - creator_manager access level (Option 1) → /portal/arc/creator-manager?projectId=[projectSlug|id] (visibility checked on page)
  * - Fallback to kind-based routing if access level not available
  */
 export function getLiveItemRoute(item: LiveItem): string | null {
