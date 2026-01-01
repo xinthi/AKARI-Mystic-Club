@@ -252,9 +252,9 @@ export default async function handler(
 
       // Log audit
       const requestId = getRequestId(req);
-      const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
+      const actorProfileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
       await writeArcAudit(supabase, {
-        actorProfileId: profileId,
+        actorProfileId: actorProfileId,
         projectId: pid,
         entityType: 'campaign_participant',
         entityId: participant.id,
