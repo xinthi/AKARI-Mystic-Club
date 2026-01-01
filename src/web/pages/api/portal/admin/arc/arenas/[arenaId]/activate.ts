@@ -133,6 +133,26 @@ export default async function handler(
       });
     }
 
+    // Fetch arena to get project_id for counting active arenas
+    const { data: arenaData, error: arenaDataError } = await supabase
+      .from('arenas')
+      .select('project_id')
+      .eq('id', arenaId)
+      .single();
+
+    // Count active arenas that will be ended (before RPC call)
+    let endedOthersCount = 0;
+    if (arenaData?.project_id) {
+      const { count } = await supabase
+        .from('arenas')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', arenaData.project_id)
+        .eq('status', 'active')
+        .in('kind', ['ms', 'legacy_ms'])
+        .neq('id', arenaId);
+      endedOthersCount = count || 0;
+    }
+
     // Call RPC function to handle activation in a single transaction
     const { data: result, error: rpcError } = await supabase.rpc(
       'arc_admin_activate_ms_arena',
@@ -149,7 +169,7 @@ export default async function handler(
       const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
       
       // Log audit for RPC error
-      const requestId = getRequestId(req);
+      const auditRequestId = getRequestId(req);
       await writeArcAudit(supabase, {
         actorProfileId: adminProfileId,
         projectId: null,
@@ -158,7 +178,7 @@ export default async function handler(
         action: 'arena_activated',
         success: false,
         message: errorMessage,
-        requestId: requestId,
+        requestId: auditRequestId,
         metadata: { rpcError: errorMessage },
       });
       
@@ -191,7 +211,7 @@ export default async function handler(
     }
 
     if (!result || !result.ok) {
-      const requestId = getRequestId(req);
+      const auditRequestId = getRequestId(req);
       await writeArcAudit(supabase, {
         actorProfileId: adminProfileId,
         projectId: null,
@@ -200,7 +220,7 @@ export default async function handler(
         action: 'arena_activated',
         success: false,
         message: result?.error || 'Activation failed',
-        requestId: requestId,
+        requestId: auditRequestId,
         metadata: { result },
       });
       return res.status(500).json({
@@ -210,7 +230,7 @@ export default async function handler(
     }
 
     // Log successful activation
-    const requestId = getRequestId(req);
+    const auditRequestId = getRequestId(req);
     await writeArcAudit(supabase, {
       actorProfileId: adminProfileId,
       projectId: result.projectId,
@@ -219,9 +239,9 @@ export default async function handler(
       action: 'arena_activated',
       success: true,
       message: `Arena ${result.activatedArenaId} activated for project ${result.projectId}`,
-      requestId: requestId,
+      requestId: auditRequestId,
       metadata: {
-        activatedArenaId: result.activatedArenaId,
+        ...(endedOthersCount > 0 && { endedOthersCount }),
       },
     });
 
@@ -234,7 +254,7 @@ export default async function handler(
   } catch (error: any) {
     console.error('[API /portal/admin/arc/arenas/[arenaId]/activate] Error:', error);
     const supabase = getSupabaseAdmin();
-    const requestId = getRequestId(req);
+    const auditRequestId = getRequestId(req);
     const auth = await requireSuperAdmin(req);
     const adminProfileId = auth.ok ? await getProfileIdFromUserId(supabase, auth.profileId) : null;
     await writeArcAudit(supabase, {
@@ -245,7 +265,7 @@ export default async function handler(
       action: 'arena_activated',
       success: false,
       message: error.message || 'Internal server error',
-      requestId: requestId,
+      requestId: auditRequestId,
       metadata: { error: error.message || 'Unknown error' },
     });
     return res.status(500).json({

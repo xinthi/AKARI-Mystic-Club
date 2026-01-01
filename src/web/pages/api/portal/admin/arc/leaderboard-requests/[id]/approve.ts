@@ -129,6 +129,13 @@ export default async function handler(
       });
     }
 
+    // Fetch request first to get product_type, start_at, end_at for audit log
+    const { data: requestData, error: requestError } = await supabase
+      .from('arc_leaderboard_requests')
+      .select('product_type, start_at, end_at, project_id')
+      .eq('id', requestId)
+      .single();
+
     // Call RPC function to handle approval in a single transaction
     const { data: result, error: rpcError } = await supabase.rpc(
       'arc_admin_approve_leaderboard_request',
@@ -145,16 +152,16 @@ export default async function handler(
       const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
       
       // Log audit for RPC error
-      const requestId = getRequestId(req);
+      const auditRequestId = getRequestId(req);
       await writeArcAudit(supabase, {
         actorProfileId: adminProfileId,
-        projectId: null,
+        projectId: requestData?.project_id || null,
         entityType: 'leaderboard_request',
         entityId: requestId,
-        action: 'leaderboard_request_approved',
+        action: 'request_approved',
         success: false,
         message: errorMessage,
-        requestId: requestId,
+        requestId: auditRequestId,
         metadata: { rpcError: errorMessage },
       });
       
@@ -180,16 +187,16 @@ export default async function handler(
     }
 
     if (!result || !result.ok) {
-      const requestId = getRequestId(req);
+      const auditRequestId = getRequestId(req);
       await writeArcAudit(supabase, {
         actorProfileId: adminProfileId,
-        projectId: null,
+        projectId: requestData?.project_id || null,
         entityType: 'leaderboard_request',
         entityId: requestId,
-        action: 'leaderboard_request_approved',
+        action: 'request_approved',
         success: false,
         message: result?.error || 'Approval failed',
-        requestId: requestId,
+        requestId: auditRequestId,
         metadata: { result },
       });
       return res.status(500).json({
@@ -199,20 +206,23 @@ export default async function handler(
     }
 
     // Log successful approval
-    const requestId = getRequestId(req);
+    const auditRequestId = getRequestId(req);
     await writeArcAudit(supabase, {
       actorProfileId: adminProfileId,
       projectId: result.projectId,
       entityType: 'leaderboard_request',
       entityId: result.requestId,
-      action: 'leaderboard_request_approved',
+      action: 'request_approved',
       success: true,
       message: `Leaderboard request approved for ${result.productType}`,
-      requestId: requestId,
+      requestId: auditRequestId,
       metadata: {
-        productType: result.productType,
-        arenaId: result.created?.arenaId,
-        billingInserted: result.billingInserted !== false,
+        product_type: requestData?.product_type || result.productType,
+        start_at: requestData?.start_at || null,
+        end_at: requestData?.end_at || null,
+        created: {
+          ...(result.created?.arenaId && { arenaId: result.created.arenaId }),
+        },
       },
     });
 
@@ -236,7 +246,7 @@ export default async function handler(
   } catch (error: any) {
     console.error('[Approve Request API] Error:', error);
     const supabase = getSupabaseAdmin();
-    const requestId = getRequestId(req);
+    const auditRequestId = getRequestId(req);
     const auth = await requireSuperAdmin(req);
     const adminProfileId = auth.ok ? await getProfileIdFromUserId(supabase, auth.profileId) : null;
     await writeArcAudit(supabase, {
@@ -244,10 +254,10 @@ export default async function handler(
       projectId: null,
       entityType: 'leaderboard_request',
       entityId: typeof req.query.id === 'string' ? req.query.id : null,
-      action: 'leaderboard_request_approved',
+      action: 'request_approved',
       success: false,
       message: error.message || 'Internal server error',
-      requestId: requestId,
+      requestId: auditRequestId,
       metadata: { error: error.message || 'Unknown error' },
     });
     return res.status(500).json({

@@ -296,11 +296,11 @@ export default async function handler(
         projectId: projectId,
         entityType: 'leaderboard_request',
         entityId: null,
-        action: 'leaderboard_request_created',
+        action: 'request_created',
         success: false,
         message: insertError.message || 'Failed to create request',
         requestId: requestId,
-        metadata: { error: insertError.message || 'Database error' },
+        metadata: { error: insertError.message || 'Database error', body: { projectId, productType, startAt, endAt, notes } },
       });
       console.error('[Leaderboard Requests API] Insert error:', insertError);
       return res.status(500).json({
@@ -316,10 +316,11 @@ export default async function handler(
         projectId: projectId,
         entityType: 'leaderboard_request',
         entityId: null,
-        action: 'leaderboard_request_created',
+        action: 'request_created',
         success: false,
         message: 'Request created but failed to retrieve request ID',
         requestId: requestId,
+        metadata: { body: { projectId, productType, startAt, endAt, notes } },
       });
       return res.status(500).json({ ok: false, error: 'Request created but failed to retrieve request ID' });
     }
@@ -331,14 +332,14 @@ export default async function handler(
       projectId: projectId,
       entityType: 'leaderboard_request',
       entityId: newRequest.id,
-      action: 'leaderboard_request_created',
+      action: 'request_created',
       success: true,
       message: `Leaderboard request created for ${productType}`,
       requestId: requestId,
       metadata: {
-        productType: productType,
-        startAt: startAt,
-        endAt: endAt,
+        product_type: productType,
+        start_at: startAt,
+        end_at: endAt,
       },
     });
 

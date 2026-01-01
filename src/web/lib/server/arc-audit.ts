@@ -33,19 +33,19 @@ export type ArcAuditInput = {
  * Generate a short random ID for request tracking
  */
 function generateShortId(): string {
-  // Generate 8-character alphanumeric ID
+  // Generate 10-character alphanumeric ID
   const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
   let result = '';
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 10; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return result;
+  return 'arc_' + result;
 }
 
 /**
  * Get request ID from request headers or generate one
  * 
- * Checks for 'x-request-id' header first, then generates a short random ID.
+ * Checks for 'x-request-id' header first, then generates "arc_" + random 10 chars.
  * 
  * @param req Next.js API request
  * @returns Request ID string
@@ -57,7 +57,7 @@ export function getRequestId(req: NextApiRequest): string {
     return headerRequestId;
   }
 
-  // Generate short random ID
+  // Generate "arc_" + random 10 chars
   return generateShortId();
 }
 
