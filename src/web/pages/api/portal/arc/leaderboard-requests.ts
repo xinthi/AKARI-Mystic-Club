@@ -8,6 +8,8 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { requireProjectRole } from '@/lib/server/require-project-role';
+import { requireSuperAdmin } from '@/lib/server/require-superadmin';
 
 // =============================================================================
 // TYPES
@@ -45,46 +47,6 @@ type LeaderboardRequestResponse =
 function isValidUUID(uuid: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
-}
-
-/**
- * Extract session token from request cookies
- */
-function getSessionToken(req: NextApiRequest): string | null {
-  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
-  for (const cookie of cookies) {
-    if (cookie.startsWith('akari_session=')) {
-      return cookie.substring('akari_session='.length);
-    }
-  }
-  return null;
-}
-
-/**
- * Get user ID from session token
- */
-async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: session, error } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id, expires_at')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (error || !session) {
-      return null;
-    }
-
-    if (new Date(session.expires_at) < new Date()) {
-      await supabase.from('akari_user_sessions').delete().eq('session_token', sessionToken);
-      return null;
-    }
-
-    return session.user_id;
-  } catch (err) {
-    return null;
-  }
 }
 
 /**
@@ -131,16 +93,6 @@ export default async function handler(
 ) {
   // Handle GET - list requests for a project
   if (req.method === 'GET') {
-    const sessionToken = getSessionToken(req);
-    if (!sessionToken) {
-      return res.status(401).json({ ok: false, error: 'Not authenticated' });
-    }
-
-    const userId = await getUserIdFromSession(sessionToken);
-    if (!userId) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
-
     const { projectId } = req.query;
 
     if (!projectId || typeof projectId !== 'string') {
@@ -149,6 +101,18 @@ export default async function handler(
 
     if (!isValidUUID(projectId)) {
       return res.status(400).json({ ok: false, error: 'invalid_project_id' });
+    }
+
+    // Check if user is SuperAdmin (bypass project role check)
+    const superAdminAuth = await requireSuperAdmin(req);
+    const isSuperAdmin = superAdminAuth.ok;
+
+    // If not SuperAdmin, require project team role
+    if (!isSuperAdmin) {
+      const projectAuth = await requireProjectRole(req, projectId, ['founder', 'admin', 'moderator']);
+      if (!projectAuth.ok) {
+        return res.status(projectAuth.status).json({ ok: false, error: projectAuth.error });
+      }
     }
 
     try {
@@ -196,32 +160,9 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // Check authentication
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
-  }
-
-  const userId = await getUserIdFromSession(sessionToken);
-  if (!userId) {
-    return res.status(401).json({ ok: false, error: 'Invalid session' });
-  }
-
   try {
-    const supabase = getSupabaseAdmin();
-
-    // Get profile ID
-    const profileId = await getProfileIdFromUserId(supabase, userId);
-    if (!profileId) {
-      return res.status(401).json({
-        ok: false,
-        error: 'Your Twitter profile is not tracked in the system. Please track your profile first.',
-      });
-    }
-
-    // Parse and validate request body
+    // Parse and validate request body first to get projectId
     const body = req.body as Partial<CreateLeaderboardRequestPayload>;
-
     const { projectId, productType, startAt, endAt, notes } = body;
 
     // Validate projectId
@@ -231,6 +172,23 @@ export default async function handler(
 
     if (!isValidUUID(projectId)) {
       return res.status(400).json({ ok: false, error: 'invalid_project_id' });
+    }
+
+    // Check project role before proceeding
+    const projectAuth = await requireProjectRole(req, projectId, ['founder', 'admin', 'moderator']);
+    if (!projectAuth.ok) {
+      return res.status(projectAuth.status).json({ ok: false, error: projectAuth.error });
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    // Get profile ID from user ID (for storing requested_by)
+    const profileId = await getProfileIdFromUserId(supabase, projectAuth.profileId);
+    if (!profileId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Your Twitter profile is not tracked in the system. Please track your profile first.',
+      });
     }
 
     // Validate productType

@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { checkProjectPermissions } from '@/lib/project-permissions';
+import { requireProjectRole } from '@/lib/server/require-project-role';
 import { requireArcAccess } from '@/lib/arc-access';
 
 // =============================================================================
@@ -176,14 +176,10 @@ export default async function handler(
       // TypeScript narrowing: assign to const with explicit string type
       const pid: string = projectId;
 
-      // Check project permissions
-      const permissions = await checkProjectPermissions(supabase, uid, pid);
-      
-      // Arena CRUD requires: isSuperAdmin OR isOwner OR isAdmin
-      const canManageArenas = permissions.isSuperAdmin || permissions.isOwner || permissions.isAdmin;
-      
-      if (!canManageArenas) {
-        return res.status(403).json({ ok: false, error: 'You do not have permission to manage arenas for this project' });
+      // Check project role (founder/admin/moderator) - SuperAdmin is handled inside requireProjectRole
+      const projectAuth = await requireProjectRole(req, pid, ['founder', 'admin', 'moderator']);
+      if (!projectAuth.ok) {
+        return res.status(projectAuth.status).json({ ok: false, error: projectAuth.error });
       }
 
       // Check ARC access (Option 2 = Normal Leaderboard for arenas)
