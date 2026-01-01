@@ -346,16 +346,13 @@ export default function AdminActivityPage() {
 // =============================================================================
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const auth = await requireSuperAdmin(context.req);
-  if (!auth.ok) {
-    return {
-      redirect: {
-        destination: '/portal/arc',
-        permanent: false,
-      },
-    };
+  // Require Super Admin access
+  const redirect = await requireSuperAdmin(context);
+  if (redirect) {
+    return redirect;
   }
 
+  // User is authenticated and is Super Admin
   return {
     props: {},
   };
