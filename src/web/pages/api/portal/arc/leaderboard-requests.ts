@@ -277,8 +277,7 @@ export default async function handler(
     }
 
     // Insert new request
-    // Try to insert with new fields (product_type, start_at, end_at, notes)
-    // If columns don't exist, the error will be caught and a clear message returned
+    // Write notes to both notes (new column) and justification (legacy column) for backwards compatibility
     const insertData: any = {
       project_id: projectId,
       requested_by: profileId,
@@ -287,6 +286,7 @@ export default async function handler(
       start_at: startAt || null,
       end_at: endAt || null,
       notes: notes || null,
+      justification: notes || null, // Also write to legacy justification field for backwards compatibility
     };
 
     const { data: newRequest, error: insertError } = await supabase
