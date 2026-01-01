@@ -502,13 +502,9 @@ export default function ArcBillingPage() {
 export const getServerSideProps: GetServerSideProps = async (context) => {
   // Require Super Admin access
   const auth = await requireSuperAdmin(context);
-  if (!auth.ok) {
-    return {
-      redirect: {
-        destination: '/portal/arc',
-        permanent: false,
-      },
-    };
+  if (auth) {
+    // auth contains redirect object if not authorized
+    return auth;
   }
 
   return {
