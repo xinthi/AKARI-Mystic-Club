@@ -51,6 +51,9 @@ export function useCurrentMsArena(projectId: string | null): UseCurrentMsArenaRe
       return;
     }
 
+    // TypeScript: projectId is now guaranteed to be string (not null)
+    const validProjectId: string = projectId;
+
     let cancelled = false;
 
     async function loadArena() {
@@ -58,7 +61,7 @@ export function useCurrentMsArena(projectId: string | null): UseCurrentMsArenaRe
       setError(null);
 
       try {
-        const data: CurrentMsArenaResponse = await fetchCurrentMsArena(projectId);
+        const data: CurrentMsArenaResponse = await fetchCurrentMsArena(validProjectId);
         
         if (cancelled) return;
 
