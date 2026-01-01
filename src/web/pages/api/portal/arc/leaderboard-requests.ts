@@ -1,42 +1,55 @@
 /**
  * API Route: POST /api/portal/arc/leaderboard-requests
+ * GET /api/portal/arc/leaderboard-requests?projectId=...
  * 
- * Allows authenticated users to request ARC leaderboard access for a project.
+ * POST: Create a new leaderboard request with product type and dates
+ * GET: List requests for a project (most recent first)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
-import { canRequestLeaderboard } from '@/lib/project-permissions';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-interface LeaderboardRequestPayload {
+interface CreateLeaderboardRequestPayload {
   projectId: string;
-  justification?: string | null;
-  requested_arc_access_level?: 'creator_manager' | 'leaderboard' | 'gamified';
+  productType: 'ms' | 'gamefi' | 'crm';
+  startAt: string; // ISO date string
+  endAt: string; // ISO date string
+  notes?: string;
+}
+
+interface LeaderboardRequest {
+  id: string;
+  projectId: string;
+  productType: string;
+  status: string;
+  startAt: string | null;
+  endAt: string | null;
 }
 
 type LeaderboardRequestResponse =
-  | { ok: true; requestId: string; status: 'pending' | 'existing' }
+  | { ok: true; request: LeaderboardRequest }
+  | { ok: true; requests: LeaderboardRequest[] }
   | { ok: false; error: string };
 
 // =============================================================================
 // HELPERS
 // =============================================================================
 
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
+/**
+ * Validate UUID format
+ */
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
 
+/**
+ * Extract session token from request cookies
+ */
 function getSessionToken(req: NextApiRequest): string | null {
   const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
   for (const cookie of cookies) {
@@ -47,70 +60,65 @@ function getSessionToken(req: NextApiRequest): string | null {
   return null;
 }
 
-async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ profileId: string } | null> {
-  const { data: session, error: sessionError } = await supabase
-    .from('akari_user_sessions')
-    .select('user_id, expires_at')
-    .eq('session_token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    console.error('[Leaderboard Request API] Session lookup failed:', sessionError?.message || 'No session');
-    return null;
-  }
-
-  if (new Date(session.expires_at) < new Date()) {
-    await supabase
+/**
+ * Get user ID from session token
+ */
+async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: session, error } = await supabase
       .from('akari_user_sessions')
-      .delete()
-      .eq('session_token', sessionToken);
-    console.error('[Leaderboard Request API] Session expired');
-    return null;
-  }
+      .select('user_id, expires_at')
+      .eq('session_token', sessionToken)
+      .single();
 
-  // Get user's Twitter username to find profile
-  const { data: xIdentity, error: identityError } = await supabase
-    .from('akari_user_identities')
-    .select('username')
-    .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
-
-  if (identityError || !xIdentity?.username) {
-    console.error('[Leaderboard Request API] X identity lookup failed:', identityError?.message || 'No X identity');
-    return null;
-  }
-
-  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-  
-  // Try exact match first
-  let { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .eq('username', cleanUsername)
-    .single();
-
-  // If not found, try case-insensitive search (in case username format differs)
-  if (!profile && profileError?.code === 'PGRST116') {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .ilike('username', cleanUsername);
-    
-    if (profiles && profiles.length > 0) {
-      profile = profiles[0];
-      console.log(`[Leaderboard Request API] Found profile with case-insensitive match: ${profiles[0].username} (looking for: ${cleanUsername})`);
+    if (error || !session) {
+      return null;
     }
-  }
 
-  if (!profile) {
-    console.error(`[Leaderboard Request API] Profile not found for username: ${cleanUsername} (from X identity: ${xIdentity.username})`);
+    if (new Date(session.expires_at) < new Date()) {
+      await supabase.from('akari_user_sessions').delete().eq('session_token', sessionToken);
+      return null;
+    }
+
+    return session.user_id;
+  } catch (err) {
     return null;
   }
+}
 
-  return {
-    profileId: profile.id,
-  };
+/**
+ * Get profile ID from user ID
+ */
+async function getProfileIdFromUserId(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<string | null> {
+  try {
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (identityError || !xIdentity?.username) {
+      return null;
+    }
+
+    const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', cleanUsername)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return null;
+    }
+
+    return profile.id;
+  } catch (err) {
+    return null;
+  }
 }
 
 // =============================================================================
@@ -119,179 +127,142 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<LeaderboardRequestResponse | { ok: true; request: any } | { ok: true; requests: any[] } | { ok: false; error: string }>
+  res: NextApiResponse<LeaderboardRequestResponse>
 ) {
-  // Handle GET - fetch user's request for a project or all user's requests
+  // Handle GET - list requests for a project
   if (req.method === 'GET') {
     const sessionToken = getSessionToken(req);
-    
-    // If not authenticated, return null request (not an error)
     if (!sessionToken) {
-      const { scope } = req.query;
-      if (scope === 'my') {
-        return res.status(200).json({ ok: true, requests: [] });
-      }
-      return res.status(200).json({ ok: true, request: null });
+      return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
+
+    const userId = await getUserIdFromSession(sessionToken);
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: 'Invalid session' });
+    }
+
+    const { projectId } = req.query;
+
+    if (!projectId || typeof projectId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'projectId is required' });
+    }
+
+    if (!isValidUUID(projectId)) {
+      return res.status(400).json({ ok: false, error: 'invalid_project_id' });
     }
 
     try {
       const supabase = getSupabaseAdmin();
-      const userProfile = await getCurrentUserProfile(supabase, sessionToken);
-      
-      // If profile not found, return null request (not an error)
-      if (!userProfile) {
-        const { scope } = req.query;
-        if (scope === 'my') {
-          return res.status(200).json({ ok: true, requests: [] });
-        }
-        return res.status(200).json({ ok: true, request: null });
-      }
 
-      const { projectId, scope } = req.query;
-
-      // Handle "my requests" scope
-      if (scope === 'my') {
-        // Fetch all user's requests
-        // Using service role (getSupabaseAdmin) which bypasses RLS
-        console.log('[Leaderboard Request API] Fetching user requests:', {
-          profileId: userProfile.profileId,
-          scope: 'my',
-        });
-        
-        const { data: requests, error: requestsError } = await supabase
-          .from('arc_leaderboard_requests')
-          .select(`
-            id,
-            status,
-            justification,
-            requested_arc_access_level,
-            created_at,
-            decided_at,
-            project_id,
-            projects:project_id (
-              id,
-              name,
-              display_name,
-              slug,
-              twitter_username,
-              arc_access_level
-            )
-          `)
-          .eq('requested_by', userProfile.profileId)
-          .order('created_at', { ascending: false });
-
-        if (requestsError) {
-          console.error('[Leaderboard Request API] Fetch my requests error:', requestsError);
-          console.error('[Leaderboard Request API] Error details:', JSON.stringify(requestsError, null, 2));
-          return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
-        }
-
-        console.log(`[Leaderboard Request API] Successfully fetched ${requests?.length || 0} user requests`);
-
-        // Normalize the data structure
-        const normalizedRequests = (requests || []).map((req: any) => ({
-          id: req.id,
-          status: req.status,
-          requested_arc_access_level: req.requested_arc_access_level,
-          created_at: req.created_at,
-          decided_at: req.decided_at,
-          arc_access_level: req.projects?.arc_access_level || null,
-          project: req.projects ? {
-            id: req.projects.id,
-            project_id: req.projects.id,
-            name: req.projects.name,
-            display_name: req.projects.display_name,
-            slug: req.projects.slug,
-            twitter_username: req.projects.twitter_username,
-          } : null,
-        }));
-
-        return res.status(200).json({ ok: true, requests: normalizedRequests });
-      }
-
-      // Original behavior: fetch user's request for a specific project
-      if (!projectId || typeof projectId !== 'string') {
-        return res.status(400).json({ ok: false, error: 'projectId is required when scope is not "my"' });
-      }
-
-      // Fetch user's request for this project
-      console.log('[Leaderboard Request API] Fetching user request for project:', {
-        projectId,
-        profileId: userProfile.profileId,
-      });
-      
-      const { data: request, error: requestError } = await supabase
+      // Fetch requests for this project (most recent first)
+      const { data: requests, error: requestsError } = await supabase
         .from('arc_leaderboard_requests')
-        .select('id, status, justification, requested_arc_access_level, created_at')
+        .select('id, project_id, product_type, status, start_at, end_at, created_at')
         .eq('project_id', projectId)
-        .eq('requested_by', userProfile.profileId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
-      if (requestError) {
-        console.error('[Leaderboard Request API] Fetch error:', requestError);
-        console.error('[Leaderboard Request API] Error details:', JSON.stringify(requestError, null, 2));
-        return res.status(500).json({ ok: false, error: 'Failed to fetch request' });
+      if (requestsError) {
+        // Check if error is due to missing columns
+        if (requestsError.message?.includes('column') || requestsError.code === '42703') {
+          console.error('[Leaderboard Requests API] Table schema error:', requestsError);
+          return res.status(500).json({
+            ok: false,
+            error: 'Database schema error: arc_leaderboard_requests table is missing required columns (product_type, start_at, end_at). Please run migrations.',
+          });
+        }
+
+        console.error('[Leaderboard Requests API] Error fetching requests:', requestsError);
+        return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
       }
 
-      if (!request) {
-        console.log('[Leaderboard Request API] No request found for project');
-        return res.status(200).json({ ok: true, request: null });
-      }
+      const normalizedRequests: LeaderboardRequest[] = (requests || []).map((req: any) => ({
+        id: req.id,
+        projectId: req.project_id,
+        productType: req.product_type || null,
+        status: req.status,
+        startAt: req.start_at,
+        endAt: req.end_at,
+      }));
 
-      console.log('[Leaderboard Request API] Found request:', {
-        id: request.id,
-        status: request.status,
-        created_at: request.created_at,
-      });
-
-      return res.status(200).json({ ok: true, request });
+      return res.status(200).json({ ok: true, requests: normalizedRequests });
     } catch (error: any) {
-      console.error('[Leaderboard Request API] Error:', error);
+      console.error('[Leaderboard Requests API] Error:', error);
       return res.status(500).json({ ok: false, error: 'Server error' });
     }
   }
 
-  // Handle POST - create request
+  // Handle POST - create new request
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // Get session token
+  // Check authentication
   const sessionToken = getSessionToken(req);
   if (!sessionToken) {
     return res.status(401).json({ ok: false, error: 'Not authenticated' });
   }
 
+  const userId = await getUserIdFromSession(sessionToken);
+  if (!userId) {
+    return res.status(401).json({ ok: false, error: 'Invalid session' });
+  }
+
   try {
     const supabase = getSupabaseAdmin();
 
-    // Get current user's profile
-    const userProfile = await getCurrentUserProfile(supabase, sessionToken);
-    if (!userProfile) {
-      return res.status(401).json({ 
-        ok: false, 
-        error: 'Your Twitter profile is not tracked in the system. Please track your profile first using the Sentiment page before requesting ARC access.' 
+    // Get profile ID
+    const profileId = await getProfileIdFromUserId(supabase, userId);
+    if (!profileId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Your Twitter profile is not tracked in the system. Please track your profile first.',
       });
     }
 
     // Parse and validate request body
-    const { projectId, justification, requested_arc_access_level } = req.body as Partial<LeaderboardRequestPayload>;
+    const body = req.body as Partial<CreateLeaderboardRequestPayload>;
 
+    const { projectId, productType, startAt, endAt, notes } = body;
+
+    // Validate projectId
     if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({
-        ok: false,
-        error: 'projectId is required',
-      });
+      return res.status(400).json({ ok: false, error: 'invalid_project_id' });
     }
 
-    // Validate requested_arc_access_level if provided
-    if (requested_arc_access_level && !['creator_manager', 'leaderboard', 'gamified'].includes(requested_arc_access_level)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Invalid requested_arc_access_level. Must be creator_manager, leaderboard, or gamified',
-      });
+    if (!isValidUUID(projectId)) {
+      return res.status(400).json({ ok: false, error: 'invalid_project_id' });
+    }
+
+    // Validate productType
+    if (!productType || typeof productType !== 'string') {
+      return res.status(400).json({ ok: false, error: 'invalid_product_type' });
+    }
+
+    if (!['ms', 'gamefi', 'crm'].includes(productType)) {
+      return res.status(400).json({ ok: false, error: 'invalid_product_type' });
+    }
+
+    // Validate dates for ms and gamefi (required)
+    if ((productType === 'ms' || productType === 'gamefi') && (!startAt || !endAt)) {
+      return res.status(400).json({ ok: false, error: 'missing_dates' });
+    }
+
+    // Validate dates if provided (for crm or ms/gamefi)
+    if (startAt && endAt) {
+      try {
+        const startDate = new Date(startAt);
+        const endDate = new Date(endAt);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return res.status(400).json({ ok: false, error: 'invalid_dates' });
+        }
+
+        if (startDate >= endDate) {
+          return res.status(400).json({ ok: false, error: 'invalid_dates' });
+        }
+      } catch (dateError) {
+        return res.status(400).json({ ok: false, error: 'invalid_dates' });
+      }
     }
 
     // Verify project exists
@@ -302,158 +273,87 @@ export default async function handler(
       .single();
 
     if (projectError || !project) {
-      return res.status(404).json({
-        ok: false,
-        error: 'Project not found',
-      });
-    }
-
-    // Get user ID from session for permission check
-    const { data: session } = await supabase
-      .from('akari_user_sessions')
-      .select('user_id')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (!session?.user_id) {
-      return res.status(401).json({ ok: false, error: 'Invalid session' });
-    }
-
-    // Check if user can request leaderboard (owner/admin/moderator only)
-    const canRequest = await canRequestLeaderboard(supabase, session.user_id, projectId);
-    if (!canRequest) {
-      return res.status(403).json({
-        ok: false,
-        error: 'Only project founders/admins can request a leaderboard for this project.',
-      });
-    }
-
-    // Check if there's already a pending request for this project (unique constraint allows only one pending per project)
-    // IMPORTANT: Check for ANY pending request, not just the user's, because the unique constraint is on project_id only
-    const { data: existingRequest, error: checkError } = await supabase
-      .from('arc_leaderboard_requests')
-      .select('id, status, requested_by')
-      .eq('project_id', projectId)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('[Leaderboard Request API] Check error:', checkError);
-      return res.status(500).json({ ok: false, error: 'Failed to check existing requests' });
-    }
-
-    // If pending request exists, check if it's the user's request
-    if (existingRequest) {
-      if (existingRequest.requested_by === userProfile.profileId) {
-        // User's own pending request - return it
-        return res.status(200).json({
-          ok: true,
-          requestId: existingRequest.id,
-          status: 'existing',
-        });
-      } else {
-        // Another user already has a pending request for this project
-        return res.status(409).json({
-          ok: false,
-          error: 'There is already a pending request for this project. Please wait for it to be processed before submitting a new request.',
-        });
-      }
+      return res.status(404).json({ ok: false, error: 'Project not found' });
     }
 
     // Insert new request
-    console.log('[Leaderboard Request API] Creating new request:', {
-      projectId,
-      requested_by: userProfile.profileId,
-      requested_arc_access_level,
-      hasJustification: !!justification,
-    });
-    
+    // Try to insert with new fields (product_type, start_at, end_at, notes)
+    // If columns don't exist, the error will be caught and a clear message returned
+    const insertData: any = {
+      project_id: projectId,
+      requested_by: profileId,
+      status: 'pending',
+      product_type: productType,
+      start_at: startAt || null,
+      end_at: endAt || null,
+      notes: notes || null,
+    };
+
     const { data: newRequest, error: insertError } = await supabase
       .from('arc_leaderboard_requests')
-      .insert({
-        project_id: projectId,
-        requested_by: userProfile.profileId,
-        justification: justification || null,
-        requested_arc_access_level: requested_arc_access_level || null,
-        status: 'pending',
-        decided_by: null,
-        decided_at: null,
-      })
-      .select('id, status, created_at')
+      .insert(insertData)
+      .select('id, project_id, product_type, status, start_at, end_at')
       .single();
 
     if (insertError) {
-      console.error('[Leaderboard Request API] Insert error:', insertError);
-      console.error('[Leaderboard Request API] Error code:', insertError.code);
-      console.error('[Leaderboard Request API] Error message:', insertError.message);
-      console.error('[Leaderboard Request API] Error details:', insertError.details);
-      console.error('[Leaderboard Request API] Error hint:', insertError.hint);
-      
-      // Handle unique constraint violation (23505 is PostgreSQL unique violation error code)
-      if (insertError.code === '23505' || insertError.message?.includes('unique') || insertError.message?.includes('duplicate')) {
-        console.log('[Leaderboard Request API] Unique constraint violation detected - fetching existing request');
-        // Race condition: another request was created between our check and insert
-        // Fetch the existing request
-        const { data: raceConditionRequest, error: fetchError } = await supabase
+      // Check if error is due to missing columns
+      if (insertError.message?.includes('column') || insertError.code === '42703') {
+        console.error('[Leaderboard Requests API] Table schema error:', insertError);
+        return res.status(500).json({
+          ok: false,
+          error: 'Database schema error: arc_leaderboard_requests table is missing required columns (product_type, start_at, end_at, notes). Please run migrations.',
+        });
+      }
+
+      // Handle unique constraint violation (pending request already exists)
+      if (insertError.code === '23505' || insertError.message?.includes('unique')) {
+        // Fetch existing pending request
+        const { data: existingRequest } = await supabase
           .from('arc_leaderboard_requests')
-          .select('id, requested_by, status')
+          .select('id, project_id, product_type, status, start_at, end_at')
           .eq('project_id', projectId)
           .eq('status', 'pending')
           .maybeSingle();
-        
-        if (fetchError) {
-          console.error('[Leaderboard Request API] Error fetching race condition request:', fetchError);
-        }
-        
-        if (raceConditionRequest) {
-          console.log('[Leaderboard Request API] Found existing pending request:', {
-            id: raceConditionRequest.id,
-            requested_by: raceConditionRequest.requested_by,
-            isUserRequest: raceConditionRequest.requested_by === userProfile.profileId,
+
+        if (existingRequest) {
+          return res.status(200).json({
+            ok: true,
+            request: {
+              id: existingRequest.id,
+              projectId: existingRequest.project_id,
+              productType: existingRequest.product_type || productType,
+              status: existingRequest.status,
+              startAt: existingRequest.start_at,
+              endAt: existingRequest.end_at,
+            },
           });
-          
-          if (raceConditionRequest.requested_by === userProfile.profileId) {
-            return res.status(200).json({
-              ok: true,
-              requestId: raceConditionRequest.id,
-              status: 'existing',
-            });
-          } else {
-            return res.status(409).json({
-              ok: false,
-              error: 'There is already a pending request for this project. Please wait for it to be processed before submitting a new request.',
-            });
-          }
-        } else {
-          console.error('[Leaderboard Request API] Unique constraint violation but no existing request found - this is unexpected');
         }
       }
-      
-      return res.status(500).json({ 
-        ok: false, 
+
+      console.error('[Leaderboard Requests API] Insert error:', insertError);
+      return res.status(500).json({
+        ok: false,
         error: insertError.message || 'Failed to create request',
       });
     }
 
     if (!newRequest || !newRequest.id) {
-      console.error('[Leaderboard Request API] Insert succeeded but no request data returned');
       return res.status(500).json({ ok: false, error: 'Request created but failed to retrieve request ID' });
     }
 
-    console.log('[Leaderboard Request API] Successfully created request:', {
-      id: newRequest.id,
-      status: newRequest.status,
-      created_at: newRequest.created_at,
-    });
-
     return res.status(200).json({
       ok: true,
-      requestId: newRequest.id,
-      status: 'pending',
+      request: {
+        id: newRequest.id,
+        projectId: newRequest.project_id,
+        productType: newRequest.product_type || productType,
+        status: newRequest.status || 'pending',
+        startAt: newRequest.start_at,
+        endAt: newRequest.end_at,
+      },
     });
   } catch (error: any) {
-    console.error('[Leaderboard Request API] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    console.error('[Leaderboard Requests API] Error:', error);
+    return res.status(500).json({ ok: false, error: error.message || 'Server error' });
   }
 }
-
