@@ -87,7 +87,7 @@ export default async function handler(
     // Set paid_at if status is 'paid'
     if (body.payment_status === 'paid') {
       updateData.paid_at = new Date().toISOString();
-    } else if (body.payment_status !== 'paid' && currentRecord.payment_status === 'paid') {
+    } else if (currentRecord.payment_status === 'paid') {
       // Clear paid_at if changing from paid to another status
       updateData.paid_at = null;
     }
