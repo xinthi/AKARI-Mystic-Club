@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireSuperAdmin } from '@/lib/server/require-superadmin';
+import { writeArcAudit, getRequestId } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -143,11 +144,40 @@ export default async function handler(
 
     if (featuresError) {
       console.error('[Update Features API] Error upserting arc_project_features:', featuresError);
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: auth.profileId,
+        projectId: projectId,
+        entityType: 'project_features',
+        entityId: projectId,
+        action: 'project_features_updated',
+        success: false,
+        message: 'Failed to update project features',
+        requestId: requestId,
+        metadata: { error: featuresError.message || 'Database error' },
+      });
       return res.status(500).json({
         ok: false,
         error: 'Failed to update project features',
       });
     }
+
+    // Log successful update
+    const requestId = getRequestId(req);
+    await writeArcAudit(supabase, {
+      actorProfileId: auth.profileId,
+      projectId: projectId,
+      entityType: 'project_features',
+      entityId: projectId,
+      action: 'project_features_updated',
+      success: true,
+      message: `Project features updated: crm_enabled=${body.crm_enabled}, crm_visibility=${body.crm_visibility}`,
+      requestId: requestId,
+      metadata: {
+        crm_enabled: body.crm_enabled,
+        crm_visibility: body.crm_visibility,
+      },
+    });
 
     return res.status(200).json({
       ok: true,
@@ -160,6 +190,20 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[Update Features API] Error:', error);
+    const supabase = getSupabaseAdmin();
+    const requestId = getRequestId(req);
+    const auth = await requireSuperAdmin(req);
+    await writeArcAudit(supabase, {
+      actorProfileId: auth.ok ? auth.profileId : null,
+      projectId: typeof projectId === 'string' ? projectId : null,
+      entityType: 'project_features',
+      entityId: typeof projectId === 'string' ? projectId : null,
+      action: 'project_features_updated',
+      success: false,
+      message: error.message || 'Internal server error',
+      requestId: requestId,
+      metadata: { error: error.message || 'Unknown error' },
+    });
     return res.status(500).json({
       ok: false,
       error: error.message || 'Internal server error',

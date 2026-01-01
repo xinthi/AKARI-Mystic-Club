@@ -12,6 +12,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireSuperAdmin } from '@/lib/server/require-superadmin';
+import { writeArcAudit, getRequestId } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -143,6 +144,20 @@ export default async function handler(
       // Map RPC errors to HTTP status codes
       const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
       
+      // Log audit for RPC error
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: adminProfileId,
+        projectId: null,
+        entityType: 'leaderboard_request',
+        entityId: requestId,
+        action: 'leaderboard_request_approved',
+        success: false,
+        message: errorMessage,
+        requestId: requestId,
+        metadata: { rpcError: errorMessage },
+      });
+      
       if (errorMessage.includes('request_not_found')) {
         return res.status(404).json({
           ok: false,
@@ -165,11 +180,41 @@ export default async function handler(
     }
 
     if (!result || !result.ok) {
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: adminProfileId,
+        projectId: null,
+        entityType: 'leaderboard_request',
+        entityId: requestId,
+        action: 'leaderboard_request_approved',
+        success: false,
+        message: result?.error || 'Approval failed',
+        requestId: requestId,
+        metadata: { result },
+      });
       return res.status(500).json({
         ok: false,
         error: result?.error || 'Approval failed',
       });
     }
+
+    // Log successful approval
+    const requestId = getRequestId(req);
+    await writeArcAudit(supabase, {
+      actorProfileId: adminProfileId,
+      projectId: result.projectId,
+      entityType: 'leaderboard_request',
+      entityId: result.requestId,
+      action: 'leaderboard_request_approved',
+      success: true,
+      message: `Leaderboard request approved for ${result.productType}`,
+      requestId: requestId,
+      metadata: {
+        productType: result.productType,
+        arenaId: result.created?.arenaId,
+        billingInserted: result.billingInserted !== false,
+      },
+    });
 
     // Transform RPC result to match API response format
     const response: ApproveRequestResponse = {
@@ -190,6 +235,21 @@ export default async function handler(
     return res.status(200).json(response);
   } catch (error: any) {
     console.error('[Approve Request API] Error:', error);
+    const supabase = getSupabaseAdmin();
+    const requestId = getRequestId(req);
+    const auth = await requireSuperAdmin(req);
+    const adminProfileId = auth.ok ? await getProfileIdFromUserId(supabase, auth.profileId) : null;
+    await writeArcAudit(supabase, {
+      actorProfileId: adminProfileId,
+      projectId: null,
+      entityType: 'leaderboard_request',
+      entityId: typeof req.query.id === 'string' ? req.query.id : null,
+      action: 'leaderboard_request_approved',
+      success: false,
+      message: error.message || 'Internal server error',
+      requestId: requestId,
+      metadata: { error: error.message || 'Unknown error' },
+    });
     return res.status(500).json({
       ok: false,
       error: error.message || 'Internal server error',

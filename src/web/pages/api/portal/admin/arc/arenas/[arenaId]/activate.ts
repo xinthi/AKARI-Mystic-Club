@@ -22,6 +22,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireSuperAdmin } from '@/lib/server/require-superadmin';
+import { writeArcAudit, getRequestId } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -147,6 +148,20 @@ export default async function handler(
       // Map RPC errors to HTTP status codes
       const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
       
+      // Log audit for RPC error
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: adminProfileId,
+        projectId: null,
+        entityType: 'arena',
+        entityId: arenaId,
+        action: 'arena_activated',
+        success: false,
+        message: errorMessage,
+        requestId: requestId,
+        metadata: { rpcError: errorMessage },
+      });
+      
       if (errorMessage.includes('arena_not_found')) {
         return res.status(404).json({
           ok: false,
@@ -176,11 +191,39 @@ export default async function handler(
     }
 
     if (!result || !result.ok) {
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: adminProfileId,
+        projectId: null,
+        entityType: 'arena',
+        entityId: arenaId,
+        action: 'arena_activated',
+        success: false,
+        message: result?.error || 'Activation failed',
+        requestId: requestId,
+        metadata: { result },
+      });
       return res.status(500).json({
         ok: false,
         error: result?.error || 'Activation failed',
       });
     }
+
+    // Log successful activation
+    const requestId = getRequestId(req);
+    await writeArcAudit(supabase, {
+      actorProfileId: adminProfileId,
+      projectId: result.projectId,
+      entityType: 'arena',
+      entityId: result.activatedArenaId,
+      action: 'arena_activated',
+      success: true,
+      message: `Arena ${result.activatedArenaId} activated for project ${result.projectId}`,
+      requestId: requestId,
+      metadata: {
+        activatedArenaId: result.activatedArenaId,
+      },
+    });
 
     // Return RPC result directly (already matches API response format)
     return res.status(200).json({
@@ -190,6 +233,21 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[API /portal/admin/arc/arenas/[arenaId]/activate] Error:', error);
+    const supabase = getSupabaseAdmin();
+    const requestId = getRequestId(req);
+    const auth = await requireSuperAdmin(req);
+    const adminProfileId = auth.ok ? await getProfileIdFromUserId(supabase, auth.profileId) : null;
+    await writeArcAudit(supabase, {
+      actorProfileId: adminProfileId,
+      projectId: null,
+      entityType: 'arena',
+      entityId: typeof arenaId === 'string' ? arenaId : null,
+      action: 'arena_activated',
+      success: false,
+      message: error.message || 'Internal server error',
+      requestId: requestId,
+      metadata: { error: error.message || 'Unknown error' },
+    });
     return res.status(500).json({
       ok: false,
       error: error.message || 'Internal server error',

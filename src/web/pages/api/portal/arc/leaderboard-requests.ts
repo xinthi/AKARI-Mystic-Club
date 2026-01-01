@@ -10,6 +10,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireProjectRole } from '@/lib/server/require-project-role';
 import { requireSuperAdmin } from '@/lib/server/require-superadmin';
+import { writeArcAudit, getRequestId } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -288,6 +289,19 @@ export default async function handler(
         }
       }
 
+      // Log audit for insert error
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: profileId || null,
+        projectId: projectId,
+        entityType: 'leaderboard_request',
+        entityId: null,
+        action: 'leaderboard_request_created',
+        success: false,
+        message: insertError.message || 'Failed to create request',
+        requestId: requestId,
+        metadata: { error: insertError.message || 'Database error' },
+      });
       console.error('[Leaderboard Requests API] Insert error:', insertError);
       return res.status(500).json({
         ok: false,
@@ -296,8 +310,37 @@ export default async function handler(
     }
 
     if (!newRequest || !newRequest.id) {
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: profileId || null,
+        projectId: projectId,
+        entityType: 'leaderboard_request',
+        entityId: null,
+        action: 'leaderboard_request_created',
+        success: false,
+        message: 'Request created but failed to retrieve request ID',
+        requestId: requestId,
+      });
       return res.status(500).json({ ok: false, error: 'Request created but failed to retrieve request ID' });
     }
+
+    // Log successful request creation
+    const requestId = getRequestId(req);
+    await writeArcAudit(supabase, {
+      actorProfileId: profileId,
+      projectId: projectId,
+      entityType: 'leaderboard_request',
+      entityId: newRequest.id,
+      action: 'leaderboard_request_created',
+      success: true,
+      message: `Leaderboard request created for ${productType}`,
+      requestId: requestId,
+      metadata: {
+        productType: productType,
+        startAt: startAt,
+        endAt: endAt,
+      },
+    });
 
     return res.status(200).json({
       ok: true,
@@ -312,6 +355,32 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[Leaderboard Requests API] Error:', error);
+    const supabase = getSupabaseAdmin();
+    const requestId = getRequestId(req);
+    const body = req.body as Partial<CreateLeaderboardRequestPayload>;
+    // Try to get profile ID, but don't fail if we can't
+    let profileId: string | null = null;
+    try {
+      if (body.projectId) {
+        const projectAuth = await requireProjectRole(req, body.projectId, ['founder', 'admin', 'moderator']);
+        if (projectAuth.ok) {
+          profileId = await getProfileIdFromUserId(supabase, projectAuth.profileId);
+        }
+      }
+    } catch (authError) {
+      // Ignore auth errors in catch block
+    }
+    await writeArcAudit(supabase, {
+      actorProfileId: profileId,
+      projectId: body.projectId || null,
+      entityType: 'leaderboard_request',
+      entityId: null,
+      action: 'leaderboard_request_created',
+      success: false,
+      message: error.message || 'Server error',
+      requestId: requestId,
+      metadata: { error: error.message || 'Unknown error' },
+    });
     return res.status(500).json({ ok: false, error: error.message || 'Server error' });
   }
 }

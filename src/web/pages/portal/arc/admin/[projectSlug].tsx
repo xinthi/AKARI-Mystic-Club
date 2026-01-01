@@ -120,6 +120,11 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [crmError, setCrmError] = useState<string | null>(null);
   const [crmSuccess, setCrmSuccess] = useState<string | null>(null);
 
+  // Recent Activity state
+  const [activityEvents, setActivityEvents] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState<string | null>(null);
+
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
     async function fetchPermissions() {
@@ -199,6 +204,39 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
       window.removeEventListener('arc-requests-reload', handleReload);
     };
   }, [project?.id]);
+
+  // Fetch recent activity events
+  useEffect(() => {
+    async function fetchActivity() {
+      if (!project?.id || !userIsSuperAdmin) {
+        setActivityLoading(false);
+        return;
+      }
+
+      setActivityLoading(true);
+      setActivityError(null);
+
+      try {
+        const res = await fetch(`/api/portal/admin/arc/activity?projectId=${encodeURIComponent(project.id)}&limit=20`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        const data = await res.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'Failed to load activity events');
+        }
+
+        setActivityEvents(data.events || []);
+      } catch (err: any) {
+        setActivityError(err.message || 'Failed to load activity events');
+      } finally {
+        setActivityLoading(false);
+      }
+    }
+
+    fetchActivity();
+  }, [project?.id, userIsSuperAdmin]);
 
   // Handle request form submission
   const handleSubmitRequest = async () => {
@@ -975,6 +1013,92 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
             {activateSuccess && (
               <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
                 <p className="text-sm text-green-400">{activateSuccess}</p>
+              </div>
+            )}
+
+            {/* Recent Activity Card (SuperAdmin only) */}
+            {userIsSuperAdmin && (
+              <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+                <h2 className="text-lg font-semibold text-white mb-4">Recent Activity</h2>
+                
+                {activityLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+                    <span className="ml-3 text-white/60 text-sm">Loading activity...</span>
+                  </div>
+                ) : activityError ? (
+                  <ErrorState
+                    message={activityError}
+                    onRetry={() => {
+                      setActivityError(null);
+                      // Trigger reload
+                      const fetchActivity = async () => {
+                        if (!project?.id) return;
+                        setActivityLoading(true);
+                        try {
+                          const res = await fetch(`/api/portal/admin/arc/activity?projectId=${encodeURIComponent(project.id)}&limit=20`, {
+                            credentials: 'include',
+                            cache: 'no-store',
+                          });
+                          const data = await res.json();
+                          if (data.ok) {
+                            setActivityEvents(data.events || []);
+                          } else {
+                            setActivityError(data.error || 'Failed to load activity');
+                          }
+                        } catch (err: any) {
+                          setActivityError(err.message || 'Failed to load activity');
+                        } finally {
+                          setActivityLoading(false);
+                        }
+                      };
+                      fetchActivity();
+                    }}
+                  />
+                ) : activityEvents.length === 0 ? (
+                  <EmptyState
+                    title="No activity yet"
+                    description="Activity events will appear here as actions are performed."
+                    icon="📋"
+                  />
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {activityEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="p-3 rounded border border-white/5 bg-black/20 hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                event.success
+                                  ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                  : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                              }`}>
+                                {event.success ? '✓' : '✗'}
+                              </span>
+                              <span className="text-sm font-medium text-white">
+                                {event.action.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                              </span>
+                              <span className="text-xs text-white/40">
+                                {event.entity_type}
+                              </span>
+                            </div>
+                            {event.message && (
+                              <p className="text-xs text-white/60 truncate" title={event.message}>
+                                {event.message}
+                              </p>
+                            )}
+                            <p className="text-xs text-white/40 mt-1">
+                              {new Date(event.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
