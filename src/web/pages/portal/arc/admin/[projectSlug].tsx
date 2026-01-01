@@ -42,6 +42,31 @@ interface ProjectInfo {
   slug: string | null;
 }
 
+interface ProjectFeatures {
+  leaderboard_enabled: boolean;
+  leaderboard_start_at: string | null;
+  leaderboard_end_at: string | null;
+  gamefi_enabled: boolean;
+  gamefi_start_at: string | null;
+  gamefi_end_at: string | null;
+  crm_enabled: boolean;
+  crm_start_at: string | null;
+  crm_end_at: string | null;
+  crm_visibility: 'private' | 'public' | 'hybrid' | null;
+}
+
+interface LeaderboardRequest {
+  id: string;
+  project_id: string;
+  product_type: 'ms' | 'gamefi' | 'crm' | null;
+  start_at: string | null;
+  end_at: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  decided_at: string | null;
+  notes: string | null;
+}
+
 interface ArenaManagerProps {
   project: ProjectInfo | null;
   arenas: Arena[];
@@ -49,13 +74,14 @@ interface ArenaManagerProps {
   projectSlug: string;
   hasAccess: boolean;
   accessError: string | null;
+  features: ProjectFeatures | null;
 }
 
 // =============================================================================
 // COMPONENT
 // =============================================================================
 
-export default function ArenaManager({ project, arenas: initialArenas, error, projectSlug, hasAccess, accessError }: ArenaManagerProps) {
+export default function ArenaManager({ project, arenas: initialArenas, error, projectSlug, hasAccess, accessError, features: initialFeatures }: ArenaManagerProps) {
   const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -68,6 +94,22 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
   // Load current MS arena
   const { arena: currentArena, debug, loading: arenaLoading, error: arenaError, refresh: refreshCurrentArena } = useCurrentMsArena(project?.id || null);
+
+  // ARC Access Requests state
+  const [requests, setRequests] = useState<LeaderboardRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [latestRequest, setLatestRequest] = useState<LeaderboardRequest | null>(null);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+
+  // Request form state
+  const [formProductType, setFormProductType] = useState<'ms' | 'gamefi' | 'crm'>('ms');
+  const [formStartAt, setFormStartAt] = useState('');
+  const [formEndAt, setFormEndAt] = useState('');
+  const [formNotes, setFormNotes] = useState('');
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
@@ -96,6 +138,150 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
     fetchPermissions();
   }, [project?.id, akariUser.isLoggedIn]);
+
+  // Fetch ARC access requests
+  useEffect(() => {
+    async function fetchRequests() {
+      if (!project?.id) {
+        setRequestsLoading(false);
+        return;
+      }
+
+      setRequestsLoading(true);
+      setRequestsError(null);
+
+      try {
+        const res = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${encodeURIComponent(project.id)}`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'Failed to load requests');
+        }
+
+        const requestsList: LeaderboardRequest[] = data.requests || [];
+        setRequests(requestsList);
+
+        // Find latest request
+        if (requestsList.length > 0) {
+          const latest = requestsList[0];
+          setLatestRequest(latest);
+          setHasPendingRequest(latest.status === 'pending');
+        } else {
+          setLatestRequest(null);
+          setHasPendingRequest(false);
+        }
+      } catch (err: any) {
+        setRequestsError(err.message || 'Failed to load requests');
+      } finally {
+        setRequestsLoading(false);
+      }
+    }
+
+    fetchRequests();
+  }, [project?.id]);
+
+  // Handle request form submission
+  const handleSubmitRequest = async () => {
+    if (!project?.id) {
+      setFormError('Project ID is required');
+      return;
+    }
+
+    // Validate dates for ms and gamefi
+    if ((formProductType === 'ms' || formProductType === 'gamefi') && (!formStartAt || !formEndAt)) {
+      setFormError('Start date and end date are required for Mindshare and GameFi');
+      return;
+    }
+
+    // Validate date order
+    if (formStartAt && formEndAt) {
+      const startDate = new Date(formStartAt);
+      const endDate = new Date(formEndAt);
+      if (startDate >= endDate) {
+        setFormError('End date must be after start date');
+        return;
+      }
+    }
+
+    setFormSubmitting(true);
+    setFormError(null);
+    setFormSuccess(null);
+
+    try {
+      const res = await fetch('/api/portal/arc/leaderboard-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          projectId: project.id,
+          productType: formProductType,
+          startAt: formStartAt || undefined,
+          endAt: formEndAt || undefined,
+          notes: formNotes.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        const errorCode = data.error || 'unknown_error';
+        let errorMessage = 'Failed to submit request';
+        
+        switch (errorCode) {
+          case 'invalid_project_id':
+            errorMessage = 'Invalid project ID';
+            break;
+          case 'invalid_product_type':
+            errorMessage = 'Invalid product type';
+            break;
+          case 'missing_dates':
+            errorMessage = 'Start date and end date are required';
+            break;
+          case 'invalid_dates':
+            errorMessage = 'Invalid date range';
+            break;
+          case 'not_authenticated':
+            errorMessage = 'Authentication required';
+            break;
+          default:
+            errorMessage = data.error || 'Failed to submit request';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Success - reset form and refetch requests
+      setFormSuccess('Request submitted successfully');
+      setFormProductType('ms');
+      setFormStartAt('');
+      setFormEndAt('');
+      setFormNotes('');
+
+      // Refetch requests
+      const res2 = await fetch(`/api/portal/arc/leaderboard-requests?projectId=${encodeURIComponent(project.id)}`, {
+        credentials: 'include',
+      });
+      const data2 = await res2.json();
+      if (data2.ok && data2.requests) {
+        const requestsList: LeaderboardRequest[] = data2.requests || [];
+        setRequests(requestsList);
+        if (requestsList.length > 0) {
+          const latest = requestsList[0];
+          setLatestRequest(latest);
+          setHasPendingRequest(latest.status === 'pending');
+        }
+      }
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setFormSuccess(null), 3000);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to submit request');
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
 
   // Compute if user can manage (create/edit arenas)
   const canManage = userIsSuperAdmin || permissions?.canManage || false;
@@ -439,6 +625,177 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                 >
                   Create Arena
                 </button>
+              )}
+            </div>
+
+            {/* ARC Access Requests Card */}
+            <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
+              <h2 className="text-lg font-semibold text-white mb-4">ARC Access Requests</h2>
+              
+              {requestsLoading ? (
+                <div className="text-white/60 text-sm">Loading requests...</div>
+              ) : requestsError ? (
+                <div className="text-red-400 text-sm mb-4">{requestsError}</div>
+              ) : !latestRequest ? (
+                <div className="text-center py-4 mb-4">
+                  <p className="text-white/60 mb-1">No requests yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3 mb-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-white/60">Product Type:</span>
+                      <span className="ml-2 text-white">
+                        {latestRequest.product_type === 'ms' ? 'Mindshare' : 
+                         latestRequest.product_type === 'gamefi' ? 'GameFi' : 
+                         latestRequest.product_type === 'crm' ? 'CRM' : 
+                         'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Status:</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${
+                        latestRequest.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                        latestRequest.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {latestRequest.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Start Date:</span>
+                      <span className="ml-2 text-white">
+                        {latestRequest.start_at ? new Date(latestRequest.start_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">End Date:</span>
+                      <span className="ml-2 text-white">
+                        {latestRequest.end_at ? new Date(latestRequest.end_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Created:</span>
+                      <span className="ml-2 text-white">
+                        {new Date(latestRequest.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {latestRequest.decided_at && (
+                      <div>
+                        <span className="text-white/60">Decided:</span>
+                        <span className="ml-2 text-white">
+                          {new Date(latestRequest.decided_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {hasPendingRequest && (
+                    <div className="mt-3 p-3 rounded bg-yellow-500/10 border border-yellow-500/30">
+                      <p className="text-yellow-400 text-sm">Pending approval - request form is disabled</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Show enabled badges for already enabled products */}
+              {initialFeatures && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {initialFeatures.leaderboard_enabled && (
+                    <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/50">
+                      Leaderboard Enabled
+                    </span>
+                  )}
+                  {initialFeatures.gamefi_enabled && (
+                    <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/50">
+                      GameFi Enabled
+                    </span>
+                  )}
+                  {initialFeatures.crm_enabled && (
+                    <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/50">
+                      CRM Enabled
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Request Form */}
+              {canManage && !hasPendingRequest && (
+                <div className="border-t border-white/10 pt-4 mt-4">
+                  <h3 className="text-sm font-semibold text-white mb-3">Request New Access</h3>
+                  
+                  {formSuccess && (
+                    <div className="mb-3 p-3 rounded bg-green-500/10 border border-green-500/30">
+                      <p className="text-green-400 text-sm">{formSuccess}</p>
+                    </div>
+                  )}
+                  
+                  {formError && (
+                    <div className="mb-3 p-3 rounded bg-red-500/10 border border-red-500/30">
+                      <p className="text-red-400 text-sm">{formError}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">Product Type</label>
+                      <select
+                        value={formProductType}
+                        onChange={(e) => setFormProductType(e.target.value as 'ms' | 'gamefi' | 'crm')}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      >
+                        <option value="ms">Mindshare (Leaderboard)</option>
+                        <option value="gamefi">GameFi (Gamified)</option>
+                        <option value="crm">CRM (Creator Manager)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        Start Date {(formProductType === 'ms' || formProductType === 'gamefi') && <span className="text-red-400">*</span>}
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formStartAt}
+                        onChange={(e) => setFormStartAt(e.target.value)}
+                        required={formProductType === 'ms' || formProductType === 'gamefi'}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        End Date {(formProductType === 'ms' || formProductType === 'gamefi') && <span className="text-red-400">*</span>}
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formEndAt}
+                        onChange={(e) => setFormEndAt(e.target.value)}
+                        required={formProductType === 'ms' || formProductType === 'gamefi'}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">Notes (Optional)</label>
+                      <textarea
+                        value={formNotes}
+                        onChange={(e) => setFormNotes(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                        placeholder="Additional information about your request..."
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSubmitRequest}
+                      disabled={formSubmitting || (formProductType !== 'crm' && (!formStartAt || !formEndAt))}
+                      className="w-full px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {formSubmitting ? 'Submitting...' : 'Submit Request'}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -823,16 +1180,17 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
   const { projectSlug } = context.params || {};
 
   if (!projectSlug || typeof projectSlug !== 'string') {
-    return {
-      props: {
-        project: null,
-        arenas: [],
-        error: 'Invalid project slug',
-        projectSlug: '',
-        hasAccess: false,
-        accessError: 'Invalid project slug',
-      },
-    };
+      return {
+        props: {
+          project: null,
+          arenas: [],
+          error: 'Invalid project slug',
+          projectSlug: '',
+          hasAccess: false,
+          accessError: 'Invalid project slug',
+          features: null,
+        },
+      };
   }
 
   try {
@@ -849,6 +1207,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           projectSlug,
           hasAccess: false,
           accessError: 'Authentication required',
+          features: null,
         },
       };
     }
@@ -869,6 +1228,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           projectSlug,
           hasAccess: false,
           accessError: 'Invalid or expired session',
+          features: null,
         },
       };
     }
@@ -891,6 +1251,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           projectSlug,
           hasAccess: false,
           accessError: 'Project not found',
+          features: null,
         },
       };
     }
@@ -913,6 +1274,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           projectSlug,
           hasAccess: false,
           accessError: 'You do not have permission to manage this project. Only project owners, admins, moderators, or super admins can access this page.',
+          features: null,
         },
       };
     }
@@ -939,6 +1301,7 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
           projectSlug,
           hasAccess: true,
           accessError: null,
+          features: null,
         },
       };
     }
@@ -956,6 +1319,29 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
       kind: row.kind ?? null,
     }));
 
+    // Load arc_project_features for this project
+    const { data: featuresData, error: featuresError } = await supabaseAdmin
+      .from('arc_project_features')
+      .select('leaderboard_enabled, leaderboard_start_at, leaderboard_end_at, gamefi_enabled, gamefi_start_at, gamefi_end_at, crm_enabled, crm_start_at, crm_end_at, crm_visibility')
+      .eq('project_id', projectData.id)
+      .maybeSingle();
+
+    let features: ProjectFeatures | null = null;
+    if (featuresData) {
+      features = {
+        leaderboard_enabled: featuresData.leaderboard_enabled || false,
+        leaderboard_start_at: featuresData.leaderboard_start_at || null,
+        leaderboard_end_at: featuresData.leaderboard_end_at || null,
+        gamefi_enabled: featuresData.gamefi_enabled || false,
+        gamefi_start_at: featuresData.gamefi_start_at || null,
+        gamefi_end_at: featuresData.gamefi_end_at || null,
+        crm_enabled: featuresData.crm_enabled || false,
+        crm_start_at: featuresData.crm_start_at || null,
+        crm_end_at: featuresData.crm_end_at || null,
+        crm_visibility: (featuresData.crm_visibility as 'private' | 'public' | 'hybrid') || null,
+      };
+    }
+
     return {
       props: {
         project: {
@@ -969,19 +1355,21 @@ export const getServerSideProps: GetServerSideProps<ArenaManagerProps> = async (
         projectSlug,
         hasAccess: true,
         accessError: null,
+        features,
       },
     };
   } catch (error: any) {
     console.error('[ArenaManager] Error:', error);
-    return {
-      props: {
-        project: null,
-        arenas: [],
-        error: error.message || 'Internal server error',
-        projectSlug,
-        hasAccess: false,
-        accessError: error.message || 'Internal server error',
-      },
-    };
+      return {
+        props: {
+          project: null,
+          arenas: [],
+          error: error.message || 'Internal server error',
+          projectSlug,
+          hasAccess: false,
+          accessError: error.message || 'Internal server error',
+          features: null,
+        },
+      };
   }
 };
