@@ -2597,6 +2597,8 @@ export default function ArcProjectHub() {
                               )}
                             </>
                           )}
+                        </>
+                      )}
                     </>
                   )}
                 </div>
