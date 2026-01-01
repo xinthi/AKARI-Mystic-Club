@@ -9,6 +9,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { checkProjectPermissions } from '@/lib/project-permissions';
 import { randomBytes } from 'crypto';
+import { getRequestId, writeArcAudit } from '@/lib/server/arc-audit';
+import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
@@ -223,6 +225,7 @@ export default async function handler(
           campaign_id: campaignId,
           participant_id: participantId,
           code: code,
+          short_code: code, // Also set short_code for compatibility
           target_url: body.target_url,
         })
         .select()
@@ -232,6 +235,26 @@ export default async function handler(
         console.error('[ARC Link API] Insert error:', insertError);
         return res.status(500).json({ ok: false, error: 'Failed to create link' });
       }
+
+      // Log audit
+      const requestId = getRequestId(req);
+      const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
+      await writeArcAudit(supabase, {
+        actorProfileId: profileId,
+        projectId: pid,
+        entityType: 'utm_link',
+        entityId: link.id,
+        action: 'utm_link_created',
+        success: true,
+        message: `UTM link created with code ${code}`,
+        requestId,
+        metadata: {
+          campaignId,
+          participantId,
+          code,
+          targetUrl: body.target_url,
+        },
+      });
 
       // Build redirect URL
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';

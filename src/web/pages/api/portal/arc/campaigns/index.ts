@@ -11,6 +11,7 @@ import { requireArcAccess } from '@/lib/arc-access';
 import { checkProjectPermissions } from '@/lib/project-permissions';
 import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { getRequestId, writeArcAudit } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -223,6 +224,25 @@ export default async function handler(
         console.error('[ARC Campaigns API] Insert error:', insertError);
         return res.status(500).json({ ok: false, error: 'Failed to create campaign' });
       }
+
+      // Log audit
+      const requestId = getRequestId(req);
+      await writeArcAudit(supabase, {
+        actorProfileId: profileId,
+        projectId: body.project_id,
+        entityType: 'campaign',
+        entityId: campaign.id,
+        action: 'campaign_created',
+        success: true,
+        message: `Campaign "${body.name}" created`,
+        requestId,
+        metadata: {
+          campaignName: body.name,
+          startAt: body.start_at,
+          endAt: body.end_at,
+          visibility: body.leaderboard_visibility,
+        },
+      });
 
       return res.status(200).json({
         ok: true,

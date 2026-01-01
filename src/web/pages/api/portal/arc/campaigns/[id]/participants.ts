@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requireArcAccess } from '@/lib/arc-access';
 import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 import { checkProjectPermissions } from '@/lib/project-permissions';
+import { getRequestId, writeArcAudit } from '@/lib/server/arc-audit';
 
 // =============================================================================
 // TYPES
@@ -248,6 +249,25 @@ export default async function handler(
         console.error('[ARC Participants API] Insert error:', insertError);
         return res.status(500).json({ ok: false, error: 'Failed to add participant' });
       }
+
+      // Log audit
+      const requestId = getRequestId(req);
+      const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
+      await writeArcAudit(supabase, {
+        actorProfileId: profileId,
+        projectId: pid,
+        entityType: 'campaign_participant',
+        entityId: participant.id,
+        action: 'participant_added',
+        success: true,
+        message: `Participant @${twitterUsername} added to campaign`,
+        requestId,
+        metadata: {
+          campaignId,
+          twitterUsername,
+          profileId: profileId || null,
+        },
+      });
 
       return res.status(200).json({
         ok: true,
