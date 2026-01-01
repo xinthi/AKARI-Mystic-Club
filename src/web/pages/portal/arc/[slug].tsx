@@ -2167,12 +2167,12 @@ export default function ArcProjectHub() {
                     ) : (
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {arenas.map((arena) => {
-                          const projectSlug = project?.slug || slug;
-                          if (!projectSlug) return null;
+                          const arenaProjectSlug = project?.slug || projectSlug;
+                          if (!arenaProjectSlug) return null;
                           return (
                           <Link
                             key={arena.id}
-                            href={`/portal/arc/${encodeURIComponent(projectSlug)}/arena/${encodeURIComponent(arena.slug)}`}
+                            href={`/portal/arc/${encodeURIComponent(arenaProjectSlug)}/arena/${encodeURIComponent(arena.slug)}`}
                             className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-akari-neon-teal/50 hover:shadow-[0_0_20px_rgba(0,246,162,0.15)] transition-all"
                           >
                             <h3 className="text-lg font-semibold text-white mb-2">{arena.name}</h3>
