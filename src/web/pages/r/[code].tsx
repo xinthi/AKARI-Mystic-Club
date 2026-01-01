@@ -160,3 +160,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
 };
+
+// =============================================================================
+// COMPONENT (fallback - should never render due to redirect)
+// =============================================================================
+
+export default function RedirectPage() {
+  return (
+    <div style={{ padding: '2rem', textAlign: 'center' }}>
+      <p>Redirecting...</p>
+    </div>
+  );
+}
