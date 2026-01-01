@@ -144,10 +144,9 @@ export default async function handler(
     try {
       const supabase = getSupabaseAdmin();
       const requestId = getRequestId(req);
+      const authResult = await requireSuperAdmin(req);
       await writeArcAudit(supabase, {
-        actorProfileId: (await requireSuperAdmin(req)).ok
-          ? (await requireSuperAdmin(req)).profileId
-          : null,
+        actorProfileId: authResult.ok ? authResult.profileId : null,
         projectId: null,
         entityType: 'billing_record',
         entityId: (req.query.billingId as string) || null,
