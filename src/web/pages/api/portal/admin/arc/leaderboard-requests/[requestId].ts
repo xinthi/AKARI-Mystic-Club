@@ -347,7 +347,7 @@ export default async function handler(
         await createNotification(
           supabase,
           request.requested_by,
-          'arc_request_approved',
+          'leaderboard_request_approved',
           {
             requestId: requestId,
             projectId: request.project_id,
