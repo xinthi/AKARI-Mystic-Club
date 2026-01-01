@@ -1,5 +1,5 @@
 /**
- * API Route: PUT /api/portal/admin/arc/leaderboard-requests/[requestId]/approve
+ * API Route: PUT /api/portal/admin/arc/leaderboard-requests/[id]/approve
  * 
  * Approve a leaderboard request and set up project features.
  * Super admin only.
@@ -161,7 +161,7 @@ export default async function handler(
     });
   }
 
-  const { requestId } = req.query;
+  const { id: requestId } = req.query;
 
   // Validate requestId is a UUID
   if (!requestId || typeof requestId !== 'string' || !isValidUUID(requestId)) {
