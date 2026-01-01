@@ -1,81 +1,162 @@
 /**
- * Redirect Route: /r/[code]
+ * Public Redirect Route: /r/[code]
  * 
- * Handles UTM tracking link redirects.
- * Logs click events and redirects to target_url with UTM parameters.
+ * Resolves UTM link code (or short_code) and redirects with click tracking.
  */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import Head from 'next/head';
+import type { GetServerSideProps } from 'next';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import crypto from 'crypto';
+import { getRequestId, writeArcAudit } from '@/lib/server/arc-audit';
 
-export default function RedirectPage() {
-  const router = useRouter();
-  const { code } = router.query;
-  const [error, setError] = useState<string | null>(null);
+// =============================================================================
+// HELPERS
+// =============================================================================
 
-  useEffect(() => {
-    if (!code || typeof code !== 'string') {
-      setError('Invalid redirect code');
-      return;
-    }
-
-    // Fetch link data
-    fetch(`/api/portal/arc/redirect/${code}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || 'Failed to fetch redirect');
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data.ok && data.redirect_url) {
-          // Redirect to the URL with UTM parameters
-          window.location.href = data.redirect_url;
-        } else {
-          setError('Invalid redirect data');
-        }
-      })
-      .catch((err) => {
-        console.error('[Redirect] Error:', err);
-        setError(err.message || 'Failed to redirect');
-      });
-  }, [code]);
-
-  if (error) {
-    return (
-      <>
-        <Head>
-          <title>Redirect Error</title>
-        </Head>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <h1>Redirect Error</h1>
-          <p>{error}</p>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Head>
-        <title>Redirecting...</title>
-      </Head>
-      <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <p>Redirecting...</p>
-      </div>
-    </>
-  );
+function hashString(str: string): string {
+  return crypto.createHash('sha256').update(str).digest('hex').substring(0, 16);
 }
 
+function getVisitorId(req: any): string {
+  // Try to get visitor_id from cookie
+  const cookies = req.headers.cookie?.split(';').map((c: string) => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('arc_visitor_id=')) {
+      return cookie.substring('arc_visitor_id='.length);
+    }
+  }
 
+  // Generate new visitor_id
+  const visitorId = 'visitor_' + crypto.randomBytes(8).toString('hex');
+  return visitorId;
+}
 
+function getDevice(req: any): string {
+  const userAgent = req.headers['user-agent'] || '';
+  if (/mobile|android|iphone|ipad/i.test(userAgent)) {
+    return 'mobile';
+  }
+  if (/tablet|ipad/i.test(userAgent)) {
+    return 'tablet';
+  }
+  return 'desktop';
+}
 
+function getIpHash(req: any): string | null {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = forwarded
+    ? Array.isArray(forwarded)
+      ? forwarded[0]
+      : forwarded.split(',')[0]
+    : req.socket?.remoteAddress;
+  return ip ? hashString(ip) : null;
+}
 
+function getUserAgentHash(req: any): string | null {
+  const userAgent = req.headers['user-agent'];
+  return userAgent ? hashString(userAgent) : null;
+}
 
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
 
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { code } = context.params;
 
+  if (!code || typeof code !== 'string') {
+    return {
+      notFound: true,
+    };
+  }
 
+  try {
+    const supabase = getSupabaseAdmin();
 
+    // Get link data (support both code and short_code)
+    const { data: link, error: linkError } = await supabase
+      .from('arc_participant_links')
+      .select('id, campaign_id, participant_id, target_url, code, short_code')
+      .or(`code.eq.${code},short_code.eq.${code}`)
+      .single();
 
+    if (linkError || !link) {
+      return {
+        notFound: true,
+      };
+    }
+
+    // Get referrer and other request data
+    const referrer = context.req.headers.referer || context.req.headers.referrer || null;
+    const device = getDevice(context.req);
+    const visitorId = getVisitorId(context.req);
+    const ipHash = getIpHash(context.req);
+    const userAgentHash = getUserAgentHash(context.req);
+
+    // TODO: Geo-location lookup (if available)
+    // For now, set to null
+    const geoCountry = null;
+    const geoCity = null;
+
+    // Record click event
+    const clickedAt = new Date().toISOString();
+    const { error: eventError } = await supabase.from('arc_link_events').insert({
+      campaign_id: link.campaign_id,
+      participant_id: link.participant_id,
+      ts: clickedAt,
+      clicked_at: clickedAt,
+      utm_link_id: link.id,
+      visitor_id: visitorId,
+      ip_hash: ipHash,
+      user_agent_hash: userAgentHash,
+      referrer: referrer,
+      device: device,
+      geo_country: geoCountry,
+      geo_city: geoCity,
+    });
+
+    if (eventError) {
+      console.error('[ARC Redirect] Event log error:', eventError);
+      // Don't fail the redirect if logging fails
+    }
+
+    // Log audit (non-blocking)
+    const requestId = getRequestId(context.req as any);
+    await writeArcAudit(supabase, {
+      actorProfileId: null,
+      projectId: null,
+      entityType: 'utm_link',
+      entityId: link.id,
+      action: 'utm_link_clicked',
+      success: !eventError,
+      message: `UTM link clicked: ${code}`,
+      requestId,
+      metadata: {
+        code,
+        campaignId: link.campaign_id,
+        participantId: link.participant_id,
+        visitorId,
+        device,
+      },
+    });
+
+    // Set visitor_id cookie (expires in 1 year)
+    const cookieHeader = `arc_visitor_id=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+
+    // Redirect to target URL
+    return {
+      redirect: {
+        destination: link.target_url,
+        permanent: false,
+      },
+      headers: {
+        'Set-Cookie': cookieHeader,
+      },
+    };
+  } catch (error: any) {
+    console.error('[ARC Redirect] Error:', error);
+    return {
+      notFound: true,
+    };
+  }
+};
