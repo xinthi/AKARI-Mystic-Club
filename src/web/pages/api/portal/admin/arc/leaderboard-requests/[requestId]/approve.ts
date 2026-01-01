@@ -1,5 +1,5 @@
 /**
- * API Route: POST|PUT /api/portal/admin/arc/leaderboard-requests/[id]/approve
+ * API Route: POST|PUT /api/portal/admin/arc/leaderboard-requests/[requestId]/approve
  * 
  * Approve a leaderboard request and set up project features.
  * Super admin only.
@@ -107,7 +107,7 @@ export default async function handler(
     });
   }
 
-  const { id: requestId } = req.query;
+  const { requestId } = req.query;
 
   // Validate requestId is a UUID
   if (!requestId || typeof requestId !== 'string' || !isValidUUID(requestId)) {
@@ -253,7 +253,7 @@ export default async function handler(
       actorProfileId: adminProfileId,
       projectId: null,
       entityType: 'leaderboard_request',
-      entityId: typeof req.query.id === 'string' ? req.query.id : null,
+      entityId: typeof req.query.requestId === 'string' ? req.query.requestId : null,
       action: 'request_approved',
       success: false,
       message: error.message || 'Internal server error',
