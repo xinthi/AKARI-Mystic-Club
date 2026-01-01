@@ -118,7 +118,6 @@ export default async function handler(
 
   try {
     const supabase = getSupabaseAdmin();
-    const now = new Date().toISOString();
 
     // Get admin profile ID
     const adminProfileId = await getProfileIdFromUserId(supabase, auth.profileId);
@@ -129,343 +128,59 @@ export default async function handler(
       });
     }
 
-    // Step 1: Load request by id
-    const { data: request, error: requestError } = await supabase
-      .from('arc_leaderboard_requests')
-      .select('id, project_id, product_type, start_at, end_at, status')
-      .eq('id', requestId)
-      .single();
+    // Call RPC function to handle approval in a single transaction
+    const { data: result, error: rpcError } = await supabase.rpc(
+      'arc_admin_approve_leaderboard_request',
+      {
+        p_request_id: requestId,
+        p_admin_profile_id: adminProfileId,
+      }
+    );
 
-    if (requestError || !request) {
-      console.error('[Approve Request API] Error fetching request:', requestError);
+    if (rpcError) {
+      console.error('[Approve Request API] RPC error:', rpcError);
+
+      // Map RPC errors to HTTP status codes
+      const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
       
-      // Check if error is due to missing columns
-      if (requestError?.code === '42703' || requestError?.message?.includes('column') || requestError?.message?.includes('does not exist')) {
-        return res.status(500).json({
+      if (errorMessage.includes('request_not_found')) {
+        return res.status(404).json({
           ok: false,
-          error: 'Database schema error: arc_leaderboard_requests table is missing required columns (product_type, start_at, end_at). Please run migrations.',
+          error: 'request_not_found',
         });
       }
       
-      return res.status(404).json({
-        ok: false,
-        error: 'request_not_found',
-      });
-    }
-
-    // Validate request is pending
-    if (request.status !== 'pending') {
-      return res.status(400).json({
-        ok: false,
-        error: 'request_not_pending',
-      });
-    }
-
-    const productType = request.product_type;
-    const projectId = request.project_id;
-    const startAt = request.start_at;
-    const endAt = request.end_at;
-
-    // Validate product_type exists (new field might not be in table yet)
-    if (!productType || !['ms', 'gamefi', 'crm'].includes(productType)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Request missing product_type or invalid product_type. Please ensure the request was created with the new API.',
-      });
-    }
-
-    // Step 2: Update request status to "approved"
-    const { error: updateRequestError } = await supabase
-      .from('arc_leaderboard_requests')
-      .update({
-        status: 'approved',
-        decided_at: now,
-        decided_by: adminProfileId,
-      })
-      .eq('id', requestId);
-
-    if (updateRequestError) {
-      console.error('[Approve Request API] Error updating request:', updateRequestError);
-      return res.status(500).json({
-        ok: false,
-        error: 'Failed to update request status',
-      });
-    }
-
-    // Step 3: Upsert arc_project_access
-    const { data: existingAccess, error: checkAccessError } = await supabase
-      .from('arc_project_access')
-      .select('id')
-      .eq('project_id', projectId)
-      .maybeSingle();
-
-    const accessData: any = {
-      project_id: projectId,
-      application_status: 'approved',
-      approved_at: now,
-      approved_by_profile_id: adminProfileId,
-    };
-
-    let accessError: any = null;
-    if (existingAccess) {
-      const { error: updateAccessError } = await supabase
-        .from('arc_project_access')
-        .update(accessData)
-        .eq('project_id', projectId);
-      accessError = updateAccessError;
-    } else {
-      const { error: insertAccessError } = await supabase
-        .from('arc_project_access')
-        .insert(accessData);
-      accessError = insertAccessError;
-    }
-
-    if (accessError) {
-      console.error('[Approve Request API] Error upserting arc_project_access:', accessError);
-      return res.status(500).json({
-        ok: false,
-        error: 'Failed to update project access',
-      });
-    }
-
-    // Step 4: Upsert arc_project_features
-    const featuresData: any = {
-      project_id: projectId,
-    };
-
-    // Map product_type to feature flags
-    if (productType === 'ms') {
-      featuresData.leaderboard_enabled = true;
-      if (startAt && endAt) {
-        featuresData.leaderboard_start_at = startAt;
-        featuresData.leaderboard_end_at = endAt;
-      }
-      // Also unlock option2 for backward compatibility
-      featuresData.option2_normal_unlocked = true;
-    } else if (productType === 'gamefi') {
-      featuresData.gamefi_enabled = true;
-      if (startAt && endAt) {
-        featuresData.gamefi_start_at = startAt;
-        featuresData.gamefi_end_at = endAt;
-      }
-      // Also unlock option3 for backward compatibility
-      featuresData.option3_gamified_unlocked = true;
-      // Gamefi also needs leaderboard base
-      featuresData.leaderboard_enabled = true;
-      featuresData.option2_normal_unlocked = true;
-      if (startAt && endAt) {
-        featuresData.leaderboard_start_at = startAt;
-        featuresData.leaderboard_end_at = endAt;
-      }
-    } else if (productType === 'crm') {
-      featuresData.crm_enabled = true;
-      if (startAt && endAt) {
-        featuresData.crm_start_at = startAt;
-        featuresData.crm_end_at = endAt;
-      }
-      // Set default visibility if not set
-      featuresData.crm_visibility = 'private';
-      // Also unlock option1 for backward compatibility
-      featuresData.option1_crm_unlocked = true;
-    }
-
-    const { error: featuresError } = await supabase
-      .from('arc_project_features')
-      .upsert(featuresData, {
-        onConflict: 'project_id',
-      });
-
-    if (featuresError) {
-      console.error('[Approve Request API] Error upserting arc_project_features:', featuresError);
-      return res.status(500).json({
-        ok: false,
-        error: 'Failed to update project features',
-      });
-    }
-
-    // Step 5: Entity creation
-    let createdArenaId: string | undefined;
-
-    if (productType === 'ms' || productType === 'gamefi') {
-      // End any existing active MS/legacy_ms arenas for this project first
-      const { error: endOthersError } = await supabase
-        .from('arenas')
-        .update({
-          status: 'ended',
-          ends_at: now,
-          updated_at: now,
-        })
-        .eq('project_id', projectId)
-        .eq('status', 'active')
-        .in('kind', ['ms', 'legacy_ms']);
-
-      if (endOthersError) {
-        console.error('[Approve Request API] Error ending existing arenas:', endOthersError);
-        // Continue - don't fail approval, but log the error
-      }
-
-      // Fetch project for arena name/slug
-      const { data: project, error: projectError } = await supabase
-        .from('projects')
-        .select('id, name, slug')
-        .eq('id', projectId)
-        .single();
-
-      if (projectError || !project) {
-        console.error('[Approve Request API] Error fetching project:', projectError);
-        return res.status(500).json({
+      if (errorMessage.includes('request_not_pending')) {
+        return res.status(400).json({
           ok: false,
-          error: 'Failed to fetch project',
+          error: 'request_not_pending',
         });
       }
 
-      // Generate unique arena slug
-      const projectSlug = project.slug || project.id.substring(0, 8);
-      let baseSlug = `${projectSlug}-leaderboard`;
-      let arenaSlug = baseSlug;
-      let suffix = 2;
-
-      // Check if slug exists and find next available
-      const { data: slugCheck } = await supabase
-        .from('arenas')
-        .select('slug')
-        .eq('slug', arenaSlug)
-        .maybeSingle();
-
-      if (slugCheck) {
-        while (true) {
-          arenaSlug = `${baseSlug}-${suffix}`;
-          const { data: nextCheck } = await supabase
-            .from('arenas')
-            .select('slug')
-            .eq('slug', arenaSlug)
-            .maybeSingle();
-          if (!nextCheck) break;
-          suffix++;
-        }
-      }
-
-      const arenaName = `${project.name} Mindshare`;
-
-      const arenaData: any = {
-        project_id: projectId,
-        kind: 'ms',
-        status: 'active',
-        name: arenaName,
-        slug: arenaSlug,
-        starts_at: startAt || null,
-        ends_at: endAt || null,
-        created_by: adminProfileId,
-      };
-
-      const { data: createdArena, error: arenaError } = await supabase
-        .from('arenas')
-        .insert(arenaData)
-        .select('id')
-        .single();
-
-      if (arenaError) {
-        console.error('[Approve Request API] Error creating arena:', arenaError);
-        return res.status(500).json({
-          ok: false,
-          error: 'Failed to create arena',
-        });
-      }
-
-      if (createdArena) {
-        createdArenaId = createdArena.id;
-      }
-    } else if (productType === 'crm') {
-      // v1: Just enable feature flags (campaign creation can be done separately)
-      // Check if arc_campaigns table exists by trying to query it
-      const { error: campaignsTableError } = await supabase
-        .from('arc_campaigns')
-        .select('id')
-        .limit(0);
-
-      if (!campaignsTableError) {
-        // Table exists - could create a campaign here if needed
-        // For v1, just enable features and return
-      }
+      // Other errors (invalid_product_type, project_not_found, etc.)
+      return res.status(500).json({
+        ok: false,
+        error: errorMessage,
+      });
     }
 
-    // Step 6: Billing record (optional if table exists)
-    let billingSkipped = false;
-    try {
-      // Try to insert billing record
-      // Map product_type to access_level for billing
-      let accessLevel: string;
-      if (productType === 'ms') {
-        accessLevel = 'leaderboard';
-      } else if (productType === 'gamefi') {
-        accessLevel = 'gamified';
-      } else {
-        accessLevel = 'creator_manager';
-      }
-
-      // Get pricing
-      const { data: pricing, error: pricingError } = await supabase
-        .from('arc_pricing')
-        .select('base_price_usd, currency')
-        .eq('access_level', accessLevel)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (pricingError) {
-        // Table might not exist - skip billing
-        if (pricingError.code === '42P01' || pricingError.message?.includes('does not exist')) {
-          billingSkipped = true;
-        } else {
-          console.error('[Approve Request API] Error fetching pricing:', pricingError);
-        }
-      } else if (pricing) {
-        const basePrice = Number(pricing.base_price_usd || 0);
-        const finalPrice = basePrice; // No discount for now
-
-        const billingData: any = {
-          request_id: requestId,
-          project_id: projectId,
-          access_level: accessLevel,
-          base_price_usd: basePrice,
-          discount_percent: 0,
-          final_price_usd: finalPrice,
-          currency: pricing.currency || 'USD',
-          payment_status: 'pending',
-          created_by: adminProfileId,
-        };
-
-        const { error: billingError } = await supabase
-          .from('arc_billing_records')
-          .insert(billingData);
-
-        if (billingError) {
-          // Table might not exist - skip billing
-          if (billingError.code === '42P01' || billingError.message?.includes('does not exist')) {
-            billingSkipped = true;
-          } else {
-            console.error('[Approve Request API] Error creating billing record:', billingError);
-            // Continue - don't fail approval if billing fails
-          }
-        }
-      }
-    } catch (billingErr: any) {
-      // Table doesn't exist - skip billing
-      if (billingErr.code === '42P01' || billingErr.message?.includes('does not exist')) {
-        billingSkipped = true;
-      } else {
-        console.error('[Approve Request API] Unexpected error in billing:', billingErr);
-      }
+    if (!result || !result.ok) {
+      return res.status(500).json({
+        ok: false,
+        error: result?.error || 'Approval failed',
+      });
     }
 
+    // Transform RPC result to match API response format
     const response: ApproveRequestResponse = {
       ok: true,
-      requestId,
-      projectId,
-      productType,
+      requestId: result.requestId,
+      projectId: result.projectId,
+      productType: result.productType,
       created: {
-        ...(createdArenaId && { arenaId: createdArenaId }),
+        ...(result.created?.arenaId && { arenaId: result.created.arenaId }),
       },
-      ...(billingSkipped && {
+      ...(result.billingInserted === false && {
         billing: {
           skipped_no_table: true,
         },

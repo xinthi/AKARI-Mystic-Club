@@ -51,6 +51,40 @@ function isValidUUID(uuid: string): boolean {
   return uuidRegex.test(uuid);
 }
 
+/**
+ * Get profile ID from user ID
+ */
+async function getProfileIdFromUserId(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<string | null> {
+  try {
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .single();
+
+    if (identityError || !xIdentity?.username) {
+      return null;
+    }
+
+    const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+    
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', cleanUsername)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return null;
+    }
+
+    return profile.id;
+  } catch (err) {
+    return null;
+  }
+}
+
 // =============================================================================
 // HANDLER
 // =============================================================================
@@ -88,80 +122,71 @@ export default async function handler(
 
   try {
     const supabase = getSupabaseAdmin();
-    const now = new Date().toISOString();
 
-    // Step 1: Fetch the arena to get project_id and validate kind
-    const { data: arena, error: arenaError } = await supabase
-      .from('arenas')
-      .select('id, project_id, kind, status')
-      .eq('id', arenaId)
-      .single();
-
-    if (arenaError || !arena) {
-      console.error('[API /portal/admin/arc/arenas/[arenaId]/activate] Error fetching arena:', arenaError);
-      return res.status(404).json({
+    // Get admin profile ID
+    const adminProfileId = await getProfileIdFromUserId(supabase, auth.profileId);
+    if (!adminProfileId) {
+      return res.status(401).json({
         ok: false,
-        error: 'Arena not found',
+        error: 'Admin profile not found',
       });
     }
 
-    // Always use arena.project_id
-    const targetProjectId = arena.project_id;
+    // Call RPC function to handle activation in a single transaction
+    const { data: result, error: rpcError } = await supabase.rpc(
+      'arc_admin_activate_ms_arena',
+      {
+        p_arena_id: arenaId,
+        p_admin_profile_id: adminProfileId,
+      }
+    );
 
-    if (!targetProjectId || !isValidUUID(targetProjectId)) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Invalid project_id',
-      });
-    }
+    if (rpcError) {
+      console.error('[Activate Arena API] RPC error:', rpcError);
 
-    // Check arena kind - must be 'ms' or 'legacy_ms'
-    if (arena.kind !== 'ms' && arena.kind !== 'legacy_ms') {
-      return res.status(400).json({
-        ok: false,
-        error: 'invalid_arena_kind',
-      });
-    }
+      // Map RPC errors to HTTP status codes
+      const errorMessage = rpcError.message || rpcError.details || 'Unknown error';
+      
+      if (errorMessage.includes('arena_not_found')) {
+        return res.status(404).json({
+          ok: false,
+          error: 'Arena not found',
+        });
+      }
+      
+      if (errorMessage.includes('invalid_arena_kind')) {
+        return res.status(400).json({
+          ok: false,
+          error: 'invalid_arena_kind',
+        });
+      }
 
-    // Step 3: End any currently active MS/legacy_ms arenas for that project
-    const { error: endOthersError } = await supabase
-      .from('arenas')
-      .update({
-        status: 'ended',
-        ends_at: now,        // simple and safe
-        updated_at: now,
-      })
-      .eq('project_id', targetProjectId)
-      .eq('status', 'active')
-      .in('kind', ['ms', 'legacy_ms'])
-      .neq('id', arenaId);
+      if (errorMessage.includes('invalid_project_id')) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid project_id',
+        });
+      }
 
-    if (endOthersError) {
-      console.error('[activate] Error ending other arenas:', endOthersError);
-      return res.status(500).json({ ok: false, error: 'Failed to end existing arenas' });
-    }
-
-    // Step 4: Activate the target arena
-    const { error: activateError } = await supabase
-      .from('arenas')
-      .update({
-        status: 'active',
-        updated_at: now,
-      })
-      .eq('id', arenaId);
-
-    if (activateError) {
-      console.error('[API /portal/admin/arc/arenas/[arenaId]/activate] Error activating arena:', activateError);
+      // Other errors
       return res.status(500).json({
         ok: false,
-        error: 'Failed to activate arena',
+        error: errorMessage,
       });
     }
 
+    if (!result || !result.ok) {
+      return res.status(500).json({
+        ok: false,
+        error: result?.error || 'Activation failed',
+      });
+    }
+
+    // Return RPC result directly (already matches API response format)
     return res.status(200).json({
       ok: true,
-      projectId: targetProjectId,
-      activatedArenaId: arenaId,
+      projectId: result.projectId,
+      activatedArenaId: result.activatedArenaId,
     });
   } catch (error: any) {
     console.error('[API /portal/admin/arc/arenas/[arenaId]/activate] Error:', error);
