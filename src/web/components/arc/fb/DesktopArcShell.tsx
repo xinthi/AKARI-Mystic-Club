@@ -23,6 +23,7 @@ interface DesktopArcShellProps {
   
   // Center feed
   treemapRender: React.ReactNode;
+  productCardsRender?: React.ReactNode;
   liveItems: LiveItem[];
   upcomingItems: LiveItem[];
   activities: ActivityRowType[];
@@ -41,6 +42,7 @@ export function DesktopArcShell({
   unreadCount,
   canManageArc,
   treemapRender,
+  productCardsRender,
   liveItems,
   upcomingItems,
   activities,
@@ -73,6 +75,7 @@ export function DesktopArcShell({
         {/* Center Feed */}
         <CenterFeed
           treemapRender={treemapRender}
+          productCardsRender={productCardsRender}
           liveItems={liveItems}
           upcomingItems={upcomingItems}
           activities={activities}

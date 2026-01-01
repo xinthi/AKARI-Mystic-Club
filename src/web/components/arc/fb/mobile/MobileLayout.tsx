@@ -30,6 +30,9 @@ interface MobileLayoutProps {
   // Treemap
   treemapRender: React.ReactNode | null;
   
+  // Product cards
+  productCardsRender?: React.ReactNode;
+  
   // Admin
   canManageArc?: boolean;
   onActionSuccess?: () => void;
@@ -54,6 +57,7 @@ export function MobileLayout({
   loading,
   error,
   treemapRender,
+  productCardsRender,
   canManageArc,
   onActionSuccess,
 }: MobileLayoutProps) {
@@ -164,6 +168,13 @@ export function MobileLayout({
                     </div>
                   )}
                 </div>
+              </section>
+            )}
+
+            {/* Product Cards */}
+            {productCardsRender && (
+              <section>
+                {productCardsRender}
               </section>
             )}
 

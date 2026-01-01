@@ -14,6 +14,9 @@ interface CenterFeedProps {
   // Treemap props (unchanged from existing implementation)
   treemapRender: React.ReactNode;
   
+  // Product cards (new)
+  productCardsRender?: React.ReactNode;
+  
   // Feed props
   liveItems: LiveItem[];
   upcomingItems: LiveItem[];
@@ -31,6 +34,7 @@ interface CenterFeedProps {
 
 export function CenterFeed({
   treemapRender,
+  productCardsRender,
   liveItems,
   upcomingItems,
   activities,
@@ -60,6 +64,13 @@ export function CenterFeed({
       <section className="w-full">
         {treemapRender}
       </section>
+
+      {/* Product Cards Section */}
+      {productCardsRender && (
+        <section className="w-full">
+          {productCardsRender}
+        </section>
+      )}
 
       {/* Market Pulse Summary Card */}
       <section>

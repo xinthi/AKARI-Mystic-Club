@@ -12,6 +12,19 @@ import { createPortalClient } from '@/lib/portal/supabase';
 // TYPES
 // =============================================================================
 
+interface ArcProjectFeatures {
+  leaderboard_enabled: boolean;
+  leaderboard_start_at: string | null;
+  leaderboard_end_at: string | null;
+  gamefi_enabled: boolean;
+  gamefi_start_at: string | null;
+  gamefi_end_at: string | null;
+  crm_enabled: boolean;
+  crm_start_at: string | null;
+  crm_end_at: string | null;
+  crm_visibility: 'private' | 'public' | 'hybrid' | null;
+}
+
 interface ArcProject {
   project_id: string;
   slug: string | null;
@@ -30,6 +43,7 @@ interface ArcProject {
     totalPoints?: number;
     trend?: 'rising' | 'stable' | 'cooling';
   };
+  features?: ArcProjectFeatures | null;
 }
 
 type ArcProjectsResponse =
@@ -101,7 +115,7 @@ export default async function handler(
       });
     }
     
-    // Get project details with optional project_arc_settings metadata
+    // Get project details with optional project_arc_settings metadata and arc_project_features
     const { data: projectsData, error: projectsError } = await supabase
       .from('projects')
       .select(`
@@ -115,6 +129,18 @@ export default async function handler(
           status,
           security_status,
           meta
+        ),
+        arc_project_features (
+          leaderboard_enabled,
+          leaderboard_start_at,
+          leaderboard_end_at,
+          gamefi_enabled,
+          gamefi_start_at,
+          gamefi_end_at,
+          crm_enabled,
+          crm_start_at,
+          crm_end_at,
+          crm_visibility
         )
       `)
       .in('id', allProjectIds);
@@ -193,6 +219,21 @@ export default async function handler(
       const stats = statsMap.get(row.project_id) || { creatorCount: 0, totalPoints: 0 };
       const trend: 'rising' | 'stable' | 'cooling' = stats.creatorCount > 10 ? 'rising' : stats.creatorCount > 5 ? 'stable' : 'cooling';
       
+      // Extract features from arc_project_features (it's an array, take first or null)
+      const featuresData = row.arc_project_features?.[0] || null;
+      const features: ArcProjectFeatures | null = featuresData ? {
+        leaderboard_enabled: featuresData.leaderboard_enabled || false,
+        leaderboard_start_at: featuresData.leaderboard_start_at || null,
+        leaderboard_end_at: featuresData.leaderboard_end_at || null,
+        gamefi_enabled: featuresData.gamefi_enabled || false,
+        gamefi_start_at: featuresData.gamefi_start_at || null,
+        gamefi_end_at: featuresData.gamefi_end_at || null,
+        crm_enabled: featuresData.crm_enabled || false,
+        crm_start_at: featuresData.crm_start_at || null,
+        crm_end_at: featuresData.crm_end_at || null,
+        crm_visibility: (featuresData.crm_visibility as 'private' | 'public' | 'hybrid') || null,
+      } : null;
+      
       return {
         project_id: row.project_id,
         slug: row.projects?.slug ?? null,
@@ -207,6 +248,7 @@ export default async function handler(
           totalPoints: stats.totalPoints,
           trend,
         },
+        features,
       };
     });
 

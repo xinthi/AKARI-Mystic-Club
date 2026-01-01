@@ -210,6 +210,23 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
 
+  // State for ARC projects with features (for product cards)
+  interface ArcProjectWithFeatures {
+    project_id: string;
+    slug: string | null;
+    name: string | null;
+    twitter_username: string | null;
+    features: {
+      leaderboard_enabled: boolean;
+      gamefi_enabled: boolean;
+      crm_enabled: boolean;
+      crm_visibility: 'private' | 'public' | 'hybrid' | null;
+    } | null;
+  }
+  const [arcProjects, setArcProjects] = useState<ArcProjectWithFeatures[]>([]);
+  const [arcProjectsLoading, setArcProjectsLoading] = useState(false);
+  const [arcProjectsError, setArcProjectsError] = useState<string | null>(null);
+
   // Filter states
   const [kindFilter, setKindFilter] = useState<'all' | 'arena' | 'campaign' | 'gamified'>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | 'live' | 'upcoming'>('all');
@@ -288,6 +305,47 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
     loadTopProjects();
   }, [canViewArc, loadTopProjects, refreshNonce]);
 
+  // Fetch ARC projects with features for product cards
+  useEffect(() => {
+    async function loadArcProjects() {
+      if (!canViewArc) {
+        return;
+      }
+
+      setArcProjectsLoading(true);
+      setArcProjectsError(null);
+
+      try {
+        const res = await fetch('/api/portal/arc/projects', {
+          credentials: 'include',
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Failed to load ARC projects');
+        }
+
+        const projects: ArcProjectWithFeatures[] = (data.projects || []).map((p: any) => ({
+          project_id: p.project_id,
+          slug: p.slug,
+          name: p.name,
+          twitter_username: p.twitter_username,
+          features: p.features || null,
+        }));
+
+        setArcProjects(projects);
+      } catch (err: any) {
+        console.error('[ARC Home] Error loading ARC projects:', err);
+        setArcProjectsError(err.message || 'Failed to load ARC projects');
+        setArcProjects([]);
+      } finally {
+        setArcProjectsLoading(false);
+      }
+    }
+
+    loadArcProjects();
+  }, [canViewArc]);
+
 
   // Handle refresh button
   const handleRefresh = () => {
@@ -309,6 +367,117 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
     }
   };
 
+
+  // Generate product cards from projects with enabled features
+  const productCards = useMemo(() => {
+    const cards: Array<{
+      projectId: string;
+      projectSlug: string | null;
+      projectName: string | null;
+      productType: 'ms' | 'gamefi' | 'crm';
+    }> = [];
+
+    arcProjects.forEach((project) => {
+      if (!project.slug) return; // Skip projects without slug
+
+      const features = project.features;
+      if (!features) return;
+
+      // MS card: leaderboard_enabled === true
+      if (features.leaderboard_enabled) {
+        cards.push({
+          projectId: project.project_id,
+          projectSlug: project.slug,
+          projectName: project.name,
+          productType: 'ms',
+        });
+      }
+
+      // GameFi card: gamefi_enabled === true
+      if (features.gamefi_enabled) {
+        cards.push({
+          projectId: project.project_id,
+          projectSlug: project.slug,
+          projectName: project.name,
+          productType: 'gamefi',
+        });
+      }
+
+      // CRM card: crm_enabled === true AND crm_visibility === 'public'
+      if (features.crm_enabled && features.crm_visibility === 'public') {
+        cards.push({
+          projectId: project.project_id,
+          projectSlug: project.slug,
+          projectName: project.name,
+          productType: 'crm',
+        });
+      }
+    });
+
+    return cards;
+  }, [arcProjects]);
+
+  // Render product cards section
+  const productCardsRender = canViewArc ? (
+    <section className="mb-6">
+      <h2 className="text-lg font-semibold text-white mb-4">ARC Products</h2>
+      
+      {arcProjectsLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
+          <span className="ml-3 text-white/60 text-sm">Loading products...</span>
+        </div>
+      ) : arcProjectsError ? (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+          <p className="text-sm text-red-400">{arcProjectsError}</p>
+        </div>
+      ) : productCards.length === 0 ? (
+        <div className="rounded-lg border border-white/10 bg-black/40 p-12 text-center">
+          <p className="text-sm text-white/60 mb-1">No active ARC projects yet</p>
+          <p className="text-xs text-white/40">Projects with enabled features will appear here</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {productCards.map((card, index) => {
+            const productLabels = {
+              ms: 'Mindshare',
+              gamefi: 'GameFi',
+              crm: 'CRM',
+            };
+            const productColors = {
+              ms: 'from-teal-400 to-cyan-400',
+              gamefi: 'from-purple-400 to-pink-400',
+              crm: 'from-orange-400 to-red-400',
+            };
+
+            return (
+              <Link
+                key={`${card.projectId}-${card.productType}-${index}`}
+                href={`/portal/arc/${encodeURIComponent(card.projectSlug || card.projectId)}`}
+                className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-4 hover:bg-white/5 hover:border-white/20 transition-all cursor-pointer"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-white truncate mb-1">
+                      {card.projectName || 'Unknown Project'}
+                    </h3>
+                    <p className="text-xs text-white/60 truncate">
+                      {productLabels[card.productType]}
+                    </p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${productColors[card.productType]} flex items-center justify-center flex-shrink-0 ml-3`}>
+                    <span className="text-white text-xs font-bold">
+                      {card.productType === 'ms' ? 'MS' : card.productType === 'gamefi' ? 'GF' : 'CRM'}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  ) : null;
 
   // Render treemap section (preserved exactly as before)
   const treemapRender = canViewArc ? (
@@ -474,6 +643,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           unreadCount={unreadCount}
           canManageArc={canManageArc}
           treemapRender={treemapRender}
+          productCardsRender={productCardsRender}
           liveItems={liveItems}
           upcomingItems={upcomingItems}
           activities={activities}
@@ -499,6 +669,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           loading={loading}
           error={error}
           treemapRender={treemapRender}
+          productCardsRender={productCardsRender}
           canManageArc={canManageArc}
         />
       </div>
