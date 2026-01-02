@@ -185,6 +185,11 @@ export default function ArcRequestsPage() {
     try {
       const identifier = projectId || slug;
       
+      // Type guard: ensure identifier is a string
+      if (!identifier || typeof identifier !== 'string') {
+        throw new Error('Project ID or slug is missing from the URL. Please check the link and try again.');
+      }
+      
       if (process.env.NODE_ENV !== 'production') {
         console.log('[Request Form] Loading project:', { projectId, slug, identifier });
       }
