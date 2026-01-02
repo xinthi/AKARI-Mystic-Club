@@ -148,9 +148,14 @@ export default function ArenaDetailsPage() {
         setLoading(true);
         setError(null);
 
+        // Type guard: ensure projectSlug is a string (already checked in useEffect condition)
+        if (!projectSlug || !arenaSlug) return;
+        const validProjectSlug: string = projectSlug;
+        const validArenaSlug: string = arenaSlug;
+
         // Step 1: Resolve project by slug
         const projectRes = await fetch(
-          `/api/portal/arc/project-by-slug?slug=${encodeURIComponent(projectSlug)}`,
+          `/api/portal/arc/project-by-slug?slug=${encodeURIComponent(validProjectSlug)}`,
           { credentials: 'include' }
         );
 
@@ -168,7 +173,7 @@ export default function ArenaDetailsPage() {
 
         // Step 2: Fetch arena details by arenaSlug
         const arenaRes = await fetch(
-          `/api/portal/arc/arenas/${encodeURIComponent(arenaSlug)}`,
+          `/api/portal/arc/arenas/${encodeURIComponent(validArenaSlug)}`,
           { credentials: 'include' }
         );
 
@@ -283,7 +288,7 @@ export default function ArenaDetailsPage() {
           {projectSlug && (
             <>
               <Link
-                href={`/portal/arc/${encodeURIComponent(projectSlug)}`}
+                href={`/portal/arc/${encodeURIComponent(projectSlug || '')}`}
                 className="hover:text-white transition-colors"
               >
                 {project.name}
