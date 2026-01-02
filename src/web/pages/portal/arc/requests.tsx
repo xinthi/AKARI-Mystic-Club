@@ -173,13 +173,14 @@ export default function ArcRequestsPage() {
   const loadProject = async (projectId?: string, slug?: string) => {
     if (!projectId && !slug) {
       console.warn('[Request Form] No projectId or slug provided');
-      setError('Project ID or slug is required');
+      setError('Project ID or slug is required in the URL. Please check the link and try again.');
       setProjectLoading(false);
       return;
     }
 
     setProjectLoading(true);
     setError(null);
+    setSubmitError(null); // Clear any previous submit errors
 
     try {
       const identifier = projectId || slug;
@@ -197,20 +198,33 @@ export default function ArcRequestsPage() {
       if (process.env.NODE_ENV !== 'production') {
         console.log('[Request Form] Project API response:', { 
           ok: res.ok, 
+          status: res.status,
           dataOk: data.ok, 
           hasProject: !!data.project,
-          projectId: data.project?.id 
+          projectId: data.project?.id,
+          error: data.error
         });
       }
 
       if (!res.ok || !data.ok) {
-        const errorMsg = data.error || 'Failed to load project';
+        // Provide user-friendly error messages
+        let errorMsg = data.error || 'Failed to load project';
+        
+        // Map API errors to user-friendly messages
+        if (errorMsg === 'Project ID or slug is required') {
+          errorMsg = 'Project ID or slug is missing from the URL. Please check the link and try again.';
+        } else if (errorMsg === 'Project not found') {
+          errorMsg = 'Project not found. The project may have been removed or the link is incorrect.';
+        } else if (errorMsg.includes('projectId is required')) {
+          errorMsg = 'Project ID is missing. Please check the URL and try again.';
+        }
+        
         console.error('[Request Form] Project load error:', errorMsg);
         throw new Error(errorMsg);
       }
 
       if (!data.project || !data.project.id) {
-        const errorMsg = 'Project data is missing or invalid';
+        const errorMsg = 'Project data is missing or invalid. Please try again.';
         console.error('[Request Form] Invalid project data:', data);
         throw new Error(errorMsg);
       }
@@ -223,6 +237,10 @@ export default function ArcRequestsPage() {
         twitter_username: data.project.twitter_username,
       });
 
+      // Clear any previous errors on successful load
+      setError(null);
+      setSubmitError(null);
+
       if (process.env.NODE_ENV !== 'production') {
         console.log('[Request Form] Project loaded successfully:', {
           id: data.project.id,
@@ -231,7 +249,14 @@ export default function ArcRequestsPage() {
       }
     } catch (err: any) {
       console.error('[Request Form] Error loading project:', err);
-      setError(err.message || 'Failed to load project. Please check the URL and try again.');
+      
+      // Ensure error message is user-friendly
+      let errorMessage = err.message || 'Failed to load project. Please check the URL and try again.';
+      if (errorMessage.includes('projectId is required')) {
+        errorMessage = 'Project ID is missing from the URL. Please check the link and try again.';
+      }
+      
+      setError(errorMessage);
       setSelectedProject(null);
     } finally {
       setProjectLoading(false);
@@ -390,7 +415,28 @@ export default function ArcRequestsPage() {
           {/* Error Loading Project */}
           {error && !projectLoading && (
             <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-6">
+              <p className="text-red-400 font-medium mb-1">Error loading project:</p>
               <p className="text-red-400">{error}</p>
+              {(router.query.projectId || router.query.slug) && (
+                <div className="mt-3 space-y-1">
+                  {router.query.projectId && (
+                    <p className="text-red-300 text-xs">
+                      Project ID from URL: <code className="bg-red-900/30 px-1 rounded">{router.query.projectId}</code>
+                    </p>
+                  )}
+                  {router.query.slug && (
+                    <p className="text-red-300 text-xs">
+                      Slug from URL: <code className="bg-red-900/30 px-1 rounded">{router.query.slug}</code>
+                    </p>
+                  )}
+                </div>
+              )}
+              <Link
+                href="/portal/arc/requests"
+                className="inline-block mt-3 text-red-400 hover:text-red-300 text-sm underline"
+              >
+                ← Back to My Requests
+              </Link>
             </div>
           )}
 
