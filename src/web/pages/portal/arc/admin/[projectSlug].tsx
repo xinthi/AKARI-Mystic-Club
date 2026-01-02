@@ -1027,8 +1027,6 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     );
   }
 
-  const canManage = userIsSuperAdmin || permissions?.canManage || false;
-
   return (
     <ArcPageShell 
       canManageArc={true}
