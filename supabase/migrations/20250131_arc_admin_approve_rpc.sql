@@ -245,45 +245,85 @@ BEGIN
         AND kind IN ('ms', 'legacy_ms')
         AND id <> v_existing_arena_id;
     ELSE
-      -- No existing ms/legacy arena found - only INSERT if none exists
-      -- End any existing active MS/legacy_ms arenas for this project (safety check)
-      UPDATE arenas
-      SET 
-        status = 'ended',
-        ends_at = NOW(),
-        updated_at = NOW()
+      -- No existing ms/legacy arena found - double-check before INSERT
+      -- This is a safety check to prevent constraint violations
+      -- Check again without FOR UPDATE to see if any arena exists (even if locked by another transaction)
+      SELECT id INTO v_existing_arena_id
+      FROM arenas
       WHERE project_id = v_request.project_id
-        AND status = 'active'
-        AND kind IN ('ms', 'legacy_ms');
-
-      -- Generate unique arena slug
-      v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';
-      v_arena_slug := v_base_slug || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8);
-
-      -- Create new arena (only if no ms/legacy arena exists)
-      INSERT INTO arenas (
-        project_id,
-        kind,
-        status,
-        name,
-        slug,
-        starts_at,
-        ends_at,
-        created_by
-      )
-      VALUES (
-        v_request.project_id,
-        'ms',
-        'active',
-        COALESCE(v_project.name, 'Project') || ' Mindshare',
-        v_arena_slug,
-        v_request.start_at,
-        v_request.end_at,
-        p_admin_profile_id
-      )
-      RETURNING id INTO v_arena_id;
+        AND kind IN ('ms', 'legacy_ms')
+      ORDER BY 
+        CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+        created_at DESC
+      LIMIT 1;
       
-      v_arena_mode := 'inserted_new';
+      -- If we found one now, update it instead
+      IF v_existing_arena_id IS NOT NULL THEN
+        -- Lock it and update
+        UPDATE arenas
+        SET
+          kind = 'ms',
+          status = 'active',
+          name = COALESCE(v_project.name, 'Project') || ' Mindshare',
+          starts_at = v_request.start_at,
+          ends_at = v_request.end_at,
+          updated_at = NOW()
+        WHERE id = v_existing_arena_id
+        RETURNING id INTO v_arena_id;
+        
+        v_arena_mode := 'updated_existing';
+        
+        -- End any other active MS/legacy_ms arenas for this project
+        UPDATE arenas
+        SET 
+          status = 'ended',
+          ends_at = NOW(),
+          updated_at = NOW()
+        WHERE project_id = v_request.project_id
+          AND status = 'active'
+          AND kind IN ('ms', 'legacy_ms')
+          AND id <> v_existing_arena_id;
+      ELSE
+        -- Truly no arena exists - safe to INSERT
+        -- End any existing active MS/legacy_ms arenas for this project (safety check)
+        UPDATE arenas
+        SET 
+          status = 'ended',
+          ends_at = NOW(),
+          updated_at = NOW()
+        WHERE project_id = v_request.project_id
+          AND status = 'active'
+          AND kind IN ('ms', 'legacy_ms');
+
+        -- Generate unique arena slug
+        v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';
+        v_arena_slug := v_base_slug || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8);
+
+        -- Create new arena (only if no ms/legacy arena exists)
+        INSERT INTO arenas (
+          project_id,
+          kind,
+          status,
+          name,
+          slug,
+          starts_at,
+          ends_at,
+          created_by
+        )
+        VALUES (
+          v_request.project_id,
+          'ms',
+          'active',
+          COALESCE(v_project.name, 'Project') || ' Mindshare',
+          v_arena_slug,
+          v_request.start_at,
+          v_request.end_at,
+          p_admin_profile_id
+        )
+        RETURNING id INTO v_arena_id;
+        
+        v_arena_mode := 'inserted_new';
+      END IF;
     END IF;
   END IF;
 
