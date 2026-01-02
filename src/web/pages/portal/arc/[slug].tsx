@@ -16,10 +16,12 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   // Redirect to canonical route
+  // Note: Using 302 (temporary) during development to avoid caching issues
+  // Switch to permanent: true (301) after production release
   return {
     redirect: {
       destination: `/portal/arc/${encodeURIComponent(slug)}`,
-      permanent: true, // 301 redirect
+      permanent: false, // 302 redirect (temporary during dev)
     },
   };
 };
