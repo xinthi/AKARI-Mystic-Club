@@ -342,7 +342,8 @@ function determineStatus(
  * Fetch active/scheduled arenas
  */
 async function fetchArenas(supabase: SupabaseClient) {
-  const now = new Date().toISOString();
+  const nowISO = new Date().toISOString();
+  const now = new Date();
   const { data: arenas, error } = await supabase
     .from('arenas')
     .select(`
@@ -366,7 +367,7 @@ async function fetchArenas(supabase: SupabaseClient) {
     .in('status', ['active', 'paused'])
     .in('kind', ['ms', 'legacy_ms'])
     .eq('projects.is_arc_company', true)
-    .lte('starts_at', now)
+    .lte('starts_at', nowISO)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -380,7 +381,6 @@ async function fetchArenas(supabase: SupabaseClient) {
   }
 
   // Filter for live timeframe: ends_at IS NULL OR ends_at > now
-  const now = new Date();
   const liveArenas = arenas.filter((arena: any) => {
     // Must have started (starts_at <= now) - already filtered in query
     // Must be live: ends_at IS NULL OR ends_at > now
