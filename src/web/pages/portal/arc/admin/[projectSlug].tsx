@@ -306,7 +306,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   }, [project?.id, userIsSuperAdmin]);
 
   // Fetch CRM Campaigns
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = React.useCallback(async () => {
     if (!project?.id) {
       setCampaignsLoading(false);
       return;
@@ -331,13 +331,13 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     } finally {
       setCampaignsLoading(false);
     }
-  };
+  }, [project?.id]);
 
   useEffect(() => {
     if (initialFeatures?.crm_enabled && (canManage || userIsSuperAdmin)) {
       fetchCampaigns();
     }
-  }, [project?.id, initialFeatures?.crm_enabled, canManage, userIsSuperAdmin]);
+  }, [project?.id, initialFeatures?.crm_enabled, canManage, userIsSuperAdmin, fetchCampaigns]);
 
   // Fetch participants for selected campaign
   const fetchParticipants = async (campaignId: string) => {
@@ -400,7 +400,6 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     } else {
       setParticipants([]);
       setLeaderboard([]);
-      setParticipantLinks({});
     }
   }, [selectedCampaign]);
 
@@ -699,7 +698,9 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   };
 
   // Compute if user can manage (create/edit arenas)
+  // Note: This is computed early so it can be used in useEffect dependencies
   const canManage = userIsSuperAdmin || permissions?.canManage || false;
+  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingArena, setEditingArena] = useState<Arena | null>(null);
@@ -1657,7 +1658,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-white/80">
-                                  {selectedCampaign === campaign.id ? participants.length : '-'}
+                                  {campaign.participants_count ?? 0}
                                 </td>
                                 <td className="px-4 py-3">
                                   <span className={`px-2 py-1 rounded text-xs ${

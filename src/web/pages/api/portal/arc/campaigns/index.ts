@@ -53,7 +53,7 @@ interface Campaign {
 }
 
 type CampaignsResponse =
-  | { ok: true; campaign?: Campaign; campaigns?: Campaign[] }
+  | { ok: true; campaign?: Campaign; campaigns?: (Campaign & { participants_count: number })[] }
   | { ok: false; error: string };
 
 const DEV_MODE = process.env.NODE_ENV === 'development' && process.env.DEV_MODE === 'true';
@@ -108,9 +108,32 @@ export default async function handler(
         return res.status(500).json({ ok: false, error: 'Failed to fetch campaigns' });
       }
 
+      // Fetch participants count for each campaign
+      const campaignsWithCounts = await Promise.all(
+        (campaigns || []).map(async (campaign) => {
+          const { count, error: countError } = await supabase
+            .from('arc_campaign_participants')
+            .select('id', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id);
+
+          if (countError) {
+            console.warn(`[ARC Campaigns API] Failed to count participants for campaign ${campaign.id}:`, countError);
+            return {
+              ...campaign,
+              participants_count: 0,
+            };
+          }
+
+          return {
+            ...campaign,
+            participants_count: count || 0,
+          };
+        })
+      );
+
       return res.status(200).json({
         ok: true,
-        campaigns: (campaigns || []) as Campaign[],
+        campaigns: campaignsWithCounts as (Campaign & { participants_count: number })[],
       });
     }
 
