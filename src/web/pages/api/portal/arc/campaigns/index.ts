@@ -2,12 +2,13 @@
  * API Route: POST /api/portal/arc/campaigns
  * GET /api/portal/arc/campaigns
  * 
- * Create or list ARC CRM campaigns.
+ * Create or list ARC campaigns.
+ * Available for projects with Option 2 (Normal Leaderboard) or Option 3 (Gamified).
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireArcAccess } from '@/lib/arc-access';
+import { requireArcAccess, requireCampaignsAccess } from '@/lib/arc-access';
 import { checkProjectPermissions } from '@/lib/project-permissions';
 import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
@@ -73,7 +74,7 @@ export default async function handler(
     if (req.method === 'GET') {
       const projectId = req.query.projectId as string | undefined;
 
-      // If filtering by project, check ARC access (Option 1 = CRM)
+      // If filtering by project, check campaigns access (Option 2 or Option 3)
       if (projectId) {
         // Runtime guard: ensure projectId is a non-empty string
         if (!projectId || typeof projectId !== 'string' || projectId.trim().length === 0) {
@@ -83,11 +84,18 @@ export default async function handler(
         // TypeScript narrowing: assign to const with explicit string type
         const pid: string = projectId;
 
-        const accessCheck = await requireArcAccess(supabase, pid, 1);
+        const accessCheck = await requireCampaignsAccess(supabase, pid);
         if (!accessCheck.ok) {
+          // Provide explicit error messages based on the failure reason
+          const errorMessage = accessCheck.code === 'not_approved'
+            ? 'ARC access not approved for this project'
+            : accessCheck.code === 'option_locked'
+            ? 'ARC campaigns not unlocked (need Option 2 or Option 3)'
+            : accessCheck.error || 'ARC access not approved for this project';
+          
           return res.status(403).json({
             ok: false,
-            error: accessCheck.error || 'ARC access not approved for this project',
+            error: errorMessage,
           });
         }
       }
@@ -179,7 +187,7 @@ export default async function handler(
         return res.status(400).json({ ok: false, error: 'end_at must be after start_at' });
       }
 
-      // Check ARC access (Option 1 = CRM) and project permissions
+      // Check campaigns access (Option 2 or Option 3) and project permissions
       if (!DEV_MODE && userId) {
         // Runtime guard: ensure project_id is a non-empty string
         if (!body.project_id || typeof body.project_id !== 'string' || body.project_id.trim().length === 0) {
@@ -197,11 +205,18 @@ export default async function handler(
         // TypeScript narrowing: assign to const with explicit string type
         const uid: string = userId;
 
-        const accessCheck = await requireArcAccess(supabase, pid, 1);
+        const accessCheck = await requireCampaignsAccess(supabase, pid);
         if (!accessCheck.ok) {
+          // Provide explicit error messages based on the failure reason
+          const errorMessage = accessCheck.code === 'not_approved'
+            ? 'ARC access not approved for this project'
+            : accessCheck.code === 'option_locked'
+            ? 'ARC campaigns not unlocked (need Option 2 or Option 3)'
+            : accessCheck.error || 'ARC access not approved for this project';
+          
           return res.status(403).json({
             ok: false,
-            error: accessCheck.error || 'ARC Option 1 (CRM) is not available for this project',
+            error: errorMessage,
           });
         }
 

@@ -243,3 +243,103 @@ export async function hasAnyArcAccess(
   return project?.arc_active === true && project?.arc_access_level !== 'none';
 }
 
+/**
+ * Check if a project has campaigns access (Option 2 or Option 3)
+ * Campaigns are available for projects with:
+ * 1. ARC access approved (arc_project_access.application_status = 'approved')
+ * 2. Option 2 (Normal Leaderboard) OR Option 3 (Gamified) unlocked
+ *    OR leaderboard_enabled OR gamefi_enabled
+ * 
+ * @param supabase - Supabase admin client
+ * @param projectId - Project UUID
+ * @returns Access check result
+ */
+export async function requireCampaignsAccess(
+  supabase: SupabaseClient,
+  projectId: string
+): Promise<ArcAccessCheck> {
+  // Check if project exists
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', projectId)
+    .single();
+
+  if (projectError || !project) {
+    return {
+      ok: false,
+      error: 'Project not found',
+      code: 'project_not_found',
+    };
+  }
+
+  // Check ARC approval status
+  const { data: access, error: accessError } = await supabase
+    .from('arc_project_access')
+    .select('application_status')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (accessError) {
+    console.error('[requireCampaignsAccess] Error checking access:', accessError);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[requireCampaignsAccess] DEV MODE - allowing access despite error');
+      return { ok: true, approved: true, optionUnlocked: true };
+    }
+    return {
+      ok: false,
+      error: 'Failed to check ARC access',
+      code: 'not_approved',
+    };
+  }
+
+  if (!access || access.application_status !== 'approved') {
+    return {
+      ok: false,
+      error: 'ARC access not approved for this project',
+      code: 'not_approved',
+    };
+  }
+
+  // Check if Option 2 or Option 3 is unlocked, or if leaderboard/gamefi is enabled
+  const { data: features, error: featuresError } = await supabase
+    .from('arc_project_features')
+    .select('option2_normal_unlocked, option3_gamified_unlocked, leaderboard_enabled, gamefi_enabled')
+    .eq('project_id', projectId)
+    .maybeSingle();
+
+  if (featuresError) {
+    console.error('[requireCampaignsAccess] Error checking features:', featuresError);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[requireCampaignsAccess] DEV MODE - allowing access despite features error');
+      return { ok: true, approved: true, optionUnlocked: true };
+    }
+    return {
+      ok: false,
+      error: 'Failed to check option unlock status',
+      code: 'option_locked',
+    };
+  }
+
+  // Check if campaigns are available (Option 2 OR Option 3 OR leaderboard_enabled OR gamefi_enabled)
+  const hasCampaignsAccess = features
+    ? (features.option2_normal_unlocked || features.option3_gamified_unlocked || 
+       features.leaderboard_enabled || features.gamefi_enabled)
+    : false;
+
+  if (!hasCampaignsAccess) {
+    return {
+      ok: false,
+      error: 'ARC campaigns not unlocked (need Option 2 or Option 3)',
+      code: 'option_locked',
+    };
+  }
+
+  return {
+    ok: true,
+    approved: true,
+    optionUnlocked: true,
+  };
+}
