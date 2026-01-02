@@ -113,6 +113,9 @@ export default function ArcRequestsPage() {
 
   // Check query params for request mode
   useEffect(() => {
+    // Wait for router to be ready
+    if (!router.isReady) return;
+
     const { projectId, slug, intent, productType } = router.query;
     
     if (projectId || slug) {
@@ -131,7 +134,7 @@ export default function ArcRequestsPage() {
       setRequestMode(false);
       setSelectedProject(null);
     }
-  }, [router.query]);
+  }, [router.isReady, router.query]);
 
   // Load requests (only if not in request mode)
   useEffect(() => {
@@ -168,38 +171,78 @@ export default function ArcRequestsPage() {
   };
 
   const loadProject = async (projectId?: string, slug?: string) => {
-    if (!projectId && !slug) return;
+    if (!projectId && !slug) {
+      console.warn('[Request Form] No projectId or slug provided');
+      setError('Project ID or slug is required');
+      setProjectLoading(false);
+      return;
+    }
 
     setProjectLoading(true);
     setError(null);
 
     try {
       const identifier = projectId || slug;
-      const res = await fetch(`/api/portal/arc/project/${identifier}`, { credentials: 'include' });
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to load project');
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] Loading project:', { projectId, slug, identifier });
       }
 
-      if (data.project) {
-        setSelectedProject({
+      const res = await fetch(`/api/portal/arc/project/${encodeURIComponent(identifier)}`, { 
+        credentials: 'include' 
+      });
+      
+      const data = await res.json();
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] Project API response:', { 
+          ok: res.ok, 
+          dataOk: data.ok, 
+          hasProject: !!data.project,
+          projectId: data.project?.id 
+        });
+      }
+
+      if (!res.ok || !data.ok) {
+        const errorMsg = data.error || 'Failed to load project';
+        console.error('[Request Form] Project load error:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (!data.project || !data.project.id) {
+        const errorMsg = 'Project data is missing or invalid';
+        console.error('[Request Form] Invalid project data:', data);
+        throw new Error(errorMsg);
+      }
+
+      setSelectedProject({
+        id: data.project.id,
+        name: data.project.name,
+        display_name: data.project.display_name,
+        slug: data.project.slug,
+        twitter_username: data.project.twitter_username,
+      });
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] Project loaded successfully:', {
           id: data.project.id,
           name: data.project.name,
-          display_name: data.project.display_name,
-          slug: data.project.slug,
-          twitter_username: data.project.twitter_username,
         });
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load project');
+      console.error('[Request Form] Error loading project:', err);
+      setError(err.message || 'Failed to load project. Please check the URL and try again.');
+      setSelectedProject(null);
     } finally {
       setProjectLoading(false);
     }
   };
 
   const handleSubmitRequest = async () => {
-    if (!selectedProject || submitting) return;
+    if (!selectedProject || !selectedProject.id || submitting) {
+      setSubmitError('Project information is missing. Please refresh the page and try again.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -220,23 +263,44 @@ export default function ArcRequestsPage() {
       const startAt = null; // TODO: Add date inputs to the form
       const endAt = null; // TODO: Add date inputs to the form
 
+      // Validate projectId before sending
+      if (!selectedProject.id || typeof selectedProject.id !== 'string') {
+        throw new Error('Invalid project ID. Please refresh the page and try again.');
+      }
+
+      const requestBody = {
+        projectId: selectedProject.id,
+        productType: productType,
+        startAt: startAt,
+        endAt: endAt,
+        notes: justification.trim() || null,
+      };
+
+      // Log request in dev mode
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] Submitting request:', requestBody);
+      }
+
       const res = await fetch('/api/portal/arc/leaderboard-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // Include cookies (session token) - required for authentication
-        body: JSON.stringify({
-          projectId: selectedProject.id,
-          productType: productType,
-          startAt: startAt,
-          endAt: endAt,
-          notes: justification.trim() || null,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to submit request');
+        // Provide more helpful error messages
+        let errorMessage = data.error || 'Failed to submit request';
+        if (errorMessage === 'projectId is required' || errorMessage === 'invalid_project_id') {
+          errorMessage = 'Project ID is missing or invalid. Please refresh the page and try again.';
+        } else if (errorMessage === 'invalid_product_type') {
+          errorMessage = 'Invalid product type. Please select a valid option.';
+        } else if (errorMessage === 'missing_dates') {
+          errorMessage = 'Start and end dates are required for this request type.';
+        }
+        throw new Error(errorMessage);
       }
 
       setSubmitSuccess(true);
@@ -246,6 +310,7 @@ export default function ArcRequestsPage() {
         router.push('/portal/arc/requests');
       }, 2000);
     } catch (err: any) {
+      console.error('[Request Form] Submit error:', err);
       setSubmitError(err.message || 'Failed to submit request');
     } finally {
       setSubmitting(false);
@@ -330,7 +395,7 @@ export default function ArcRequestsPage() {
           )}
 
           {/* Request Form */}
-          {!projectLoading && selectedProject && (
+          {!projectLoading && selectedProject && selectedProject.id ? (
             <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6">
               {submitSuccess ? (
                   <div className="text-center py-8">
@@ -340,6 +405,13 @@ export default function ArcRequestsPage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
+                    {/* Debug info (dev only) */}
+                    {process.env.NODE_ENV !== 'production' && (
+                      <div className="bg-blue-500/10 border border-blue-500/50 rounded-lg p-3 text-xs text-blue-400">
+                        <strong>Debug:</strong> Project ID: {selectedProject.id}
+                      </div>
+                    )}
+
                     {/* Access Level Selector */}
                     <div>
                       <label className="block text-sm font-medium text-white mb-2">
@@ -376,7 +448,13 @@ export default function ArcRequestsPage() {
                     {/* Submit Error */}
                     {submitError && (
                       <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4">
+                        <p className="text-red-400 text-sm font-medium mb-1">Error submitting request:</p>
                         <p className="text-red-400 text-sm">{submitError}</p>
+                        {process.env.NODE_ENV !== 'production' && selectedProject?.id && (
+                          <p className="text-red-300 text-xs mt-2">
+                            Project ID being sent: {selectedProject.id}
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -384,7 +462,7 @@ export default function ArcRequestsPage() {
                     <div>
                       <button
                         onClick={handleSubmitRequest}
-                        disabled={submitting}
+                        disabled={submitting || !selectedProject?.id}
                         className="w-full px-4 py-2 bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submitting ? 'Submitting...' : 'Submit Request'}
@@ -393,7 +471,25 @@ export default function ArcRequestsPage() {
                   </div>
                 )}
               </div>
-            )}
+            ) : !projectLoading && !selectedProject ? (
+            <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-6">
+              <p className="text-yellow-400 font-medium mb-2">Project not loaded</p>
+              <p className="text-yellow-300 text-sm mb-4">
+                Unable to load project information. Please check the URL or try again.
+              </p>
+              {router.query.projectId && (
+                <p className="text-yellow-200 text-xs">
+                  Project ID from URL: {router.query.projectId}
+                </p>
+              )}
+              <Link
+                href="/portal/arc/requests"
+                className="inline-block mt-4 text-yellow-400 hover:text-yellow-300 text-sm underline"
+              >
+                ← Back to My Requests
+              </Link>
+            </div>
+          ) : null}
         </div>
       </ArcPageShell>
     );
