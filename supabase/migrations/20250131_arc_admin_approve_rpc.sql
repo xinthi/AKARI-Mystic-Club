@@ -25,6 +25,7 @@ DECLARE
   v_request RECORD;
   v_project RECORD;
   v_arena_id UUID;
+  v_existing_arena_id UUID;
   v_arena_slug TEXT;
   v_base_slug TEXT;
   v_suffix INTEGER := 2;
@@ -34,6 +35,7 @@ DECLARE
   v_final_price NUMERIC(10, 2) := 0;
   v_currency TEXT := 'USD';
   v_billing_inserted BOOLEAN := false;
+  v_arena_mode TEXT; -- 'updated_existing' or 'inserted_new'
   v_result JSONB;
 BEGIN
   -- Step 1: Load request row FOR UPDATE (lock row for transaction)
@@ -192,43 +194,82 @@ BEGIN
 
   -- Step 6: Entity creation (for ms and gamefi)
   v_arena_id := NULL;
+  v_arena_mode := NULL;
   IF v_request.product_type IN ('ms', 'gamefi') THEN
-    -- End any existing active MS/legacy_ms arenas for this project
-    UPDATE arenas
-    SET 
-      status = 'ended',
-      ends_at = NOW(),
-      updated_at = NOW()
+    -- Check if an existing arena exists for this project (respects unique constraint)
+    SELECT id INTO v_existing_arena_id
+    FROM arenas
     WHERE project_id = v_request.project_id
-      AND status = 'active'
-      AND kind IN ('ms', 'legacy_ms');
+      AND kind IN ('ms', 'legacy_ms')
+    ORDER BY created_at DESC
+    LIMIT 1;
 
-    -- Generate unique arena slug
-    v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';
-    v_arena_slug := v_base_slug || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8);
+    IF v_existing_arena_id IS NOT NULL THEN
+      -- Update existing arena instead of inserting (avoids unique constraint violation)
+      UPDATE arenas
+      SET
+        kind = 'ms',
+        status = 'active',
+        name = COALESCE(v_project.name, 'Project') || ' Mindshare',
+        starts_at = v_request.start_at,
+        ends_at = v_request.end_at,
+        updated_at = NOW()
+      WHERE id = v_existing_arena_id
+      RETURNING id INTO v_arena_id;
+      
+      v_arena_mode := 'updated_existing';
+      
+      -- End any other active MS/legacy_ms arenas for this project (shouldn't be any, but safety check)
+      UPDATE arenas
+      SET 
+        status = 'ended',
+        ends_at = NOW(),
+        updated_at = NOW()
+      WHERE project_id = v_request.project_id
+        AND status = 'active'
+        AND kind IN ('ms', 'legacy_ms')
+        AND id <> v_existing_arena_id;
+    ELSE
+      -- No existing arena found - create new one
+      -- End any existing active MS/legacy_ms arenas for this project (shouldn't be any, but safety check)
+      UPDATE arenas
+      SET 
+        status = 'ended',
+        ends_at = NOW(),
+        updated_at = NOW()
+      WHERE project_id = v_request.project_id
+        AND status = 'active'
+        AND kind IN ('ms', 'legacy_ms');
 
-    -- Create new arena
-    INSERT INTO arenas (
-      project_id,
-      kind,
-      status,
-      name,
-      slug,
-      starts_at,
-      ends_at,
-      created_by
-    )
-    VALUES (
-      v_request.project_id,
-      'ms',
-      'active',
-      COALESCE(v_project.name, 'Project') || ' Mindshare',
-      v_arena_slug,
-      v_request.start_at,
-      v_request.end_at,
-      p_admin_profile_id
-    )
-    RETURNING id INTO v_arena_id;
+      -- Generate unique arena slug
+      v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';
+      v_arena_slug := v_base_slug || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8);
+
+      -- Create new arena
+      INSERT INTO arenas (
+        project_id,
+        kind,
+        status,
+        name,
+        slug,
+        starts_at,
+        ends_at,
+        created_by
+      )
+      VALUES (
+        v_request.project_id,
+        'ms',
+        'active',
+        COALESCE(v_project.name, 'Project') || ' Mindshare',
+        v_arena_slug,
+        v_request.start_at,
+        v_request.end_at,
+        p_admin_profile_id
+      )
+      RETURNING id INTO v_arena_id;
+      
+      v_arena_mode := 'inserted_new';
+    END IF;
   END IF;
 
   -- Step 7: Insert billing record (if table exists)
@@ -300,7 +341,8 @@ BEGIN
     'projectId', v_request.project_id,
     'productType', v_request.product_type,
     'created', jsonb_build_object(
-      'arenaId', v_arena_id
+      'arenaId', v_arena_id,
+      'arenaMode', v_arena_mode
     ),
     'updatedFeatures', true,
     'billingInserted', v_billing_inserted

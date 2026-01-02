@@ -26,6 +26,7 @@ type ApproveRequestResponse =
       productType: string;
       created: {
         arenaId?: string;
+        arenaMode?: 'updated_existing' | 'inserted_new';
       };
       billing?: {
         skipped_no_table?: boolean;
@@ -242,6 +243,7 @@ export default async function handler(
         end_at: requestData?.end_at || null,
         created: {
           ...(result.created?.arenaId && { arenaId: result.created.arenaId }),
+          ...(result.created?.arenaMode && { arenaMode: result.created.arenaMode }),
         },
       },
     });

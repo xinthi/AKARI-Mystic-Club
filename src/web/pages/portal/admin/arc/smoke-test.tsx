@@ -404,8 +404,10 @@ export default function ArcSmokeTestPage() {
         if (verifyRes.ok) {
           const verifyData = await verifyRes.json();
           if (verifyData.ok && verifyData.verification) {
-            verification = verifyData.verification;
-            verification.rpcResult = verifyData.rpcResult;
+            verification = {
+              ...verifyData.verification,
+              rpcResult: verifyData.rpcResult,
+            };
           }
         }
 
