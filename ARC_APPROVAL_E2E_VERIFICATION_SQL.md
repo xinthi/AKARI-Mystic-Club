@@ -4,9 +4,87 @@ Run these SQL queries in Supabase SQL Editor to verify the approval fix is worki
 
 ---
 
+## Production Verification Queries
+
+### Step 1: Verify Constraint Exists
+
+```sql
+-- Check if constraint arc_project_features_project_id_key exists
+SELECT 
+  conname AS constraint_name,
+  contype AS constraint_type,
+  pg_get_constraintdef(oid) AS constraint_definition
+FROM pg_constraint
+WHERE conrelid = 'arc_project_features'::regclass
+  AND conname = 'arc_project_features_project_id_key';
+```
+
+**Expected Result:**
+- One row with `constraint_name = 'arc_project_features_project_id_key'`
+- `constraint_type = 'u'` (unique)
+- `constraint_definition` contains `UNIQUE (project_id)`
+
+**If Missing:** Apply migration `20250201_safe_ensure_arc_project_features_constraint.sql`
+
+---
+
+### Step 2: Verify RPC Function Uses Correct Constraint
+
+```sql
+-- Check RPC function uses ON CONFLICT ON CONSTRAINT for all product types
+SELECT 
+  proname AS function_name,
+  CASE 
+    WHEN pg_get_functiondef(oid) LIKE '%ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key%' 
+      AND (SELECT COUNT(*) FROM regexp_matches(pg_get_functiondef(oid), 'ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key', 'g')) = 3
+    THEN '✓ CORRECT (all 3 product types: ms, gamefi, crm)'
+    WHEN pg_get_functiondef(oid) LIKE '%ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key%'
+    THEN '⚠ PARTIAL (some product types may not use named constraint)'
+    WHEN pg_get_functiondef(oid) LIKE '%ON CONFLICT (project_id)%'
+    THEN '✗ WRONG (uses column list - will fail)'
+    ELSE '? UNKNOWN'
+  END AS constraint_usage_status,
+  (SELECT COUNT(*) FROM regexp_matches(pg_get_functiondef(oid), 'ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key', 'g')) AS constraint_references_count
+FROM pg_proc
+WHERE proname = 'arc_admin_approve_leaderboard_request';
+```
+
+**Expected Result:**
+- `constraint_usage_status = '✓ CORRECT (all 3 product types: ms, gamefi, crm)'`
+- `constraint_references_count = 3`
+
+**If Wrong:** Apply migration `20250131_arc_admin_approve_rpc.sql`
+
+---
+
+### Step 3: Verify RPC Updates updated_at
+
+```sql
+-- Check RPC function updates updated_at for all product types
+SELECT 
+  proname AS function_name,
+  CASE 
+    WHEN pg_get_functiondef(oid) LIKE '%updated_at = NOW()%' 
+      AND (SELECT COUNT(*) FROM regexp_matches(pg_get_functiondef(oid), 'updated_at = NOW\(\)', 'g')) >= 3
+    THEN '✓ CORRECT (all product types update updated_at)'
+    WHEN pg_get_functiondef(oid) LIKE '%updated_at = NOW()%'
+    THEN '⚠ PARTIAL (some product types may not update updated_at)'
+    ELSE '✗ MISSING (updated_at not updated)'
+  END AS updated_at_status,
+  (SELECT COUNT(*) FROM regexp_matches(pg_get_functiondef(oid), 'updated_at = NOW\(\)', 'g')) AS updated_at_references_count
+FROM pg_proc
+WHERE proname = 'arc_admin_approve_leaderboard_request';
+```
+
+**Expected Result:**
+- `updated_at_status = '✓ CORRECT (all product types update updated_at)'`
+- `updated_at_references_count >= 3`
+
+---
+
 ## Pre-Approval Check
 
-### 1. Find a Pending Request
+### 4. Find a Pending Request
 
 ```sql
 -- Find a pending leaderboard request with its project info

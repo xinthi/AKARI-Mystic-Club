@@ -195,6 +195,8 @@ export default function ArcSmokeTestPage() {
       
       // =============================================================================
       // APIS (run check = fetch and validate ok:true)
+      // NOTE: Only GET endpoints here. POST/PUT endpoints (approve, activate, update-features)
+      // are tested via action buttons below, not in this API checklist.
       // =============================================================================
       { name: 'GET /api/portal/arc/projects', type: 'api', url: '/api/portal/arc/projects', status: 'pending' },
       { name: `GET /api/portal/arc/project-by-slug?slug=${projectSlug}`, type: 'api', url: `/api/portal/arc/project-by-slug?slug=${projectSlug}`, status: 'pending' },
