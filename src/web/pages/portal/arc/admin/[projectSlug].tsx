@@ -178,6 +178,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [newLinkForm, setNewLinkForm] = useState({ label: '', destination_url: '' });
   const [newLinkSubmitting, setNewLinkSubmitting] = useState(false);
   const [newLinkError, setNewLinkError] = useState<string | null>(null);
+  const [newLinkFieldErrors, setNewLinkFieldErrors] = useState<{ label?: string; destination_url?: string }>({});
   
   // Add participant form state
   const [participantForm, setParticipantForm] = useState({
@@ -191,6 +192,10 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
+
+  // Compute if user can manage (create/edit arenas)
+  // Note: This is computed early so it can be used in useEffect dependencies
+  const canManage = userIsSuperAdmin || permissions?.canManage || false;
 
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
@@ -525,29 +530,50 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     });
     setNewLinkForm({ label: '', destination_url: '' });
     setNewLinkError(null);
+    setNewLinkFieldErrors({});
     setShowUtmLinksModal(true);
+  };
+
+  // Validate URL field
+  const validateUrl = (url: string): string | undefined => {
+    if (!url.trim()) {
+      return 'Destination URL is required';
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return 'URL must start with http:// or https://';
+    }
+    try {
+      new URL(url);
+    } catch {
+      return 'Invalid URL format';
+    }
+    return undefined;
   };
 
   // Handle create new UTM link
   const handleCreateUtmLink = async () => {
     if (!selectedCampaign || !selectedParticipantForLinks) return;
 
-    if (!newLinkForm.destination_url.trim()) {
-      setNewLinkError('Destination URL is required');
-      return;
-    }
-
+    // Validate fields
+    const fieldErrors: { label?: string; destination_url?: string } = {};
+    
     if (!newLinkForm.label.trim()) {
-      setNewLinkError('Label is required');
+      fieldErrors.label = 'Label is required';
+    }
+
+    const urlError = validateUrl(newLinkForm.destination_url);
+    if (urlError) {
+      fieldErrors.destination_url = urlError;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setNewLinkFieldErrors(fieldErrors);
+      setNewLinkError('Please fix the errors below');
       return;
     }
 
-    try {
-      new URL(newLinkForm.destination_url);
-    } catch {
-      setNewLinkError('Invalid URL format');
-      return;
-    }
+    setNewLinkFieldErrors({});
+    setNewLinkError(null);
 
     setNewLinkSubmitting(true);
     setNewLinkError(null);
@@ -589,6 +615,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
 
       // Clear form
       setNewLinkForm({ label: '', destination_url: '' });
+      setNewLinkFieldErrors({});
     } catch (err: any) {
       setNewLinkError(err.message || 'Failed to create UTM link');
     } finally {
@@ -697,10 +724,6 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
   };
 
-  // Compute if user can manage (create/edit arenas)
-  // Note: This is computed early so it can be used in useEffect dependencies
-  const canManage = userIsSuperAdmin || permissions?.canManage || false;
-  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingArena, setEditingArena] = useState<Arena | null>(null);
@@ -2226,11 +2249,28 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                       <input
                         type="text"
                         value={newLinkForm.label}
-                        onChange={(e) => setNewLinkForm({ ...newLinkForm, label: e.target.value })}
+                        onChange={(e) => {
+                          setNewLinkForm({ ...newLinkForm, label: e.target.value });
+                          if (newLinkFieldErrors.label) {
+                            setNewLinkFieldErrors({ ...newLinkFieldErrors, label: undefined });
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!newLinkForm.label.trim()) {
+                            setNewLinkFieldErrors({ ...newLinkFieldErrors, label: 'Label is required' });
+                          } else {
+                            setNewLinkFieldErrors({ ...newLinkFieldErrors, label: undefined });
+                          }
+                        }}
                         placeholder="e.g., Main Landing Page"
-                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                        className={`w-full px-3 py-2 rounded-lg bg-black/60 border text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${
+                          newLinkFieldErrors.label ? 'border-red-500/50' : 'border-white/20'
+                        }`}
                         disabled={newLinkSubmitting}
                       />
+                      {newLinkFieldErrors.label && (
+                        <p className="mt-1 text-xs text-red-400">{newLinkFieldErrors.label}</p>
+                      )}
                     </div>
 
                     <div>
@@ -2238,13 +2278,29 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                         Destination URL <span className="text-red-400">*</span>
                       </label>
                       <input
-                        type="url"
+                        type="text"
                         value={newLinkForm.destination_url}
-                        onChange={(e) => setNewLinkForm({ ...newLinkForm, destination_url: e.target.value })}
+                        onChange={(e) => {
+                          setNewLinkForm({ ...newLinkForm, destination_url: e.target.value });
+                          if (newLinkFieldErrors.destination_url) {
+                            const error = validateUrl(e.target.value);
+                            setNewLinkFieldErrors({ ...newLinkFieldErrors, destination_url: error });
+                          }
+                        }}
+                        onBlur={() => {
+                          const error = validateUrl(newLinkForm.destination_url);
+                          setNewLinkFieldErrors({ ...newLinkFieldErrors, destination_url: error });
+                        }}
                         placeholder="https://example.com/page"
-                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                        className={`w-full px-3 py-2 rounded-lg bg-black/60 border text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${
+                          newLinkFieldErrors.destination_url ? 'border-red-500/50' : 'border-white/20'
+                        }`}
                         disabled={newLinkSubmitting}
                       />
+                      {newLinkFieldErrors.destination_url && (
+                        <p className="mt-1 text-xs text-red-400">{newLinkFieldErrors.destination_url}</p>
+                      )}
+                      <p className="mt-1 text-xs text-white/40">Must start with http:// or https://</p>
                     </div>
 
                     <button
