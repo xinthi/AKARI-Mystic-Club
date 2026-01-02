@@ -342,7 +342,6 @@ function determineStatus(
  * Fetch active/scheduled arenas
  */
 async function fetchArenas(supabase: SupabaseClient) {
-  const nowISO = new Date().toISOString();
   const now = new Date();
   const { data: arenas, error } = await supabase
     .from('arenas')
@@ -367,7 +366,6 @@ async function fetchArenas(supabase: SupabaseClient) {
     .in('status', ['active', 'paused'])
     .in('kind', ['ms', 'legacy_ms'])
     .eq('projects.is_arc_company', true)
-    .lte('starts_at', nowISO)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -380,12 +378,17 @@ async function fetchArenas(supabase: SupabaseClient) {
     return [];
   }
 
-  // Filter for live timeframe: ends_at IS NULL OR ends_at > now
+  // Filter for live timeframe in JavaScript:
+  // - starts_at IS NULL OR starts_at <= now (must have started)
+  // - ends_at IS NULL OR ends_at > now (must not have ended)
   const liveArenas = arenas.filter((arena: any) => {
-    // Must have started (starts_at <= now) - already filtered in query
-    // Must be live: ends_at IS NULL OR ends_at > now
-    if (!arena.ends_at) return true; // ends_at is null
-    return new Date(arena.ends_at) > now; // ends_at > now
+    // Check if started: starts_at IS NULL OR starts_at <= now
+    const hasStarted = !arena.starts_at || new Date(arena.starts_at) <= now;
+    if (!hasStarted) return false;
+    
+    // Check if live: ends_at IS NULL OR ends_at > now
+    if (!arena.ends_at) return true; // ends_at is null, so it's live
+    return new Date(arena.ends_at) > now; // ends_at > now, so it's live
   });
 
   console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/paused, ${liveArenas.length} are live (within date range)`);
