@@ -177,13 +177,21 @@ export default async function handler(
       });
     }
 
-    // Check arena read access (allows public read for active/ended arenas if project is ARC-eligible)
+    // Check arena read access (requires is_arc_company = true AND approval)
     const supabaseAdmin = getSupabaseAdmin();
     const accessCheck = await requireArcArenaReadAccess(supabaseAdmin, normalizedSlug);
     if (!accessCheck.ok) {
-      return res.status(403).json({
+      // Return clear error messages based on error code
+      const statusCode = accessCheck.code === 'not_arc_company' 
+        ? 403 
+        : accessCheck.code === 'not_approved'
+        ? 403
+        : 404;
+      
+      return res.status(statusCode).json({
         ok: false,
         error: accessCheck.error,
+        code: accessCheck.code,
       });
     }
 

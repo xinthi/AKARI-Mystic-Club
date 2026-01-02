@@ -27,7 +27,7 @@ export interface ArcAccessResult {
 export interface ArcAccessError {
   ok: false;
   error: string;
-  code: 'not_approved' | 'option_locked' | 'project_not_found';
+  code: 'not_approved' | 'option_locked' | 'project_not_found' | 'not_arc_company';
 }
 
 export type ArcAccessCheck = ArcAccessResult | ArcAccessError;
@@ -346,14 +346,15 @@ export async function requireCampaignsAccess(
 
 /**
  * Check if a user can READ an arena (public read access for active/ended arenas)
- * Allows read access if:
+ * Requires:
  * - Arena status is 'active' or 'ended'
  * - Project is_arc_company = true
+ * - arc_project_access.application_status = 'approved'
  * - Optionally blocks if project security_status is 'blocked' or 'suspended'
  * 
  * @param supabase - Supabase admin client
  * @param arenaSlug - Arena slug
- * @returns Access check result
+ * @returns Access check result with clear error codes
  */
 export async function requireArcArenaReadAccess(
   supabase: SupabaseClient,
@@ -394,12 +395,38 @@ export async function requireArcArenaReadAccess(
     };
   }
 
-  // Check if project is ARC-eligible
+  // Check if project is ARC-eligible (is_arc_company must be true)
   if (!project.is_arc_company) {
     return {
       ok: false,
-      error: 'Arena not available',
-      code: 'option_locked',
+      error: 'Project is not eligible for ARC',
+      code: 'not_arc_company',
+    };
+  }
+
+  // Check ARC approval status
+  const { data: access, error: accessError } = await supabase
+    .from('arc_project_access')
+    .select('application_status')
+    .eq('project_id', project.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (accessError) {
+    console.error('[requireArcArenaReadAccess] Error checking access:', accessError);
+    return {
+      ok: false,
+      error: 'Failed to check ARC access',
+      code: 'not_approved',
+    };
+  }
+
+  if (!access || access.application_status !== 'approved') {
+    return {
+      ok: false,
+      error: 'ARC access not approved for this project',
+      code: 'not_approved',
     };
   }
 

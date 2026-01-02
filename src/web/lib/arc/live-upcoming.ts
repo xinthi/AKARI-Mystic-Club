@@ -66,7 +66,48 @@ export async function getArcLiveItems(
   ]);
 
   // Process arenas (Option 2)
+  // Filter: Only include arenas from projects that are:
+  // - is_arc_company = true (already filtered in fetchArenas)
+  // - arc_project_access.application_status = 'approved'
+  // - At least one feature enabled (leaderboard_enabled OR gamefi_enabled OR crm_enabled)
   console.log(`[getArcLiveItems] Processing ${arenasResult.length} arenas (bypassAccessCheck: ${bypassAccessCheck})`);
+  
+  // Get approved project IDs and their enabled features in one query
+  const approvedProjectIds = new Set<string>();
+  const projectFeaturesMap = new Map<string, { leaderboard_enabled: boolean; gamefi_enabled: boolean; crm_enabled: boolean }>();
+  
+  if (!bypassAccessCheck && arenasResult.length > 0) {
+    const uniqueProjectIds = [...new Set(arenasResult.map(a => a.projectId))];
+    
+    // Get approved access for all projects
+    const { data: approvedAccess } = await supabase
+      .from('arc_project_access')
+      .select('project_id')
+      .in('project_id', uniqueProjectIds)
+      .eq('application_status', 'approved');
+    
+    if (approvedAccess) {
+      approvedAccess.forEach(access => approvedProjectIds.add(access.project_id));
+    }
+    
+    // Get features for approved projects
+    if (approvedProjectIds.size > 0) {
+      const { data: features } = await supabase
+        .from('arc_project_features')
+        .select('project_id, leaderboard_enabled, gamefi_enabled, crm_enabled')
+        .in('project_id', Array.from(approvedProjectIds));
+      
+      if (features) {
+        features.forEach(f => {
+          projectFeaturesMap.set(f.project_id, {
+            leaderboard_enabled: f.leaderboard_enabled || false,
+            gamefi_enabled: f.gamefi_enabled || false,
+            crm_enabled: f.crm_enabled || false,
+          });
+        });
+      }
+    }
+  }
   
   for (const arena of arenasResult) {
     // Log arena details before access check
@@ -84,25 +125,22 @@ export async function getArcLiveItems(
       projectId: arena.projectId,
     });
 
-    // Check if project has Option 2 unlocked (unless bypassed for superadmin)
-    let accessCheck: any = { ok: true, approved: true, optionUnlocked: true };
+    // Check if project is approved and has at least one feature enabled (unless bypassed for superadmin)
     if (!bypassAccessCheck) {
-      accessCheck = await requireArcAccess(supabase, arena.projectId, 2);
-      if (!accessCheck.ok) {
-        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED access check:`, {
-          error: accessCheck.error,
-          code: accessCheck.code,
-          arenaSlug: arena.slug,
-          arenaStatus: arena.status,
-          startsAt: arena.startsAt,
-          endsAt: arena.endsAt,
-        });
+      // Check approval
+      if (!approvedProjectIds.has(arena.projectId)) {
+        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED: not approved`);
         continue;
       }
-      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) PASSED access check:`, {
-        approved: accessCheck.approved,
-        optionUnlocked: accessCheck.optionUnlocked,
-      });
+      
+      // Check at least one feature enabled
+      const features = projectFeaturesMap.get(arena.projectId);
+      if (!features || (!features.leaderboard_enabled && !features.gamefi_enabled && !features.crm_enabled)) {
+        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED: no features enabled`);
+        continue;
+      }
+      
+      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) PASSED: approved and has enabled features`);
     } else {
       console.log(`[getArcLiveItems] 🔓 Arena ${arena.id} (project ${projectName || arena.projectId}) ACCESS CHECK BYPASSED (superadmin mode)`);
     }
