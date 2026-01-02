@@ -683,7 +683,7 @@ export default function AdminProjectsPage() {
                                 </Link>
                                 {(project.arc_access_level === 'none' || !project.arc_active) && (
                                   <Link
-                                    href={`/portal/arc/project/${project.id}`}
+                                    href={project.slug ? `/portal/arc/${project.slug}` : `/portal/arc/project/${project.id}`}
                                     className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 border border-yellow-500/50 transition-all duration-300 text-[10px] font-medium h-7 flex items-center"
                                     title="Request ARC Access"
                                   >

@@ -8,12 +8,11 @@ import type { GetServerSideProps } from 'next';
 
 export const getServerSideProps: GetServerSideProps = async () => {
   // Redirect to canonical superadmin ARC dashboard
-  // Note: Using 302 (temporary) during development to avoid caching issues
-  // Switch to permanent: true (301) after production release
+  // Using 301 (permanent) redirect as per ARC_ROUTES.md
   return {
     redirect: {
       destination: '/portal/admin/arc',
-      permanent: false, // 302 redirect (temporary during dev)
+      permanent: true, // 301 redirect (permanent)
     },
   };
 };

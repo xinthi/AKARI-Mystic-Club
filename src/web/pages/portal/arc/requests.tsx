@@ -227,11 +227,11 @@ export default function ArcRequestsPage() {
     }
   };
 
-  // Get project link URL
+  // Get project link URL (use canonical route with slug)
   const getProjectLink = (request: LeaderboardRequest): string => {
     if (!request.project) return '#';
     if (request.project.slug) {
-      return `/portal/arc/project/${request.project.slug}`;
+      return `/portal/arc/${request.project.slug}`;
     }
     return `/portal/arc/project/${request.project.id}`;
   };

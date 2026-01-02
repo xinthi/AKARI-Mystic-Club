@@ -336,6 +336,10 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
     if (arcAccessLevel === 'creator_manager') {
       return `/portal/arc/creator-manager?projectId=${projectIdentifier}`;
     } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
+      // Use canonical route with slug if available, fallback to project ID route
+      if (slug) {
+        return `/portal/arc/${slug}`;
+      }
       return `/portal/arc/project/${projectIdentifier}`;
     }
 

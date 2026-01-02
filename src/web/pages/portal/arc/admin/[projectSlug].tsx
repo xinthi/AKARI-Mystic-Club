@@ -19,6 +19,7 @@ import { useCurrentMsArena } from '@/lib/arc/hooks';
 import { activateMsArena } from '@/lib/arc/api';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
+import { getCanonicalBaseUrl, getCanonicalUrl } from '@/lib/canonical-url';
 
 // =============================================================================
 // TYPES
@@ -1820,7 +1821,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                                       <tbody className="divide-y divide-white/10">
                                         {participants.map((participant) => {
                                           const linksCount = participant.links?.length || 0;
-                                          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                                          const baseUrl = getCanonicalBaseUrl();
 
                                           return (
                                             <tr key={participant.id} className="hover:bg-white/5 transition-colors">
@@ -2179,8 +2180,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                 ) : (
                   <div className="space-y-3">
                     {selectedParticipantForLinks.links.map((link) => {
-                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                      const shortUrl = `${baseUrl}/r/${link.short_code || link.code}`;
+                      const shortUrl = getCanonicalUrl(`/r/${link.short_code || link.code}`);
                       
                       return (
                         <div

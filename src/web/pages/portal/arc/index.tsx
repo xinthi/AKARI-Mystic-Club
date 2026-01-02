@@ -369,12 +369,18 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
     if (!isClickable) return;
 
     const arcAccessLevel = item.arc_access_level || 'none';
-    const projectIdentifier = item.slug || item.projectId || item.id;
+    const projectSlug = item.slug;
+    const projectId = item.projectId || item.id;
     
     if (arcAccessLevel === 'creator_manager') {
-      router.push(`/portal/arc/creator-manager?projectId=${projectIdentifier}`);
+      router.push(`/portal/arc/creator-manager?projectId=${projectSlug || projectId}`);
     } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-      router.push(`/portal/arc/project/${projectIdentifier}`);
+      // Use canonical route with slug if available, fallback to project ID route
+      if (projectSlug) {
+        router.push(`/portal/arc/${projectSlug}`);
+      } else {
+        router.push(`/portal/arc/project/${projectId}`);
+      }
     }
   };
 

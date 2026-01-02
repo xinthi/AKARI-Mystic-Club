@@ -1,0 +1,648 @@
+/**
+ * ARC Smoke Test Page
+ * 
+ * SuperAdmin-only manual test dashboard for verifying all ARC pages and APIs.
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { GetServerSideProps } from 'next';
+import Link from 'next/link';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
+import { requireSuperAdmin } from '@/lib/server-auth';
+import { EmptyState } from '@/components/arc/EmptyState';
+import { ErrorState } from '@/components/arc/ErrorState';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface TestProject {
+  project_id: string;
+  slug: string | null;
+  name: string | null;
+}
+
+interface TestArena {
+  slug: string | null;
+}
+
+interface TestCampaign {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
+interface TestResult {
+  name: string;
+  type: 'page' | 'api' | 'action';
+  url: string;
+  status: 'pending' | 'pass' | 'fail';
+  error?: string;
+  result?: any;
+}
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
+
+export default function ArcSmokeTestPage() {
+  const akariUser = useAkariUser();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Test data
+  const [testProject, setTestProject] = useState<TestProject | null>(null);
+  const [testArena, setTestArena] = useState<TestArena | null>(null);
+  const [testCampaign, setTestCampaign] = useState<TestCampaign | null>(null);
+  
+  // Test results
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+
+  // Load test data
+  const loadTestData = useCallback(async () => {
+    if (!userIsSuperAdmin) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Fetch test project
+      const projectsRes = await fetch('/api/portal/arc/projects', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const projectsData = await projectsRes.json();
+
+      if (!projectsData.ok || !projectsData.projects || projectsData.projects.length === 0) {
+        throw new Error('No projects found. Please ensure at least one project has ARC enabled.');
+      }
+
+      // Find first project with valid slug
+      const project = projectsData.projects.find((p: TestProject) => p.slug && p.slug.trim());
+      if (!project) {
+        throw new Error('No project with valid slug found.');
+      }
+
+      setTestProject(project);
+
+      // 2. Fetch test arena
+      if (project.project_id) {
+        const arenaRes = await fetch(
+          `/api/portal/arc/projects/${project.project_id}/current-ms-arena`,
+          {
+            credentials: 'include',
+            cache: 'no-store',
+          }
+        );
+        const arenaData = await arenaRes.json();
+
+        if (arenaData.ok && arenaData.arena && arenaData.arena.slug) {
+          setTestArena({ slug: arenaData.arena.slug });
+        }
+      }
+
+      // 3. Fetch test campaign
+      if (project.project_id) {
+        const campaignsRes = await fetch(
+          `/api/portal/arc/campaigns?projectId=${project.project_id}`,
+          {
+            credentials: 'include',
+            cache: 'no-store',
+          }
+        );
+        const campaignsData = await campaignsRes.json();
+
+        if (campaignsData.ok && campaignsData.campaigns && campaignsData.campaigns.length > 0) {
+          // Get newest campaign
+          const newestCampaign = campaignsData.campaigns.sort(
+            (a: TestCampaign, b: TestCampaign) =>
+              new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+          )[0];
+          setTestCampaign(newestCampaign);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load test data');
+    } finally {
+      setLoading(false);
+    }
+  }, [userIsSuperAdmin]);
+
+  useEffect(() => {
+    loadTestData();
+  }, [loadTestData]);
+
+  // Initialize test results
+  useEffect(() => {
+    if (!testProject) return;
+
+    const projectSlug = testProject.slug || '';
+    const arenaSlug = testArena?.slug || '';
+    const campaignId = testCampaign?.id || '';
+
+    const tests: TestResult[] = [
+      // =============================================================================
+      // PUBLIC PAGES (from ARC_ROUTES.md)
+      // =============================================================================
+      { name: 'ARC Home', type: 'page', url: '/portal/arc', status: 'pending' },
+      { name: 'Project Hub', type: 'page', url: `/portal/arc/${projectSlug}`, status: 'pending' },
+      ...(arenaSlug
+        ? [{ name: 'Arena Details', type: 'page' as const, url: `/portal/arc/${projectSlug}/arena/${arenaSlug}`, status: 'pending' as const }]
+        : []),
+      { name: 'UTM Redirect (/r/[code])', type: 'page', url: '/r/TEST_CODE', status: 'pending' },
+      
+      // =============================================================================
+      // PROJECT ADMIN PAGES
+      // =============================================================================
+      { name: 'Project Admin Hub', type: 'page', url: `/portal/arc/admin/${projectSlug}`, status: 'pending' },
+      
+      // =============================================================================
+      // SUPERADMIN PAGES
+      // =============================================================================
+      { name: 'Super Admin Dashboard', type: 'page', url: '/portal/admin/arc', status: 'pending' },
+      { name: 'Leaderboard Requests', type: 'page', url: '/portal/admin/arc/leaderboard-requests', status: 'pending' },
+      { name: 'Activity (Audit Log)', type: 'page', url: '/portal/admin/arc/activity', status: 'pending' },
+      { name: 'Billing', type: 'page', url: '/portal/admin/arc/billing', status: 'pending' },
+      { name: 'Reports', type: 'page', url: '/portal/admin/arc/reports', status: 'pending' },
+      { name: 'Smoke Test (this page)', type: 'page', url: '/portal/admin/arc/smoke-test', status: 'pending' },
+      
+      // =============================================================================
+      // LEGACY REDIRECTS (should redirect)
+      // =============================================================================
+      { name: 'Legacy /portal/arc/admin → /portal/admin/arc', type: 'page', url: '/portal/arc/admin', status: 'pending' },
+      
+      // =============================================================================
+      // PUBLIC/TEAM API ROUTES
+      // =============================================================================
+      { name: 'GET /api/portal/arc/leaderboard-requests', type: 'api', url: '/api/portal/arc/leaderboard-requests', status: 'pending' },
+      { name: `GET /api/portal/arc/campaigns?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/campaigns?projectId=${testProject.project_id}`, status: 'pending' },
+      ...(campaignId
+        ? [
+            { name: `GET /api/portal/arc/campaigns/${campaignId}/participants`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/participants`, status: 'pending' as const },
+            { name: `POST /api/portal/arc/campaigns/${campaignId}/participants/[pid]/link`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/participants/TEST_PID/link`, status: 'pending' as const },
+            { name: `GET /api/portal/arc/campaigns/${campaignId}/leaderboard`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/leaderboard`, status: 'pending' as const },
+          ]
+        : []),
+      { name: `GET /api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, type: 'api', url: `/api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, status: 'pending' },
+      
+      // =============================================================================
+      // SUPERADMIN API ROUTES
+      // =============================================================================
+      { name: 'GET /api/portal/admin/arc/activity?limit=5', type: 'api', url: '/api/portal/admin/arc/activity?limit=5', status: 'pending' },
+      { name: 'GET /api/portal/admin/arc/billing?limit=5', type: 'api', url: '/api/portal/admin/arc/billing?limit=5', status: 'pending' },
+      { name: 'GET /api/portal/admin/arc/reports/platform', type: 'api', url: '/api/portal/admin/arc/reports/platform', status: 'pending' },
+      ...(testProject.project_id
+        ? [
+            { name: `POST /api/portal/admin/arc/leaderboard-requests/[requestId]/approve`, type: 'api' as const, url: `/api/portal/admin/arc/leaderboard-requests/TEST_REQUEST_ID/approve`, status: 'pending' as const },
+            { name: `POST /api/portal/admin/arc/arenas/[arenaId]/activate`, type: 'api' as const, url: `/api/portal/admin/arc/arenas/TEST_ARENA_ID/activate`, status: 'pending' as const },
+            { name: `POST /api/portal/admin/arc/projects/${testProject.project_id}/update-features`, type: 'api' as const, url: `/api/portal/admin/arc/projects/${testProject.project_id}/update-features`, status: 'pending' as const },
+          ]
+        : []),
+      
+      // =============================================================================
+      // ADDITIONAL API ROUTES (for completeness)
+      // =============================================================================
+      { name: 'GET /api/portal/arc/projects', type: 'api', url: '/api/portal/arc/projects', status: 'pending' },
+      { name: `GET /api/portal/arc/project-by-slug?slug=${projectSlug}`, type: 'api', url: `/api/portal/arc/project-by-slug?slug=${projectSlug}`, status: 'pending' },
+      { name: `GET /api/portal/arc/permissions?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/permissions?projectId=${testProject.project_id}`, status: 'pending' },
+    ];
+
+    setTestResults(tests);
+  }, [testProject, testArena, testCampaign]);
+
+  // Run a single test
+  const runTest = useCallback(
+    async (test: TestResult) => {
+      if (test.type === 'page') {
+        // Pages: just mark as pass (user can click link to verify)
+        setTestResults((prev) =>
+          prev.map((t) => (t.url === test.url ? { ...t, status: 'pass' as const } : t))
+        );
+        return;
+      }
+
+      if (test.type === 'api') {
+        // APIs: fetch and validate
+        setTestResults((prev) =>
+          prev.map((t) => (t.url === test.url ? { ...t, status: 'pending' as const } : t))
+        );
+
+        try {
+          const res = await fetch(test.url, {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          const data = await res.json();
+
+          if (data.ok === true) {
+            setTestResults((prev) =>
+              prev.map((t) =>
+                t.url === test.url
+                  ? { ...t, status: 'pass' as const, result: data }
+                  : t
+              )
+            );
+          } else {
+            setTestResults((prev) =>
+              prev.map((t) =>
+                t.url === test.url
+                  ? { ...t, status: 'fail' as const, error: data.error || 'API returned ok: false' }
+                  : t
+              )
+            );
+          }
+        } catch (err: any) {
+          setTestResults((prev) =>
+            prev.map((t) =>
+              t.url === test.url
+                ? { ...t, status: 'fail' as const, error: err.message || 'Request failed' }
+                : t
+            )
+          );
+        }
+      }
+    },
+    []
+  );
+
+  // Action: Create Campaign
+  const handleCreateCampaign = useCallback(async () => {
+    if (!testProject) return;
+
+    const campaignName = `Smoke Test Campaign ${new Date().toISOString()}`;
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days from now
+
+    try {
+      const res = await fetch('/api/portal/arc/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          project_id: testProject.project_id,
+          name: campaignName,
+          participation_mode: 'public',
+          leaderboard_visibility: 'public',
+          start_at: startAt,
+          end_at: endAt,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok && data.campaign) {
+        setTestCampaign(data.campaign);
+        alert(`Campaign created: ${data.campaign.id}`);
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testProject]);
+
+  // Action: Add Participant
+  const handleAddParticipant = useCallback(async () => {
+    if (!testCampaign) {
+      alert('No campaign available. Create a campaign first.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/portal/arc/campaigns/${testCampaign.id}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          twitter_username: 'smoketest_user',
+          status: 'tracked',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok && data.participant) {
+        alert(`Participant added: ${data.participant.id}`);
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testCampaign]);
+
+  // Action: Generate UTM Link
+  const handleGenerateUTM = useCallback(async () => {
+    if (!testCampaign) {
+      alert('No campaign available. Create a campaign first.');
+      return;
+    }
+
+    // First, get participants
+    const participantsRes = await fetch(
+      `/api/portal/arc/campaigns/${testCampaign.id}/participants`,
+      { credentials: 'include' }
+    );
+    const participantsData = await participantsRes.json();
+
+    if (!participantsData.ok || !participantsData.participants || participantsData.participants.length === 0) {
+      alert('No participants found. Add a participant first.');
+      return;
+    }
+
+    const participantId = participantsData.participants[0].id;
+
+    try {
+      const res = await fetch(
+        `/api/portal/arc/campaigns/${testCampaign.id}/participants/${participantId}/link`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            target_url: 'https://example.com',
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (data.ok && data.link) {
+        const shortCode = data.link.code || data.link.short_code;
+        if (shortCode) {
+          alert(`UTM link created! Code: ${shortCode}\nURL: /r/${shortCode}`);
+        } else {
+          alert(`UTM link created: ${data.link.id}`);
+        }
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testCampaign]);
+
+  // Copy report
+  const handleCopyReport = useCallback(() => {
+    const report = {
+      timestamp: new Date().toISOString(),
+      testProject,
+      testArena,
+      testCampaign,
+      results: testResults,
+    };
+    navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+    alert('Report copied to clipboard!');
+  }, [testProject, testArena, testCampaign, testResults]);
+
+  // Not logged in
+  if (!akariUser.isLoggedIn) {
+    return (
+      <ArcPageShell canManageArc={true} isSuperAdmin={userIsSuperAdmin}>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">Log in to view this page.</p>
+        </div>
+      </ArcPageShell>
+    );
+  }
+
+  // Not super admin
+  if (!userIsSuperAdmin) {
+    return (
+      <ArcPageShell canManageArc={true} isSuperAdmin={userIsSuperAdmin}>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400">You need super admin access to view this page.</p>
+          <Link
+            href="/portal/arc"
+            className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
+          >
+            ← Back to ARC Home
+          </Link>
+        </div>
+      </ArcPageShell>
+    );
+  }
+
+  return (
+    <ArcPageShell canManageArc={true} isSuperAdmin={userIsSuperAdmin}>
+      <div className="space-y-6">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-white/60">
+          <Link href="/portal/arc" className="hover:text-white transition-colors">
+            ARC Home
+          </Link>
+          <span>/</span>
+          <Link href="/portal/admin/arc" className="hover:text-white transition-colors">
+            Super Admin
+          </Link>
+          <span>/</span>
+          <span className="text-white">Smoke Test</span>
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">ARC Smoke Test</h1>
+            <p className="text-white/60">Manual test dashboard for verifying ARC pages and APIs</p>
+          </div>
+          <button
+            onClick={handleCopyReport}
+            className="px-4 py-2 rounded-lg bg-akari-neon-teal/20 text-akari-neon-teal border border-akari-neon-teal/50 hover:bg-akari-neon-teal/30 transition-colors"
+          >
+            Copy Report
+          </button>
+        </div>
+
+        {/* Test Data Summary */}
+        {loading && (
+          <div className="rounded-lg border border-white/10 bg-black/40 p-4 text-center">
+            <p className="text-white/60">Loading test data...</p>
+          </div>
+        )}
+
+        {error && !loading && (
+          <ErrorState message={error} onRetry={loadTestData} />
+        )}
+
+        {!loading && !error && testProject && (
+          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3">Test Data</h3>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-white/60">Project: </span>
+                <span className="text-white">{testProject.name || testProject.project_id}</span>
+                <span className="text-white/40 ml-2">({testProject.slug})</span>
+              </div>
+              {testArena?.slug && (
+                <div>
+                  <span className="text-white/60">Arena: </span>
+                  <span className="text-white">{testArena.slug}</span>
+                </div>
+              )}
+              {testCampaign ? (
+                <div>
+                  <span className="text-white/60">Campaign: </span>
+                  <span className="text-white">{testCampaign.name}</span>
+                  <span className="text-white/40 ml-2">({testCampaign.id})</span>
+                </div>
+              ) : (
+                <div className="text-white/40">No campaign found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        {!loading && !error && testProject && (
+          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleCreateCampaign}
+                className="px-3 py-1.5 text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded-lg hover:bg-blue-500/30 transition-colors"
+              >
+                Create Campaign
+              </button>
+              {testCampaign && (
+                <>
+                  <button
+                    onClick={handleAddParticipant}
+                    className="px-3 py-1.5 text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg hover:bg-green-500/30 transition-colors"
+                  >
+                    Add Participant
+                  </button>
+                  <button
+                    onClick={handleGenerateUTM}
+                    className="px-3 py-1.5 text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/50 rounded-lg hover:bg-purple-500/30 transition-colors"
+                  >
+                    Generate UTM Link
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Test Checklist */}
+        {!loading && !error && testResults.length > 0 && (
+          <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
+            <div className="p-4 border-b border-white/10">
+              <h3 className="text-sm font-semibold text-white">Test Checklist</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">
+                      Test
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">
+                      Actions
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">
+                      Error
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {testResults.map((test, idx) => (
+                    <tr key={idx} className="hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-3 text-sm text-white/80 font-mono text-xs">
+                        {test.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-white/60">
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-white/20">
+                          {test.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {test.type === 'page' ? (
+                            <Link
+                              href={test.url}
+                              target="_blank"
+                              className="px-2 py-1 text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded hover:bg-blue-500/30 transition-colors"
+                            >
+                              Open
+                            </Link>
+                          ) : (
+                            <button
+                              onClick={() => runTest(test)}
+                              className="px-2 py-1 text-xs font-medium bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded hover:bg-teal-500/30 transition-colors"
+                            >
+                              Run Check
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {test.status === 'pending' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-yellow-500/50 bg-yellow-500/20 text-yellow-400">
+                            Pending
+                          </span>
+                        )}
+                        {test.status === 'pass' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-green-500/50 bg-green-500/20 text-green-400">
+                            ✓ Pass
+                          </span>
+                        )}
+                        {test.status === 'fail' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium border border-red-500/50 bg-red-500/20 text-red-400">
+                            ✗ Fail
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-red-400 max-w-md">
+                        {test.error && (
+                          <div className="truncate" title={test.error}>
+                            {test.error}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && testResults.length === 0 && (
+          <EmptyState
+            icon="🧪"
+            title="No tests available"
+            description="Unable to initialize test checklist. Check that test data loaded correctly."
+          />
+        )}
+      </div>
+    </ArcPageShell>
+  );
+}
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  // Require Super Admin access
+  const redirect = await requireSuperAdmin(context);
+  if (redirect) {
+    return redirect;
+  }
+
+  // User is authenticated and is Super Admin
+  return {
+    props: {},
+  };
+};

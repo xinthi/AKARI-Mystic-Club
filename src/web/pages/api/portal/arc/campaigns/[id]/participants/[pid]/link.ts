@@ -11,6 +11,7 @@ import { checkProjectPermissions } from '@/lib/project-permissions';
 import { randomBytes } from 'crypto';
 import { getRequestId, writeArcAudit } from '@/lib/server/arc-audit';
 import { getProfileIdFromUserId } from '@/lib/arc-permissions';
+import { getCanonicalUrl } from '@/lib/canonical-url';
 
 // =============================================================================
 // TYPES
@@ -254,9 +255,8 @@ export default async function handler(
       },
     });
 
-    // Build redirect URL
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const redirectUrl = `${baseUrl}/r/${code}`;
+    // Build redirect URL using canonical URL
+    const redirectUrl = getCanonicalUrl(`/r/${code}`);
 
     return res.status(200).json({
       ok: true,

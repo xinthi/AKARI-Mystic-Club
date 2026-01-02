@@ -7,6 +7,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { getWebApp } from '../../lib/telegram-webapp';
+import { getCanonicalUrl } from '../../lib/canonical-url';
 
 interface PredictionDetail {
   id: string;
@@ -359,8 +360,7 @@ export default function PredictionDetailPage() {
   const sharePrediction = (refCode: string) => {
     setSharing(true);
     try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const shareUrl = `${baseUrl}/predictions/${prediction?.id}?ref=${refCode}`;
+      const shareUrl = getCanonicalUrl(`/predictions/${prediction?.id}?ref=${refCode}`);
       
       // Try to use Web Share API if available
       if (navigator.share) {
