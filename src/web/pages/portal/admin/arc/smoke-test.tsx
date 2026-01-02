@@ -43,6 +43,32 @@ interface TestResult {
   result?: any;
 }
 
+interface ApprovalVerification {
+  rpcResult?: any;
+  request?: {
+    id: string;
+    status: string;
+    decided_at: string | null;
+  };
+  projectAccess?: {
+    application_status: string;
+    approved_at: string | null;
+    approved_by_profile_id: string | null;
+  };
+  projectFeatures?: {
+    leaderboard_enabled: boolean | null;
+    gamefi_enabled: boolean | null;
+    crm_enabled: boolean | null;
+    updated_at: string | null;
+  };
+  arena?: {
+    id: string;
+    kind: string;
+    status: string;
+    name: string | null;
+  };
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -59,6 +85,9 @@ export default function ArcSmokeTestPage() {
   
   // Test results
   const [testResults, setTestResults] = useState<TestResult[]>([]);
+  
+  // Approval verification
+  const [approvalVerification, setApprovalVerification] = useState<ApprovalVerification | null>(null);
 
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
@@ -314,6 +343,9 @@ export default function ArcSmokeTestPage() {
     }
 
     try {
+      // Clear previous verification
+      setApprovalVerification(null);
+
       // Fetch latest pending request for this project
       const requestsRes = await fetch(
         `/api/portal/arc/leaderboard-requests?projectId=${testProject.project_id}`,
@@ -345,11 +377,46 @@ export default function ArcSmokeTestPage() {
 
       const data = await res.json();
       if (data.ok) {
-        alert(`Request approved successfully! Project ID: ${data.projectId}`);
+        // After success, re-run verification APIs
+        const [campaignsRes, projectsRes] = await Promise.all([
+          fetch(`/api/portal/arc/campaigns?projectId=${testProject.project_id}`, {
+            credentials: 'include',
+          }),
+          fetch('/api/portal/arc/projects', {
+            credentials: 'include',
+          }),
+        ]);
+
+        const campaignsData = await campaignsRes.json();
+        const projectsData = await projectsRes.json();
+
+        // Fetch verification data
+        const verifyRes = await fetch('/api/portal/admin/arc/verify-approval', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ projectId: testProject.project_id }),
+        });
+
+        let verification: ApprovalVerification | null = null;
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData.ok && verifyData.verification) {
+            verification = verifyData.verification;
+            verification.rpcResult = verifyData.rpcResult;
+          }
+        }
+
+        // Set verification state
+        setApprovalVerification(verification);
+
         // Reload test data to refresh state
         await loadTestData();
       } else {
-        alert(`Failed: ${data.error || 'Unknown error'}`);
+        // Show RPC error details if available
+        const errorMsg = data.error || 'Unknown error';
+        const rpcError = data.rpcError ? `\n\nRPC Error:\nCode: ${data.rpcError.code}\nMessage: ${data.rpcError.message}\nDetails: ${data.rpcError.details}\nHint: ${data.rpcError.hint}` : '';
+        alert(`Failed: ${errorMsg}${rpcError}`);
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
@@ -587,6 +654,112 @@ export default function ArcSmokeTestPage() {
                 </div>
               ) : (
                 <div className="text-white/40">No campaign found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Approval Verification Status */}
+        {approvalVerification && (
+          <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <h3 className="text-sm font-semibold text-green-400">✓ Approval OK</h3>
+            </div>
+            <div className="space-y-3 text-sm">
+              {approvalVerification.request && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-white/60">Request Status: </span>
+                    <span className="text-white font-mono">{approvalVerification.request.status}</span>
+                  </div>
+                  {approvalVerification.request.decided_at && (
+                    <div>
+                      <span className="text-white/60">Decided At: </span>
+                      <span className="text-white font-mono text-xs">
+                        {new Date(approvalVerification.request.decided_at).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {approvalVerification.projectAccess && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-white/60">Access Status: </span>
+                    <span className="text-white font-mono">{approvalVerification.projectAccess.application_status}</span>
+                  </div>
+                  {approvalVerification.projectAccess.approved_at && (
+                    <div>
+                      <span className="text-white/60">Approved At: </span>
+                      <span className="text-white font-mono text-xs">
+                        {new Date(approvalVerification.projectAccess.approved_at).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {approvalVerification.projectFeatures && (
+                <div>
+                  <div className="text-white/60 mb-2">Project Features:</div>
+                  <div className="grid grid-cols-2 gap-4 font-mono text-xs">
+                    <div>
+                      <span className="text-white/60">Leaderboard: </span>
+                      <span className="text-white">{approvalVerification.projectFeatures.leaderboard_enabled ? '✓' : '✗'}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">GameFi: </span>
+                      <span className="text-white">{approvalVerification.projectFeatures.gamefi_enabled ? '✓' : '✗'}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">CRM: </span>
+                      <span className="text-white">{approvalVerification.projectFeatures.crm_enabled ? '✓' : '✗'}</span>
+                    </div>
+                    {approvalVerification.projectFeatures.updated_at && (
+                      <div>
+                        <span className="text-white/60">Updated At: </span>
+                        <span className="text-white text-xs">
+                          {new Date(approvalVerification.projectFeatures.updated_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {approvalVerification.arena && (
+                <div>
+                  <div className="text-white/60 mb-2">Arena Created:</div>
+                  <div className="grid grid-cols-2 gap-4 font-mono text-xs">
+                    <div>
+                      <span className="text-white/60">ID: </span>
+                      <span className="text-white">{approvalVerification.arena.id}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Kind: </span>
+                      <span className="text-white">{approvalVerification.arena.kind}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/60">Status: </span>
+                      <span className="text-white">{approvalVerification.arena.status}</span>
+                    </div>
+                    {approvalVerification.arena.name && (
+                      <div>
+                        <span className="text-white/60">Name: </span>
+                        <span className="text-white">{approvalVerification.arena.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {approvalVerification.rpcResult && (
+                <details className="mt-2">
+                  <summary className="text-white/60 text-xs cursor-pointer hover:text-white/80">
+                    View RPC Result
+                  </summary>
+                  <pre className="mt-2 p-2 bg-black/40 rounded text-xs text-white/80 font-mono overflow-x-auto">
+                    {JSON.stringify(approvalVerification.rpcResult, null, 2)}
+                  </pre>
+                </details>
               )}
             </div>
           </div>

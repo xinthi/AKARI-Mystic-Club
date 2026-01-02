@@ -46,12 +46,14 @@ ON CONFLICT (project_id)
 **Also added:** `updated_at = NOW()` to all DO UPDATE clauses to ensure timestamp updates.
 
 ### B) Migration to Ensure Constraint Name
-**File:** `supabase/migrations/20250201_fix_arc_project_features_constraint_name.sql` (NEW)
+**File:** `supabase/migrations/20250201_safe_ensure_arc_project_features_constraint.sql` (NEW)
 
-**What it does:**
-1. Finds and drops any existing unique constraint on `arc_project_features.project_id`
-2. Creates explicit named constraint: `arc_project_features_project_id_key`
-3. Safe to re-run (checks if constraint exists before creating)
+**What it does (SAFE APPROACH):**
+1. If `arc_project_features_project_id_key` already exists → do nothing
+2. Else, finds any existing single-column UNIQUE constraint on `project_id` and renames it
+3. Else, creates new constraint: `arc_project_features_project_id_key UNIQUE(project_id)`
+
+**Safety:** Does NOT drop existing constraints - only renames or creates. Safe to re-run.
 
 ### C) Enhanced Error Logging
 **File:** `src/web/pages/api/portal/admin/arc/leaderboard-requests/[requestId]/approve.ts`
@@ -89,13 +91,16 @@ This will help diagnose future issues.
 ## 📋 Summary of Changes
 
 ### Migrations Created/Modified
-1. **`supabase/migrations/20250201_fix_arc_project_features_constraint_name.sql`** (NEW)
+1. **`supabase/migrations/20250201_safe_ensure_arc_project_features_constraint.sql`** (NEW)
    - Ensures explicit named UNIQUE constraint exists
+   - Safe approach: renames existing constraint instead of dropping
    - Safe to re-run
+
+**DELETED:** `supabase/migrations/20250201_fix_arc_project_features_constraint_name.sql` (replaced with safer version)
 
 2. **`supabase/migrations/20250131_arc_admin_approve_rpc.sql`** (MODIFIED)
    - Changed `ON CONFLICT (project_id)` → `ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key`
-   - Added `updated_at = NOW()` to all DO UPDATE clauses
+   - Added `updated_at = NOW()` to all DO UPDATE clauses (column already exists in table schema)
 
 3. **`supabase/migrations/20250201_add_arc_project_access_unique_constraint.sql`** (PREVIOUSLY CREATED)
    - Already ensures unique index on `arc_project_access.project_id`
@@ -118,8 +123,15 @@ This will help diagnose future issues.
 
 ## ✅ Verification Checklist
 
-After applying migrations:
+### Schema Verification (SQL)
+See **`ARC_APPROVAL_VERIFICATION_SQL.md`** for detailed SQL verification queries.
 
+Quick checks:
+- [ ] Run verification SQL from `ARC_APPROVAL_VERIFICATION_SQL.md`
+- [ ] Confirm `arc_project_features_project_id_key` constraint exists
+- [ ] Confirm `updated_at` column exists on `arc_project_features`
+
+### Functional Verification
 - [ ] `arc_project_access` has unique index `arc_project_access_project_id_unique`
 - [ ] `arc_project_features` has unique constraint `arc_project_features_project_id_key`
 - [ ] Approve a pending leaderboard request
@@ -127,6 +139,7 @@ After applying migrations:
 - [ ] Verify `arc_leaderboard_requests.status` = 'approved'
 - [ ] Verify `arc_project_access.application_status` = 'approved'
 - [ ] Verify `arc_project_features` has correct flags set based on `product_type`
+- [ ] Verify `arc_project_features.updated_at` is updated after approval
 - [ ] For ms/gamefi requests: Verify arena created with status='active'
 - [ ] Verify campaigns API returns data (no "ARC access not approved" error)
 - [ ] Smoke test actions work (approve, activate, update-features)
@@ -135,22 +148,34 @@ After applying migrations:
 
 ## 🔧 Deployment Steps
 
-1. **Apply migrations in order:**
+1. **Pre-deployment verification:**
+   - Run SQL verification queries from `ARC_APPROVAL_VERIFICATION_SQL.md`
+   - Confirm current schema state
+
+2. **Apply migrations in order:**
    ```bash
    # 1. Ensure unique constraint on arc_project_access (if not already applied)
-   # 2. Ensure explicit constraint name on arc_project_features
-   # 3. Update RPC function (will be applied when migration runs)
+   #    Migration: 20250201_add_arc_project_access_unique_constraint.sql
+   # 2. Ensure explicit constraint name on arc_project_features (SAFE)
+   #    Migration: 20250201_safe_ensure_arc_project_features_constraint.sql
+   # 3. Update RPC function (if needed - already updated in code)
+   #    Migration: 20250131_arc_admin_approve_rpc.sql
    ```
 
-2. **Deploy code changes:**
+3. **Post-migration verification:**
+   - Re-run verification SQL queries
+   - Confirm all checks pass
+
+4. **Deploy code changes:**
    - Enhanced error logging in approve endpoint
    - Method acceptance updates in activate/update-features endpoints
 
-3. **Test end-to-end:**
+5. **Test end-to-end:**
    - Create a test leaderboard request
    - Approve it via smoke test or admin UI
    - Verify all data updates correctly
    - Check audit log shows success
+   - Verify `updated_at` timestamp is updated
 
 ---
 

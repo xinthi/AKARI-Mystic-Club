@@ -34,6 +34,12 @@ type ApproveRequestResponse =
   | {
       ok: false;
       error: string;
+      rpcError?: {
+        code?: string;
+        message?: string;
+        details?: string;
+        hint?: string;
+      };
     };
 
 // =============================================================================
@@ -191,6 +197,12 @@ export default async function handler(
       return res.status(500).json({
         ok: false,
         error: errorMessage,
+        rpcError: {
+          code: rpcError.code,
+          message: rpcError.message,
+          details: rpcError.details,
+          hint: rpcError.hint,
+        },
       });
     }
 
