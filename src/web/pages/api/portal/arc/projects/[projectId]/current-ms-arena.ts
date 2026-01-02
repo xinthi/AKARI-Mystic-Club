@@ -115,18 +115,34 @@ export default async function handler(
     // Build the main query: find current MS arena
     // Selection logic:
     // - Live timeframe: starts_at <= now() AND (ends_at is null OR ends_at > now())
-    // - Selectable: status='active' AND kind IN ('ms','legacy_ms')
+    // - Selectable: status IN ('active', 'paused') AND kind IN ('ms','legacy_ms')
     // - Priority: kind='ms' first, then 'legacy_ms'
     // - Tie break: updated_at desc
     // - LIMIT 1
 
-    // Fetch all candidate arenas and filter in JavaScript for complex OR logic
+    // First, get diagnostic info: all arenas for this project
+    const { data: allArenas } = await supabase
+      .from('arenas')
+      .select('id, kind, status, starts_at, ends_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    // Count by status for diagnostics
+    const statusCounts: Record<string, number> = {};
+    if (allArenas) {
+      allArenas.forEach(arena => {
+        statusCounts[arena.status] = (statusCounts[arena.status] || 0) + 1;
+      });
+    }
+
+    // Fetch all candidate arenas (status IN ('active', 'paused')) and filter in JavaScript
     // This handles: starts_at <= now AND (ends_at IS NULL OR ends_at > now)
     const { data: candidates, error: candidatesError } = await supabase
       .from('arenas')
       .select('*')
       .eq('project_id', projectId)
-      .eq('status', 'active')
+      .in('status', ['active', 'paused'])
       .lte('starts_at', now)
       .order('updated_at', { ascending: false });
 
@@ -179,6 +195,13 @@ export default async function handler(
       .eq('project_id', projectId)
       .eq('status', 'active');
 
+    // paused_count: status='paused' (any kind, any timeframe)
+    const { count: pausedCount } = await supabase
+      .from('arenas')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', projectId)
+      .eq('status', 'paused');
+
     // live_count: live timeframe (any status, any kind)
     // Because supabase query builder can't do OR easily, do two head-count queries and add them
     const { count: liveNullEnd } = await supabase
@@ -197,13 +220,13 @@ export default async function handler(
 
     const liveCount = (liveNullEnd || 0) + (liveFutureEnd || 0);
 
-    // live_active_count: same as live_count but with status='active' and kind in ('ms','legacy_ms')
+    // live_active_count: same as live_count but with status IN ('active','paused') and kind in ('ms','legacy_ms')
     // Do two head-count queries again (ends_at null vs ends_at > now) and add them
     const { count: liveActiveNullEnd } = await supabase
       .from('arenas')
       .select('id', { count: 'exact', head: true })
       .eq('project_id', projectId)
-      .eq('status', 'active')
+      .in('status', ['active', 'paused'])
       .in('kind', ['ms', 'legacy_ms'])
       .lte('starts_at', now)
       .is('ends_at', null);
@@ -212,12 +235,35 @@ export default async function handler(
       .from('arenas')
       .select('id', { count: 'exact', head: true })
       .eq('project_id', projectId)
-      .eq('status', 'active')
+      .in('status', ['active', 'paused'])
       .in('kind', ['ms', 'legacy_ms'])
       .lte('starts_at', now)
       .gt('ends_at', now);
 
     const liveActiveCount = (liveActiveNullEnd || 0) + (liveActiveFutureEnd || 0);
+
+    // Diagnostic log
+    console.log(`[current-ms-arena] Project ${projectId} diagnostics:`, {
+      statusCounts,
+      latestArenas: allArenas?.map(a => ({
+        id: a.id,
+        kind: a.kind,
+        status: a.status,
+        starts_at: a.starts_at,
+        ends_at: a.ends_at,
+      })),
+      liveCount,
+      activeCount: activeCount || 0,
+      pausedCount: pausedCount || 0,
+      liveActiveCount,
+      selectedArena: arenaData ? {
+        id: arenaData.id,
+        kind: arenaData.kind || arenaData.settings?.kind,
+        status: arenaData.status,
+        starts_at: arenaData.starts_at,
+        ends_at: arenaData.ends_at,
+      } : null,
+    });
 
     return res.status(200).json({
       ok: true,
@@ -227,6 +273,15 @@ export default async function handler(
         live_active_count: liveActiveCount,
         live_count: liveCount,
         active_count: activeCount || 0,
+        paused_count: pausedCount || 0,
+        status_counts: statusCounts,
+        latest_arenas: allArenas?.map(a => ({
+          id: a.id,
+          kind: a.kind,
+          status: a.status,
+          starts_at: a.starts_at,
+          ends_at: a.ends_at,
+        })) || [],
       },
     });
   } catch (error: any) {

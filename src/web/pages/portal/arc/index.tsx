@@ -13,8 +13,7 @@ import { useAkariUser } from '@/lib/akari-auth';
 import { isSuperAdmin } from '@/lib/permissions';
 import { ArcTopProjectsCards } from '@/components/arc/ArcTopProjectsCards';
 import { ArcTopProjectsTreemap } from '@/components/arc/ArcTopProjectsTreemap';
-import { requireArcTier } from '@/lib/server-auth';
-import { getRequiredTierForPage } from '@/lib/arc/access-policy';
+import { requireArcAccessRoute } from '@/lib/server/require-arc-access';
 import { useArcLiveItems } from '@/lib/arc/useArcLiveItems';
 import { useArcNotifications } from '@/lib/arc/useArcNotifications';
 import { DesktopArcShell } from '@/components/arc/fb/DesktopArcShell';
@@ -707,16 +706,13 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
 // =============================================================================
 
 export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (context) => {
-  // Check tier requirement for /portal/arc
-  const requiredTier = getRequiredTierForPage('/portal/arc');
-  if (requiredTier) {
-    const tierCheck = await requireArcTier(context, requiredTier, '/portal/arc');
-    if (tierCheck) {
-      return tierCheck; // Redirect if tier check fails
-    }
+  // Check ARC access: allow superadmin OR any portal user with at least one approved arc_project_access row
+  const accessCheck = await requireArcAccessRoute(context, '/portal/arc');
+  if (accessCheck) {
+    return accessCheck; // Redirect if access check fails
   }
   
-  // If we reach here, user passed tier check (canViewArc = true)
+  // If we reach here, user has ARC access (canViewArc = true)
   const canViewArc = true;
   
   // canManageArc: SuperAdmin/dev only (for admin buttons)

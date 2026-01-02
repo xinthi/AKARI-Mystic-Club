@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
@@ -16,6 +17,8 @@ import { useCurrentMsArena } from '@/lib/arc/hooks';
 import { getEnabledProducts, getCrmVisibilityLabel } from '@/lib/arc/features';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
+import { requireArcAccessRoute } from '@/lib/server/require-arc-access';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // =============================================================================
 // TYPES
@@ -340,3 +343,48 @@ export default function ArcProjectHub() {
     </ArcPageShell>
   );
 }
+
+// =============================================================================
+// SERVER-SIDE PROPS
+// =============================================================================
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { projectSlug } = context.params || {};
+  
+  if (!projectSlug || typeof projectSlug !== 'string') {
+    return {
+      redirect: {
+        destination: '/portal/arc',
+        permanent: false,
+      },
+    };
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Resolve project by slug
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('slug', projectSlug)
+    .maybeSingle();
+
+  if (!project) {
+    return {
+      redirect: {
+        destination: '/portal/arc',
+        permanent: false,
+      },
+    };
+  }
+
+  // Check ARC access for this project: allow superadmin OR approved access for that project
+  const accessCheck = await requireArcAccessRoute(context, `/portal/arc/${projectSlug}`, project.id);
+  if (accessCheck) {
+    return accessCheck; // Redirect if access check fails
+  }
+
+  return {
+    props: {},
+  };
+};
