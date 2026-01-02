@@ -66,46 +66,30 @@ export async function getArcLiveItems(
   ]);
 
   // Process arenas (Option 2)
-  // Filter: Only include arenas from projects that are:
-  // - is_arc_company = true (already filtered in fetchArenas)
-  // - arc_project_access.application_status = 'approved'
-  // - At least one feature enabled (leaderboard_enabled OR gamefi_enabled OR crm_enabled)
+  // Live leaderboard visibility rules:
+  // - arena.kind='ms' (already filtered in fetchArenas)
+  // - arena.status='active' (already filtered in fetchArenas)
+  // - now() between starts_at and ends_at (already filtered in fetchArenas)
+  // - leaderboard_enabled = true (check here)
+  // - Request status must NOT block live visibility (no approval check needed)
   console.log(`[getArcLiveItems] Processing ${arenasResult.length} arenas (bypassAccessCheck: ${bypassAccessCheck})`);
   
-  // Get approved project IDs and their enabled features in one query
-  const approvedProjectIds = new Set<string>();
-  const projectFeaturesMap = new Map<string, { leaderboard_enabled: boolean; gamefi_enabled: boolean; crm_enabled: boolean }>();
+  // Get leaderboard_enabled status for all projects with arenas
+  const projectLeaderboardEnabledMap = new Map<string, boolean>();
   
   if (!bypassAccessCheck && arenasResult.length > 0) {
     const uniqueProjectIds = [...new Set(arenasResult.map(a => a.projectId))];
     
-    // Get approved access for all projects
-    const { data: approvedAccess } = await supabase
-      .from('arc_project_access')
-      .select('project_id')
-      .in('project_id', uniqueProjectIds)
-      .eq('application_status', 'approved');
+    // Get leaderboard_enabled for all projects (no approval check needed)
+    const { data: features } = await supabase
+      .from('arc_project_features')
+      .select('project_id, leaderboard_enabled')
+      .in('project_id', uniqueProjectIds);
     
-    if (approvedAccess) {
-      approvedAccess.forEach(access => approvedProjectIds.add(access.project_id));
-    }
-    
-    // Get features for approved projects
-    if (approvedProjectIds.size > 0) {
-      const { data: features } = await supabase
-        .from('arc_project_features')
-        .select('project_id, leaderboard_enabled, gamefi_enabled, crm_enabled')
-        .in('project_id', Array.from(approvedProjectIds));
-      
-      if (features) {
-        features.forEach(f => {
-          projectFeaturesMap.set(f.project_id, {
-            leaderboard_enabled: f.leaderboard_enabled || false,
-            gamefi_enabled: f.gamefi_enabled || false,
-            crm_enabled: f.crm_enabled || false,
-          });
-        });
-      }
+    if (features) {
+      features.forEach(f => {
+        projectLeaderboardEnabledMap.set(f.project_id, f.leaderboard_enabled || false);
+      });
     }
   }
   
@@ -125,22 +109,16 @@ export async function getArcLiveItems(
       projectId: arena.projectId,
     });
 
-    // Check if project is approved and has at least one feature enabled (unless bypassed for superadmin)
+    // Check if leaderboard_enabled = true (unless bypassed for superadmin)
     if (!bypassAccessCheck) {
-      // Check approval
-      if (!approvedProjectIds.has(arena.projectId)) {
-        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED: not approved`);
+      const leaderboardEnabled = projectLeaderboardEnabledMap.get(arena.projectId) || false;
+      
+      if (!leaderboardEnabled) {
+        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED: leaderboard_enabled = false`);
         continue;
       }
       
-      // Check at least one feature enabled
-      const features = projectFeaturesMap.get(arena.projectId);
-      if (!features || (!features.leaderboard_enabled && !features.gamefi_enabled && !features.crm_enabled)) {
-        console.log(`[getArcLiveItems] ❌ Arena ${arena.id} (project ${projectName || arena.projectId}) FAILED: no features enabled`);
-        continue;
-      }
-      
-      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) PASSED: approved and has enabled features`);
+      console.log(`[getArcLiveItems] ✅ Arena ${arena.id} (project ${projectName || arena.projectId}) PASSED: leaderboard_enabled = true`);
     } else {
       console.log(`[getArcLiveItems] 🔓 Arena ${arena.id} (project ${projectName || arena.projectId}) ACCESS CHECK BYPASSED (superadmin mode)`);
     }

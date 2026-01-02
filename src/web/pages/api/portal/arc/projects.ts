@@ -91,12 +91,19 @@ export default async function handler(
       });
     }
 
-    // Query projects with:
-    // 1. ARC access approved (arc_project_access.application_status = 'approved')
-    // 2. is_arc_company = true
-    // 3. Join arc_project_features to return features object
+    // Query projects with flexible visibility rules:
+    // A project should be returned if ANY of the following is true:
+    // 1. leaderboard_enabled = true (in arc_project_features)
+    // 2. OR active MS arena exists (status='active', kind IN ('ms','legacy_ms'), now between starts_at and ends_at)
+    // 3. OR approved leaderboard request exists (arc_leaderboard_requests.status='approved')
+    // 
+    // Base requirements:
+    // - is_arc_company = true
+    // - arc_project_access.application_status = 'approved' (for approved requests check)
     
-    // First, get approved projects from arc_project_access
+    const now = new Date().toISOString();
+    
+    // Step 1: Get all approved ARC projects (is_arc_company = true, approved access)
     const { data: approvedAccess, error: accessError } = await supabase
       .from('arc_project_access')
       .select('project_id')
@@ -111,7 +118,58 @@ export default async function handler(
       });
     }
     
-    // Get project details with is_arc_company filter, project_arc_settings, and arc_project_features
+    // Step 2: Find projects with active MS arenas (status IN ('active','live'), kind IN ('ms','legacy_ms'))
+    // Note: Date range filtering will be done in JavaScript after fetching
+    const { data: allArenas, error: arenasError } = await supabase
+      .from('arenas')
+      .select('project_id, starts_at, ends_at')
+      .in('project_id', approvedProjectIds)
+      .in('status', ['active', 'live'])
+      .in('kind', ['ms', 'legacy_ms']);
+    
+    // Filter for arenas within date range in JavaScript
+    const activeArenas = (allArenas || []).filter((arena: any) => {
+      const hasStarted = !arena.starts_at || new Date(arena.starts_at) <= new Date(now);
+      const hasNotEnded = !arena.ends_at || new Date(arena.ends_at) >= new Date(now);
+      return hasStarted && hasNotEnded;
+    });
+    
+    // Step 3: Find projects with approved leaderboard requests
+    const { data: approvedRequests, error: requestsError } = await supabase
+      .from('arc_leaderboard_requests')
+      .select('project_id')
+      .in('project_id', approvedProjectIds)
+      .eq('status', 'approved');
+    
+    // Step 4: Find projects with leaderboard_enabled = true
+    const { data: enabledFeatures, error: featuresError } = await supabase
+      .from('arc_project_features')
+      .select('project_id')
+      .in('project_id', approvedProjectIds)
+      .eq('leaderboard_enabled', true);
+    
+    // Combine all eligible project IDs
+    const eligibleProjectIds = new Set<string>();
+    
+    // Add projects with active arenas
+    activeArenas?.forEach(a => eligibleProjectIds.add(a.project_id));
+    
+    // Add projects with approved requests
+    approvedRequests?.forEach(r => eligibleProjectIds.add(r.project_id));
+    
+    // Add projects with leaderboard_enabled
+    enabledFeatures?.forEach(f => eligibleProjectIds.add(f.project_id));
+    
+    const eligibleIds = Array.from(eligibleProjectIds);
+    
+    if (eligibleIds.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        projects: [],
+      });
+    }
+    
+    // Step 5: Get full project details for eligible projects
     const { data: projectsData, error: projectsError } = await supabase
       .from('projects')
       .select(`
@@ -143,7 +201,7 @@ export default async function handler(
           crm_visibility
         )
       `)
-      .in('id', approvedProjectIds)
+      .in('id', eligibleIds)
       .eq('is_arc_company', true);
     
     if (projectsError) {
@@ -217,7 +275,9 @@ export default async function handler(
       }
     }
 
-    // Map data to response format and filter by at least one feature enabled
+    // Map data to response format
+    // Note: We already filtered by eligibility (active arena, approved request, or leaderboard_enabled)
+    // So we don't need to filter again here - all projects in the list are eligible
     const projects: ArcProject[] = data
       .map((row: any) => {
         const stats = statsMap.get(row.project_id) || { creatorCount: 0, totalPoints: 0 };
@@ -258,13 +318,7 @@ export default async function handler(
           },
           features,
         };
-      })
-      // Filter: only include projects with at least one feature enabled
-      .filter((project: ArcProject) => 
-        project.features.leaderboard_enabled || 
-        project.features.gamefi_enabled || 
-        project.features.crm_enabled
-      );
+      });
 
     return res.status(200).json({
       ok: true,
