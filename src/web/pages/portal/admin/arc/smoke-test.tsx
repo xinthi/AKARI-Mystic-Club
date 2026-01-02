@@ -174,6 +174,7 @@ export default function ArcSmokeTestPage() {
       { name: 'GET /api/portal/admin/arc/activity?limit=5', type: 'api', url: '/api/portal/admin/arc/activity?limit=5', status: 'pending' },
       { name: 'GET /api/portal/admin/arc/billing?limit=5', type: 'api', url: '/api/portal/admin/arc/billing?limit=5', status: 'pending' },
       { name: 'GET /api/portal/admin/arc/reports/platform', type: 'api', url: '/api/portal/admin/arc/reports/platform', status: 'pending' },
+      { name: `GET /api/portal/arc/leaderboard-requests?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/leaderboard-requests?projectId=${testProject.project_id}`, status: 'pending' },
       { name: `GET /api/portal/arc/campaigns?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/campaigns?projectId=${testProject.project_id}`, status: 'pending' },
       ...(campaignId
         ? [
@@ -304,6 +305,132 @@ export default function ArcSmokeTestPage() {
       alert(`Error: ${err.message}`);
     }
   }, [testCampaign]);
+
+  // Action: Approve Request
+  const handleApproveRequest = useCallback(async () => {
+    if (!testProject) {
+      alert('No project available.');
+      return;
+    }
+
+    try {
+      // Fetch latest pending request for this project
+      const requestsRes = await fetch(
+        `/api/portal/arc/leaderboard-requests?projectId=${testProject.project_id}`,
+        { credentials: 'include' }
+      );
+      const requestsData = await requestsRes.json();
+
+      if (!requestsData.ok || !requestsData.requests || requestsData.requests.length === 0) {
+        alert('No leaderboard requests found for this project.');
+        return;
+      }
+
+      // Find the latest pending request
+      const pendingRequest = requestsData.requests.find(
+        (r: { status: string }) => r.status === 'pending'
+      );
+
+      if (!pendingRequest) {
+        alert('No pending requests found. All requests are already approved or rejected.');
+        return;
+      }
+
+      // Approve using PUT method (approve endpoint accepts both POST and PUT)
+      const res = await fetch(`/api/portal/admin/arc/leaderboard-requests/${pendingRequest.id}/approve`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        alert(`Request approved successfully! Project ID: ${data.projectId}`);
+        // Reload test data to refresh state
+        await loadTestData();
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testProject, loadTestData]);
+
+  // Action: Activate Arena
+  const handleActivateArena = useCallback(async () => {
+    if (!testArena || !testProject) {
+      alert('No arena available. Arena activation requires an existing arena.');
+      return;
+    }
+
+    try {
+      // Get arena ID from current-ms-arena endpoint
+      const arenaRes = await fetch(
+        `/api/portal/arc/projects/${testProject.project_id}/current-ms-arena`,
+        { credentials: 'include' }
+      );
+      const arenaData = await arenaRes.json();
+
+      if (!arenaData.ok || !arenaData.arena || !arenaData.arena.id) {
+        alert('No arena found to activate.');
+        return;
+      }
+
+      const arenaId = arenaData.arena.id;
+
+      // Activate using POST method
+      const res = await fetch(`/api/portal/admin/arc/arenas/${arenaId}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        alert(`Arena activated successfully! Arena ID: ${data.activatedArenaId}`);
+        // Reload test data to refresh state
+        await loadTestData();
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testArena, testProject, loadTestData]);
+
+  // Action: Update Features
+  const handleUpdateFeatures = useCallback(async () => {
+    if (!testProject) {
+      alert('No project available.');
+      return;
+    }
+
+    try {
+      // Update features using POST method with no-op payload
+      const res = await fetch(
+        `/api/portal/admin/arc/projects/${testProject.project_id}/update-features`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            crm_enabled: false,
+            crm_visibility: 'private',
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (data.ok) {
+        alert(`Features updated successfully! CRM enabled: ${data.features.crm_enabled}, visibility: ${data.features.crm_visibility}`);
+      } else {
+        alert(`Failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  }, [testProject]);
 
   // Action: Generate UTM Link
   const handleGenerateUTM = useCallback(async () => {
@@ -470,6 +597,26 @@ export default function ArcSmokeTestPage() {
           <div className="rounded-lg border border-white/10 bg-black/40 p-4">
             <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleApproveRequest}
+                className="px-3 py-1.5 text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-lg hover:bg-orange-500/30 transition-colors"
+              >
+                Approve Request
+              </button>
+              {testArena && (
+                <button
+                  onClick={handleActivateArena}
+                  className="px-3 py-1.5 text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-lg hover:bg-yellow-500/30 transition-colors"
+                >
+                  Activate Arena
+                </button>
+              )}
+              <button
+                onClick={handleUpdateFeatures}
+                className="px-3 py-1.5 text-xs font-medium bg-indigo-500/20 text-indigo-400 border border-indigo-500/50 rounded-lg hover:bg-indigo-500/30 transition-colors"
+              >
+                Update Features
+              </button>
               <button
                 onClick={handleCreateCampaign}
                 className="px-3 py-1.5 text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded-lg hover:bg-blue-500/30 transition-colors"
