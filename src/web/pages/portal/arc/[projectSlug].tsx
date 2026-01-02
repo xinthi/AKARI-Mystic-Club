@@ -78,8 +78,12 @@ export default function ArcProjectHub() {
         setLoading(true);
         setError(null);
 
+        // Type guard: ensure projectSlug is a string (already checked in useEffect condition)
+        if (!projectSlug) return;
+        const validProjectSlug: string = projectSlug;
+
         // Resolve project by slug
-        const res = await fetch(`/api/portal/arc/project-by-slug?slug=${encodeURIComponent(projectSlug)}`, {
+        const res = await fetch(`/api/portal/arc/project-by-slug?slug=${encodeURIComponent(validProjectSlug)}`, {
           credentials: 'include',
         });
 
