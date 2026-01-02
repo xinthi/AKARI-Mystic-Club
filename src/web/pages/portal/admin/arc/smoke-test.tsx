@@ -470,7 +470,7 @@ export default function ArcSmokeTestPage() {
       if (data.ok && data.link) {
         const shortCode = data.link.code || data.link.short_code;
         if (shortCode) {
-          alert(`UTM link created! Code: ${shortCode}\nURL: /r/${shortCode}`);
+          alert(`UTM link created! Code: ${shortCode}\nURL: ${data.redirect_url || `/r/${shortCode}`}`);
         } else {
           alert(`UTM link created: ${data.link.id}`);
         }

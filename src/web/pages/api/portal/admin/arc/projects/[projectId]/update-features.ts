@@ -54,8 +54,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<UpdateFeaturesResponse>
 ) {
-  // Only allow POST requests
-  if (req.method !== 'POST') {
+  // Only allow POST and PUT requests (treat them the same)
+  if (req.method !== 'POST' && req.method !== 'PUT') {
     return res.status(405).json({
       ok: false,
       error: 'Method not allowed',

@@ -83,6 +83,7 @@ BEGIN
   END IF;
 
   -- Step 4: Upsert arc_project_access
+  -- Use ON CONFLICT with unique index (arc_project_access_project_id_unique)
   INSERT INTO arc_project_access (
     project_id,
     application_status,
@@ -102,6 +103,8 @@ BEGIN
     approved_by_profile_id = p_admin_profile_id;
 
   -- Step 5: Upsert arc_project_features based on product_type
+  -- Note: arc_project_features has UNIQUE constraint on project_id (auto-named arc_project_features_project_id_key)
+  -- Use ON CONFLICT ON CONSTRAINT for explicit constraint reference
   IF v_request.product_type = 'ms' THEN
     INSERT INTO arc_project_features (
       project_id,
@@ -117,12 +120,13 @@ BEGIN
       v_request.end_at,
       true
     )
-    ON CONFLICT (project_id)
+    ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key
     DO UPDATE SET
       leaderboard_enabled = true,
       leaderboard_start_at = v_request.start_at,
       leaderboard_end_at = v_request.end_at,
-      option2_normal_unlocked = true;
+      option2_normal_unlocked = true,
+      updated_at = NOW();
 
   ELSIF v_request.product_type = 'gamefi' THEN
     INSERT INTO arc_project_features (
@@ -147,7 +151,7 @@ BEGIN
       true,
       true
     )
-    ON CONFLICT (project_id)
+    ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key
     DO UPDATE SET
       gamefi_enabled = true,
       gamefi_start_at = v_request.start_at,
@@ -156,7 +160,8 @@ BEGIN
       leaderboard_start_at = v_request.start_at,
       leaderboard_end_at = v_request.end_at,
       option2_normal_unlocked = true,
-      option3_gamified_unlocked = true;
+      option3_gamified_unlocked = true,
+      updated_at = NOW();
 
   ELSIF v_request.product_type = 'crm' THEN
     INSERT INTO arc_project_features (
@@ -175,13 +180,14 @@ BEGIN
       'private',
       true
     )
-    ON CONFLICT (project_id)
+    ON CONFLICT ON CONSTRAINT arc_project_features_project_id_key
     DO UPDATE SET
       crm_enabled = true,
       crm_start_at = v_request.start_at,
       crm_end_at = v_request.end_at,
       crm_visibility = COALESCE(arc_project_features.crm_visibility, 'private'),
-      option1_crm_unlocked = true;
+      option1_crm_unlocked = true,
+      updated_at = NOW();
   END IF;
 
   -- Step 6: Entity creation (for ms and gamefi)

@@ -146,7 +146,15 @@ export default async function handler(
     );
 
     if (rpcError) {
-      console.error('[Approve Request API] RPC error:', rpcError);
+      console.error('[Approve Request API] RPC error:', {
+        code: rpcError.code,
+        message: rpcError.message,
+        details: rpcError.details,
+        hint: rpcError.hint,
+        rpcName: 'arc_admin_approve_leaderboard_request',
+        requestId,
+        projectId: requestData?.project_id,
+      });
 
       // Map RPC errors to HTTP status codes
       const errorMessage = rpcError.message || rpcError.details || 'Unknown error';

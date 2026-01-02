@@ -52,11 +52,31 @@ BEGIN
   END IF;
 END $$;
 
--- Step 2: Add unique index on project_id
+-- Step 2: Drop any existing unique index/constraint on project_id if it exists
+-- Check for unique index first
+DROP INDEX IF EXISTS arc_project_access_project_id_unique;
+
+-- Also check for unique constraint (though we're using an index)
+-- Note: Unique constraints in PostgreSQL are implemented as unique indexes anyway
+DO $$
+BEGIN
+  -- Drop constraint if it exists
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'arc_project_access_project_id_unique' 
+    AND conrelid = 'arc_project_access'::regclass
+  ) THEN
+    ALTER TABLE arc_project_access DROP CONSTRAINT arc_project_access_project_id_unique;
+  END IF;
+END $$;
+
+-- Step 3: Add unique index on project_id
 -- This will ensure only one row per project_id (required for ON CONFLICT)
-CREATE UNIQUE INDEX IF NOT EXISTS arc_project_access_project_id_unique 
+-- Using a unique index (not constraint) for better compatibility with ON CONFLICT
+-- PostgreSQL will use this index for the ON CONFLICT clause in the RPC function
+CREATE UNIQUE INDEX arc_project_access_project_id_unique 
   ON arc_project_access(project_id);
 
--- Note: This replaces the need for the partial unique index on pending requests
--- The partial index (idx_arc_project_access_unique_pending) can remain for query optimization
--- but is not sufficient for the ON CONFLICT clause in the RPC function
+-- Note: The partial unique index (idx_arc_project_access_unique_pending) can remain 
+-- for query optimization, but is not sufficient for the ON CONFLICT clause in the RPC function.
+-- The full unique index above is required for ON CONFLICT (project_id) to work.
