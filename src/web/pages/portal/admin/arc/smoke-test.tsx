@@ -149,69 +149,38 @@ export default function ArcSmokeTestPage() {
 
     const tests: TestResult[] = [
       // =============================================================================
-      // PUBLIC PAGES (from ARC_ROUTES.md)
+      // PAGES (just open links)
       // =============================================================================
-      { name: 'ARC Home', type: 'page', url: '/portal/arc', status: 'pending' },
-      { name: 'Project Hub', type: 'page', url: `/portal/arc/${projectSlug}`, status: 'pending' },
+      { name: '/portal/arc', type: 'page', url: '/portal/arc', status: 'pending' },
+      { name: `/portal/arc/[projectSlug]`, type: 'page', url: `/portal/arc/${projectSlug}`, status: 'pending' },
+      { name: `/portal/arc/admin/[projectSlug]`, type: 'page', url: `/portal/arc/admin/${projectSlug}`, status: 'pending' },
       ...(arenaSlug
-        ? [{ name: 'Arena Details', type: 'page' as const, url: `/portal/arc/${projectSlug}/arena/${arenaSlug}`, status: 'pending' as const }]
+        ? [{ name: `/portal/arc/[projectSlug]/arena/[arenaSlug]`, type: 'page' as const, url: `/portal/arc/${projectSlug}/arena/${arenaSlug}`, status: 'pending' as const }]
         : []),
-      { name: 'UTM Redirect (/r/[code])', type: 'page', url: '/r/TEST_CODE', status: 'pending' },
+      { name: '/portal/admin/arc', type: 'page', url: '/portal/admin/arc', status: 'pending' },
+      { name: '/portal/admin/arc/leaderboard-requests', type: 'page', url: '/portal/admin/arc/leaderboard-requests', status: 'pending' },
+      { name: '/portal/admin/arc/billing', type: 'page', url: '/portal/admin/arc/billing', status: 'pending' },
+      { name: '/portal/admin/arc/reports', type: 'page', url: '/portal/admin/arc/reports', status: 'pending' },
+      { name: '/portal/admin/arc/activity', type: 'page', url: '/portal/admin/arc/activity', status: 'pending' },
+      { name: '/portal/admin/arc/smoke-test (this page)', type: 'page', url: '/portal/admin/arc/smoke-test', status: 'pending' },
       
       // =============================================================================
-      // PROJECT ADMIN PAGES
-      // =============================================================================
-      { name: 'Project Admin Hub', type: 'page', url: `/portal/arc/admin/${projectSlug}`, status: 'pending' },
-      
-      // =============================================================================
-      // SUPERADMIN PAGES
-      // =============================================================================
-      { name: 'Super Admin Dashboard', type: 'page', url: '/portal/admin/arc', status: 'pending' },
-      { name: 'Leaderboard Requests', type: 'page', url: '/portal/admin/arc/leaderboard-requests', status: 'pending' },
-      { name: 'Activity (Audit Log)', type: 'page', url: '/portal/admin/arc/activity', status: 'pending' },
-      { name: 'Billing', type: 'page', url: '/portal/admin/arc/billing', status: 'pending' },
-      { name: 'Reports', type: 'page', url: '/portal/admin/arc/reports', status: 'pending' },
-      { name: 'Smoke Test (this page)', type: 'page', url: '/portal/admin/arc/smoke-test', status: 'pending' },
-      
-      // =============================================================================
-      // LEGACY REDIRECTS (should redirect)
-      // =============================================================================
-      { name: 'Legacy /portal/arc/admin → /portal/admin/arc', type: 'page', url: '/portal/arc/admin', status: 'pending' },
-      
-      // =============================================================================
-      // PUBLIC/TEAM API ROUTES
-      // =============================================================================
-      { name: 'GET /api/portal/arc/leaderboard-requests', type: 'api', url: '/api/portal/arc/leaderboard-requests', status: 'pending' },
-      { name: `GET /api/portal/arc/campaigns?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/campaigns?projectId=${testProject.project_id}`, status: 'pending' },
-      ...(campaignId
-        ? [
-            { name: `GET /api/portal/arc/campaigns/${campaignId}/participants`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/participants`, status: 'pending' as const },
-            { name: `POST /api/portal/arc/campaigns/${campaignId}/participants/[pid]/link`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/participants/TEST_PID/link`, status: 'pending' as const },
-            { name: `GET /api/portal/arc/campaigns/${campaignId}/leaderboard`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/leaderboard`, status: 'pending' as const },
-          ]
-        : []),
-      { name: `GET /api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, type: 'api', url: `/api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, status: 'pending' },
-      
-      // =============================================================================
-      // SUPERADMIN API ROUTES
-      // =============================================================================
-      { name: 'GET /api/portal/admin/arc/activity?limit=5', type: 'api', url: '/api/portal/admin/arc/activity?limit=5', status: 'pending' },
-      { name: 'GET /api/portal/admin/arc/billing?limit=5', type: 'api', url: '/api/portal/admin/arc/billing?limit=5', status: 'pending' },
-      { name: 'GET /api/portal/admin/arc/reports/platform', type: 'api', url: '/api/portal/admin/arc/reports/platform', status: 'pending' },
-      ...(testProject.project_id
-        ? [
-            { name: `POST /api/portal/admin/arc/leaderboard-requests/[requestId]/approve`, type: 'api' as const, url: `/api/portal/admin/arc/leaderboard-requests/TEST_REQUEST_ID/approve`, status: 'pending' as const },
-            { name: `POST /api/portal/admin/arc/arenas/[arenaId]/activate`, type: 'api' as const, url: `/api/portal/admin/arc/arenas/TEST_ARENA_ID/activate`, status: 'pending' as const },
-            { name: `POST /api/portal/admin/arc/projects/${testProject.project_id}/update-features`, type: 'api' as const, url: `/api/portal/admin/arc/projects/${testProject.project_id}/update-features`, status: 'pending' as const },
-          ]
-        : []),
-      
-      // =============================================================================
-      // ADDITIONAL API ROUTES (for completeness)
+      // APIS (run check = fetch and validate ok:true)
       // =============================================================================
       { name: 'GET /api/portal/arc/projects', type: 'api', url: '/api/portal/arc/projects', status: 'pending' },
       { name: `GET /api/portal/arc/project-by-slug?slug=${projectSlug}`, type: 'api', url: `/api/portal/arc/project-by-slug?slug=${projectSlug}`, status: 'pending' },
       { name: `GET /api/portal/arc/permissions?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/permissions?projectId=${testProject.project_id}`, status: 'pending' },
+      { name: `GET /api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, type: 'api', url: `/api/portal/arc/projects/${testProject.project_id}/current-ms-arena`, status: 'pending' },
+      { name: 'GET /api/portal/admin/arc/activity?limit=5', type: 'api', url: '/api/portal/admin/arc/activity?limit=5', status: 'pending' },
+      { name: 'GET /api/portal/admin/arc/billing?limit=5', type: 'api', url: '/api/portal/admin/arc/billing?limit=5', status: 'pending' },
+      { name: 'GET /api/portal/admin/arc/reports/platform', type: 'api', url: '/api/portal/admin/arc/reports/platform', status: 'pending' },
+      { name: `GET /api/portal/arc/campaigns?projectId=${testProject.project_id}`, type: 'api', url: `/api/portal/arc/campaigns?projectId=${testProject.project_id}`, status: 'pending' },
+      ...(campaignId
+        ? [
+            { name: `GET /api/portal/arc/campaigns/${campaignId}/participants`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/participants`, status: 'pending' as const },
+            { name: `GET /api/portal/arc/campaigns/${campaignId}/leaderboard`, type: 'api' as const, url: `/api/portal/arc/campaigns/${campaignId}/leaderboard`, status: 'pending' as const },
+          ]
+        : []),
     ];
 
     setTestResults(tests);

@@ -27,6 +27,8 @@ interface ActiveQuestsPanelProps {
   userCompletions?: Set<string> | string[];
   loading?: boolean;
   mobile?: boolean;
+  projectSlug?: string | null;
+  arenaSlug?: string | null;
 }
 
 export function ActiveQuestsPanel({
@@ -35,8 +37,15 @@ export function ActiveQuestsPanel({
   userCompletions = [],
   loading = false,
   mobile = false,
+  projectSlug,
+  arenaSlug,
 }: ActiveQuestsPanelProps) {
   const [expanded, setExpanded] = useState(!mobile); // Desktop: expanded by default, mobile: collapsed
+
+  // Build canonical route if we have slugs, otherwise use legacy route (will redirect)
+  const questsRoute = projectSlug && arenaSlug
+    ? `/portal/arc/${projectSlug}/arena/${arenaSlug}`
+    : `/portal/arc/gamified/${projectId}`;
 
   // Normalize completions to Set
   const completedIds = React.useMemo(() => {
@@ -117,7 +126,7 @@ export function ActiveQuestsPanel({
               <div className="text-center py-6">
                 <p className="text-xs text-white/60 mb-2">No active quests</p>
                 <Link
-                  href={`/portal/arc/gamified/${projectId}`}
+                  href={questsRoute}
                   className="text-xs text-akari-primary hover:text-akari-primary/80 transition-colors"
                 >
                   View all quests
@@ -152,7 +161,7 @@ export function ActiveQuestsPanel({
                           +{getQuestPoints(quest)} points
                         </span>
                         <Link
-                          href={`/portal/arc/gamified/${projectId}`}
+                          href={questsRoute}
                           className="text-[10px] text-akari-primary hover:text-akari-primary/80 transition-colors"
                         >
                           View →
@@ -163,7 +172,7 @@ export function ActiveQuestsPanel({
                 })}
                 {activeQuests.length > 5 && (
                   <Link
-                    href={`/portal/arc/gamified/${projectId}`}
+                    href={questsRoute}
                     className="block text-center text-xs text-white/60 hover:text-white transition-colors py-2"
                   >
                     View all {activeQuests.length} quests →
@@ -183,7 +192,7 @@ export function ActiveQuestsPanel({
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-white">Active Quests</h3>
         <Link
-          href={`/portal/arc/gamified/${projectId}`}
+          href={questsRoute}
           className="text-xs text-akari-primary hover:text-akari-primary/80 transition-colors"
         >
           View all
@@ -198,7 +207,7 @@ export function ActiveQuestsPanel({
         <div className="text-center py-6">
           <p className="text-xs text-white/60 mb-2">No active quests</p>
           <Link
-            href={`/portal/arc/gamified/${projectId}`}
+            href={questsRoute}
             className="text-xs text-akari-primary hover:text-akari-primary/80 transition-colors"
           >
             View quests
@@ -233,7 +242,7 @@ export function ActiveQuestsPanel({
                     +{getQuestPoints(quest)} points
                   </span>
                   <Link
-                    href={`/portal/arc/gamified/${projectId}`}
+                    href={questsRoute}
                     className="text-[10px] text-akari-primary hover:text-akari-primary/80 transition-colors"
                   >
                     View →
@@ -244,7 +253,7 @@ export function ActiveQuestsPanel({
           })}
           {activeQuests.length > 5 && (
             <Link
-              href={`/portal/arc/gamified/${projectId}`}
+              href={questsRoute}
               className="block text-center text-xs text-white/60 hover:text-white transition-colors py-2"
             >
               View all {activeQuests.length} quests →

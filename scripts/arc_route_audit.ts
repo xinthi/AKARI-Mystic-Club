@@ -1,15 +1,31 @@
 /**
  * ARC Route Audit Script
  * 
- * Scans ARC pages directories to detect:
- * - Canonical pages
- * - Legacy pages that should be redirects
+ * Scans ARC pages directories and detects:
+ * - Legacy patterns (e.g., [slug] instead of [projectSlug])
  * - Duplicate admin pages
  * - Unused/legacy routes
+ * - Suggested deletions
+ * 
+ * Usage: npm run arc:audit
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface RouteInfo {
+  filePath: string;
+  route: string;
+  isLegacy: boolean;
+  isRedirect: boolean;
+  isDuplicate: boolean;
+  suggestedAction: 'keep' | 'redirect' | 'delete';
+  notes: string[];
+}
 
 // =============================================================================
 // CONFIGURATION
@@ -17,365 +33,376 @@ import * as path from 'path';
 
 const ARC_PAGES_DIR = path.join(__dirname, '../src/web/pages/portal/arc');
 const ADMIN_ARC_PAGES_DIR = path.join(__dirname, '../src/web/pages/portal/admin/arc');
-const R_PAGES_DIR = path.join(__dirname, '../src/web/pages/r');
 
-// Canonical route patterns (from ARC_ROUTES.md)
-const CANONICAL_ROUTES = {
-  // Public routes
-  '/portal/arc': 'index.tsx',
-  '/portal/arc/[projectSlug]': '[projectSlug].tsx',
-  '/portal/arc/[projectSlug]/arena/[arenaSlug]': '[projectSlug]/arena/[arenaSlug].tsx',
-  
-  // Project admin routes
-  '/portal/arc/admin/[projectSlug]': 'admin/[projectSlug].tsx',
-  
-  // SuperAdmin routes
-  '/portal/admin/arc': 'portal/admin/arc/index.tsx',
-  '/portal/admin/arc/leaderboard-requests': 'portal/admin/arc/leaderboard-requests.tsx',
-  '/portal/admin/arc/activity': 'portal/admin/arc/activity.tsx',
-  '/portal/admin/arc/billing': 'portal/admin/arc/billing.tsx',
-  '/portal/admin/arc/reports': 'portal/admin/arc/reports/index.tsx',
-  '/portal/admin/arc/smoke-test': 'portal/admin/arc/smoke-test.tsx',
-  
-  // UTM redirect route
-  '/r/[code]': 'r/[code].tsx',
-  
-  // Legacy but still used
-  '/portal/arc/requests': 'requests.tsx',
-};
-
-// Valid routes that are not in canonical list but are legitimate (not legacy)
-const VALID_ROUTES = [
-  '/portal/arc/index',
-  '/portal/arc/admin/profiles',
-  '/portal/arc/creator/[twitterUsername]',
+// Canonical routes
+const CANONICAL_ROUTES = [
+  '/portal/arc',
+  '/portal/arc/[projectSlug]',
+  '/portal/arc/[projectSlug]/arena/[arenaSlug]',
+  '/portal/arc/admin/[projectSlug]', // Project-specific admin (canonical)
+  '/portal/admin/arc',
+  '/portal/admin/arc/leaderboard-requests',
+  '/portal/admin/arc/activity',
+  '/portal/admin/arc/billing',
+  '/portal/admin/arc/reports',
+  '/portal/admin/arc/reports/[kind]/[id]',
+  '/portal/admin/arc/smoke-test',
+  '/portal/admin/arc/comprehensive-reports',
+  // Additional canonical routes
+  '/portal/arc/requests',
+  '/portal/arc/report',
   '/portal/arc/creator-manager',
-  '/portal/arc/creator-manager/index',
-  '/portal/arc/creator-manager/create',
   '/portal/arc/creator-manager/[programId]',
   '/portal/arc/creator-manager/[programId]/creators/[creatorProfileId]',
-  '/portal/arc/gamified/[projectId]',
-  '/portal/arc/leaderboard/[projectId]',
+  '/portal/arc/creator-manager/create',
+  '/portal/arc/creator/[twitterUsername]',
+  '/portal/arc/gamified/[projectId]', // Note: uses projectId (not projectSlug) - acceptable for now
+  '/portal/arc/leaderboard/[projectId]', // Legacy redirect (keep for now)
   '/portal/arc/leaderboards',
-  '/portal/arc/leaderboards/index',
   '/portal/arc/my-creator-programs',
-  '/portal/arc/my-creator-programs/index',
   '/portal/arc/my-creator-programs/[programId]',
-  '/portal/arc/project/[projectId]',
-  '/portal/arc/report',
-  '/portal/admin/arc/comprehensive-reports',
-  '/portal/admin/arc/reports/index',
-  '/portal/admin/arc/reports/[kind]/[id]',
 ];
 
-// Legacy patterns that should be redirects
+// Legacy patterns to detect
 const LEGACY_PATTERNS = [
-  {
-    pattern: /\[slug\]/,
-    description: 'Legacy [slug] parameter (should use [projectSlug])',
-    canonical: '[projectSlug]',
-  },
-  {
-    pattern: /portal\/arc\/admin$/,
-    description: 'Legacy /portal/arc/admin (should redirect to /portal/admin/arc)',
-    canonical: '/portal/admin/arc',
-  },
+  { pattern: /\[slug\]/g, replacement: '[projectSlug]', description: 'Uses [slug] instead of [projectSlug]' },
+  { pattern: /\/portal\/arc\/admin\/index/, description: 'Legacy admin index (should redirect to /portal/admin/arc)' },
 ];
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-interface PageFile {
-  filePath: string;
-  route: string;
-  isCanonical: boolean;
-  isLegacy: boolean;
-  legacyReason?: string;
-  shouldRedirect?: boolean;
-  redirectTo?: string;
-}
-
-interface AuditResult {
-  canonicalPages: PageFile[];
-  legacyPages: PageFile[];
-  duplicatePages: PageFile[];
-  unusedPages: PageFile[];
-  suggestions: string[];
-}
 
 // =============================================================================
 // HELPERS
 // =============================================================================
 
-function getAllFiles(dir: string, fileList: string[] = []): string[] {
-  const files = fs.readdirSync(dir);
+function fileToRoute(filePath: string, baseDir: string): string {
+  // Normalize path separators
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const normalizedBase = baseDir.replace(/\\/g, '/');
   
-  files.forEach((file) => {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-    
-    if (stat.isDirectory()) {
-      getAllFiles(filePath, fileList);
-    } else if (file.endsWith('.tsx') || file.endsWith('.ts')) {
-      fileList.push(filePath);
-    }
-  });
+  // Determine if this is an admin route
+  const isAdminRoute = normalizedPath.includes('/portal/admin/arc') || normalizedBase.includes('/portal/admin/arc');
   
-  return fileList;
-}
-
-function getRouteFromFilePath(filePath: string): string {
-  // Convert file path to route
-  // e.g., src/web/pages/portal/arc/[projectSlug].tsx -> /portal/arc/[projectSlug]
-  // e.g., src/web/pages/portal/arc/index.tsx -> /portal/arc
-  // e.g., src/web/pages/portal/admin/arc/index.tsx -> /portal/admin/arc
-  const relativePath = filePath
-    .replace(path.join(__dirname, '../src/web/pages'), '')
-    .replace(/\\/g, '/')
-    .replace(/\.tsx?$/, '')
+  // Remove base directory and file extension
+  let relative = path.relative(normalizedBase, normalizedPath);
+  relative = relative.replace(/\.tsx?$/, '');
+  
+  // Convert to route format
+  let route = relative
+    .replace(/\\/g, '/') // Windows path separators
+    .replace(/^\.\//, '') // Remove leading ./
     .replace(/\/index$/, ''); // Remove trailing /index
   
-  return relativePath;
-}
-
-function isLegacyRoute(filePath: string, route: string): { isLegacy: boolean; reason?: string; redirectTo?: string } {
-  // Check for [slug] pattern
-  if (route.includes('[slug]') && !route.includes('[projectSlug]')) {
-    return {
-      isLegacy: true,
-      reason: 'Uses legacy [slug] parameter instead of [projectSlug]',
-      redirectTo: route.replace('[slug]', '[projectSlug]'),
-    };
+  // Add /portal/arc or /portal/admin/arc prefix
+  if (isAdminRoute) {
+    route = `/portal/admin/arc${route ? '/' + route : ''}`;
+  } else {
+    route = `/portal/arc${route ? '/' + route : ''}`;
   }
   
-  // Check for /portal/arc/admin (without projectSlug)
-  if (route === '/portal/arc/admin' || route === '/portal/arc/admin/index') {
-    return {
-      isLegacy: true,
-      reason: 'Legacy superadmin route (should redirect to /portal/admin/arc)',
-      redirectTo: '/portal/admin/arc',
-    };
-  }
-  
-  // Check if it's a duplicate admin page
-  if (route.startsWith('/portal/arc/admin/') && route !== '/portal/arc/admin/[projectSlug]') {
-    const adminRoute = route.replace('/portal/arc/admin/', '/portal/admin/arc/');
-    if (CANONICAL_ROUTES[adminRoute as keyof typeof CANONICAL_ROUTES]) {
-      return {
-        isLegacy: true,
-        reason: 'Duplicate admin page (should be in /portal/admin/arc)',
-        redirectTo: adminRoute,
-      };
-    }
-  }
-  
-  return { isLegacy: false };
+  return route;
 }
 
-function isCanonicalRoute(route: string): boolean {
-  return Object.keys(CANONICAL_ROUTES).includes(route);
-}
-
-function isValidRoute(route: string): boolean {
-  if (isCanonicalRoute(route)) return true;
-  // Check if route matches any valid pattern
-  return VALID_ROUTES.some((validRoute) => {
-    // Convert dynamic segments to regex
-    const pattern = validRoute
-      .replace(/\[.*?\]/g, '[^/]+')
-      .replace(/\//g, '\\/');
-    const regex = new RegExp(`^${pattern}$`);
-    return regex.test(route);
-  });
-}
-
-function checkIfRedirectOnly(filePath: string): boolean {
+function isRedirectOnly(filePath: string): boolean {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
-    // Check if file only contains redirect logic
-    const hasRedirect = content.includes('redirect:') || content.includes('redirect');
-    const hasComponent = content.includes('export default') && !content.includes('return null');
-    return hasRedirect && !hasComponent;
+    
+    // Check for explicit redirect patterns
+    const hasServerSideRedirect = /redirect:\s*\{/.test(content) || /destination:\s*['"]/.test(content);
+    const hasClientRedirect = /router\.replace\(/.test(content) || /router\.push\(/.test(content);
+    const hasGetServerSideProps = /getServerSideProps/.test(content);
+    
+    // Check if file contains "Legacy" or "redirect" in comments/strings
+    const hasLegacyComment = /legacy|redirect/i.test(content);
+    
+    // Count non-trivial content (excluding imports, comments, exports)
+    const lines = content.split('\n');
+    const nonTrivialLines = lines.filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) return false;
+      if (trimmed.startsWith('import ') || trimmed.startsWith('export ')) return false;
+      if (/^from\s+['"]/.test(trimmed)) return false;
+      return true;
+    });
+    
+    // If it has redirect logic and minimal content, it's likely a redirect-only page
+    const hasMinimalContent = nonTrivialLines.length < 50; // More generous threshold
+    
+    // Redirect-only if:
+    // - Has server-side redirect in getServerSideProps, OR
+    // - Has client redirect with minimal content and legacy comment
+    return (
+      (hasServerSideRedirect && hasGetServerSideProps && hasMinimalContent) ||
+      (hasClientRedirect && hasLegacyComment && hasMinimalContent)
+    );
   } catch {
     return false;
   }
 }
 
-// =============================================================================
-// MAIN AUDIT FUNCTION
-// =============================================================================
+function isLegacyPattern(filePath: string, route: string, isRedirect: boolean): { isLegacy: boolean; reason: string } {
+  // Check for [slug] pattern (not redirect-only)
+  if ((route.includes('[slug]') && !route.includes('[projectSlug]')) || 
+      (filePath.includes('[slug]') && !filePath.includes('[projectSlug]'))) {
+    if (!isRedirect) {
+      return { isLegacy: true, reason: 'Uses [slug] instead of [projectSlug] and is not redirect-only' };
+    }
+  }
+  
+  // Check for legacy admin routes under /portal/arc/admin (should be /portal/admin/arc)
+  if (route.startsWith('/portal/arc/admin') && route !== '/portal/arc/admin/[projectSlug]') {
+    // /portal/arc/admin/[projectSlug] is canonical (project-specific admin)
+    // But /portal/arc/admin or /portal/arc/admin/index should redirect to /portal/admin/arc
+    if (route === '/portal/arc/admin' || route === '/portal/arc/admin/index') {
+      return { isLegacy: true, reason: 'Legacy admin route (should redirect to /portal/admin/arc)' };
+    }
+  }
+  
+  // Check for duplicate admin pages: /portal/arc/admin/* that duplicate /portal/admin/arc/*
+  if (route.startsWith('/portal/arc/admin/') && 
+      route !== '/portal/arc/admin' && 
+      route !== '/portal/arc/admin/index' &&
+      route !== '/portal/arc/admin/[projectSlug]') {
+    const adminPath = route.replace('/portal/arc/admin/', '');
+    // Check if equivalent exists in /portal/admin/arc
+    const equivalentAdminRoute = `/portal/admin/arc/${adminPath}`;
+    return { isLegacy: true, reason: `Duplicate admin route (should be ${equivalentAdminRoute})` };
+  }
+  
+  // Check for arena routes that aren't redirect-only
+  if (route.includes('/arena/') && !route.includes('/portal/arc/[projectSlug]/arena/[arenaSlug]')) {
+    if (!isRedirect) {
+      return { isLegacy: true, reason: 'Non-canonical arena route (should use /portal/arc/[projectSlug]/arena/[arenaSlug])' };
+    }
+  }
+  
+  // Check for [projectId] routes (should use [projectSlug])
+  if (route.includes('[projectId]') && !isRedirect) {
+    return { isLegacy: true, reason: 'Uses [projectId] instead of [projectSlug]' };
+  }
+  
+  return { isLegacy: false, reason: '' };
+}
 
-function auditRoutes(): AuditResult {
-  const result: AuditResult = {
-    canonicalPages: [],
-    legacyPages: [],
-    duplicatePages: [],
-    unusedPages: [],
-    suggestions: [],
-  };
+function findDuplicateRoutes(routes: RouteInfo[]): Set<string> {
+  const routeMap = new Map<string, RouteInfo[]>();
   
-  // Get all page files
-  const allFiles: PageFile[] = [];
-  
-  // Scan /portal/arc directory
-  if (fs.existsSync(ARC_PAGES_DIR)) {
-    const arcFiles = getAllFiles(ARC_PAGES_DIR);
-    arcFiles.forEach((filePath) => {
-      const route = getRouteFromFilePath(filePath);
-      const legacyCheck = isLegacyRoute(filePath, route);
-      const isCanonical = isCanonicalRoute(route);
-      
-      const isValid = isValidRoute(route);
-      
-      allFiles.push({
-        filePath,
-        route,
-        isCanonical,
-        isLegacy: legacyCheck.isLegacy,
-        legacyReason: legacyCheck.reason,
-        shouldRedirect: legacyCheck.isLegacy && !checkIfRedirectOnly(filePath),
-        redirectTo: legacyCheck.redirectTo,
-      });
-    });
+  for (const routeInfo of routes) {
+    // Normalize route for comparison (remove dynamic params)
+    // Special handling: /portal/arc/admin/[projectSlug] is NOT a duplicate of /portal/admin/arc
+    let normalized = routeInfo.route.replace(/\[[^\]]+\]/g, '[param]');
+    
+    // Only normalize /portal/arc/admin/* to /portal/admin/arc/* if it's NOT [projectSlug]
+    if (normalized.startsWith('/portal/arc/admin/') && 
+        routeInfo.route !== '/portal/arc/admin/[projectSlug]') {
+      normalized = normalized.replace('/portal/arc/admin/', '/portal/admin/arc/');
+    }
+    
+    if (!routeMap.has(normalized)) {
+      routeMap.set(normalized, []);
+    }
+    routeMap.get(normalized)!.push(routeInfo);
   }
   
-  // Scan /portal/admin/arc directory
-  if (fs.existsSync(ADMIN_ARC_PAGES_DIR)) {
-    const adminFiles = getAllFiles(ADMIN_ARC_PAGES_DIR);
-    adminFiles.forEach((filePath) => {
-      const route = getRouteFromFilePath(filePath);
-      const isCanonical = isCanonicalRoute(route);
-      
-      allFiles.push({
-        filePath,
-        route,
-        isCanonical,
-        isLegacy: false,
+  const duplicates = new Set<string>();
+  for (const [normalized, infos] of routeMap.entries()) {
+    if (infos.length > 1) {
+      // Mark all but the first one as duplicates (prioritize /portal/admin/arc over /portal/arc/admin)
+      const sorted = infos.sort((a, b) => {
+        // Prioritize /portal/admin/arc over /portal/arc/admin
+        if (a.route.startsWith('/portal/admin/arc') && b.route.startsWith('/portal/arc/admin')) {
+          return -1;
+        }
+        if (b.route.startsWith('/portal/admin/arc') && a.route.startsWith('/portal/arc/admin')) {
+          return 1;
+        }
+        return 0;
       });
-    });
-  }
-  
-  // Scan /r directory (UTM redirects)
-  if (fs.existsSync(R_PAGES_DIR)) {
-    const rFiles = getAllFiles(R_PAGES_DIR);
-    rFiles.forEach((filePath) => {
-      const route = getRouteFromFilePath(filePath);
-      const isCanonical = isCanonicalRoute(route);
       
-      allFiles.push({
-        filePath,
-        route,
-        isCanonical,
-        isLegacy: false,
-      });
-    });
-  }
-  
-  // Categorize files
-  allFiles.forEach((file) => {
-    if (file.isCanonical) {
-      result.canonicalPages.push(file);
-    } else if (file.isLegacy) {
-      result.legacyPages.push(file);
-    } else if (isValidRoute(file.route)) {
-      // Valid route, not canonical but legitimate - don't mark as unused
-      // (e.g., creator-manager, gamified, etc.)
-    } else {
-      // Check if it's a duplicate
-      const duplicate = allFiles.find(
-        (f) => f.route !== file.route && f.route.replace('[projectSlug]', 'X') === file.route.replace('[slug]', 'X')
-      );
-      if (duplicate) {
-        result.duplicatePages.push(file);
-      } else {
-        result.unusedPages.push(file);
+      // Mark all except the first (canonical) as duplicates
+      for (let i = 1; i < sorted.length; i++) {
+        duplicates.add(sorted[i].filePath);
       }
     }
-  });
+  }
   
-  // Generate suggestions
-  result.legacyPages.forEach((file) => {
-    if (file.shouldRedirect && file.redirectTo) {
-      result.suggestions.push(
-        `Convert ${file.route} (${file.filePath}) to redirect to ${file.redirectTo}`
-      );
-    }
-  });
-  
-  result.duplicatePages.forEach((file) => {
-    result.suggestions.push(
-      `Remove duplicate route ${file.route} (${file.filePath}) - canonical route exists`
-    );
-  });
-  
-  return result;
+  return duplicates;
 }
 
-// =============================================================================
-// OUTPUT
-// =============================================================================
-
-function printReport(result: AuditResult): void {
-  console.log('='.repeat(80));
-  console.log('ARC Route Audit Report');
-  console.log('='.repeat(80));
-  console.log();
+function scanDirectory(dir: string, baseDir: string, results: RouteInfo[]): void {
+  if (!fs.existsSync(dir)) {
+    return;
+  }
   
-  console.log(`📋 Canonical Pages (${result.canonicalPages.length}):`);
-  result.canonicalPages.forEach((file) => {
-    console.log(`  ✅ ${file.route}`);
-    console.log(`     ${file.filePath}`);
-  });
-  console.log();
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
   
-  console.log(`⚠️  Legacy Pages (${result.legacyPages.length}):`);
-  result.legacyPages.forEach((file) => {
-    console.log(`  ⚠️  ${file.route}`);
-    console.log(`     ${file.filePath}`);
-    console.log(`     Reason: ${file.legacyReason}`);
-    if (file.shouldRedirect) {
-      console.log(`     → Should redirect to: ${file.redirectTo}`);
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    
+    if (entry.isDirectory()) {
+      scanDirectory(fullPath, baseDir, results);
+    } else if (entry.isFile() && (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts'))) {
+      const route = fileToRoute(fullPath, baseDir);
+      const isRedirect = isRedirectOnly(fullPath);
+      const legacyCheck = isLegacyPattern(fullPath, route, isRedirect);
+      
+      // Determine suggested action
+      let suggestedAction: 'keep' | 'redirect' | 'delete' = 'keep';
+      const notes: string[] = [];
+      
+      if (legacyCheck.isLegacy) {
+        if (isRedirect) {
+          suggestedAction = 'keep'; // Keep redirects
+          notes.push('Legacy redirect - keep');
+        } else {
+          suggestedAction = 'redirect';
+          notes.push(`Legacy pattern: ${legacyCheck.reason}`);
+        }
+      } else {
+        // Check if route matches any canonical pattern
+        const matchesCanonical = CANONICAL_ROUTES.some(canonical => {
+          // Convert canonical route to regex pattern
+          const canonicalPattern = canonical
+            .replace(/\[[^\]]+\]/g, '[^/]+') // Replace dynamic params
+            .replace(/\//g, '\\/') // Escape slashes
+            .replace(/\$/g, '\\$'); // Escape end anchor
+          const regex = new RegExp(`^${canonicalPattern}$`);
+          return regex.test(route);
+        });
+        
+        if (!matchesCanonical) {
+          // Not a canonical route
+          if (isRedirect) {
+            suggestedAction = 'keep';
+            notes.push('Non-canonical redirect - keep');
+          } else {
+            suggestedAction = 'delete';
+            notes.push('Not in canonical route list');
+          }
+        }
+      }
+      
+      results.push({
+        filePath: fullPath,
+        route,
+        isLegacy: legacyCheck.isLegacy,
+        isRedirect,
+        isDuplicate: false, // Will be set later
+        suggestedAction,
+        notes,
+      });
     }
-  });
-  console.log();
-  
-  console.log(`🔄 Duplicate Pages (${result.duplicatePages.length}):`);
-  result.duplicatePages.forEach((file) => {
-    console.log(`  🔄 ${file.route}`);
-    console.log(`     ${file.filePath}`);
-  });
-  console.log();
-  
-  console.log(`❓ Unused Pages (${result.unusedPages.length}):`);
-  result.unusedPages.forEach((file) => {
-    console.log(`  ❓ ${file.route}`);
-    console.log(`     ${file.filePath}`);
-  });
-  console.log();
-  
-  console.log(`💡 Suggestions (${result.suggestions.length}):`);
-  result.suggestions.forEach((suggestion, idx) => {
-    console.log(`  ${idx + 1}. ${suggestion}`);
-  });
-  console.log();
-  
-  console.log('='.repeat(80));
-}
-
-// =============================================================================
-// RUN
-// =============================================================================
-
-if (require.main === module) {
-  try {
-    const result = auditRoutes();
-    printReport(result);
-    process.exit(0);
-  } catch (error) {
-    console.error('Error running audit:', error);
-    process.exit(1);
   }
 }
 
-export { auditRoutes, printReport };
+// =============================================================================
+// MAIN
+// =============================================================================
+
+function main() {
+  console.log('🔍 ARC Route Audit\n');
+  console.log('Scanning directories...\n');
+  
+  const results: RouteInfo[] = [];
+  
+  // Scan ARC pages
+  if (fs.existsSync(ARC_PAGES_DIR)) {
+    scanDirectory(ARC_PAGES_DIR, ARC_PAGES_DIR, results);
+  }
+  
+  // Scan admin ARC pages
+  if (fs.existsSync(ADMIN_ARC_PAGES_DIR)) {
+    scanDirectory(ADMIN_ARC_PAGES_DIR, ADMIN_ARC_PAGES_DIR, results);
+  }
+  
+  // Mark duplicates
+  const duplicatePaths = findDuplicateRoutes(results);
+  for (const routeInfo of results) {
+    if (duplicatePaths.has(routeInfo.filePath)) {
+      routeInfo.isDuplicate = true;
+      routeInfo.notes.push('Duplicate route detected');
+    }
+  }
+  
+  // Categorize results
+  const canonical = results.filter(r => !r.isLegacy && !r.isDuplicate && r.suggestedAction === 'keep');
+  const legacy = results.filter(r => r.isLegacy);
+  const duplicates = results.filter(r => r.isDuplicate);
+  const toDelete = results.filter(r => r.suggestedAction === 'delete');
+  const toRedirect = results.filter(r => r.suggestedAction === 'redirect');
+  
+  // Print report
+  console.log('='.repeat(80));
+  console.log('AUDIT REPORT');
+  console.log('='.repeat(80));
+  console.log();
+  
+  console.log(`📊 Summary:`);
+  console.log(`   Total files scanned: ${results.length}`);
+  console.log(`   Canonical pages: ${canonical.length}`);
+  console.log(`   Legacy pages: ${legacy.length}`);
+  console.log(`   Duplicates: ${duplicates.length}`);
+  console.log(`   Suggested deletions: ${toDelete.length}`);
+  console.log(`   Suggested redirects: ${toRedirect.length}`);
+  console.log();
+  
+  if (canonical.length > 0) {
+    console.log('✅ Canonical Pages Found:');
+    canonical.forEach(r => {
+      console.log(`   ${r.route}`);
+      console.log(`      File: ${path.relative(process.cwd(), r.filePath)}`);
+    });
+    console.log();
+  }
+  
+  if (legacy.length > 0) {
+    console.log('⚠️  Legacy Pages Found:');
+    legacy.forEach(r => {
+      console.log(`   ${r.route}`);
+      console.log(`      File: ${path.relative(process.cwd(), r.filePath)}`);
+      console.log(`      Redirect only: ${r.isRedirect ? 'Yes' : 'No'}`);
+      r.notes.forEach(note => console.log(`      Note: ${note}`));
+    });
+    console.log();
+  }
+  
+  if (duplicates.length > 0) {
+    console.log('🔄 Duplicates Found:');
+    duplicates.forEach(r => {
+      console.log(`   ${r.route}`);
+      console.log(`      File: ${path.relative(process.cwd(), r.filePath)}`);
+      r.notes.forEach(note => console.log(`      Note: ${note}`));
+    });
+    console.log();
+  }
+  
+  if (toDelete.length > 0) {
+    console.log('🗑️  Suggested Deletions:');
+    toDelete.forEach(r => {
+      console.log(`   ${r.route}`);
+      console.log(`      File: ${path.relative(process.cwd(), r.filePath)}`);
+      r.notes.forEach(note => console.log(`      Reason: ${note}`));
+    });
+    console.log();
+  }
+  
+  if (toRedirect.length > 0) {
+    console.log('↩️  Suggested Redirects:');
+    toRedirect.forEach(r => {
+      console.log(`   ${r.route}`);
+      console.log(`      File: ${path.relative(process.cwd(), r.filePath)}`);
+      r.notes.forEach(note => console.log(`      Reason: ${note}`));
+    });
+    console.log();
+  }
+  
+  console.log('='.repeat(80));
+  console.log('END OF REPORT');
+  console.log('='.repeat(80));
+}
+
+// Run if executed directly
+if (require.main === module) {
+  main();
+}
+
+export { main };

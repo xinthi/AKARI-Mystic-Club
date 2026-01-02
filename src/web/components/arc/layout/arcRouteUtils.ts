@@ -26,6 +26,7 @@ export function getLeaderboardRoute(item: LiveLeaderboard): string {
   if (item.projectSlug) {
     return `/portal/arc/${item.projectSlug}`;
   }
+  // Legacy fallback (redirects to slug-based route)
   return `/portal/arc/project/${item.projectId}`;
 }
 

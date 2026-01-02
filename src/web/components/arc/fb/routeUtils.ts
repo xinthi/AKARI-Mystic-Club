@@ -21,11 +21,15 @@ export function getLiveItemRoute(item: LiveItem): string | null {
   if (accessLevel === 'leaderboard' || accessLevel === 'gamified') {
     // Normal Leaderboard (Option 2) OR Gamified (Option 3): Both use normal arena leaderboard
     // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
-    // Route to arena leaderboard if available, otherwise leaderboard page
+    // Route to arena leaderboard if available, otherwise project hub or legacy leaderboard page
     if (item.kind === 'arena' && item.project.slug && item.arenaSlug) {
       return `/portal/arc/${item.project.slug}/arena/${item.arenaSlug}`;
     }
-    // Route to dedicated leaderboard page
+    // Prefer project hub if we have slug, otherwise legacy leaderboard redirect
+    if (item.project.slug) {
+      return `/portal/arc/${item.project.slug}`;
+    }
+    // Legacy fallback (redirects to arena page)
     return `/portal/arc/leaderboard/${item.project.id}`;
   }
 
