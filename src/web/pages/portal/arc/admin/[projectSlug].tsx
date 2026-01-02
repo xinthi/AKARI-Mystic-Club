@@ -1013,7 +1013,21 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                 href={`/portal/arc/${encodeURIComponent(project.slug)}`}
                 className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
               >
-                ← Back to Project Hub
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/portal/arc/${projectSlug}`}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    ← Back to Project Hub
+                  </Link>
+                  <span className="text-white/40">|</span>
+                  <Link
+                    href={`/portal/arc/${projectSlug}/team`}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    Manage Team
+                  </Link>
+                </div>
               </Link>
             )}
             <Link
@@ -1045,6 +1059,13 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                 className="hover:text-white transition-colors"
               >
                 {project.name || 'Project'}
+              </Link>
+              <span>/</span>
+              <Link
+                href={`/portal/arc/${encodeURIComponent(project.slug)}/team`}
+                className="hover:text-white transition-colors"
+              >
+                Team
               </Link>
               <span>/</span>
             </>

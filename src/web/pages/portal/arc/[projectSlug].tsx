@@ -250,12 +250,20 @@ export default function ArcProjectHub() {
                 )}
               </div>
               {canManageProject && (
-                <Link
-                  href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
-                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  Admin
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/portal/arc/${encodeURIComponent(projectSlug || '')}/team`}
+                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Manage Team
+                  </Link>
+                  <Link
+                    href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
+                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Admin
+                  </Link>
+                </div>
               )}
             </div>
           </div>
