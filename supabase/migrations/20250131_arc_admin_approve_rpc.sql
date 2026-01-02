@@ -193,19 +193,24 @@ BEGIN
   END IF;
 
   -- Step 6: Entity creation (for ms and gamefi)
+  -- Concurrency-safe: Use advisory lock + FOR UPDATE to prevent race conditions
   v_arena_id := NULL;
   v_arena_mode := NULL;
   IF v_request.product_type IN ('ms', 'gamefi') THEN
-    -- Check if an existing arena exists for this project (respects unique constraint)
+    -- Acquire advisory lock on project_id to prevent concurrent arena operations
+    PERFORM pg_advisory_xact_lock(hashtext(v_request.project_id::text));
+    
+    -- Select existing arena FOR UPDATE (locks row for this transaction)
     SELECT id INTO v_existing_arena_id
     FROM arenas
     WHERE project_id = v_request.project_id
       AND kind IN ('ms', 'legacy_ms')
     ORDER BY created_at DESC
-    LIMIT 1;
+    LIMIT 1
+    FOR UPDATE;
 
     IF v_existing_arena_id IS NOT NULL THEN
-      -- Update existing arena instead of inserting (avoids unique constraint violation)
+      -- Update existing arena (reuse locked row)
       UPDATE arenas
       SET
         kind = 'ms',
@@ -219,7 +224,7 @@ BEGIN
       
       v_arena_mode := 'updated_existing';
       
-      -- End any other active MS/legacy_ms arenas for this project (shouldn't be any, but safety check)
+      -- End any other active MS/legacy_ms arenas for this project (after reactivating chosen one)
       UPDATE arenas
       SET 
         status = 'ended',
@@ -230,8 +235,8 @@ BEGIN
         AND kind IN ('ms', 'legacy_ms')
         AND id <> v_existing_arena_id;
     ELSE
-      -- No existing arena found - create new one
-      -- End any existing active MS/legacy_ms arenas for this project (shouldn't be any, but safety check)
+      -- No existing ms/legacy arena found - only INSERT if none exists
+      -- End any existing active MS/legacy_ms arenas for this project (safety check)
       UPDATE arenas
       SET 
         status = 'ended',
@@ -245,7 +250,7 @@ BEGIN
       v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';
       v_arena_slug := v_base_slug || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8);
 
-      -- Create new arena
+      -- Create new arena (only if no ms/legacy arena exists)
       INSERT INTO arenas (
         project_id,
         kind,

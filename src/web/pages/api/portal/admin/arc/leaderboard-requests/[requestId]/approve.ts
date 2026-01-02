@@ -153,6 +153,17 @@ export default async function handler(
     );
 
     if (rpcError) {
+      // Extract constraint name from error message if it's a unique constraint violation
+      let constraintName: string | undefined;
+      if (rpcError.message?.includes('unique constraint') || rpcError.message?.includes('duplicate key')) {
+        // Try to extract constraint name from error message
+        const constraintMatch = rpcError.message.match(/constraint "([^"]+)"/i) || 
+                                rpcError.message.match(/unique constraint "([^"]+)"/i);
+        if (constraintMatch) {
+          constraintName = constraintMatch[1];
+        }
+      }
+
       console.error('[Approve Request API] RPC error:', {
         code: rpcError.code,
         message: rpcError.message,
@@ -161,6 +172,7 @@ export default async function handler(
         rpcName: 'arc_admin_approve_leaderboard_request',
         requestId,
         projectId: requestData?.project_id,
+        ...(constraintName && { constraintName }),
       });
 
       // Map RPC errors to HTTP status codes
@@ -177,7 +189,10 @@ export default async function handler(
         success: false,
         message: errorMessage,
         requestId: auditRequestId,
-        metadata: { rpcError: errorMessage },
+        metadata: { 
+          rpcError: errorMessage,
+          ...(constraintName && { constraintName }),
+        },
       });
       
       if (errorMessage.includes('request_not_found')) {
@@ -256,6 +271,7 @@ export default async function handler(
       productType: result.productType,
       created: {
         ...(result.created?.arenaId && { arenaId: result.created.arenaId }),
+        ...(result.created?.arenaMode && { arenaMode: result.created.arenaMode }),
       },
       ...(result.billingInserted === false && {
         billing: {

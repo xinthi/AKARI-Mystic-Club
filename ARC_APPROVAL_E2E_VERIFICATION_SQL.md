@@ -376,6 +376,37 @@ WHERE conrelid = 'arc_project_features'::regclass
 
 ---
 
+### 7a. Verify Arenas Unique Constraint (uniq_ms_arena_per_project)
+
+```sql
+-- Verify arenas table has the uniq_ms_arena_per_project constraint
+SELECT 
+  conname AS constraint_name,
+  contype AS constraint_type,
+  pg_get_constraintdef(oid) AS constraint_definition
+FROM pg_constraint
+WHERE conrelid = 'arenas'::regclass
+  AND conname = 'uniq_ms_arena_per_project';
+```
+
+**Expected Result:**
+- One row with `constraint_name = 'uniq_ms_arena_per_project'`
+- `constraint_type` = `'u'` (unique)
+- `constraint_definition` contains `UNIQUE` and references `project_id` and `kind` (or a partial unique index on `project_id` where `kind IN ('ms', 'legacy_ms')`)
+
+**If Missing:** The constraint may be defined as a partial unique index. Check with:
+```sql
+-- Check for partial unique index on arenas
+SELECT 
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE tablename = 'arenas'
+  AND indexname LIKE '%ms%arena%project%';
+```
+
+---
+
 ### 8. Verify updated_at Column Exists
 
 ```sql
