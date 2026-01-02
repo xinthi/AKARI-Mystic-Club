@@ -207,11 +207,15 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext(v_request.project_id::text));
     
     -- Select existing arena FOR UPDATE (locks row for this transaction)
+    -- Check for ANY arena with kind IN ('ms', 'legacy_ms'), regardless of status
+    -- This prevents unique constraint violations
     SELECT id INTO v_existing_arena_id
     FROM arenas
     WHERE project_id = v_request.project_id
       AND kind IN ('ms', 'legacy_ms')
-    ORDER BY created_at DESC
+    ORDER BY 
+      CASE WHEN status = 'active' THEN 0 ELSE 1 END, -- Prefer active arenas
+      created_at DESC
     LIMIT 1
     FOR UPDATE;
 

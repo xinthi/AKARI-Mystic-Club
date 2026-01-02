@@ -223,6 +223,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       crm_enabled: boolean;
       crm_visibility: 'private' | 'public' | 'hybrid' | null;
     } | null;
+    hasActiveArena?: boolean; // Track if project has active MS arena
   }
   const [arcProjects, setArcProjects] = useState<ArcProjectWithFeatures[]>([]);
   const [arcProjectsLoading, setArcProjectsLoading] = useState(false);
@@ -332,7 +333,21 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           name: p.name,
           twitter_username: p.twitter_username,
           features: p.features || null,
+          hasActiveArena: false, // Will be checked separately if needed
         }));
+        
+        // Log for debugging
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[ARC Home] Loaded projects:', {
+            count: projects.length,
+            projects: projects.map(p => ({
+              name: p.name,
+              slug: p.slug,
+              hasFeatures: !!p.features,
+              leaderboard_enabled: p.features?.leaderboard_enabled || false,
+            })),
+          });
+        }
 
         setArcProjects(projects);
       } catch (err: any) {
@@ -397,10 +412,15 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       if (!project.slug) return; // Skip projects without slug
 
       const features = project.features;
-      if (!features) return;
-
-      // MS card: leaderboard_enabled === true
-      if (features.leaderboard_enabled) {
+      
+      // MS card: Show if leaderboard_enabled === true
+      // Note: If project appears in /api/portal/arc/projects, it means it has:
+      // - leaderboard_enabled = true, OR
+      // - active MS arena, OR
+      // - approved leaderboard request
+      // The API already filters, so if a project is returned, it's eligible
+      // We show MS card if leaderboard_enabled is true (features object will always exist from API)
+      if (features?.leaderboard_enabled === true) {
         cards.push({
           projectId: project.project_id,
           projectSlug: project.slug,

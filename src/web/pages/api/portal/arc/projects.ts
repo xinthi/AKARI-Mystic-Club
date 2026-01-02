@@ -151,8 +151,14 @@ export default async function handler(
     // Combine all eligible project IDs
     const eligibleProjectIds = new Set<string>();
     
+    // Track which projects have active arenas (for setting leaderboard_enabled in response)
+    const projectsWithActiveArenas = new Set<string>();
+    
     // Add projects with active arenas
-    activeArenas?.forEach(a => eligibleProjectIds.add(a.project_id));
+    activeArenas?.forEach((a: any) => {
+      eligibleProjectIds.add(a.project_id);
+      projectsWithActiveArenas.add(a.project_id);
+    });
     
     // Add projects with approved requests
     approvedRequests?.forEach(r => eligibleProjectIds.add(r.project_id));
@@ -285,9 +291,15 @@ export default async function handler(
         
         // Extract features from arc_project_features (it's an array, take first or default to all false)
         const featuresData = row.arc_project_features?.[0] || null;
-        // Always return a non-null features object (default to all false if no row exists)
+        
+        // Check if this project has an active arena (from our earlier query)
+        const hasActiveArena = projectsWithActiveArenas.has(row.project_id);
+        
+        // Always return a non-null features object
+        // If project has active arena but no features row or leaderboard_enabled is false, set leaderboard_enabled = true
+        // This ensures projects with active arenas show up in the UI even if the flag isn't set in the database
         const features: ArcProjectFeatures = {
-          leaderboard_enabled: featuresData?.leaderboard_enabled || false,
+          leaderboard_enabled: featuresData?.leaderboard_enabled || hasActiveArena || false,
           leaderboard_start_at: featuresData?.leaderboard_start_at || null,
           leaderboard_end_at: featuresData?.leaderboard_end_at || null,
           gamefi_enabled: featuresData?.gamefi_enabled || false,

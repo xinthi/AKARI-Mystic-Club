@@ -116,23 +116,44 @@ export default function ArcRequestsPage() {
   // Check query params for request mode
   useEffect(() => {
     // Wait for router to be ready
-    if (!router.isReady) return;
+    if (!router.isReady) {
+      console.log('[Request Form] Router not ready yet');
+      return;
+    }
 
     const { projectId, slug, intent, productType } = router.query;
     
+    // Log query params for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Request Form] Router query params:', { projectId, slug, intent, productType });
+    }
+    
     if (projectId || slug) {
       setRequestMode(true);
-      loadProject(projectId as string | undefined, slug as string | undefined);
+      
+      // Ensure projectId and slug are strings (not arrays)
+      const projectIdStr = Array.isArray(projectId) ? projectId[0] : projectId;
+      const slugStr = Array.isArray(slug) ? slug[0] : slug;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] Loading project with:', { projectId: projectIdStr, slug: slugStr });
+      }
+      
+      loadProject(projectIdStr as string | undefined, slugStr as string | undefined);
       
       // Map productType from query to selectedAccessLevel
-      if (productType === 'ms') {
+      const productTypeStr = Array.isArray(productType) ? productType[0] : productType;
+      if (productTypeStr === 'ms') {
         setSelectedAccessLevel('leaderboard');
-      } else if (productType === 'gamefi') {
+      } else if (productTypeStr === 'gamefi') {
         setSelectedAccessLevel('gamified');
-      } else if (productType === 'crm') {
+      } else if (productTypeStr === 'crm') {
         setSelectedAccessLevel('creator_manager');
       }
     } else {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Request Form] No projectId or slug in query params');
+      }
       setRequestMode(false);
       setSelectedProject(null);
     }
@@ -225,8 +246,17 @@ export default function ArcRequestsPage() {
         // Provide user-friendly error messages
         let errorMsg = data.error || 'Failed to load project';
         
+        // Log the raw error for debugging
+        console.error('[Request Form] Project load API error:', {
+          status: res.status,
+          error: errorMsg,
+          url: `/api/portal/arc/project/${identifier}`,
+          projectId,
+          slug,
+        });
+        
         // Map API errors to user-friendly messages
-        if (errorMsg === 'Project ID or slug is required') {
+        if (errorMsg === 'Project ID or slug is required' || errorMsg.includes('projectId is required') || errorMsg.includes('Project ID or slug')) {
           errorMsg = 'Project ID or slug is missing from the URL. Please check the link and try again.';
         } else if (errorMsg === 'Project not found') {
           errorMsg = 'Project not found. The project may have been removed or the link is incorrect.';
@@ -234,7 +264,7 @@ export default function ArcRequestsPage() {
           errorMsg = 'Project ID is missing. Please check the URL and try again.';
         }
         
-        console.error('[Request Form] Project load error:', errorMsg);
+        console.error('[Request Form] Project load error (mapped):', errorMsg);
         throw new Error(errorMsg);
       }
 
