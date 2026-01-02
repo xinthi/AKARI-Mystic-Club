@@ -42,6 +42,15 @@ type CurrentMsArenaResponse =
         live_active_count: number;
         live_count: number;
         active_count: number;
+        paused_count: number;
+        status_counts: Record<string, number>;
+        latest_arenas: Array<{
+          id: string;
+          kind: string | null;
+          status: string;
+          starts_at: string | null;
+          ends_at: string | null;
+        }>;
       };
     }
   | {
