@@ -107,6 +107,8 @@ export default function ArcRequestsPage() {
   const [projectLoading, setProjectLoading] = useState(false);
   const [selectedAccessLevel, setSelectedAccessLevel] = useState<'creator_manager' | 'leaderboard' | 'gamified'>('leaderboard');
   const [justification, setJustification] = useState('');
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -135,6 +137,14 @@ export default function ArcRequestsPage() {
       setSelectedProject(null);
     }
   }, [router.isReady, router.query]);
+
+  // Clear dates when switching to CRM (dates not required)
+  useEffect(() => {
+    if (selectedAccessLevel === 'creator_manager') {
+      setStartAt('');
+      setEndAt('');
+    }
+  }, [selectedAccessLevel]);
 
   // Load requests (only if not in request mode)
   useEffect(() => {
@@ -289,20 +299,39 @@ export default function ArcRequestsPage() {
       const productType = productTypeMap[selectedAccessLevel] || 'ms';
       
       // For ms and gamefi, dates are required. For crm, they're optional.
-      // We'll let the API validate this, but we should prompt for dates in the UI if needed.
-      const startAt = null; // TODO: Add date inputs to the form
-      const endAt = null; // TODO: Add date inputs to the form
+      // Validate dates before sending
+      if ((productType === 'ms' || productType === 'gamefi') && (!startAt || !endAt)) {
+        throw new Error('Start and end dates are required for this request type.');
+      }
 
       // Validate projectId before sending
       if (!selectedProject.id || typeof selectedProject.id !== 'string') {
         throw new Error('Invalid project ID. Please refresh the page and try again.');
       }
 
+      // Format dates for API (convert to ISO string if provided)
+      const formattedStartAt = startAt ? new Date(startAt).toISOString() : null;
+      const formattedEndAt = endAt ? new Date(endAt).toISOString() : null;
+
+      // Validate date range if dates are provided
+      if (formattedStartAt && formattedEndAt) {
+        const startDate = new Date(formattedStartAt);
+        const endDate = new Date(formattedEndAt);
+        
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          throw new Error('Invalid date format. Please check your dates and try again.');
+        }
+        
+        if (startDate >= endDate) {
+          throw new Error('End date must be after start date.');
+        }
+      }
+
       const requestBody = {
         projectId: selectedProject.id,
         productType: productType,
-        startAt: startAt,
-        endAt: endAt,
+        startAt: formattedStartAt,
+        endAt: formattedEndAt,
         notes: justification.trim() || null,
       };
 
@@ -481,6 +510,44 @@ export default function ArcRequestsPage() {
                         {getArcFeatureDescription(selectedAccessLevel)}
                       </p>
                     </div>
+
+                    {/* Date Range - Required for leaderboard and gamified */}
+                    {(selectedAccessLevel === 'leaderboard' || selectedAccessLevel === 'gamified') && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-white mb-2">
+                            Start Date <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={startAt}
+                            onChange={(e) => setStartAt(e.target.value)}
+                            required
+                            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
+                            min={new Date().toISOString().slice(0, 16)} // Prevent selecting past dates
+                          />
+                          <p className="text-xs text-white/60 mt-1">
+                            When should the leaderboard start?
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-white mb-2">
+                            End Date <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={endAt}
+                            onChange={(e) => setEndAt(e.target.value)}
+                            required
+                            min={startAt || new Date().toISOString().slice(0, 16)} // Must be after start date
+                            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
+                          />
+                          <p className="text-xs text-white/60 mt-1">
+                            When should the leaderboard end? (Must be after start date)
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Justification (optional) */}
                     <div>
