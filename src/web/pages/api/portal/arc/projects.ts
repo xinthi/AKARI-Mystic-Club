@@ -22,6 +22,9 @@ interface ArcProjectFeatures {
   crm_enabled: boolean;
   crm_start_at: string | null;
   crm_end_at: string | null;
+  option1_crm_unlocked: boolean;
+  option2_normal_unlocked: boolean;
+  option3_gamified_unlocked: boolean;
   crm_visibility: 'private' | 'public' | 'hybrid' | null;
 }
 
@@ -43,7 +46,7 @@ interface ArcProject {
     totalPoints?: number;
     trend?: 'rising' | 'stable' | 'cooling';
   };
-  features?: ArcProjectFeatures | null;
+  features: ArcProjectFeatures;
 }
 
 type ArcProjectsResponse =
@@ -88,7 +91,11 @@ export default async function handler(
       });
     }
 
-    // Query projects with ARC access approved OR arc_active=true
+    // Query projects with:
+    // 1. ARC access approved (arc_project_access.application_status = 'approved')
+    // 2. is_arc_company = true
+    // 3. Join arc_project_features to return features object
+    
     // First, get approved projects from arc_project_access
     const { data: approvedAccess, error: accessError } = await supabase
       .from('arc_project_access')
@@ -97,25 +104,14 @@ export default async function handler(
     
     const approvedProjectIds = approvedAccess?.map(a => a.project_id) || [];
     
-    // Also get projects with arc_active=true (backward compatibility)
-    const { data: activeProjects, error: activeError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('arc_active', true);
-    
-    const activeProjectIds = activeProjects?.map(p => p.id) || [];
-    
-    // Combine both sets
-    const allProjectIds = [...new Set([...approvedProjectIds, ...activeProjectIds])];
-    
-    if (allProjectIds.length === 0) {
+    if (approvedProjectIds.length === 0) {
       return res.status(200).json({
         ok: true,
         projects: [],
       });
     }
     
-    // Get project details with optional project_arc_settings metadata and arc_project_features
+    // Get project details with is_arc_company filter, project_arc_settings, and arc_project_features
     const { data: projectsData, error: projectsError } = await supabase
       .from('projects')
       .select(`
@@ -124,6 +120,7 @@ export default async function handler(
         name,
         twitter_username,
         header_image_url,
+        is_arc_company,
         project_arc_settings (
           tier,
           status,
@@ -140,10 +137,14 @@ export default async function handler(
           crm_enabled,
           crm_start_at,
           crm_end_at,
+          option1_crm_unlocked,
+          option2_normal_unlocked,
+          option3_gamified_unlocked,
           crm_visibility
         )
       `)
-      .in('id', allProjectIds);
+      .in('id', approvedProjectIds)
+      .eq('is_arc_company', true);
     
     if (projectsError) {
       console.error('[API /portal/arc/projects] Error fetching projects:', projectsError);
@@ -214,43 +215,54 @@ export default async function handler(
       }
     }
 
-    // Map data to response format
-    const projects: ArcProject[] = data.map((row: any) => {
-      const stats = statsMap.get(row.project_id) || { creatorCount: 0, totalPoints: 0 };
-      const trend: 'rising' | 'stable' | 'cooling' = stats.creatorCount > 10 ? 'rising' : stats.creatorCount > 5 ? 'stable' : 'cooling';
-      
-      // Extract features from arc_project_features (it's an array, take first or null)
-      const featuresData = row.arc_project_features?.[0] || null;
-      const features: ArcProjectFeatures | null = featuresData ? {
-        leaderboard_enabled: featuresData.leaderboard_enabled || false,
-        leaderboard_start_at: featuresData.leaderboard_start_at || null,
-        leaderboard_end_at: featuresData.leaderboard_end_at || null,
-        gamefi_enabled: featuresData.gamefi_enabled || false,
-        gamefi_start_at: featuresData.gamefi_start_at || null,
-        gamefi_end_at: featuresData.gamefi_end_at || null,
-        crm_enabled: featuresData.crm_enabled || false,
-        crm_start_at: featuresData.crm_start_at || null,
-        crm_end_at: featuresData.crm_end_at || null,
-        crm_visibility: (featuresData.crm_visibility as 'private' | 'public' | 'hybrid') || null,
-      } : null;
-      
-      return {
-        project_id: row.project_id,
-        slug: row.projects?.slug ?? null,
-        name: row.projects?.name ?? null,
-        twitter_username: row.projects?.twitter_username ?? null,
-        arc_tier: row.tier,
-        arc_status: row.status,
-        security_status: row.security_status,
-        meta: (row.meta as any) || {},
-        stats: {
-          creatorCount: stats.creatorCount,
-          totalPoints: stats.totalPoints,
-          trend,
-        },
-        features,
-      };
-    });
+    // Map data to response format and filter by at least one feature enabled
+    const projects: ArcProject[] = data
+      .map((row: any) => {
+        const stats = statsMap.get(row.project_id) || { creatorCount: 0, totalPoints: 0 };
+        const trend: 'rising' | 'stable' | 'cooling' = stats.creatorCount > 10 ? 'rising' : stats.creatorCount > 5 ? 'stable' : 'cooling';
+        
+        // Extract features from arc_project_features (it's an array, take first or default to all false)
+        const featuresData = row.arc_project_features?.[0] || null;
+        // Always return a non-null features object (default to all false if no row exists)
+        const features: ArcProjectFeatures = {
+          leaderboard_enabled: featuresData?.leaderboard_enabled || false,
+          leaderboard_start_at: featuresData?.leaderboard_start_at || null,
+          leaderboard_end_at: featuresData?.leaderboard_end_at || null,
+          gamefi_enabled: featuresData?.gamefi_enabled || false,
+          gamefi_start_at: featuresData?.gamefi_start_at || null,
+          gamefi_end_at: featuresData?.gamefi_end_at || null,
+          crm_enabled: featuresData?.crm_enabled || false,
+          crm_start_at: featuresData?.crm_start_at || null,
+          crm_end_at: featuresData?.crm_end_at || null,
+          option1_crm_unlocked: featuresData?.option1_crm_unlocked || false,
+          option2_normal_unlocked: featuresData?.option2_normal_unlocked || false,
+          option3_gamified_unlocked: featuresData?.option3_gamified_unlocked || false,
+          crm_visibility: (featuresData?.crm_visibility as 'private' | 'public' | 'hybrid') || null,
+        };
+        
+        return {
+          project_id: row.project_id,
+          slug: row.projects?.slug ?? null,
+          name: row.projects?.name ?? null,
+          twitter_username: row.projects?.twitter_username ?? null,
+          arc_tier: row.tier,
+          arc_status: row.status,
+          security_status: row.security_status,
+          meta: (row.meta as any) || {},
+          stats: {
+            creatorCount: stats.creatorCount,
+            totalPoints: stats.totalPoints,
+            trend,
+          },
+          features,
+        };
+      })
+      // Filter: only include projects with at least one feature enabled
+      .filter((project: ArcProject) => 
+        project.features.leaderboard_enabled || 
+        project.features.gamefi_enabled || 
+        project.features.crm_enabled
+      );
 
     return res.status(200).json({
       ok: true,

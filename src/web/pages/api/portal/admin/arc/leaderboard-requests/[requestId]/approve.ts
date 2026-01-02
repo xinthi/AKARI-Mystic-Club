@@ -209,6 +209,13 @@ export default async function handler(
         });
       }
 
+      if (errorMessage.includes('project_not_arc_company')) {
+        return res.status(400).json({
+          ok: false,
+          error: 'project_not_arc_company',
+        });
+      }
+
       // Other errors (invalid_product_type, project_not_found, etc.)
       return res.status(500).json({
         ok: false,

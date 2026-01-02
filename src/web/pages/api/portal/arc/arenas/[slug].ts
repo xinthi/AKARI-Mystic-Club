@@ -10,7 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient, createServiceClient } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { requireArcAccess } from '@/lib/arc-access';
+import { requireArcArenaReadAccess } from '@/lib/arc-access';
 
 // =============================================================================
 // TYPES
@@ -177,9 +177,9 @@ export default async function handler(
       });
     }
 
-    // Check ARC access (Option 2 = Leaderboard)
+    // Check arena read access (allows public read for active/ended arenas if project is ARC-eligible)
     const supabaseAdmin = getSupabaseAdmin();
-    const accessCheck = await requireArcAccess(supabaseAdmin, arenaData.project_id, 2);
+    const accessCheck = await requireArcArenaReadAccess(supabaseAdmin, normalizedSlug);
     if (!accessCheck.ok) {
       return res.status(403).json({
         ok: false,

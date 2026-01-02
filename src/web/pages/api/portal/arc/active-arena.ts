@@ -60,16 +60,22 @@ export default async function handler(
     const supabaseAdmin = getSupabaseAdmin();
     const now = new Date().toISOString();
 
-    // Check ARC access (Option 2 = Leaderboard) - arena data is project-specific ARC data
-    const accessCheck = await requireArcAccess(supabaseAdmin, projectId, 2);
-    if (!accessCheck.ok) {
+    // Verify project is ARC-eligible (is_arc_company = true)
+    const { data: projectCheck } = await supabase
+      .from('projects')
+      .select('id, is_arc_company')
+      .eq('id', projectId)
+      .single();
+
+    if (!projectCheck || !projectCheck.is_arc_company) {
       return res.status(403).json({
         ok: false,
-        error: accessCheck.error,
+        error: 'Project is not eligible for ARC',
       });
     }
 
     // Find active arena: status='active' and now() between starts_at and ends_at
+    // Only for ARC-eligible projects (is_arc_company = true)
     const { data: arenaData, error: arenaError } = await supabase
       .from('arenas')
       .select('id, slug, starts_at, ends_at, status')

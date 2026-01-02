@@ -98,6 +98,20 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
     const now = new Date().toISOString();
 
+    // Verify project is ARC-eligible (is_arc_company = true)
+    const { data: projectCheck } = await supabase
+      .from('projects')
+      .select('id, is_arc_company')
+      .eq('id', projectId)
+      .single();
+
+    if (!projectCheck || !projectCheck.is_arc_company) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Project is not eligible for ARC',
+      });
+    }
+
     // Build the main query: find current MS arena
     // Selection logic:
     // - Live timeframe: starts_at <= now() AND (ends_at is null OR ends_at > now())

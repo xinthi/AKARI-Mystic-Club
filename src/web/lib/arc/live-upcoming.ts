@@ -314,15 +314,17 @@ async function fetchArenas(supabase: SupabaseClient) {
       starts_at,
       ends_at,
       status,
-      projects:project_id (
+      projects!inner (
         id,
         name,
         slug,
         x_handle,
-        arc_access_level
+        arc_access_level,
+        is_arc_company
       )
     `)
     .in('status', ['active', 'scheduled', 'paused'])
+    .eq('projects.is_arc_company', true)
     .order('created_at', { ascending: false });
 
   if (error) {

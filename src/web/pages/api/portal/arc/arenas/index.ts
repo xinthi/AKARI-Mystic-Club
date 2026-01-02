@@ -129,7 +129,21 @@ export default async function handler(
       });
     }
 
-    // Query arenas filtered by project_id
+    // Verify project is ARC-eligible (is_arc_company = true)
+    const { data: projectCheck } = await supabase
+      .from('projects')
+      .select('id, is_arc_company')
+      .eq('id', targetProjectId)
+      .single();
+
+    if (!projectCheck || !projectCheck.is_arc_company) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Project is not eligible for ARC',
+      });
+    }
+
+    // Query arenas filtered by project_id (only for ARC-eligible projects)
     const { data, error } = await supabase
       .from('arenas')
       .select(`

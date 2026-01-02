@@ -224,15 +224,22 @@ export default async function handler(
       }
     }
 
-    // Verify project exists
+    // Verify project exists and is ARC-eligible (is_arc_company = true)
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, is_arc_company')
       .eq('id', projectId)
       .single();
 
     if (projectError || !project) {
       return res.status(404).json({ ok: false, error: 'Project not found' });
+    }
+
+    if (!project.is_arc_company) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: 'Only company/project profiles can submit leaderboard requests' 
+      });
     }
 
     // Insert new request

@@ -74,14 +74,20 @@ BEGIN
     decided_by = p_admin_profile_id
   WHERE id = p_request_id;
 
-  -- Step 3: Fetch project info (for arena name/slug)
-  SELECT id, name, slug
+  -- Step 3: Fetch project info (for arena name/slug) and validate is_arc_company
+  SELECT id, name, slug, is_arc_company
   INTO v_project
   FROM projects
   WHERE id = v_request.project_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'project_not_found';
+  END IF;
+
+  -- Validate project is ARC-eligible (is_arc_company must be true)
+  -- Use COALESCE to handle NULL values (treat NULL as false)
+  IF COALESCE(v_project.is_arc_company, false) = false THEN
+    RAISE EXCEPTION 'project_not_arc_company';
   END IF;
 
   -- Step 4: Upsert arc_project_access
