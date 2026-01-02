@@ -145,10 +145,39 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [campaignFormSuccess, setCampaignFormSuccess] = useState<string | null>(null);
 
   // Participants state
-  const [participants, setParticipants] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<Array<{
+    id: string;
+    twitter_username: string;
+    joined_at: string | null;
+    links?: Array<{
+      id: string;
+      code: string;
+      short_code: string;
+      target_url: string;
+      label: string | null;
+      created_at: string;
+    }>;
+  }>>([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantsError, setParticipantsError] = useState<string | null>(null);
-  const [participantLinks, setParticipantLinks] = useState<Record<string, any>>({});
+  
+  // UTM Links modal state
+  const [showUtmLinksModal, setShowUtmLinksModal] = useState(false);
+  const [selectedParticipantForLinks, setSelectedParticipantForLinks] = useState<{
+    id: string;
+    twitter_username: string;
+    links: Array<{
+      id: string;
+      code: string;
+      short_code: string;
+      target_url: string;
+      label: string | null;
+      created_at: string;
+    }>;
+  } | null>(null);
+  const [newLinkForm, setNewLinkForm] = useState({ label: '', destination_url: '' });
+  const [newLinkSubmitting, setNewLinkSubmitting] = useState(false);
+  const [newLinkError, setNewLinkError] = useState<string | null>(null);
   
   // Add participant form state
   const [participantForm, setParticipantForm] = useState({
@@ -162,9 +191,6 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
-  // UTM link generation state
-  const [utmForm, setUtmForm] = useState<Record<string, { label: string; destination_url: string }>>({});
-  const [utmGenerating, setUtmGenerating] = useState<string | null>(null);
 
   // Fetch permissions client-side to determine what actions are allowed
   useEffect(() => {
@@ -328,18 +354,14 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
         throw new Error(data.error || 'Failed to load participants');
       }
 
-      const participantsList = data.participants || [];
+      // Participants now include links array from API
+      const participantsList = (data.participants || []).map((p: any) => ({
+        id: p.id,
+        twitter_username: p.twitter_username,
+        joined_at: p.joined_at,
+        links: p.links || [],
+      }));
       setParticipants(participantsList);
-
-      // Fetch existing links for participants
-      // Query links via a helper API or fetch individually
-      // For now, we'll show "Generate UTM" button and links will appear after generation
-      const linksMap: Record<string, any> = {};
-      for (const participant of participantsList) {
-        // Try to get link if it exists (we'll show generate button if not)
-        // Links will be populated when generated via handleGenerateUtmLink
-      }
-      setParticipantLinks(linksMap);
     } catch (err: any) {
       setParticipantsError(err.message || 'Failed to load participants');
     } finally {
@@ -495,52 +517,83 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
   };
 
-  // Handle generate UTM link
-  const handleGenerateUtmLink = async (participantId: string, label: string, destinationUrl: string) => {
-    if (!selectedCampaign) return;
+  // Handle open UTM Links modal
+  const handleOpenUtmLinksModal = (participant: any) => {
+    setSelectedParticipantForLinks({
+      id: participant.id,
+      twitter_username: participant.twitter_username,
+      links: participant.links || [],
+    });
+    setNewLinkForm({ label: '', destination_url: '' });
+    setNewLinkError(null);
+    setShowUtmLinksModal(true);
+  };
 
-    if (!destinationUrl.trim()) {
-      alert('Destination URL is required');
+  // Handle create new UTM link
+  const handleCreateUtmLink = async () => {
+    if (!selectedCampaign || !selectedParticipantForLinks) return;
+
+    if (!newLinkForm.destination_url.trim()) {
+      setNewLinkError('Destination URL is required');
+      return;
+    }
+
+    if (!newLinkForm.label.trim()) {
+      setNewLinkError('Label is required');
       return;
     }
 
     try {
-      new URL(destinationUrl);
+      new URL(newLinkForm.destination_url);
     } catch {
-      alert('Invalid URL format');
+      setNewLinkError('Invalid URL format');
       return;
     }
 
-    setUtmGenerating(participantId);
+    setNewLinkSubmitting(true);
+    setNewLinkError(null);
 
     try {
-      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign}/participants/${participantId}/link`, {
+      const res = await fetch(`/api/portal/arc/campaigns/${selectedCampaign}/participants/${selectedParticipantForLinks.id}/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          target_url: destinationUrl,
+          target_url: newLinkForm.destination_url.trim(),
+          label: newLinkForm.label.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to generate UTM link');
+        throw new Error(data.error || 'Failed to create UTM link');
       }
-
-      // Update participant links and refetch participants to get updated data
-      setParticipantLinks((prev) => ({
-        ...prev,
-        [participantId]: data.link,
-      }));
 
       // Refetch participants to get updated link info
       await fetchParticipants(selectedCampaign);
+      
+      // Update modal state
+      const updatedParticipants = await fetch(`/api/portal/arc/campaigns/${selectedCampaign}/participants`, {
+        credentials: 'include',
+      }).then((r) => r.json());
+      if (updatedParticipants.ok) {
+        const updatedParticipant = (updatedParticipants.participants || []).find((p: any) => p.id === selectedParticipantForLinks.id);
+        if (updatedParticipant) {
+          setSelectedParticipantForLinks({
+            id: updatedParticipant.id,
+            twitter_username: updatedParticipant.twitter_username,
+            links: updatedParticipant.links || [],
+          });
+        }
+      }
+
+      // Clear form
+      setNewLinkForm({ label: '', destination_url: '' });
     } catch (err: any) {
-      alert(err.message || 'Failed to generate UTM link');
+      setNewLinkError(err.message || 'Failed to create UTM link');
     } finally {
-      setUtmGenerating(null);
+      setNewLinkSubmitting(false);
     }
   };
 
@@ -1737,9 +1790,8 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                                       </thead>
                                       <tbody className="divide-y divide-white/10">
                                         {participants.map((participant) => {
-                                          const link = participantLinks[participant.id];
+                                          const linksCount = participant.links?.length || 0;
                                           const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                                          const shortUrl = link ? `${baseUrl}/r/${link.code || link.short_code}` : null;
 
                                           return (
                                             <tr key={participant.id} className="hover:bg-white/5 transition-colors">
@@ -1748,50 +1800,18 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                                                 {participant.joined_at ? new Date(participant.joined_at).toLocaleString() : 'N/A'}
                                               </td>
                                               <td className="px-4 py-3 text-sm text-white/80">
-                                                {link ? (
-                                                  <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                      <a
-                                                        href={shortUrl || '#'}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-teal-400 hover:text-teal-300 text-xs font-mono"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                      >
-                                                        {shortUrl}
-                                                      </a>
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          if (shortUrl) {
-                                                            navigator.clipboard.writeText(shortUrl);
-                                                            alert('Link copied to clipboard!');
-                                                          }
-                                                        }}
-                                                        className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 rounded transition-colors"
-                                                      >
-                                                        Copy
-                                                      </button>
-                                                    </div>
-                                                  </div>
-                                                ) : (
-                                                  <span className="text-white/40 text-xs">No link</span>
-                                                )}
+                                                <span className="text-white/80">{linksCount} link{linksCount !== 1 ? 's' : ''}</span>
                                               </td>
                                               <td className="px-4 py-3">
                                                 {canManage && (
                                                   <button
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      const url = prompt('Enter destination URL:');
-                                                      if (url) {
-                                                        handleGenerateUtmLink(participant.id, '', url);
-                                                      }
+                                                      handleOpenUtmLinksModal(participant);
                                                     }}
-                                                    disabled={utmGenerating === participant.id}
-                                                    className="px-2 py-1 text-xs bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded hover:bg-teal-500/30 transition-colors disabled:opacity-50"
+                                                    className="px-2 py-1 text-xs bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded hover:bg-teal-500/30 transition-colors"
                                                   >
-                                                    {utmGenerating === participant.id ? 'Generating...' : link ? 'Regenerate' : 'Generate UTM'}
+                                                    Manage UTM Links
                                                   </button>
                                                 )}
                                               </td>
@@ -2090,6 +2110,160 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manage UTM Links Modal */}
+        {showUtmLinksModal && selectedParticipantForLinks && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-2xl rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  Manage UTM Links - @{selectedParticipantForLinks.twitter_username}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowUtmLinksModal(false);
+                    setSelectedParticipantForLinks(null);
+                    setNewLinkForm({ label: '', destination_url: '' });
+                    setNewLinkError(null);
+                  }}
+                  className="text-white/60 hover:text-white transition-colors"
+                  disabled={newLinkSubmitting}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Existing Links */}
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-white mb-3">Existing Links ({selectedParticipantForLinks.links.length}/5)</h4>
+                {selectedParticipantForLinks.links.length === 0 ? (
+                  <EmptyState
+                    title="No links yet"
+                    description="Create your first UTM link below."
+                    icon="🔗"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {selectedParticipantForLinks.links.map((link) => {
+                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                      const shortUrl = `${baseUrl}/r/${link.short_code || link.code}`;
+                      
+                      return (
+                        <div
+                          key={link.id}
+                          className="p-4 rounded-lg border border-white/10 bg-black/20"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-white">
+                                  {link.label || 'Untitled Link'}
+                                </span>
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                <div>
+                                  <span className="text-white/60">Short URL: </span>
+                                  <a
+                                    href={shortUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-teal-400 hover:text-teal-300 font-mono"
+                                  >
+                                    {shortUrl}
+                                  </a>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(shortUrl);
+                                      alert('Link copied to clipboard!');
+                                    }}
+                                    className="ml-2 px-2 py-1 bg-white/10 hover:bg-white/20 rounded transition-colors"
+                                  >
+                                    Copy
+                                  </button>
+                                </div>
+                                <div>
+                                  <span className="text-white/60">Destination: </span>
+                                  <span className="text-white/80 truncate block">{link.target_url}</span>
+                                </div>
+                                <div>
+                                  <span className="text-white/60">Created: </span>
+                                  <span className="text-white/80">
+                                    {new Date(link.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Create New Link Form */}
+              {selectedParticipantForLinks.links.length < 5 ? (
+                <div className="border-t border-white/10 pt-6">
+                  <h4 className="text-sm font-semibold text-white mb-3">Create New Link</h4>
+                  
+                  {newLinkError && (
+                    <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/30">
+                      <p className="text-red-400 text-sm">{newLinkError}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        Label <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newLinkForm.label}
+                        onChange={(e) => setNewLinkForm({ ...newLinkForm, label: e.target.value })}
+                        placeholder="e.g., Main Landing Page"
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                        disabled={newLinkSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        Destination URL <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={newLinkForm.destination_url}
+                        onChange={(e) => setNewLinkForm({ ...newLinkForm, destination_url: e.target.value })}
+                        placeholder="https://example.com/page"
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                        disabled={newLinkSubmitting}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleCreateUtmLink}
+                      disabled={newLinkSubmitting || !newLinkForm.label.trim() || !newLinkForm.destination_url.trim()}
+                      className="w-full px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {newLinkSubmitting ? 'Creating...' : 'Create Link'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t border-white/10 pt-6">
+                  <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                    <p className="text-yellow-400 text-sm">
+                      Maximum of 5 links per participant reached. Delete an existing link to create a new one.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

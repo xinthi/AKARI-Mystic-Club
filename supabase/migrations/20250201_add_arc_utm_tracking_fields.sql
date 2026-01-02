@@ -9,6 +9,10 @@
 ALTER TABLE IF EXISTS arc_participant_links
   ADD COLUMN IF NOT EXISTS short_code TEXT;
 
+-- Add label column to arc_participant_links for multiple links per participant
+ALTER TABLE IF EXISTS arc_participant_links
+  ADD COLUMN IF NOT EXISTS label TEXT;
+
 -- Populate short_code from code if not already set
 UPDATE arc_participant_links
 SET short_code = code

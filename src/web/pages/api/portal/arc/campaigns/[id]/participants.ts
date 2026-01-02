@@ -148,9 +148,47 @@ export default async function handler(
         return res.status(500).json({ ok: false, error: 'Failed to fetch participants' });
       }
 
+      // Fetch links for each participant
+      const participantsWithLinks = await Promise.all(
+        (participants || []).map(async (participant) => {
+          const { data: links, error: linksError } = await supabase
+            .from('arc_participant_links')
+            .select('id, code, short_code, target_url, label, created_at')
+            .eq('participant_id', participant.id)
+            .order('created_at', { ascending: false });
+
+          if (linksError) {
+            console.warn(`[ARC Participants API] Failed to fetch links for participant ${participant.id}:`, linksError);
+            return {
+              ...participant,
+              links: [],
+            };
+          }
+
+          return {
+            ...participant,
+            links: (links || []).map((link) => ({
+              id: link.id,
+              code: link.code,
+              short_code: link.short_code || link.code,
+              target_url: link.target_url,
+              label: link.label || null,
+              created_at: link.created_at,
+            })),
+          };
+        })
+      );
+
       return res.status(200).json({
         ok: true,
-        participants: (participants || []) as Participant[],
+        participants: participantsWithLinks as (Participant & { links: Array<{
+          id: string;
+          code: string;
+          short_code: string;
+          target_url: string;
+          label: string | null;
+          created_at: string;
+        }> })[],
       });
     }
 

@@ -18,6 +18,7 @@ import { getProfileIdFromUserId } from '@/lib/arc-permissions';
 
 interface CreateLinkPayload {
   target_url: string;
+  label?: string;
 }
 
 interface ParticipantLink {
@@ -25,7 +26,9 @@ interface ParticipantLink {
   campaign_id: string;
   participant_id: string;
   code: string;
+  short_code: string | null;
   target_url: string;
+  label: string | null;
   created_at: string;
 }
 
@@ -175,115 +178,98 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Invalid URL format' });
     }
 
-    // Check if link already exists
-    const { data: existing } = await supabase
+    // Check link count (max 5 per participant)
+    const { count: linkCount, error: countError } = await supabase
       .from('arc_participant_links')
-      .select('code')
-      .eq('campaign_id', campaignId)
-      .eq('participant_id', participantId)
-      .maybeSingle();
+      .select('id', { count: 'exact', head: true })
+      .eq('participant_id', participantId);
 
-    let code: string;
-    if (existing) {
-      // Update existing link
-      code = existing.code;
-      const { error: updateError } = await supabase
-        .from('arc_participant_links')
-        .update({ target_url: body.target_url })
-        .eq('campaign_id', campaignId)
-        .eq('participant_id', participantId);
-
-      if (updateError) {
-        console.error('[ARC Link API] Update error:', updateError);
-        return res.status(500).json({ ok: false, error: 'Failed to update link' });
-      }
-    } else {
-      // Generate unique code
-      let attempts = 0;
-      do {
-        code = generateUniqueCode();
-        const { data: existingCode } = await supabase
-          .from('arc_participant_links')
-          .select('id')
-          .eq('code', code)
-          .maybeSingle();
-
-        if (!existingCode) {
-          break; // Code is unique
-        }
-        attempts++;
-      } while (attempts < 10);
-
-      if (attempts >= 10) {
-        return res.status(500).json({ ok: false, error: 'Failed to generate unique code' });
-      }
-
-      // Create link
-      const { data: link, error: insertError } = await supabase
-        .from('arc_participant_links')
-        .insert({
-          campaign_id: campaignId,
-          participant_id: participantId,
-          code: code,
-          short_code: code, // Also set short_code for compatibility
-          target_url: body.target_url,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('[ARC Link API] Insert error:', insertError);
-        return res.status(500).json({ ok: false, error: 'Failed to create link' });
-      }
-
-      // Log audit
-      const requestId = getRequestId(req);
-      const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
-      await writeArcAudit(supabase, {
-        actorProfileId: profileId,
-        projectId: pid,
-        entityType: 'utm_link',
-        entityId: link.id,
-        action: 'utm_link_created',
-        success: true,
-        message: `UTM link created with code ${code}`,
-        requestId,
-        metadata: {
-          campaignId,
-          participantId,
-          code,
-          targetUrl: body.target_url,
-        },
-      });
-
-      // Build redirect URL
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-      const redirectUrl = `${baseUrl}/r/${code}`;
-
-      return res.status(200).json({
-        ok: true,
-        link: link as ParticipantLink,
-        redirect_url: redirectUrl,
-      });
+    if (countError) {
+      console.error('[ARC Link API] Count error:', countError);
+      return res.status(500).json({ ok: false, error: 'Failed to check link count' });
     }
 
-    // Return existing link
-    const { data: link } = await supabase
+    if ((linkCount || 0) >= 5) {
+      return res.status(400).json({ ok: false, error: 'Maximum 5 links per participant' });
+    }
+
+    // Generate unique code
+    let code: string;
+    let attempts = 0;
+    do {
+      code = generateUniqueCode();
+      const { data: existingCode } = await supabase
+        .from('arc_participant_links')
+        .select('id')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (!existingCode) {
+        break; // Code is unique
+      }
+      attempts++;
+    } while (attempts < 10);
+
+    if (attempts >= 10) {
+      return res.status(500).json({ ok: false, error: 'Failed to generate unique code' });
+    }
+
+    // Create link
+    const { data: link, error: insertError } = await supabase
       .from('arc_participant_links')
-      .select('*')
-      .eq('code', code)
+      .insert({
+        campaign_id: campaignId,
+        participant_id: participantId,
+        code: code,
+        short_code: code, // Also set short_code for compatibility
+        target_url: body.target_url,
+        label: body.label || null,
+      })
+      .select()
       .single();
 
-    if (!link) {
-      return res.status(500).json({ ok: false, error: 'Failed to retrieve link' });
+    if (insertError) {
+      console.error('[ARC Link API] Insert error:', insertError);
+      return res.status(500).json({ ok: false, error: 'Failed to create link' });
     }
 
+    // Log audit
+    const requestId = getRequestId(req);
+    const profileId = userId ? await getProfileIdFromUserId(supabase, userId) : null;
+    await writeArcAudit(supabase, {
+      actorProfileId: profileId,
+      projectId: pid,
+      entityType: 'utm_link',
+      entityId: link.id,
+      action: 'utm_link_created',
+      success: true,
+      message: `UTM link created with code ${code}`,
+      requestId,
+      metadata: {
+        campaignId,
+        participantId,
+        code,
+        label: body.label || null,
+        targetUrl: body.target_url,
+      },
+    });
+
+    // Build redirect URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const redirectUrl = `${baseUrl}/r/${code}`;
 
     return res.status(200).json({
       ok: true,
-      link: link as ParticipantLink,
+      link: {
+        id: link.id,
+        campaign_id: link.campaign_id,
+        participant_id: link.participant_id,
+        code: link.code,
+        short_code: link.short_code || link.code,
+        target_url: link.target_url,
+        label: link.label || null,
+        created_at: link.created_at,
+      } as ParticipantLink,
       redirect_url: redirectUrl,
     });
   } catch (error: any) {
