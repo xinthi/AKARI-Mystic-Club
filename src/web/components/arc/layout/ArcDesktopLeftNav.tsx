@@ -114,7 +114,7 @@ export function ArcDesktopLeftNav({ canManageArc }: ArcDesktopLeftNavProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      href: '/portal/arc/admin',
+      href: '/portal/admin/arc',
       active: router.pathname.startsWith('/portal/arc/admin'),
     },
   ] : [];

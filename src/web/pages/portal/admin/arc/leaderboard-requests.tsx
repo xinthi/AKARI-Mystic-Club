@@ -207,7 +207,7 @@ export default function AdminLeaderboardRequestsPage() {
             ARC Home
           </Link>
           <span>/</span>
-          <Link href="/portal/arc/admin" className="hover:text-white transition-colors">
+          <Link href="/portal/admin/arc" className="hover:text-white transition-colors">
             Super Admin
           </Link>
           <span>/</span>

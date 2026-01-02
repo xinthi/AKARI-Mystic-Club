@@ -241,7 +241,7 @@ export function ArcMobileFeed({
     return (
       <div className="pb-20 space-y-3">
         <Link
-          href="/portal/arc/admin"
+          href="/portal/admin/arc"
           className="block p-4 rounded-xl border border-white/10 bg-black/40 hover:bg-white/5 transition-colors"
         >
           <div className="flex items-center justify-between">

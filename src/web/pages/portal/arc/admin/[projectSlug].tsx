@@ -1057,7 +1057,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
           {userIsSuperAdmin && (
             <>
               <Link
-                href="/portal/arc/admin"
+                href="/portal/admin/arc"
                 className="hover:text-white transition-colors"
               >
                 Admin
