@@ -342,6 +342,7 @@ function determineStatus(
  * Fetch active/scheduled arenas
  */
 async function fetchArenas(supabase: SupabaseClient) {
+  const now = new Date().toISOString();
   const { data: arenas, error } = await supabase
     .from('arenas')
     .select(`
@@ -352,6 +353,7 @@ async function fetchArenas(supabase: SupabaseClient) {
       starts_at,
       ends_at,
       status,
+      kind,
       projects!inner (
         id,
         name,
@@ -361,8 +363,10 @@ async function fetchArenas(supabase: SupabaseClient) {
         is_arc_company
       )
     `)
-    .in('status', ['active', 'scheduled', 'paused'])
+    .in('status', ['active', 'paused'])
+    .in('kind', ['ms', 'legacy_ms'])
     .eq('projects.is_arc_company', true)
+    .lte('starts_at', now)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -371,19 +375,28 @@ async function fetchArenas(supabase: SupabaseClient) {
   }
 
   if (!arenas) {
-    console.log('[getArcLiveItems] No arenas found with status active/scheduled');
+    console.log('[getArcLiveItems] No arenas found with status active/paused and kind ms/legacy_ms');
     return [];
   }
 
-  console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/scheduled/paused`);
+  // Filter for live timeframe: ends_at IS NULL OR ends_at > now
+  const now = new Date();
+  const liveArenas = arenas.filter((arena: any) => {
+    // Must have started (starts_at <= now) - already filtered in query
+    // Must be live: ends_at IS NULL OR ends_at > now
+    if (!arena.ends_at) return true; // ends_at is null
+    return new Date(arena.ends_at) > now; // ends_at > now
+  });
+
+  console.log(`[getArcLiveItems] Found ${arenas.length} arenas with status active/paused, ${liveArenas.length} are live (within date range)`);
   
   // Log project names for debugging
-  if (arenas.length > 0) {
-    const projectNames = arenas.map((a: any) => a.projects?.name || a.projects?.id || 'Unknown').filter(Boolean);
-    console.log(`[getArcLiveItems] Projects with arenas:`, [...new Set(projectNames)]);
+  if (liveArenas.length > 0) {
+    const projectNames = liveArenas.map((a: any) => a.projects?.name || a.projects?.id || 'Unknown').filter(Boolean);
+    console.log(`[getArcLiveItems] Projects with live arenas:`, [...new Set(projectNames)]);
     
     // Log detailed arena info for debugging
-    console.log(`[getArcLiveItems] Arena details:`, arenas.map((a: any) => ({
+    console.log(`[getArcLiveItems] Live arena details:`, liveArenas.map((a: any) => ({
       id: a.id,
       name: a.name,
       slug: a.slug,
@@ -391,15 +404,19 @@ async function fetchArenas(supabase: SupabaseClient) {
       projectName: a.projects?.name || 'NO PROJECT DATA',
       projectSlug: a.projects?.slug || null,
       status: a.status,
+      kind: a.kind,
       startsAt: a.starts_at,
       endsAt: a.ends_at,
     })));
   } else {
-    console.log(`[getArcLiveItems] ⚠️ No arenas found in database with status active/scheduled/paused`);
+    console.log(`[getArcLiveItems] ⚠️ No live arenas found (all arenas are outside date range or ended)`);
   }
 
+  // Use liveArenas instead of all arenas
+  const arenasToProcess = liveArenas;
+  
   // Get creator counts
-  const arenaIds = arenas.map(a => a.id);
+  const arenaIds = arenasToProcess.map(a => a.id);
   const { data: creatorCounts } = await supabase
     .from('arena_creators')
     .select('arena_id')
@@ -414,7 +431,7 @@ async function fetchArenas(supabase: SupabaseClient) {
   }
 
   // Check if any arenas are missing project data and fetch separately if needed
-  const arenasMissingProject = (arenas || []).filter((a: any) => !a.projects);
+  const arenasMissingProject = (arenasToProcess || []).filter((a: any) => !a.projects);
   if (arenasMissingProject.length > 0) {
     console.warn(`[getArcLiveItems] ⚠️ ${arenasMissingProject.length} arena(s) missing project data. Fetching separately...`);
     
@@ -439,7 +456,7 @@ async function fetchArenas(supabase: SupabaseClient) {
     }
   }
 
-  const mappedArenas = arenas.map((arena: any) => ({
+  const mappedArenas = arenasToProcess.map((arena: any) => ({
     id: arena.id,
     name: arena.name,
     slug: arena.slug,

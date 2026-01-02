@@ -1293,7 +1293,7 @@ export default function SentimentDetail() {
                   {/* API-driven: Only show if API explicitly returns shouldShowRequestButton: true */}
                   {arcCta?.ok === true && arcCta?.shouldShowRequestButton === true && project?.id && (
                     <Link
-                      href={`/portal/arc/requests?projectId=${project.id}&intent=request`}
+                      href={`/portal/arc/requests?projectId=${project.id}&productType=ms&intent=request`}
                       className="pill-neon inline-flex items-center gap-2 px-4 py-2 min-h-[40px] bg-akari-neon-teal text-black hover:bg-akari-neon-teal/80 hover:shadow-soft-glow text-sm font-medium"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

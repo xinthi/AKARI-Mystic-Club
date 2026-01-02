@@ -154,7 +154,7 @@ export default async function handler(
       });
     }
     
-    // Map to response format
+    // Map to response format (preserve features for later use)
     const data = projectsData?.map((p: any) => {
       const settingsMeta = p.project_arc_settings?.[0]?.meta || {};
       // Merge header_image_url from projects table into meta, taking precedence
@@ -174,6 +174,8 @@ export default async function handler(
         status: p.project_arc_settings?.[0]?.status || 'active',
         security_status: p.project_arc_settings?.[0]?.security_status || 'normal',
         meta: mergedMeta,
+        // Preserve arc_project_features for later mapping
+        arc_project_features: p.arc_project_features,
       };
     }) || [];
 

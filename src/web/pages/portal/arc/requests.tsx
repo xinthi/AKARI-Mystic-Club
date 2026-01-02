@@ -113,11 +113,20 @@ export default function ArcRequestsPage() {
 
   // Check query params for request mode
   useEffect(() => {
-    const { projectId, slug, intent } = router.query;
+    const { projectId, slug, intent, productType } = router.query;
     
     if (projectId || slug) {
       setRequestMode(true);
       loadProject(projectId as string | undefined, slug as string | undefined);
+      
+      // Map productType from query to selectedAccessLevel
+      if (productType === 'ms') {
+        setSelectedAccessLevel('leaderboard');
+      } else if (productType === 'gamefi') {
+        setSelectedAccessLevel('gamified');
+      } else if (productType === 'crm') {
+        setSelectedAccessLevel('creator_manager');
+      }
     } else {
       setRequestMode(false);
       setSelectedProject(null);
@@ -197,14 +206,30 @@ export default function ArcRequestsPage() {
     setSubmitSuccess(false);
 
     try {
+      // Map selectedAccessLevel to productType (API expects 'ms', 'gamefi', 'crm')
+      const productTypeMap: Record<string, 'ms' | 'gamefi' | 'crm'> = {
+        'leaderboard': 'ms',
+        'gamified': 'gamefi',
+        'creator_manager': 'crm',
+      };
+      
+      const productType = productTypeMap[selectedAccessLevel] || 'ms';
+      
+      // For ms and gamefi, dates are required. For crm, they're optional.
+      // We'll let the API validate this, but we should prompt for dates in the UI if needed.
+      const startAt = null; // TODO: Add date inputs to the form
+      const endAt = null; // TODO: Add date inputs to the form
+
       const res = await fetch('/api/portal/arc/leaderboard-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // Include cookies (session token) - required for authentication
         body: JSON.stringify({
           projectId: selectedProject.id,
-          justification: justification.trim() || null,
-          requested_arc_access_level: selectedAccessLevel,
+          productType: productType,
+          startAt: startAt,
+          endAt: endAt,
+          notes: justification.trim() || null,
         }),
       });
 
