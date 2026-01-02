@@ -199,7 +199,10 @@ export default function AdminLeaderboardRequestsPage() {
   }
 
   return (
-    <ArcPageShell canManageArc={true}>
+    <ArcPageShell 
+      canManageArc={true}
+      isSuperAdmin={userIsSuperAdmin}
+    >
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
         <div className="flex items-center gap-2 text-sm text-white/60">

@@ -158,7 +158,10 @@ export default function AdminActivityPage() {
   // Not logged in
   if (!akariUser.isLoggedIn) {
     return (
-      <ArcPageShell canManageArc={true}>
+      <ArcPageShell 
+        canManageArc={true}
+        isSuperAdmin={userIsSuperAdmin}
+      >
         <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
           <p className="text-sm text-red-400">Log in to view this page.</p>
         </div>
@@ -169,7 +172,10 @@ export default function AdminActivityPage() {
   // Not super admin
   if (!userIsSuperAdmin) {
     return (
-      <ArcPageShell canManageArc={true}>
+      <ArcPageShell 
+        canManageArc={true}
+        isSuperAdmin={userIsSuperAdmin}
+      >
         <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
           <p className="text-sm text-red-400">You need super admin access to view this page.</p>
           <Link

@@ -227,7 +227,7 @@ export default function ArcBillingPage() {
 
   if (!userIsSuperAdmin) {
     return (
-      <ArcPageShell>
+      <ArcPageShell isSuperAdmin={false}>
         <div className="p-8">
           <ErrorState message="SuperAdmin access required" />
         </div>
@@ -236,7 +236,7 @@ export default function ArcBillingPage() {
   }
 
   return (
-    <ArcPageShell>
+    <ArcPageShell isSuperAdmin={userIsSuperAdmin}>
       <div className="p-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

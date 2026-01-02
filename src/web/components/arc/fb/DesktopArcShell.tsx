@@ -20,6 +20,9 @@ interface DesktopArcShellProps {
   
   // Left rail
   canManageArc?: boolean;
+  projectSlug?: string | null;
+  canManageProject?: boolean;
+  isSuperAdmin?: boolean;
   
   // Center feed
   treemapRender: React.ReactNode;
@@ -41,6 +44,9 @@ export function DesktopArcShell({
   onSearchChange,
   unreadCount,
   canManageArc,
+  projectSlug,
+  canManageProject,
+  isSuperAdmin,
   treemapRender,
   productCardsRender,
   liveItems,
@@ -70,6 +76,9 @@ export function DesktopArcShell({
           canManageArc={canManageArc}
           onKindFilterChange={onKindFilterChange}
           onTimeFilterChange={onTimeFilterChange}
+          projectSlug={projectSlug}
+          canManageProject={canManageProject}
+          isSuperAdmin={isSuperAdmin}
         />
 
         {/* Center Feed */}

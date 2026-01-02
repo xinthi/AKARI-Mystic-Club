@@ -7,14 +7,18 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { ArcNav } from '@/components/arc/ArcNav';
 
 interface LeftRailProps {
   canManageArc?: boolean;
   onKindFilterChange?: (filter: 'all' | 'arena' | 'campaign' | 'gamified') => void;
   onTimeFilterChange?: (filter: 'all' | 'live' | 'upcoming') => void;
+  projectSlug?: string | null;
+  canManageProject?: boolean;
+  isSuperAdmin?: boolean;
 }
 
-export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange }: LeftRailProps) {
+export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
   const router = useRouter();
 
   const scrollToSection = (id: string) => {
@@ -191,7 +195,15 @@ export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange 
   return (
     <div className="w-60 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
       <nav className="space-y-1 p-4">
-        {navItems.map((item) => {
+        {/* ARC Navigation */}
+        <ArcNav 
+          projectSlug={projectSlug}
+          canManageProject={canManageProject}
+          isSuperAdmin={isSuperAdmin}
+        />
+        
+        <div className="pt-4 border-t border-white/10">
+          {navItems.map((item) => {
           const content = (
             <div
               className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${

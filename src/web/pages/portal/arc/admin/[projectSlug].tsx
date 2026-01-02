@@ -1027,8 +1027,15 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     );
   }
 
+  const canManage = userIsSuperAdmin || permissions?.canManage || false;
+
   return (
-    <ArcPageShell canManageArc={true}>
+    <ArcPageShell 
+      canManageArc={true}
+      projectSlug={projectSlug}
+      canManageProject={canManage}
+      isSuperAdmin={userIsSuperAdmin}
+    >
       <div className="space-y-6">
         {/* Breadcrumb navigation */}
         <div className="flex items-center gap-2 text-sm text-white/60">

@@ -21,12 +21,18 @@ interface ArcPageShellProps {
    * If not provided, shows the default filters and widgets.
    */
   rightRailContent?: React.ReactNode;
+  projectSlug?: string | null;
+  canManageProject?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export function ArcPageShell({
   children,
   canManageArc = false,
   rightRailContent,
+  projectSlug,
+  canManageProject,
+  isSuperAdmin,
 }: ArcPageShellProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { activities, unreadCount } = useArcNotifications();
@@ -53,7 +59,12 @@ export function ArcPageShell({
           {/* Main Content: 3 Columns */}
           <div className="flex flex-1 w-full">
             {/* Left Rail */}
-            <LeftRail canManageArc={canManageArc} />
+            <LeftRail 
+              canManageArc={canManageArc}
+              projectSlug={projectSlug}
+              canManageProject={canManageProject}
+              isSuperAdmin={isSuperAdmin}
+            />
 
             {/* Center Feed - Page Content */}
             <div className="flex-1 min-w-0 max-w-[1400px] mx-auto px-4 space-y-6 py-6">

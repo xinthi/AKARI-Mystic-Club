@@ -660,6 +660,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
           onSearchChange={setSearchQuery}
           unreadCount={unreadCount}
           canManageArc={canManageArc}
+          isSuperAdmin={userIsSuperAdmin}
           treemapRender={treemapRender}
           productCardsRender={productCardsRender}
           liveItems={liveItems}
