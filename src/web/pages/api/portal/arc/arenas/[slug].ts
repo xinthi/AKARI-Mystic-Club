@@ -64,6 +64,7 @@ type ArenaDetailResponse =
   | {
       ok: false;
       error: string;
+      code?: 'not_arc_company' | 'not_approved' | 'project_not_found' | 'option_locked';
     };
 
 // =============================================================================
