@@ -208,7 +208,7 @@ export default async function handler(
         )
       `)
       .in('id', eligibleIds)
-      .eq('is_arc_company', true);
+      .or('is_arc_company.eq.true,is_arc_company.is.null');
     
     if (projectsError) {
       console.error('[API /portal/arc/projects] Error fetching projects:', projectsError);

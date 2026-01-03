@@ -74,7 +74,7 @@ BEGIN
     decided_by = p_admin_profile_id
   WHERE id = p_request_id;
 
-  -- Step 3: Fetch project info (for arena name/slug) and validate is_arc_company
+  -- Step 3: Fetch project info (for arena name/slug)
   SELECT id, name, slug, is_arc_company
   INTO v_project
   FROM projects
@@ -84,11 +84,13 @@ BEGIN
     RAISE EXCEPTION 'project_not_found';
   END IF;
 
-  -- Validate project is ARC-eligible (is_arc_company must be true)
-  -- Use COALESCE to handle NULL values (treat NULL as false)
-  IF COALESCE(v_project.is_arc_company, false) = false THEN
-    RAISE EXCEPTION 'project_not_arc_company';
-  END IF;
+  -- Step 3.5: Automatically set is_arc_company = true when approving
+  -- If a project is approved for ARC, it should be marked as an ARC company
+  -- This ensures approved projects appear in /api/portal/arc/projects
+  UPDATE projects
+  SET is_arc_company = true
+  WHERE id = v_request.project_id
+    AND (is_arc_company IS NULL OR is_arc_company = false);
 
   -- Step 4: Upsert arc_project_access
   -- Use ON CONFLICT with unique index (arc_project_access_project_id_unique)
