@@ -72,6 +72,17 @@ export default function ArcProjectHub() {
   // Load current MS arena
   const { arena: currentArena, loading: arenaLoading, error: arenaError } = useCurrentMsArena(projectId);
 
+  // Leaderboard data
+  const [leaderboardCreators, setLeaderboardCreators] = useState<Array<{
+    id: string;
+    twitter_username: string;
+    arc_points: number;
+    ring: 'core' | 'momentum' | 'discovery' | null;
+    style: string | null;
+  }>>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+
   // Fetch project by slug
   useEffect(() => {
     if (!projectSlug || !router.isReady) return;
@@ -150,6 +161,45 @@ export default function ArcProjectHub() {
 
     fetchProject();
   }, [projectSlug, router.isReady, akariUser.isLoggedIn]);
+
+  // Fetch leaderboard creators when arena is available
+  useEffect(() => {
+    if (!currentArena?.id) {
+      setLeaderboardCreators([]);
+      return;
+    }
+
+    async function fetchLeaderboard() {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+
+      try {
+        const res = await fetch(`/api/portal/arc/arena-creators?arenaId=${encodeURIComponent(currentArena.id)}`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to load leaderboard');
+        }
+
+        const data = await res.json();
+        if (data.ok && data.creators) {
+          setLeaderboardCreators(data.creators);
+        } else {
+          setLeaderboardCreators([]);
+        }
+      } catch (err: any) {
+        console.error('[ArcProjectHub] Leaderboard fetch error:', err);
+        setLeaderboardError(err.message || 'Failed to load leaderboard');
+        setLeaderboardCreators([]);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    }
+
+    fetchLeaderboard();
+  }, [currentArena?.id]);
 
   // Canonicalize projectSlug: redirect if normalized differs from original
   useEffect(() => {
@@ -272,7 +322,17 @@ export default function ArcProjectHub() {
         {/* Mindshare Leaderboard Section */}
         {enabledProducts.ms && (
           <div className="rounded-lg border border-white/10 bg-black/40 p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Mindshare Leaderboard</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Mindshare Leaderboard</h2>
+              {canManageProject && currentArena && (
+                <Link
+                  href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
+                  className="px-3 py-1.5 text-xs font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Manage Arena
+                </Link>
+              )}
+            </div>
             {arenaLoading ? (
               <div className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white/60"></div>
@@ -291,21 +351,83 @@ export default function ArcProjectHub() {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{currentArena.name || 'Active Arena'}</h3>
-                    <p className="text-white/60 text-sm">
-                      {currentArena.starts_at && new Date(currentArena.starts_at).toLocaleDateString()}
-                      {currentArena.ends_at && ` → ${new Date(currentArena.ends_at).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/portal/arc/${encodeURIComponent(projectSlug || '')}/arena/${encodeURIComponent(currentArena.slug || '')}`}
-                    className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-400 border border-teal-500/50 rounded-lg hover:bg-teal-500/30 transition-colors"
-                  >
-                    View Leaderboard
-                  </Link>
+                {/* Arena Info */}
+                <div className="pb-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-1">{currentArena.name || 'Active Arena'}</h3>
+                  <p className="text-white/60 text-sm">
+                    {currentArena.starts_at && (
+                      <span>Starts: {new Date(currentArena.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    )}
+                    {currentArena.ends_at && (
+                      <span className="ml-2">Ends: {new Date(currentArena.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    )}
+                  </p>
                 </div>
+
+                {/* Leaderboard Table */}
+                {leaderboardLoading ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white/60"></div>
+                    <p className="mt-2 text-white/60 text-sm">Loading leaderboard...</p>
+                  </div>
+                ) : leaderboardError ? (
+                  <div className="text-center py-8">
+                    <p className="text-red-400 text-sm">{leaderboardError}</p>
+                  </div>
+                ) : leaderboardCreators.length === 0 ? (
+                  <EmptyState
+                    icon="👥"
+                    title="No creators yet"
+                    description="Creators will appear here once they join the leaderboard."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Rank</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Creator</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboardCreators.map((creator, index) => (
+                          <tr
+                            key={creator.id}
+                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                          >
+                            <td className="py-3 px-4 text-white font-medium">#{index + 1}</td>
+                            <td className="py-3 px-4">
+                              <Link
+                                href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
+                                className="text-white hover:text-teal-400 transition-colors"
+                              >
+                                {creator.twitter_username || 'Unknown'}
+                              </Link>
+                            </td>
+                            <td className="py-3 px-4">
+                              {creator.ring && (
+                                <span className={`px-2 py-1 rounded-full text-xs border ${
+                                  creator.ring === 'core'
+                                    ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                                    : creator.ring === 'momentum'
+                                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                                    : 'bg-teal-500/20 text-teal-400 border-teal-500/50'
+                                }`}>
+                                  {creator.ring}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right text-white font-medium">
+                              {creator.arc_points.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

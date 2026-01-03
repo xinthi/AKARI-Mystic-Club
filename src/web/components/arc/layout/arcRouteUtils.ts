@@ -8,12 +8,18 @@ import { LiveLeaderboard } from '@/lib/arc/useArcHomeData';
 
 /**
  * Get route href for a leaderboard item based on its kind
+ * 
+ * CORRECTED FLOW: Leaderboard items route to public project page, not arena management page
  */
 export function getLeaderboardRoute(item: LiveLeaderboard): string {
-  // For both 'arena' and 'gamified' kinds, route to arena page
-  // Gamified features (sprints/quests) run ALONGSIDE the normal leaderboard
-  if ((item.kind === 'arena' || item.kind === 'gamified') && item.projectSlug && item.arenaSlug) {
-    return `/portal/arc/${item.projectSlug}/arena/${item.arenaSlug}`;
+  // For both 'arena' and 'gamified' kinds, route to public project page
+  // The project page shows the leaderboard directly
+  // Gamified features (sprints/quests) appear in sidebar on the project page
+  if (item.kind === 'arena' || item.kind === 'gamified') {
+    if (item.projectSlug) {
+      return `/portal/arc/${item.projectSlug}`;
+    }
+    return `/portal/arc/project/${item.projectId}`;
   } else if (item.kind === 'campaign') {
     // Campaigns route to their project page
     if (item.projectSlug) {
