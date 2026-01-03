@@ -83,6 +83,10 @@ export default function ArcProjectHub() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
+  // Approved MS request (for fallback detection)
+  const [hasApprovedMsRequest, setHasApprovedMsRequest] = useState(false);
+  const [approvedRequestLoading, setApprovedRequestLoading] = useState(false);
+
   // Fetch project by slug
   useEffect(() => {
     if (!projectSlug || !router.isReady) return;
@@ -151,6 +155,28 @@ export default function ArcProjectHub() {
             console.warn('[ArcProjectHub] Failed to fetch permissions:', permErr);
           }
         }
+
+        // Check for approved MS requests (fallback if features not set)
+        setApprovedRequestLoading(true);
+        try {
+          const requestsRes = await fetch(
+            `/api/portal/arc/leaderboard-requests?projectId=${encodeURIComponent(data.project.id)}`,
+            { credentials: 'include' }
+          );
+          if (requestsRes.ok) {
+            const requestsData = await requestsRes.json();
+            if (requestsData.ok && requestsData.requests) {
+              const hasApprovedMs = requestsData.requests.some(
+                (r: any) => r.status === 'approved' && (r.productType === 'ms' || r.productType === null)
+              );
+              setHasApprovedMsRequest(hasApprovedMs);
+            }
+          }
+        } catch (reqErr) {
+          console.warn('[ArcProjectHub] Failed to fetch requests:', reqErr);
+        } finally {
+          setApprovedRequestLoading(false);
+        }
       } catch (err: any) {
         console.error('[ArcProjectHub] Error:', err);
         setError(err.message || 'Failed to load project');
@@ -217,9 +243,12 @@ export default function ArcProjectHub() {
   const canManageProject = userIsSuperAdmin || permissions?.canManage || false;
   const enabledProducts = features ? getEnabledProducts(features) : { ms: false, gamefi: false, crmPublic: false, crmEnabled: false };
   
-  // If project has an active arena, treat MS leaderboard as enabled (even if features not set)
-  // This handles cases where approval created arena but features row wasn't properly set
-  const msEnabled = enabledProducts.ms || (currentArena !== null && !arenaLoading);
+  // MS is enabled if:
+  // 1. leaderboard_enabled = true in features, OR
+  // 2. Has an active/live arena (currentArena !== null), OR
+  // 3. Has an approved MS request (fallback for scheduled arenas or missing features)
+  // This ensures leaderboard shows even if arena hasn't started yet or features weren't set
+  const msEnabled = enabledProducts.ms || (currentArena !== null && !arenaLoading) || hasApprovedMsRequest;
 
   // Loading state
   if (loading) {
@@ -348,11 +377,21 @@ export default function ArcProjectHub() {
                 onRetry={() => window.location.reload()}
               />
             ) : !currentArena ? (
-              <EmptyState
-                icon="📊"
-                title="No active leaderboard right now"
-                description="This project has ARC enabled, but there is no live arena at the moment."
-              />
+              // No active arena - check if there's an approved request (arena might be scheduled)
+              hasApprovedMsRequest ? (
+                <div className="text-center py-8">
+                  <p className="text-white/80 mb-2">Leaderboard coming soon</p>
+                  <p className="text-white/60 text-sm">
+                    The arena is scheduled to start soon. Creators will appear here once it goes live.
+                  </p>
+                </div>
+              ) : (
+                <EmptyState
+                  icon="📊"
+                  title="No active leaderboard right now"
+                  description="This project has ARC enabled, but there is no live arena at the moment."
+                />
+              )
             ) : (
               <div className="space-y-4">
                 {/* Arena Info */}
