@@ -84,7 +84,7 @@ export default async function handler(
         return res.status(404).json({ ok: false, error: 'Project not found' });
       }
       console.error('[API /portal/arc/project/[projectId]] Supabase error:', projectError);
-      return res.status(500).json({ ok: false, error: 'Failed to load project' });
+      return res.status(500).json({ ok: false, error: 'Unable to load project. Please try again later.' });
     }
 
     if (!projectData) {
@@ -114,7 +114,7 @@ export default async function handler(
 
     return res.status(500).json({
       ok: false,
-      error: error.message || 'Internal server error',
+      error: 'Unable to load project. Please try again later.',
     });
   }
 }

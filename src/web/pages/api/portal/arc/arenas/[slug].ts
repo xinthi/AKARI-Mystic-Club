@@ -154,16 +154,12 @@ export default async function handler(
         });
       }
 
-      // Other errors: return 500 with full error in development
+      // Other errors: return user-friendly error message
       console.error('[API /portal/arc/arenas/[slug]] Supabase error fetching arena:', arenaError);
       console.error('[API /portal/arc/arenas/[slug]] Full error object:', JSON.stringify(arenaError, null, 2));
-      const errorMessage = arenaError.message || 'Failed to fetch arena';
-      const errorCode = arenaError.code || 'unknown';
       return res.status(500).json({
         ok: false,
-        error: process.env.NODE_ENV === 'development' 
-          ? `${errorMessage} (code: ${errorCode})` 
-          : 'Failed to fetch arena',
+        error: 'Unable to load arena. Please try again later.',
       });
     }
 
@@ -410,7 +406,7 @@ export default async function handler(
 
     return res.status(500).json({
       ok: false,
-      error: error.message || 'Failed to fetch arena details',
+      error: 'Unable to load arena details. Please try again later.',
     });
   }
 }

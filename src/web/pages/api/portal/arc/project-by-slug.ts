@@ -131,9 +131,11 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[API /portal/arc/project-by-slug] Error:', error);
+    
+    // Return user-friendly error message
     return res.status(500).json({
       ok: false,
-      error: error.message || 'Internal server error',
+      error: 'Unable to load project. Please try again later.',
     });
   }
 }

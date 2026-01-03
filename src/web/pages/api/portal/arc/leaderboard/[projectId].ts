@@ -280,7 +280,7 @@ export default async function handler(
 
     if (arenaError) {
       console.error('[ARC Leaderboard] Error fetching arena:', arenaError);
-      return res.status(500).json({ ok: false, error: 'Failed to fetch arena' });
+      return res.status(500).json({ ok: false, error: 'Unable to load arena. Please try again later.' });
     }
 
     // Get joined creators (if arena exists)
@@ -571,6 +571,6 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[ARC Leaderboard] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Unable to load leaderboard. Please try again later.' });
   }
 }

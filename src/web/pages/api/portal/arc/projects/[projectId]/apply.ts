@@ -167,7 +167,7 @@ export default async function handler(
           }
         }
         
-        return res.status(500).json({ ok: false, error: 'Failed to create request' });
+        return res.status(500).json({ ok: false, error: 'Unable to create request. Please try again later.' });
       }
 
       return res.status(200).json({
@@ -185,7 +185,7 @@ export default async function handler(
     }
   } catch (error: any) {
     console.error('[ARC Apply API] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Unable to submit request. Please try again later.' });
   }
 }
 

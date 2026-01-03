@@ -159,7 +159,7 @@ export default async function handler(
       console.error('[API /portal/arc/projects/[projectId]/current-ms-arena] Error fetching candidates:', candidatesError);
       return res.status(500).json({
         ok: false,
-        error: 'Failed to fetch arena',
+        error: 'Unable to load arena. Please try again later.',
       });
     }
 
@@ -297,7 +297,7 @@ export default async function handler(
     console.error('[API /portal/arc/projects/[projectId]/current-ms-arena] Error:', error);
     return res.status(500).json({
       ok: false,
-      error: error.message || 'Internal server error',
+      error: 'Unable to load arena. Please try again later.',
     });
   }
 }

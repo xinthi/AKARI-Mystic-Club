@@ -862,7 +862,7 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[ARC Arena Leaderboard API] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Unable to load leaderboard. Please try again later.' });
   }
 }
 

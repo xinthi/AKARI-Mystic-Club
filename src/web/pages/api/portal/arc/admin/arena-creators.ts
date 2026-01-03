@@ -246,12 +246,11 @@ export default async function handler(
       creators,
     });
   } catch (error: any) {
-    const errorMessage = error.message || 'Internal server error';
     console.error('[API /portal/arc/admin/arena-creators] Unexpected error:', error);
     console.error('[API /portal/arc/admin/arena-creators] Error stack:', error.stack);
     return res.status(500).json({
       ok: false,
-      error: process.env.NODE_ENV === 'development' ? errorMessage : 'Internal server error',
+      error: 'Unable to load arena creators. Please try again later.',
     });
   }
 }

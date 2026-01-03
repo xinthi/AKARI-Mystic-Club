@@ -357,7 +357,7 @@ export default function ArcProjectHub() {
           <div className="rounded-lg border border-white/10 bg-black/40 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Mindshare Leaderboard</h2>
-              {canManageProject && currentArena && (
+              {canManageProject && (currentArena || hasApprovedMsRequest) && (
                 <Link
                   href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
                   className="px-3 py-1.5 text-xs font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 transition-colors"

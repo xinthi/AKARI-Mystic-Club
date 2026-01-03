@@ -250,9 +250,12 @@ You can approve a leaderboard request at /portal/admin/arc/leaderboard-requests`
     setTestResults(tests);
   }, [testProject, testArena, testCampaign]);
 
-  // Run a single test
+  // Run a single test with timeout and retry logic
   const runTest = useCallback(
-    async (test: TestResult) => {
+    async (test: TestResult, retryCount: number = 0) => {
+      const MAX_RETRIES = 2;
+      const TIMEOUT_MS = 10000; // 10 seconds timeout
+
       if (test.type === 'page') {
         // Pages: just mark as pass (user can click link to verify)
         setTestResults((prev) =>
@@ -262,34 +265,84 @@ You can approve a leaderboard request at /portal/admin/arc/leaderboard-requests`
       }
 
       if (test.type === 'api') {
-        // APIs: fetch and validate
+        // APIs: fetch and validate with timeout
         setTestResults((prev) =>
           prev.map((t) => (t.url === test.url ? { ...t, status: 'pending' as const } : t))
         );
 
         try {
-          const res = await fetch(test.url, {
-            credentials: 'include',
-            cache: 'no-store',
-          });
-          const data = await res.json();
+          // Create AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+          }, TIMEOUT_MS);
 
-          if (data.ok === true) {
-            setTestResults((prev) =>
-              prev.map((t) =>
-                t.url === test.url
-                  ? { ...t, status: 'pass' as const, result: data }
-                  : t
-              )
-            );
-          } else {
-            setTestResults((prev) =>
-              prev.map((t) =>
-                t.url === test.url
-                  ? { ...t, status: 'fail' as const, error: data.error || 'API returned ok: false' }
-                  : t
-              )
-            );
+          try {
+            const res = await fetch(test.url, {
+              credentials: 'include',
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            // Check if response is OK
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+
+            const data = await res.json();
+
+            if (data.ok === true) {
+              setTestResults((prev) =>
+                prev.map((t) =>
+                  t.url === test.url
+                    ? { ...t, status: 'pass' as const, result: data }
+                    : t
+                )
+              );
+            } else {
+              setTestResults((prev) =>
+                prev.map((t) =>
+                  t.url === test.url
+                    ? { ...t, status: 'fail' as const, error: data.error || 'API returned ok: false' }
+                    : t
+                )
+              );
+            }
+          } catch (fetchError: any) {
+            clearTimeout(timeoutId);
+            
+            // Check if it was a timeout/abort
+            if (fetchError.name === 'AbortError' || controller.signal.aborted) {
+              // Retry if we haven't exceeded max retries
+              if (retryCount < MAX_RETRIES) {
+                // Wait a bit before retrying
+                await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                return runTest(test, retryCount + 1);
+              }
+              
+              setTestResults((prev) =>
+                prev.map((t) =>
+                  t.url === test.url
+                    ? { ...t, status: 'fail' as const, error: `Request timeout after ${TIMEOUT_MS}ms (${retryCount + 1} attempts)` }
+                    : t
+                )
+              );
+            } else {
+              // Other errors - retry if we haven't exceeded max retries
+              if (retryCount < MAX_RETRIES && !fetchError.message?.includes('HTTP')) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                return runTest(test, retryCount + 1);
+              }
+              
+              setTestResults((prev) =>
+                prev.map((t) =>
+                  t.url === test.url
+                    ? { ...t, status: 'fail' as const, error: fetchError.message || 'Request failed' }
+                    : t
+                )
+              );
+            }
           }
         } catch (err: any) {
           setTestResults((prev) =>

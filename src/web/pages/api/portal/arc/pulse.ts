@@ -92,7 +92,7 @@ export default async function handler(
 
     if (creatorsError) {
       console.error('[ARC Pulse] Error counting creators:', creatorsError);
-      return res.status(500).json({ ok: false, error: 'Failed to count creators' });
+      return res.status(500).json({ ok: false, error: 'Unable to load creator data. Please try again later.' });
     }
 
     // Metric 2: Total completions (Option 3 only)
@@ -139,7 +139,7 @@ export default async function handler(
     });
   } catch (error: any) {
     console.error('[ARC Pulse] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Unable to load pulse data. Please try again later.' });
   }
 }
 

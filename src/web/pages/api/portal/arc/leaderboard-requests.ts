@@ -137,7 +137,7 @@ export default async function handler(
         }
 
         console.error('[Leaderboard Requests API] Error fetching requests:', requestsError);
-        return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
+        return res.status(500).json({ ok: false, error: 'Unable to load requests. Please try again later.' });
       }
 
       const normalizedRequests: LeaderboardRequest[] = (requests || []).map((req: any) => ({

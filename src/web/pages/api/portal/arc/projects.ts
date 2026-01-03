@@ -214,7 +214,7 @@ export default async function handler(
       console.error('[API /portal/arc/projects] Error fetching projects:', projectsError);
       return res.status(500).json({
         ok: false,
-        error: 'Internal server error',
+        error: 'Unable to load projects. Please try again later.',
       });
     }
     
