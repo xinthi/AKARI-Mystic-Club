@@ -207,12 +207,13 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtext(v_request.project_id::text));
     
     -- Select existing arena FOR UPDATE (locks row for this transaction)
-    -- Check for ANY arena with kind IN ('ms', 'legacy_ms'), regardless of status
+    -- Check for ANY arena with kind IN ('ms', 'legacy_ms') OR kind IS NULL (legacy arenas)
     -- This prevents unique constraint violations
+    -- Note: NULL kind means legacy arena (before kind column was added)
     SELECT id INTO v_existing_arena_id
     FROM arenas
     WHERE project_id = v_request.project_id
-      AND kind IN ('ms', 'legacy_ms')
+      AND (kind IN ('ms', 'legacy_ms') OR kind IS NULL)
     ORDER BY 
       CASE WHEN status = 'active' THEN 0 ELSE 1 END, -- Prefer active arenas
       created_at DESC
@@ -242,16 +243,17 @@ BEGIN
         updated_at = NOW()
       WHERE project_id = v_request.project_id
         AND status = 'active'
-        AND kind IN ('ms', 'legacy_ms')
+        AND (kind IN ('ms', 'legacy_ms') OR kind IS NULL)
         AND id <> v_existing_arena_id;
     ELSE
       -- No existing ms/legacy arena found - double-check before INSERT
       -- This is a safety check to prevent constraint violations
       -- Check again without FOR UPDATE to see if any arena exists (even if locked by another transaction)
+      -- Note: NULL kind means legacy arena (before kind column was added)
       SELECT id INTO v_existing_arena_id
       FROM arenas
       WHERE project_id = v_request.project_id
-        AND kind IN ('ms', 'legacy_ms')
+        AND (kind IN ('ms', 'legacy_ms') OR kind IS NULL)
       ORDER BY 
         CASE WHEN status = 'active' THEN 0 ELSE 1 END,
         created_at DESC
@@ -281,7 +283,7 @@ BEGIN
           updated_at = NOW()
         WHERE project_id = v_request.project_id
           AND status = 'active'
-          AND kind IN ('ms', 'legacy_ms')
+          AND (kind IN ('ms', 'legacy_ms') OR kind IS NULL)
           AND id <> v_existing_arena_id;
       ELSE
         -- Truly no arena exists - safe to INSERT
@@ -293,7 +295,7 @@ BEGIN
           updated_at = NOW()
         WHERE project_id = v_request.project_id
           AND status = 'active'
-          AND kind IN ('ms', 'legacy_ms');
+          AND (kind IN ('ms', 'legacy_ms') OR kind IS NULL);
 
         -- Generate unique arena slug
         v_base_slug := COALESCE(v_project.slug, SUBSTRING(v_project.id::text, 1, 8)) || '-leaderboard';

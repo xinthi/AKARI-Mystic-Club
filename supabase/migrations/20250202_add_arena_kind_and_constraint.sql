@@ -46,25 +46,36 @@ END $$;
 
 -- Step 3: Create unique constraint for MS arenas (one per project)
 -- This is a partial unique index that only applies to MS/legacy_ms arenas
+-- Also includes NULL kind (legacy arenas created before kind column existed)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes 
-    WHERE indexname = 'uniq_ms_arena_per_project'
-  ) THEN
-    -- First, remove any duplicate MS arenas (keep the most recent one)
-    DELETE FROM arenas a
-    USING arenas b
-    WHERE a.id < b.id
-      AND a.project_id = b.project_id
-      AND a.kind IN ('ms', 'legacy_ms')
-      AND b.kind IN ('ms', 'legacy_ms');
-    
-    -- Create the unique constraint
-    CREATE UNIQUE INDEX uniq_ms_arena_per_project 
-    ON arenas(project_id) 
-    WHERE kind IN ('ms', 'legacy_ms');
-  END IF;
+  -- Drop existing constraint if it exists (to recreate with NULL handling)
+  DROP INDEX IF EXISTS uniq_ms_arena_per_project;
+  
+  -- First, remove any duplicate MS arenas (keep the most recent one)
+  -- This includes NULL kind arenas (legacy)
+  DELETE FROM arenas a
+  USING arenas b
+  WHERE a.id < b.id
+    AND a.project_id = b.project_id
+    AND (a.kind IN ('ms', 'legacy_ms') OR a.kind IS NULL)
+    AND (b.kind IN ('ms', 'legacy_ms') OR b.kind IS NULL);
+  
+  -- Set NULL kind to 'legacy_ms' for existing arenas (if not already set)
+  UPDATE arenas
+  SET kind = 'legacy_ms'
+  WHERE kind IS NULL
+    AND project_id IN (
+      SELECT DISTINCT project_id 
+      FROM arc_project_features 
+      WHERE leaderboard_enabled = true
+    );
+  
+  -- Create the unique constraint (includes NULL as legacy_ms)
+  -- This ensures only one MS/legacy_ms arena per project
+  CREATE UNIQUE INDEX uniq_ms_arena_per_project 
+  ON arenas(project_id) 
+  WHERE kind IN ('ms', 'legacy_ms') OR kind IS NULL;
 END $$;
 
 -- Step 4: Add comment

@@ -26,7 +26,8 @@
     "circles:update": "ts-node --transpile-only scripts/sentiment/updateCircles.ts",
     "circles:quick": "ts-node --transpile-only scripts/sentiment/buildCirclesQuick.ts",
     "inner-circle:update": "ts-node --transpile-only scripts/sentiment/updateInnerCircle.ts",
-    "arc:audit": "ts-node --transpile-only scripts/arc_route_audit.ts"
+    "arc:audit": "ts-node --transpile-only scripts/arc_route_audit.ts",
+    "migrate": "tsx scripts/run-migrations.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",
