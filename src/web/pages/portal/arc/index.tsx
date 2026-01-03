@@ -412,6 +412,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       if (!project.slug) return; // Skip projects without slug
 
       const features = project.features;
+      if (!features) return; // Skip projects without features
       
       // MS card: Show if leaderboard_enabled === true
       // Note: If project appears in /api/portal/arc/projects, it means it has:
@@ -420,7 +421,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       // - approved leaderboard request
       // The API already filters, so if a project is returned, it's eligible
       // We show MS card if leaderboard_enabled is true (features object will always exist from API)
-      if (features?.leaderboard_enabled === true) {
+      if (features.leaderboard_enabled === true) {
         cards.push({
           projectId: project.project_id,
           projectSlug: project.slug,
@@ -430,7 +431,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       }
 
       // GameFi card: gamefi_enabled === true
-      if (features.gamefi_enabled) {
+      if (features.gamefi_enabled === true) {
         cards.push({
           projectId: project.project_id,
           projectSlug: project.slug,
@@ -440,7 +441,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       }
 
       // CRM card: crm_enabled === true AND crm_visibility === 'public'
-      if (features.crm_enabled && features.crm_visibility === 'public') {
+      if (features.crm_enabled === true && features.crm_visibility === 'public') {
         cards.push({
           projectId: project.project_id,
           projectSlug: project.slug,
