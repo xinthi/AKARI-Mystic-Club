@@ -74,11 +74,16 @@ export default function ArcProjectHub() {
 
   // Leaderboard data
   const [leaderboardCreators, setLeaderboardCreators] = useState<Array<{
-    id: string;
+    id?: string;
     twitter_username: string;
     arc_points: number;
+    score?: number;
+    base_points?: number;
+    multiplier?: number;
     ring: 'core' | 'momentum' | 'discovery' | null;
     style: string | null;
+    is_joined?: boolean;
+    is_auto_tracked?: boolean;
   }>>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
@@ -188,9 +193,9 @@ export default function ArcProjectHub() {
     fetchProject();
   }, [projectSlug, router.isReady, akariUser.isLoggedIn]);
 
-  // Fetch leaderboard creators when arena is available
+  // Fetch leaderboard creators when project ID is available
   useEffect(() => {
-    if (!currentArena?.id) {
+    if (!projectId || !msEnabled) {
       setLeaderboardCreators([]);
       return;
     }
@@ -200,7 +205,8 @@ export default function ArcProjectHub() {
       setLeaderboardError(null);
 
       try {
-        const res = await fetch(`/api/portal/arc/arena-creators?arenaId=${encodeURIComponent(currentArena.id)}`, {
+        // Use the full leaderboard endpoint which includes both joined and auto-tracked creators
+        const res = await fetch(`/api/portal/arc/leaderboard/${encodeURIComponent(projectId)}`, {
           credentials: 'include',
         });
 
@@ -210,8 +216,21 @@ export default function ArcProjectHub() {
         }
 
         const data = await res.json();
-        if (data.ok && data.creators) {
-          setLeaderboardCreators(data.creators);
+        if (data.ok && data.entries) {
+          // Map the leaderboard entries to our format
+          const mappedCreators = data.entries.map((entry: any, index: number) => ({
+            id: `creator-${index}`,
+            twitter_username: entry.twitter_username || '',
+            arc_points: entry.score || entry.base_points || 0,
+            score: entry.score,
+            base_points: entry.base_points,
+            multiplier: entry.multiplier,
+            ring: entry.ring || null,
+            style: null,
+            is_joined: entry.is_joined || false,
+            is_auto_tracked: entry.is_auto_tracked || false,
+          }));
+          setLeaderboardCreators(mappedCreators);
         } else {
           setLeaderboardCreators([]);
         }
@@ -225,7 +244,7 @@ export default function ArcProjectHub() {
     }
 
     fetchLeaderboard();
-  }, [currentArena?.id]);
+  }, [projectId, msEnabled]);
 
   // Canonicalize projectSlug: redirect if normalized differs from original
   useEffect(() => {
@@ -417,12 +436,6 @@ export default function ArcProjectHub() {
                   <div className="text-center py-8">
                     <p className="text-red-400 text-sm">{leaderboardError}</p>
                   </div>
-                ) : leaderboardCreators.length === 0 ? (
-                  <EmptyState
-                    icon="👥"
-                    title="No creators yet"
-                    description="Creators will appear here once they join the leaderboard."
-                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -435,38 +448,56 @@ export default function ArcProjectHub() {
                         </tr>
                       </thead>
                       <tbody>
-                        {leaderboardCreators.map((creator, index) => (
-                          <tr
-                            key={creator.id}
-                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                          >
-                            <td className="py-3 px-4 text-white font-medium">#{index + 1}</td>
-                            <td className="py-3 px-4">
-                              <Link
-                                href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
-                                className="text-white hover:text-teal-400 transition-colors"
-                              >
-                                {creator.twitter_username || 'Unknown'}
-                              </Link>
-                            </td>
-                            <td className="py-3 px-4">
-                              {creator.ring && (
-                                <span className={`px-2 py-1 rounded-full text-xs border ${
-                                  creator.ring === 'core'
-                                    ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
-                                    : creator.ring === 'momentum'
-                                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
-                                    : 'bg-teal-500/20 text-teal-400 border-teal-500/50'
-                                }`}>
-                                  {creator.ring}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right text-white font-medium">
-                              {creator.arc_points.toLocaleString()}
+                        {leaderboardCreators.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center">
+                              <EmptyState
+                                icon="👥"
+                                title="No creators yet"
+                                description="Creators will appear here once they start contributing or join the leaderboard."
+                              />
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          leaderboardCreators.map((creator, index) => (
+                            <tr
+                              key={creator.id || `creator-${index}`}
+                              className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                            >
+                              <td className="py-3 px-4 text-white font-medium">#{index + 1}</td>
+                              <td className="py-3 px-4">
+                                <Link
+                                  href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
+                                  className="text-white hover:text-teal-400 transition-colors"
+                                >
+                                  {creator.twitter_username || 'Unknown'}
+                                </Link>
+                                {creator.is_auto_tracked && (
+                                  <span className="ml-2 text-xs text-white/40">(tracked)</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                {creator.ring && (
+                                  <span className={`px-2 py-1 rounded-full text-xs border ${
+                                    creator.ring === 'core'
+                                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                                      : creator.ring === 'momentum'
+                                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                                      : 'bg-teal-500/20 text-teal-400 border-teal-500/50'
+                                  }`}>
+                                    {creator.ring}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white font-medium">
+                                {creator.arc_points.toLocaleString()}
+                                {creator.multiplier && creator.multiplier > 1 && (
+                                  <span className="ml-1 text-xs text-teal-400">({creator.multiplier}x)</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
