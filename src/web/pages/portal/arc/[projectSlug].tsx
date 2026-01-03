@@ -216,6 +216,10 @@ export default function ArcProjectHub() {
 
   const canManageProject = userIsSuperAdmin || permissions?.canManage || false;
   const enabledProducts = features ? getEnabledProducts(features) : { ms: false, gamefi: false, crmPublic: false, crmEnabled: false };
+  
+  // If project has an active arena, treat MS leaderboard as enabled (even if features not set)
+  // This handles cases where approval created arena but features row wasn't properly set
+  const msEnabled = enabledProducts.ms || (currentArena !== null && !arenaLoading);
 
   // Loading state
   if (loading) {
@@ -320,7 +324,7 @@ export default function ArcProjectHub() {
         </div>
 
         {/* Mindshare Leaderboard Section */}
-        {enabledProducts.ms && (
+        {msEnabled && (
           <div className="rounded-lg border border-white/10 bg-black/40 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Mindshare Leaderboard</h2>
@@ -462,7 +466,7 @@ export default function ArcProjectHub() {
         )}
 
         {/* Feature Not Enabled States */}
-        {!enabledProducts.ms && !enabledProducts.gamefi && !enabledProducts.crmPublic && (
+        {!msEnabled && !enabledProducts.gamefi && !enabledProducts.crmPublic && (
           <EmptyState
             icon="🔒"
             title="ARC features not enabled"
