@@ -248,6 +248,56 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
     }
   }, [initialFeatures?.leaderboard_enabled, initialFeatures?.gamefi_enabled, initialFeatures?.crm_enabled, formProductType]);
 
+  // Helper function to determine if request form should be shown and get available options
+  const getRequestFormConfig = React.useMemo(() => {
+    if (!canManage || hasPendingRequest) return null;
+    
+    const hasMs = initialFeatures?.leaderboard_enabled || false;
+    const hasGameFi = initialFeatures?.gamefi_enabled || false;
+    const hasCrm = initialFeatures?.crm_enabled || false;
+    
+    // If project has MS only, can only request CRM
+    // If project has GameFi or CRM, can request additional features
+    // If project has no features, can request any
+    const canRequest = !hasMs || hasGameFi || hasCrm || (!hasMs && !hasGameFi && !hasCrm);
+    
+    if (!canRequest) return null;
+    
+    // Filter available options based on current features
+    const availableOptions: Array<'ms' | 'gamefi' | 'crm'> = [];
+    if (!hasMs) availableOptions.push('ms');
+    if (!hasGameFi) availableOptions.push('gamefi');
+    if (!hasCrm) availableOptions.push('crm');
+    
+    // If only MS, only allow CRM
+    if (hasMs && !hasGameFi && !hasCrm) {
+      availableOptions.length = 0;
+      availableOptions.push('crm');
+    }
+    
+    if (availableOptions.length === 0) return null;
+    
+    // Ensure formProductType is valid for available options
+    const currentProductType = availableOptions.includes(formProductType) 
+      ? formProductType 
+      : availableOptions[0];
+    
+    return {
+      hasMs,
+      hasGameFi,
+      hasCrm,
+      availableOptions,
+      currentProductType,
+    };
+  }, [canManage, hasPendingRequest, initialFeatures?.leaderboard_enabled, initialFeatures?.gamefi_enabled, initialFeatures?.crm_enabled, formProductType]);
+
+  // Update formProductType if it's not valid
+  useEffect(() => {
+    if (getRequestFormConfig && getRequestFormConfig.currentProductType !== formProductType) {
+      setFormProductType(getRequestFormConfig.currentProductType);
+    }
+  }, [getRequestFormConfig, formProductType]);
+
   // Fetch ARC access requests
   useEffect(() => {
     async function fetchRequests() {
@@ -1311,115 +1361,79 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                   - Project has CRM (can request additional features)
                   - Project has no features yet (can request any)
               */}
-              {canManage && !hasPendingRequest && (() => {
-                const hasMs = initialFeatures?.leaderboard_enabled || false;
-                const hasGameFi = initialFeatures?.gamefi_enabled || false;
-                const hasCrm = initialFeatures?.crm_enabled || false;
-                
-                // If project has MS only, can only request CRM
-                // If project has GameFi or CRM, can request additional features
-                // If project has no features, can request any
-                const canRequest = !hasMs || hasGameFi || hasCrm || (!hasMs && !hasGameFi && !hasCrm);
-                
-                if (!canRequest) return null;
-                
-                // Filter available options based on current features
-                const availableOptions: Array<'ms' | 'gamefi' | 'crm'> = [];
-                if (!hasMs) availableOptions.push('ms');
-                if (!hasGameFi) availableOptions.push('gamefi');
-                if (!hasCrm) availableOptions.push('crm');
-                
-                // If only MS, only allow CRM
-                if (hasMs && !hasGameFi && !hasCrm) {
-                  availableOptions.length = 0;
-                  availableOptions.push('crm');
-                }
-                
-                if (availableOptions.length === 0) return null;
-                
-                // Ensure formProductType is valid for available options
-                const currentProductType = availableOptions.includes(formProductType) 
-                  ? formProductType 
-                  : availableOptions[0];
-                
-                // Update formProductType if it's not valid
-                if (currentProductType !== formProductType) {
-                  setFormProductType(currentProductType);
-                }
-                
-                return (
-                  <div className="border-t border-white/10 pt-4 mt-4">
-                    <h3 className="text-sm font-semibold text-white mb-3">
-                      {hasMs && !hasGameFi && !hasCrm 
-                        ? 'Request CRM Access' 
-                        : 'Request Additional Features'}
-                    </h3>
-                    
-                    {formSuccess && (
-                      <div className="mb-3 p-3 rounded bg-green-500/10 border border-green-500/30">
-                        <p className="text-green-400 text-sm">{formSuccess}</p>
-                      </div>
-                    )}
-                    
-                    {formError && (
-                      <div className="mb-3 p-3 rounded bg-red-500/10 border border-red-500/30">
-                        <p className="text-red-400 text-sm">{formError}</p>
-                      </div>
-                    )}
+              {getRequestFormConfig && (
+                <div className="border-t border-white/10 pt-4 mt-4">
+                  <h3 className="text-sm font-semibold text-white mb-3">
+                    {getRequestFormConfig.hasMs && !getRequestFormConfig.hasGameFi && !getRequestFormConfig.hasCrm 
+                      ? 'Request CRM Access' 
+                      : 'Request Additional Features'}
+                  </h3>
+                  
+                  {formSuccess && (
+                    <div className="mb-3 p-3 rounded bg-green-500/10 border border-green-500/30">
+                      <p className="text-green-400 text-sm">{formSuccess}</p>
+                    </div>
+                  )}
+                  
+                  {formError && (
+                    <div className="mb-3 p-3 rounded bg-red-500/10 border border-red-500/30">
+                      <p className="text-red-400 text-sm">{formError}</p>
+                    </div>
+                  )}
 
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs text-white/60 mb-1">Product Type</label>
-                        <select
-                          value={currentProductType}
-                          onChange={(e) => {
-                            const newType = e.target.value as 'ms' | 'gamefi' | 'crm';
-                            setFormProductType(newType);
-                            // Reset dates when switching to CRM (dates not required)
-                            if (newType === 'crm') {
-                              setFormStartAt('');
-                              setFormEndAt('');
-                            }
-                          }}
-                          className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                        >
-                          {availableOptions.includes('ms') && (
-                            <option value="ms">Mindshare (Leaderboard)</option>
-                          )}
-                          {availableOptions.includes('gamefi') && (
-                            <option value="gamefi">GameFi (Gamified)</option>
-                          )}
-                          {availableOptions.includes('crm') && (
-                            <option value="crm">CRM (Creator Manager)</option>
-                          )}
-                        </select>
-                      </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">Product Type</label>
+                      <select
+                        value={getRequestFormConfig.currentProductType}
+                        onChange={(e) => {
+                          const newType = e.target.value as 'ms' | 'gamefi' | 'crm';
+                          setFormProductType(newType);
+                          // Reset dates when switching to CRM (dates not required)
+                          if (newType === 'crm') {
+                            setFormStartAt('');
+                            setFormEndAt('');
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      >
+                        {getRequestFormConfig.availableOptions.includes('ms') && (
+                          <option value="ms">Mindshare (Leaderboard)</option>
+                        )}
+                        {getRequestFormConfig.availableOptions.includes('gamefi') && (
+                          <option value="gamefi">GameFi (Gamified)</option>
+                        )}
+                        {getRequestFormConfig.availableOptions.includes('crm') && (
+                          <option value="crm">CRM (Creator Manager)</option>
+                        )}
+                      </select>
+                    </div>
 
-                      <div>
-                        <label className="block text-xs text-white/60 mb-1">
-                          Start Date {(currentProductType === 'ms' || currentProductType === 'gamefi') && <span className="text-red-400">*</span>}
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={formStartAt}
-                          onChange={(e) => setFormStartAt(e.target.value)}
-                          required={currentProductType === 'ms' || currentProductType === 'gamefi'}
-                          className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        Start Date {(getRequestFormConfig.currentProductType === 'ms' || getRequestFormConfig.currentProductType === 'gamefi') && <span className="text-red-400">*</span>}
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formStartAt}
+                        onChange={(e) => setFormStartAt(e.target.value)}
+                        required={getRequestFormConfig.currentProductType === 'ms' || getRequestFormConfig.currentProductType === 'gamefi'}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-xs text-white/60 mb-1">
-                          End Date {(currentProductType === 'ms' || currentProductType === 'gamefi') && <span className="text-red-400">*</span>}
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={formEndAt}
-                          onChange={(e) => setFormEndAt(e.target.value)}
-                          required={currentProductType === 'ms' || currentProductType === 'gamefi'}
-                          className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs text-white/60 mb-1">
+                        End Date {(getRequestFormConfig.currentProductType === 'ms' || getRequestFormConfig.currentProductType === 'gamefi') && <span className="text-red-400">*</span>}
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formEndAt}
+                        onChange={(e) => setFormEndAt(e.target.value)}
+                        required={getRequestFormConfig.currentProductType === 'ms' || getRequestFormConfig.currentProductType === 'gamefi'}
+                        className="w-full px-3 py-2 rounded-lg bg-black/60 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
 
                     <div>
                       <label className="block text-xs text-white/60 mb-1">Notes (Optional)</label>
@@ -1432,13 +1446,13 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
                       />
                     </div>
 
-                      <button
-                        onClick={handleSubmitRequest}
-                        disabled={formSubmitting || (currentProductType !== 'crm' && (!formStartAt || !formEndAt))}
-                        className="w-full px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {formSubmitting ? 'Submitting...' : 'Submit Request'}
-                      </button>
+                    <button
+                      onClick={handleSubmitRequest}
+                      disabled={formSubmitting || (getRequestFormConfig.currentProductType !== 'crm' && (!formStartAt || !formEndAt))}
+                      className="w-full px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-400 to-cyan-400 text-black rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {formSubmitting ? 'Submitting...' : 'Submit Request'}
+                    </button>
                   </div>
                 </div>
               )}
