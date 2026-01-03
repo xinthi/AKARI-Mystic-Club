@@ -103,20 +103,52 @@ export default function ArcSmokeTestPage() {
 
     try {
       // 1. Fetch test project
-      const projectsRes = await fetch('/api/portal/arc/projects', {
+      // Try /api/portal/arc/projects first, but fallback to admin projects API if needed
+      let projectsRes = await fetch('/api/portal/arc/projects', {
         credentials: 'include',
         cache: 'no-store',
       });
-      const projectsData = await projectsRes.json();
+      let projectsData = await projectsRes.json();
+
+      // If no projects from ARC projects API, try admin projects API as fallback
+      if (!projectsData.ok || !projectsData.projects || projectsData.projects.length === 0) {
+        console.warn('[Smoke Test] No projects from /api/portal/arc/projects, trying admin API...');
+        projectsRes = await fetch('/api/portal/admin/projects?filter=arc_active&limit=10', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        projectsData = await projectsRes.json();
+        
+        // Transform admin projects response to match expected format
+        if (projectsData.ok && projectsData.projects) {
+          projectsData.projects = projectsData.projects.map((p: any) => ({
+            project_id: p.id,
+            slug: p.slug,
+            name: p.display_name || p.name,
+          }));
+        }
+      }
 
       if (!projectsData.ok || !projectsData.projects || projectsData.projects.length === 0) {
-        throw new Error('No projects found. Please ensure at least one project has ARC enabled.');
+        // Provide more helpful error message
+        const errorMsg = projectsData.error 
+          ? `API Error: ${projectsData.error}`
+          : `No ARC projects found. To use smoke tests, ensure:
+1. At least one project has arc_project_access.application_status = 'approved'
+2. The project has is_arc_company = true
+3. The project has one of:
+   - leaderboard_enabled = true in arc_project_features, OR
+   - An active MS arena (status='active', kind IN ('ms','legacy_ms')), OR
+   - An approved leaderboard request (arc_leaderboard_requests.status='approved')
+   
+You can approve a leaderboard request at /portal/admin/arc/leaderboard-requests`;
+        throw new Error(errorMsg);
       }
 
       // Find first project with valid slug
       const project = projectsData.projects.find((p: TestProject) => p.slug && p.slug.trim());
       if (!project) {
-        throw new Error('No project with valid slug found.');
+        throw new Error('No project with valid slug found. Projects need a slug to be used in smoke tests.');
       }
 
       setTestProject(project);
