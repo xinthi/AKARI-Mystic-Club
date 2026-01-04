@@ -200,13 +200,16 @@ export default function ArcProjectHub() {
       return;
     }
 
+    // Store projectId in a const so TypeScript knows it's non-null
+    const validProjectId = projectId;
+
     async function fetchLeaderboard() {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
 
       try {
         // Use the full leaderboard endpoint which includes both joined and auto-tracked creators
-        const res = await fetch(`/api/portal/arc/leaderboard/${encodeURIComponent(projectId)}`, {
+        const res = await fetch(`/api/portal/arc/leaderboard/${encodeURIComponent(validProjectId)}`, {
           credentials: 'include',
         });
 
