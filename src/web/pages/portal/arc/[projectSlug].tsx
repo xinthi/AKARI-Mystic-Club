@@ -5,7 +5,7 @@
  * Uses feature flags to conditionally show sections.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
@@ -193,6 +193,20 @@ export default function ArcProjectHub() {
     fetchProject();
   }, [projectSlug, router.isReady, akariUser.isLoggedIn]);
 
+  // Calculate enabled products and MS status before useEffect
+  const enabledProducts = useMemo(() => {
+    return features ? getEnabledProducts(features) : { ms: false, gamefi: false, crmPublic: false, crmEnabled: false };
+  }, [features]);
+
+  // MS is enabled if:
+  // 1. leaderboard_enabled = true in features, OR
+  // 2. Has an active/live arena (currentArena !== null), OR
+  // 3. Has an approved MS request (fallback for scheduled arenas or missing features)
+  // This ensures leaderboard shows even if arena hasn't started yet or features weren't set
+  const msEnabled = useMemo(() => {
+    return enabledProducts.ms || (currentArena !== null && !arenaLoading) || hasApprovedMsRequest;
+  }, [enabledProducts.ms, currentArena, arenaLoading, hasApprovedMsRequest]);
+
   // Fetch leaderboard creators when project ID is available
   useEffect(() => {
     if (!projectId || !msEnabled) {
@@ -263,14 +277,6 @@ export default function ArcProjectHub() {
   }, [router.isReady, rawProjectSlug, router]);
 
   const canManageProject = userIsSuperAdmin || permissions?.canManage || false;
-  const enabledProducts = features ? getEnabledProducts(features) : { ms: false, gamefi: false, crmPublic: false, crmEnabled: false };
-  
-  // MS is enabled if:
-  // 1. leaderboard_enabled = true in features, OR
-  // 2. Has an active/live arena (currentArena !== null), OR
-  // 3. Has an approved MS request (fallback for scheduled arenas or missing features)
-  // This ensures leaderboard shows even if arena hasn't started yet or features weren't set
-  const msEnabled = enabledProducts.ms || (currentArena !== null && !arenaLoading) || hasApprovedMsRequest;
 
   // Loading state
   if (loading) {
