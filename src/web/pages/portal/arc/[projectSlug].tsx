@@ -76,6 +76,7 @@ export default function ArcProjectHub() {
   const [leaderboardCreators, setLeaderboardCreators] = useState<Array<{
     id?: string;
     twitter_username: string;
+    avatar_url?: string | null;
     arc_points: number;
     score?: number;
     base_points?: number;
@@ -474,7 +475,7 @@ export default function ArcProjectHub() {
                           <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Smart Followers</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Contribution</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">MS</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">CT Heat</th>
                         </tr>
                       </thead>
@@ -497,15 +498,34 @@ export default function ArcProjectHub() {
                             >
                               <td className="py-3 px-4 text-white font-medium">#{index + 1}</td>
                               <td className="py-3 px-4">
-                                <Link
-                                  href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
-                                  className="text-white hover:text-teal-400 transition-colors"
-                                >
-                                  {creator.twitter_username || 'Unknown'}
-                                </Link>
-                                {creator.is_auto_tracked && (
-                                  <span className="ml-2 text-xs text-white/40">(tracked)</span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {creator.avatar_url ? (
+                                    <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
+                                      <Image
+                                        src={creator.avatar_url}
+                                        alt={creator.twitter_username || 'Creator avatar'}
+                                        fill
+                                        className="object-cover"
+                                        unoptimized
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex-shrink-0 flex items-center justify-center">
+                                      <span className="text-white/60 text-xs">
+                                        {(creator.twitter_username || '?')[0].toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <Link
+                                    href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
+                                    className="text-white hover:text-teal-400 transition-colors"
+                                  >
+                                    {creator.twitter_username || 'Unknown'}
+                                  </Link>
+                                  {creator.is_auto_tracked && (
+                                    <span className="ml-2 text-xs text-white/40">(tracked)</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-3 px-4">
                                 {creator.ring && (
