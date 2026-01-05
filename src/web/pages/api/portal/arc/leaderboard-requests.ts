@@ -104,27 +104,35 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'invalid_project_id' });
     }
 
-    // Check if user is SuperAdmin (bypass project role check)
-    const superAdminAuth = await requireSuperAdmin(req);
-    const isSuperAdmin = superAdminAuth.ok;
-
-    // If not SuperAdmin, require project team role
-    if (!isSuperAdmin) {
-      const projectAuth = await requireProjectRole(req, projectId, ['founder', 'admin', 'moderator']);
-      if (!projectAuth.ok) {
-        return res.status(projectAuth.status).json({ ok: false, error: projectAuth.error });
-      }
-    }
-
     try {
       const supabase = getSupabaseAdmin();
 
+      // Check if user is SuperAdmin or has project role (for full access)
+      const superAdminAuth = await requireSuperAdmin(req);
+      const isSuperAdmin = superAdminAuth.ok;
+      
+      let hasProjectRole = false;
+      if (!isSuperAdmin) {
+        const projectAuth = await requireProjectRole(req, projectId, ['founder', 'admin', 'moderator']);
+        hasProjectRole = projectAuth.ok;
+      }
+
+      // If user has auth (SuperAdmin or project role), return all requests
+      // Otherwise, return only approved requests (public information)
+      const shouldReturnAll = isSuperAdmin || hasProjectRole;
+
       // Fetch requests for this project (most recent first)
-      const { data: requests, error: requestsError } = await supabase
+      let query = supabase
         .from('arc_leaderboard_requests')
         .select('id, project_id, product_type, status, start_at, end_at, created_at')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+        .eq('project_id', projectId);
+
+      // If not authenticated, only return approved requests (public info)
+      if (!shouldReturnAll) {
+        query = query.eq('status', 'approved');
+      }
+
+      const { data: requests, error: requestsError } = await query.order('created_at', { ascending: false });
 
       if (requestsError) {
         // Check if error is due to missing columns

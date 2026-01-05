@@ -18,6 +18,7 @@ import { requireArcAccess } from '@/lib/arc-access';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { getSmartFollowers } from '@/server/smart-followers/calculate';
 import { calculateCreatorSignalScore, type CreatorPostMetrics } from '@/server/arc/signal-score';
+import { computeCtHeatScore } from '@/server/scoring/akari';
 
 // =============================================================================
 // TYPES
@@ -41,6 +42,9 @@ interface LeaderboardEntry {
   // Signal Score (new)
   signal_score: number | null; // 0-100 derived signal score
   trust_band: 'A' | 'B' | 'C' | 'D' | null;
+  // Contribution & CT Heat
+  contribution_pct: number | null; // Percentage contribution to project mindshare
+  ct_heat: number | null; // CT Heat score (0-100) for this creator
 }
 
 type LeaderboardResponse =
@@ -225,6 +229,55 @@ async function calculateAutoTrackedPoints(
   }
 
   return pointsMap;
+}
+
+/**
+ * Calculate CT Heat score for a creator based on their tweets
+ */
+async function calculateCreatorCtHeat(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  projectId: string,
+  username: string
+): Promise<number | null> {
+  try {
+    // Get creator's tweets for the last 7 days
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data: tweets } = await supabase
+      .from('project_tweets')
+      .select('likes, replies, retweets')
+      .eq('project_id', projectId)
+      .eq('is_official', false)
+      .ilike('author_handle', username.replace('@', ''))
+      .gte('created_at', sevenDaysAgo.toISOString());
+
+    if (!tweets || tweets.length === 0) {
+      return null;
+    }
+
+    const mentionsCount = tweets.length;
+    const totalLikes = tweets.reduce((sum, t) => sum + (t.likes || 0), 0);
+    const totalRetweets = tweets.reduce((sum, t) => sum + (t.retweets || 0), 0);
+    const avgLikes = totalLikes / mentionsCount;
+    const avgRetweets = totalRetweets / mentionsCount;
+    const uniqueAuthors = 1; // Single creator
+
+    // Calculate CT Heat using the project-level function (adapted for creator)
+    const ctHeat = computeCtHeatScore(
+      mentionsCount,
+      avgLikes,
+      avgRetweets,
+      uniqueAuthors,
+      0 // influencerMentions (not applicable for single creator)
+    );
+
+    return ctHeat;
+  } catch (error) {
+    console.error(`[ARC Leaderboard] Error calculating CT Heat for ${username}:`, error);
+    return null;
+  }
 }
 
 // =============================================================================
@@ -419,6 +472,8 @@ export default async function handler(
         smart_followers_pct: smartFollowersPct,
         signal_score: signalScore,
         trust_band: trustBand,
+        contribution_pct: null, // Will be calculated after sorting
+        ct_heat: null, // Will be calculated after sorting
       });
     }
 
@@ -478,6 +533,8 @@ export default async function handler(
           smart_followers_pct: smartFollowersPct,
           signal_score: signalScore,
           trust_band: trustBand,
+          contribution_pct: null, // Will be calculated after sorting
+          ct_heat: null, // Will be calculated after sorting
         });
       } else if (entriesMap.has(username)) {
         // If already joined, add auto-tracked points to base_points
@@ -493,7 +550,31 @@ export default async function handler(
       .map((entry, index) => ({
         ...entry,
         rank: index + 1,
+        contribution_pct: null, // Will be calculated after we have total
+        ct_heat: null, // Will be calculated per creator
       }));
+
+    // Calculate total project mindshare (sum of all scores)
+    const totalMindshare = entries.reduce((sum, entry) => sum + entry.score, 0);
+
+    // Calculate contribution percentage and CT Heat for each entry
+    for (const entry of entries) {
+      // Contribution percentage
+      if (totalMindshare > 0) {
+        entry.contribution_pct = (entry.score / totalMindshare) * 100;
+      } else {
+        entry.contribution_pct = null;
+      }
+
+      // CT Heat (calculate asynchronously, but we'll do it synchronously for now)
+      try {
+        const ctHeat = await calculateCreatorCtHeat(supabase, pid, entry.twitter_username);
+        entry.ct_heat = ctHeat;
+      } catch (error) {
+        console.error(`[ARC Leaderboard] Error calculating CT Heat for ${entry.twitter_username}:`, error);
+        entry.ct_heat = null;
+      }
+    }
 
     // Fetch avatar URLs from profiles and project_tweets
     const usernamesToFetch = entries.map(e => e.twitter_username);

@@ -84,6 +84,10 @@ export default function ArcProjectHub() {
     style: string | null;
     is_joined?: boolean;
     is_auto_tracked?: boolean;
+    smart_followers_count?: number | null;
+    smart_followers_pct?: number | null;
+    contribution_pct?: number | null;
+    ct_heat?: number | null;
   }>>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
@@ -162,6 +166,7 @@ export default function ArcProjectHub() {
         }
 
         // Check for approved MS requests (fallback if features not set)
+        // Note: This endpoint requires auth, so we handle 401 gracefully
         setApprovedRequestLoading(true);
         try {
           const requestsRes = await fetch(
@@ -176,8 +181,18 @@ export default function ArcProjectHub() {
               );
               setHasApprovedMsRequest(hasApprovedMs);
             }
+          } else if (requestsRes.status === 401 || requestsRes.status === 403) {
+            // User is not authenticated or doesn't have permission - this is OK for public pages
+            // We'll rely on features and arena checks instead
+            console.log('[ArcProjectHub] Cannot check requests (auth required), using features/arena check instead');
+            setHasApprovedMsRequest(false);
+          } else {
+            // Other errors - log but don't fail
+            const errorData = await requestsRes.json().catch(() => ({ error: 'Unknown error' }));
+            console.warn('[ArcProjectHub] Failed to fetch requests:', errorData.error || requestsRes.statusText);
           }
         } catch (reqErr) {
+          // Network or other errors - log but don't fail
           console.warn('[ArcProjectHub] Failed to fetch requests:', reqErr);
         } finally {
           setApprovedRequestLoading(false);
@@ -246,6 +261,10 @@ export default function ArcProjectHub() {
             style: null,
             is_joined: entry.is_joined || false,
             is_auto_tracked: entry.is_auto_tracked || false,
+            smart_followers_count: entry.smart_followers_count || null,
+            smart_followers_pct: entry.smart_followers_pct || null,
+            contribution_pct: entry.contribution_pct || null,
+            ct_heat: entry.ct_heat || null,
           }));
           setLeaderboardCreators(mappedCreators);
         } else {
@@ -454,12 +473,15 @@ export default function ArcProjectHub() {
                           <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Creator</th>
                           <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Smart Followers</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Contribution</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">CT Heat</th>
                         </tr>
                       </thead>
                       <tbody>
                         {leaderboardCreators.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-8 text-center">
+                            <td colSpan={7} className="py-8 text-center">
                               <EmptyState
                                 icon="👥"
                                 title="No creators yet"
@@ -502,6 +524,32 @@ export default function ArcProjectHub() {
                                 {creator.arc_points.toLocaleString()}
                                 {creator.multiplier && creator.multiplier > 1 && (
                                   <span className="ml-1 text-xs text-teal-400">({creator.multiplier}x)</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white/80">
+                                {creator.smart_followers_count !== null && creator.smart_followers_count !== undefined ? (
+                                  <div>
+                                    <div className="font-medium">{creator.smart_followers_count.toLocaleString()}</div>
+                                    {creator.smart_followers_pct !== null && creator.smart_followers_pct !== undefined && (
+                                      <div className="text-xs text-white/60">({creator.smart_followers_pct.toFixed(1)}%)</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-white/40">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white/80">
+                                {creator.contribution_pct !== null && creator.contribution_pct !== undefined ? (
+                                  <span className="font-medium">{creator.contribution_pct.toFixed(2)}%</span>
+                                ) : (
+                                  <span className="text-white/40">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right text-white/80">
+                                {creator.ct_heat !== null && creator.ct_heat !== undefined ? (
+                                  <span className="font-medium">{creator.ct_heat}</span>
+                                ) : (
+                                  <span className="text-white/40">—</span>
                                 )}
                               </td>
                             </tr>

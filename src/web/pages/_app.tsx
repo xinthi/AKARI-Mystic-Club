@@ -99,15 +99,75 @@ function AppContent({ Component, pageProps }: AppProps) {
 
 export default function App(props: AppProps) {
   useEffect(() => {
-    // Initialize Telegram Web App SDK
-    if (typeof window !== 'undefined') {
-      import('@twa-dev/sdk').then((sdk) => {
-        // SDK is automatically initialized on import
-        // No need to call ready() in v8.0.2
-      });
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-      // Fun message for curious developers who open F12 🕵️
-      console.log(`
+    // Initialize Telegram Web App SDK
+    import('@twa-dev/sdk').then((sdk) => {
+      // SDK is automatically initialized on import
+      // No need to call ready() in v8.0.2
+    });
+
+    // Hide empty Next.js portal elements
+    const hideEmptyPortals = () => {
+      const portals = document.querySelectorAll('nextjs-portal');
+      portals.forEach((portal) => {
+        const element = portal as HTMLElement;
+        // Check if portal is empty or has zero dimensions
+        const isEmpty = !element.children.length || element.children.length === 0;
+        const hasZeroWidth = element.offsetWidth === 0 || element.clientWidth === 0;
+        const hasZeroHeight = element.offsetHeight === 0 || element.clientHeight === 0;
+        
+        if (isEmpty || (hasZeroWidth && hasZeroHeight)) {
+          // Use setProperty with important flag for maximum override
+          element.style.setProperty('display', 'none', 'important');
+          element.style.setProperty('visibility', 'hidden', 'important');
+          element.style.setProperty('width', '0', 'important');
+          element.style.setProperty('height', '0', 'important');
+          element.style.setProperty('overflow', 'hidden', 'important');
+          element.style.setProperty('position', 'absolute', 'important');
+          element.style.setProperty('pointer-events', 'none', 'important');
+          element.style.setProperty('opacity', '0', 'important');
+          element.style.setProperty('top', '0', 'important');
+          element.style.setProperty('left', '0', 'important');
+          // Also set hidden attribute
+          element.setAttribute('hidden', '');
+          element.setAttribute('aria-hidden', 'true');
+        }
+      });
+    };
+
+    // Run immediately and set up MutationObserver to catch dynamically created portals
+    hideEmptyPortals();
+    
+    // Use MutationObserver to watch for new portal elements
+    const observer = new MutationObserver((mutations) => {
+      let shouldCheck = false;
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeName === 'NEXTJS-PORTAL' || (node as Element).querySelector?.('nextjs-portal')) {
+            shouldCheck = true;
+          }
+        });
+      });
+      if (shouldCheck) {
+        // Small delay to ensure dimensions are calculated
+        setTimeout(hideEmptyPortals, 10);
+      }
+    });
+
+    // Observe the entire document for new portal elements
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Also run periodically as a fallback
+    const interval = setInterval(hideEmptyPortals, 500);
+
+    // Fun message for curious developers who open F12 🕵️
+    console.log(`
 %c██╗  ██╗███████╗██╗   ██╗    ██╗   ██╗ ██████╗ ██╗   ██╗██╗
 %c██║  ██║██╔════╝╚██╗ ██╔╝    ╚██╗ ██╔╝██╔═══██╗██║   ██║██║
 %c███████║█████╗   ╚████╔╝      ╚████╔╝ ██║   ██║██║   ██║██║
@@ -115,34 +175,39 @@ export default function App(props: AppProps) {
 %c██║  ██║███████╗   ██║          ██║   ╚██████╔╝╚██████╔╝██╗
 %c╚═╝  ╚═╝╚══════╝   ╚═╝          ╚═╝    ╚═════╝  ╚═════╝ ╚═╝
 `, 
-        'color: #00E5A0; font-weight: bold;',
-        'color: #00D4FF; font-weight: bold;',
-        'color: #FBBF24; font-weight: bold;',
-        'color: #F472B6; font-weight: bold;',
-        'color: #A78BFA; font-weight: bold;',
-        'color: #60A5FA; font-weight: bold;'
-      );
-      
-      console.log(
-        '%c🚀 Curious developer spotted! 👀',
-        'font-size: 20px; font-weight: bold; color: #00E5A0;'
-      );
-      
-      console.log(
-        '%c📱 Follow @muazxinthi on X for alpha! 🔥',
-        'font-size: 24px; font-weight: bold; color: #FBBF24; text-shadow: 2px 2px #000;'
-      );
-      
-      console.log(
-        '%c⚡ AKARI Mystic Club - Prediction-native market intelligence',
-        'font-size: 14px; color: #888;'
-      );
-      
-      console.log(
-        '%c🔒 Nice try! All the juicy stuff is on the server side 😉',
-        'font-size: 12px; color: #666; font-style: italic;'
-      );
-    }
+      'color: #00E5A0; font-weight: bold;',
+      'color: #00D4FF; font-weight: bold;',
+      'color: #FBBF24; font-weight: bold;',
+      'color: #F472B6; font-weight: bold;',
+      'color: #A78BFA; font-weight: bold;',
+      'color: #60A5FA; font-weight: bold;'
+    );
+    
+    console.log(
+      '%c🚀 Curious developer spotted! 👀',
+      'font-size: 20px; font-weight: bold; color: #00E5A0;'
+    );
+    
+    console.log(
+      '%c📱 Follow @muazxinthi on X for alpha! 🔥',
+      'font-size: 24px; font-weight: bold; color: #FBBF24; text-shadow: 2px 2px #000;'
+    );
+    
+    console.log(
+      '%c⚡ AKARI Mystic Club - Prediction-native market intelligence',
+      'font-size: 14px; color: #888;'
+    );
+    
+    console.log(
+      '%c🔒 Nice try! All the juicy stuff is on the server side 😉',
+      'font-size: 12px; color: #666; font-style: italic;'
+    );
+
+    // Cleanup interval and observer on unmount
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
   }, []);
 
   return (

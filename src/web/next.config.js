@@ -7,7 +7,7 @@ const nextConfig = {
   env: {
     VERCEL_URL: process.env.VERCEL_URL,
   },
-  // Allow external images from Twitter CDN
+  // Allow external images from Twitter CDN and Supabase Storage
   images: {
     remotePatterns: [
       {
@@ -23,6 +23,11 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '*.twimg.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
         pathname: '/**',
       },
     ],

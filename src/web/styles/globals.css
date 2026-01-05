@@ -266,3 +266,45 @@ body {
   animation: pulse-subtle 2.5s ease-in-out infinite;
 }
 
+/* Hide empty Next.js portal elements - aggressive rules */
+nextjs-portal:empty {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Hide portals with zero dimensions (multiple variations) */
+nextjs-portal[style*="width: 0px"],
+nextjs-portal[style*="width:0px"],
+nextjs-portal[style*="width: 0"],
+nextjs-portal[style*="width:0"],
+nextjs-portal[style*="height: 0px"],
+nextjs-portal[style*="height:0px"],
+nextjs-portal[style*="height: 0"],
+nextjs-portal[style*="height:0"] {
+  display: none !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Hide portals that have no children (using :has selector for modern browsers) */
+@supports selector(:has(*)) {
+  nextjs-portal:not(:has(*)) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+}
+
+/* Additional rule: hide any portal with zero computed dimensions */
+nextjs-portal {
+  min-width: 0;
+  min-height: 0;
+}
