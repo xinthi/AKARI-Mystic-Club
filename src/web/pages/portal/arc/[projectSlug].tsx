@@ -92,6 +92,15 @@ export default function ArcProjectHub() {
   }>>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
+  // Reset to page 1 when leaderboard data changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [leaderboardCreators.length]);
 
   // Approved MS request (for fallback detection)
   const [hasApprovedMsRequest, setHasApprovedMsRequest] = useState(false);
@@ -254,6 +263,7 @@ export default function ArcProjectHub() {
           const mappedCreators = data.entries.map((entry: any, index: number) => ({
             id: `creator-${index}`,
             twitter_username: entry.twitter_username || '',
+            avatar_url: entry.avatar_url || null,
             arc_points: entry.score || entry.base_points || 0,
             score: entry.score,
             base_points: entry.base_points,
@@ -466,37 +476,46 @@ export default function ArcProjectHub() {
                     <p className="text-red-400 text-sm">{leaderboardError}</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Rank</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Creator</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Smart Followers</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">MS</th>
-                          <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">CT Heat</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leaderboardCreators.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-8 text-center">
-                              <EmptyState
-                                icon="👥"
-                                title="No creators yet"
-                                description="Creators will appear here once they start contributing or join the leaderboard."
-                              />
-                            </td>
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Rank</th>
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Creator</th>
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Smart Followers</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">MS</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">CT Heat</th>
                           </tr>
-                        ) : (
-                          leaderboardCreators.map((creator, index) => (
-                            <tr
-                              key={creator.id || `creator-${index}`}
-                              className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                            >
-                              <td className="py-3 px-4 text-white font-medium">#{index + 1}</td>
+                        </thead>
+                        <tbody>
+                          {leaderboardCreators.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center">
+                                <EmptyState
+                                  icon="👥"
+                                  title="No creators yet"
+                                  description="Creators will appear here once they start contributing or join the leaderboard."
+                                />
+                              </td>
+                            </tr>
+                          ) : (() => {
+                            // Calculate pagination
+                            const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
+                            const startIndex = (currentPage - 1) * itemsPerPage;
+                            const endIndex = startIndex + itemsPerPage;
+                            const paginatedCreators = leaderboardCreators.slice(startIndex, endIndex);
+                            
+                            return paginatedCreators.map((creator, index) => {
+                              const globalRank = startIndex + index + 1;
+                              return (
+                                <tr
+                                  key={creator.id || `creator-${globalRank}`}
+                                  className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                                >
+                                  <td className="py-3 px-4 text-white font-medium">#{globalRank}</td>
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-2">
                                   {creator.avatar_url ? (
@@ -571,13 +590,46 @@ export default function ArcProjectHub() {
                                 ) : (
                                   <span className="text-white/40">—</span>
                                 )}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                </td>
+                              </tr>
+                            );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    {leaderboardCreators.length > itemsPerPage && (() => {
+                      const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
+                      return (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                          <div className="text-sm text-white/60">
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, leaderboardCreators.length)} of {leaderboardCreators.length} creators
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                              disabled={currentPage === 1}
+                              className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            >
+                              Previous
+                            </button>
+                            <span className="text-sm text-white/60 px-3">
+                              Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              disabled={currentPage >= totalPages}
+                              className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             )}
