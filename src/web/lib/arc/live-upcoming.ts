@@ -396,8 +396,11 @@ async function fetchArenas(supabase: SupabaseClient) {
   // Use liveArenas instead of all arenas
   const arenasToProcess = liveArenas;
   
-  // Get creator counts
+  // Get creator counts - count ALL contributing creators (joined + auto-tracked)
   const arenaIds = arenasToProcess.map(a => a.id);
+  const projectIds = [...new Set(arenasToProcess.map(a => a.project_id))];
+  
+  // Count joined creators
   const { data: creatorCounts } = await supabase
     .from('arena_creators')
     .select('arena_id')
@@ -409,6 +412,42 @@ async function fetchArenas(supabase: SupabaseClient) {
       const current = countsMap.get(cc.arena_id) || 0;
       countsMap.set(cc.arena_id, current + 1);
     });
+  }
+
+  // Also count auto-tracked creators (those who mentioned the project but didn't join)
+  // Get all unique creators who have mentioned the project (from project_tweets)
+  if (projectIds.length > 0) {
+    const { data: projectTweets } = await supabase
+      .from('project_tweets')
+      .select('project_id, author_handle')
+      .in('project_id', projectIds)
+      .eq('is_official', false); // Only mentions, not official tweets
+
+    if (projectTweets) {
+      // Create a map of project_id -> Set of unique creator usernames
+      const projectCreatorsMap = new Map<string, Set<string>>();
+      projectTweets.forEach((tweet: any) => {
+        if (!tweet.author_handle) return;
+        const normalizedUsername = tweet.author_handle.toLowerCase().replace(/^@/, '').trim();
+        if (!normalizedUsername) return;
+        
+        if (!projectCreatorsMap.has(tweet.project_id)) {
+          projectCreatorsMap.set(tweet.project_id, new Set());
+        }
+        projectCreatorsMap.get(tweet.project_id)!.add(normalizedUsername);
+      });
+
+      // For each arena, count unique creators who mentioned the project
+      // This includes both joined and auto-tracked creators
+      for (const arena of arenasToProcess) {
+        const uniqueCreators = projectCreatorsMap.get(arena.project_id);
+        if (uniqueCreators && uniqueCreators.size > 0) {
+          // Use the higher count: joined creators or total unique creators
+          const currentCount = countsMap.get(arena.id) || 0;
+          countsMap.set(arena.id, Math.max(currentCount, uniqueCreators.size));
+        }
+      }
+    }
   }
 
   // Check if any arenas are missing project data and fetch separately if needed
