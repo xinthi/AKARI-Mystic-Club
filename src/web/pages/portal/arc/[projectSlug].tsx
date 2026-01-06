@@ -19,6 +19,9 @@ import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { requireArcAccessRoute } from '@/lib/server/require-arc-access';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { MindshareTreemap } from '@/components/arc/MindshareTreemap';
+import { CountdownTimer } from '@/components/arc/CountdownTimer';
+import { TopTweetsFeed } from '@/components/arc/TopTweetsFeed';
 
 // =============================================================================
 // TYPES
@@ -89,7 +92,14 @@ export default function ArcProjectHub() {
     smart_followers_pct?: number | null;
     contribution_pct?: number | null;
     ct_heat?: number | null;
+    // Delta values (in basis points - bps)
+    delta7d?: number | null;
+    delta1m?: number | null;
+    delta3m?: number | null;
   }>>([]);
+  
+  // Delta display mode: 'absolute' (bps) or 'relative' (%)
+  const [deltaMode, setDeltaMode] = useState<'absolute' | 'relative'>('absolute');
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   
@@ -97,10 +107,36 @@ export default function ArcProjectHub() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
+  // Time period filter state
+  type TimePeriod = '7D' | '1M' | '3M' | 'ALL';
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('ALL');
+
+  // Treemap data
+  const [treemapData, setTreemapData] = useState<Array<{ name: string; value: number; handle: string; avatar: string | null }>>([]);
+  const [treemapLoading, setTreemapLoading] = useState(false);
+
+  // Top tweets data
+  const [topTweets, setTopTweets] = useState<Array<{
+    tweet_id: string;
+    url: string;
+    text: string;
+    author_handle: string;
+    author_name: string | null;
+    author_avatar: string | null;
+    created_at: string;
+    impressions: number | null;
+    engagements: number | null;
+    likes: number;
+    replies: number;
+    reposts: number;
+    score: number;
+  }>>([]);
+  const [topTweetsLoading, setTopTweetsLoading] = useState(false);
+
   // Reset to page 1 when leaderboard data changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [leaderboardCreators.length]);
+  }, [leaderboardCreators.length, timePeriod]);
 
   // Approved MS request (for fallback detection)
   const [hasApprovedMsRequest, setHasApprovedMsRequest] = useState(false);
@@ -276,6 +312,9 @@ export default function ArcProjectHub() {
             smart_followers_pct: entry.smart_followers_pct || null,
             contribution_pct: entry.contribution_pct || null,
             ct_heat: entry.ct_heat || null,
+            delta7d: entry.delta7d ?? null,
+            delta1m: entry.delta1m ?? null,
+            delta3m: entry.delta3m ?? null,
           }));
           setLeaderboardCreators(mappedCreators);
         } else {
@@ -292,6 +331,65 @@ export default function ArcProjectHub() {
 
     fetchLeaderboard();
   }, [projectId, msEnabled]);
+
+  // Fetch treemap data
+  useEffect(() => {
+    if (!projectId || !msEnabled) {
+      setTreemapData([]);
+      return;
+    }
+
+    async function fetchTreemap() {
+      setTreemapLoading(true);
+      try {
+        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(projectId)}/treemap`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.nodes) {
+            setTreemapData(data.nodes);
+          }
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Treemap fetch error:', err);
+      } finally {
+        setTreemapLoading(false);
+      }
+    }
+
+    fetchTreemap();
+  }, [projectId, msEnabled]);
+
+  // Fetch top tweets
+  useEffect(() => {
+    if (!projectId || !msEnabled) {
+      setTopTweets([]);
+      return;
+    }
+
+    async function fetchTopTweets() {
+      setTopTweetsLoading(true);
+      try {
+        const range = timePeriod === 'ALL' ? '7d' : timePeriod.toLowerCase();
+        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(projectId)}/top-tweets?range=${range}&limit=10`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.tweets) {
+            setTopTweets(data.tweets);
+          }
+        }
+      } catch (err) {
+        console.error('[ArcProjectHub] Top tweets fetch error:', err);
+      } finally {
+        setTopTweetsLoading(false);
+      }
+    }
+
+    fetchTopTweets();
+  }, [projectId, msEnabled, timePeriod]);
 
   // Canonicalize projectSlug: redirect if normalized differs from original
   useEffect(() => {
@@ -398,12 +496,12 @@ export default function ArcProjectHub() {
                   >
                     Manage Team
                   </Link>
-                  <Link
-                    href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
-                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    Admin
-                  </Link>
+                <Link
+                  href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
+                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Admin
+                </Link>
                 </div>
               )}
             </div>
@@ -412,22 +510,55 @@ export default function ArcProjectHub() {
 
         {/* Mindshare Leaderboard Section */}
         {msEnabled && (
-          <div className="rounded-lg border border-white/10 bg-black/40 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">Mindshare Leaderboard</h2>
-              {canManageProject && (currentArena || hasApprovedMsRequest) && (
-                <Link
-                  href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
-                  className="px-3 py-1.5 text-xs font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  Manage Arena
-                </Link>
-              )}
-            </div>
+          <div className="space-y-6">
+            {/* Top Section: Treemap (Left) and Project Details (Right) */}
+            {currentArena && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left: Treemap */}
+                <div className="lg:col-span-2">
+                  <MindshareTreemap nodes={treemapData} loading={treemapLoading} />
+                </div>
+                
+                {/* Right: Project Details + Countdown */}
+                <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-white mb-1">
+                        {project?.name || 'Project'} Mindshare
+                      </h2>
+                      <p className="text-white/70 text-sm">
+                        {currentArena.name || 'Active Arena'}
+                      </p>
+                    </div>
+                    {currentArena.starts_at && currentArena.ends_at && (
+                      <div className="space-y-2">
+                        <div className="text-sm text-white/80">
+                          <div>Start: {new Date(currentArena.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                          <div>End: {new Date(currentArena.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        </div>
+                        <div className="pt-2 border-t border-white/10">
+                          <div className="text-xs text-white/60 mb-2">Time Remaining</div>
+                          <CountdownTimer targetDate={currentArena.ends_at} />
+                        </div>
+                      </div>
+                    )}
+                    {canManageProject && (
+                      <Link
+                        href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
+                        className="block w-full mt-4 px-4 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-center"
+                      >
+                        Manage Arena
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {arenaLoading ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white/60"></div>
-                <p className="mt-2 text-white/60 text-sm">Loading arena...</p>
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white/60"></div>
+                <p className="mt-4 text-white/60 text-sm">Loading arena...</p>
               </div>
             ) : arenaError ? (
               <ErrorState
@@ -435,202 +566,506 @@ export default function ArcProjectHub() {
                 onRetry={() => window.location.reload()}
               />
             ) : !currentArena ? (
-              // No active arena - check if there's an approved request (arena might be scheduled)
               hasApprovedMsRequest ? (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   <p className="text-white/80 mb-2">Leaderboard coming soon</p>
                   <p className="text-white/60 text-sm">
                     The arena is scheduled to start soon. Creators will appear here once it goes live.
                   </p>
                 </div>
               ) : (
-                <EmptyState
-                  icon="📊"
-                  title="No active leaderboard right now"
-                  description="This project has ARC enabled, but there is no live arena at the moment."
-                />
+              <EmptyState
+                icon="📊"
+                title="No active leaderboard right now"
+                description="This project has ARC enabled, but there is no live arena at the moment."
+              />
               )
+            ) : leaderboardLoading ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white/60"></div>
+                <p className="mt-4 text-white/60 text-sm">Loading leaderboard...</p>
+              </div>
+            ) : leaderboardError ? (
+              <div className="text-center py-12">
+                <p className="text-red-400 text-sm">{leaderboardError}</p>
+              </div>
             ) : (
-              <div className="space-y-4">
-                {/* Arena Info */}
-                <div className="pb-4 border-b border-white/10">
-                  <h3 className="text-lg font-semibold text-white mb-1">{currentArena.name || 'Active Arena'}</h3>
-                  <p className="text-white/60 text-sm">
-                    {currentArena.starts_at && (
-                      <span>Starts: {new Date(currentArena.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    )}
-                    {currentArena.ends_at && (
-                      <span className="ml-2">Ends: {new Date(currentArena.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    )}
-                  </p>
+              <div className="space-y-6">
+                {/* Time Period Filters */}
+                <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
+                  {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setTimePeriod(period)}
+                      className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
+                        timePeriod === period
+                          ? 'bg-[#F6623A] text-white font-medium'
+                          : 'text-white/60 hover:text-white/80'
+                      }`}
+                    >
+                      {period}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Leaderboard Table */}
-                {leaderboardLoading ? (
-                  <div className="text-center py-8">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white/60"></div>
-                    <p className="mt-2 text-white/60 text-sm">Loading leaderboard...</p>
-                  </div>
-                ) : leaderboardError ? (
-                  <div className="text-center py-8">
-                    <p className="text-red-400 text-sm">{leaderboardError}</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-white/10">
-                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Rank</th>
-                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Creator</th>
-                            <th className="text-left py-3 px-4 text-sm font-semibold text-white/60">Ring</th>
-                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Points</th>
-                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">Smart Followers</th>
-                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">MS</th>
-                            <th className="text-right py-3 px-4 text-sm font-semibold text-white/60">CT Heat</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {leaderboardCreators.length === 0 ? (
-                            <tr>
-                              <td colSpan={7} className="py-8 text-center">
-                                <EmptyState
-                                  icon="👥"
-                                  title="No creators yet"
-                                  description="Creators will appear here once they start contributing or join the leaderboard."
-                                />
-                              </td>
-                            </tr>
-                          ) : (() => {
-                            // Calculate pagination
-                            const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
-                            const startIndex = (currentPage - 1) * itemsPerPage;
-                            const endIndex = startIndex + itemsPerPage;
-                            const paginatedCreators = leaderboardCreators.slice(startIndex, endIndex);
-                            
-                            return paginatedCreators.map((creator, index) => {
-                              const globalRank = startIndex + index + 1;
-                              return (
-                                <tr
-                                  key={creator.id || `creator-${globalRank}`}
-                                  className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                                >
-                                  <td className="py-3 px-4 text-white font-medium">#{globalRank}</td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {creator.avatar_url ? (
-                                    <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
-                                      <Image
-                                        src={creator.avatar_url}
-                                        alt={creator.twitter_username || 'Creator avatar'}
-                                        fill
-                                        className="object-cover"
-                                        unoptimized
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex-shrink-0 flex items-center justify-center">
-                                      <span className="text-white/60 text-xs">
-                                        {(creator.twitter_username || '?')[0].toUpperCase()}
-                                      </span>
-                                    </div>
-                                  )}
-                                  <Link
-                                    href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
-                                    className="text-white hover:text-teal-400 transition-colors"
-                                  >
-                                    {creator.twitter_username || 'Unknown'}
-                                  </Link>
-                                  {creator.is_auto_tracked && (
-                                    <span className="ml-2 text-xs text-white/40">(tracked)</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                {creator.ring && (
-                                  <span className={`px-2 py-1 rounded-full text-xs border ${
-                                    creator.ring === 'core'
-                                      ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
-                                      : creator.ring === 'momentum'
-                                      ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
-                                      : 'bg-teal-500/20 text-teal-400 border-teal-500/50'
-                                  }`}>
-                                    {creator.ring}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right text-white font-medium">
-                                {creator.arc_points.toLocaleString()}
-                                {creator.multiplier && creator.multiplier > 1 && (
-                                  <span className="ml-1 text-xs text-teal-400">({creator.multiplier}x)</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right text-white/80">
-                                {creator.smart_followers_count !== null && creator.smart_followers_count !== undefined ? (
-                                  <div>
-                                    <div className="font-medium">{creator.smart_followers_count.toLocaleString()}</div>
-                                    {creator.smart_followers_pct !== null && creator.smart_followers_pct !== undefined && (
-                                      <div className="text-xs text-white/60">({creator.smart_followers_pct.toFixed(1)}%)</div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-white/40">—</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right text-white/80">
-                                {creator.contribution_pct !== null && creator.contribution_pct !== undefined ? (
-                                  <span className="font-medium">{creator.contribution_pct.toFixed(2)}%</span>
-                                ) : (
-                                  <span className="text-white/40">—</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right text-white/80">
-                                {creator.ct_heat !== null && creator.ct_heat !== undefined ? (
-                                  <span className="font-medium">{creator.ct_heat}</span>
-                                ) : (
-                                  <span className="text-white/40">—</span>
-                                )}
-                                </td>
-                              </tr>
-                            );
-                            });
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    {/* Pagination Controls */}
-                    {leaderboardCreators.length > itemsPerPage && (() => {
-                      const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
-                      return (
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
-                          <div className="text-sm text-white/60">
-                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, leaderboardCreators.length)} of {leaderboardCreators.length} creators
-                          </div>
+                {/* Top Gainers/Losers and Top Tweets Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left: Top Gainers & Losers */}
+                  <div className="lg:col-span-2">
+                    {leaderboardCreators.length > 0 && (
+                      <div className="rounded-lg border border-white/10 bg-black/40 p-6">
+                        <div className="flex items-center justify-between mb-4 px-2">
+                          <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
+                            <span className="w-1 h-4 bg-red-500 rounded"></span>
+                            Mindshare
+                          </h3>
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                              disabled={currentPage === 1}
-                              className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              onClick={() => setDeltaMode('absolute')}
+                              className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                deltaMode === 'absolute'
+                                  ? 'bg-[#14CC7F] text-white'
+                                  : 'text-white/40'
+                              }`}
                             >
-                              Previous
+                              △ Absolute (bps)
                             </button>
-                            <span className="text-sm text-white/60 px-3">
-                              Page {currentPage} of {totalPages}
-                            </span>
                             <button
-                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                              disabled={currentPage >= totalPages}
-                              className="px-4 py-2 text-sm font-medium border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              onClick={() => setDeltaMode('relative')}
+                              className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                deltaMode === 'relative'
+                                  ? 'bg-[#14CC7F] text-white'
+                                  : 'text-white/40'
+                              }`}
                             >
-                              Next
+                              △ Relative (%)
                             </button>
                           </div>
                         </div>
-                      );
-                    })()}
-                  </>
-                )}
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Top Gainers Table */}
+                          <div className="flex flex-col gap-4">
+                        <h4 className="text-base font-bold text-white px-2 leading-5">Top Gainers</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-separate border-spacing-0 text-xs">
+                            <thead>
+                              <tr>
+                                <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
+                                <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
+                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
+                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
+                                <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                // Sort by contribution percentage (or points as fallback)
+                                const sorted = [...leaderboardCreators].sort((a, b) => 
+                                  (b.contribution_pct ?? 0) - (a.contribution_pct ?? 0)
+                                );
+                                const topGainers = sorted.slice(0, 5);
+                                
+                                return topGainers.map((creator, idx) => {
+                                  const formatDelta = (delta: number | null | undefined) => {
+                                    if (delta === null || delta === undefined) return '—';
+                                    if (delta === 0) return '▲ 0bps';
+                                    const isPositive = delta > 0;
+                                    const absDelta = Math.abs(delta);
+                                    if (deltaMode === 'absolute') {
+                                      return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
+                                    } else {
+                                      return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
+                                    }
+                                  };
+                                  
+                                  return (
+                                    <tr 
+                                      key={creator.id || `gainer-${idx}`} 
+                                      className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
+                                    >
+                                      <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
+                                        <div className="flex items-center gap-0.5 min-w-0">
+                                          {creator.avatar_url ? (
+                                            <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
+                                              <Image
+                                                src={creator.avatar_url}
+                                                alt={creator.twitter_username || 'Avatar'}
+                                                fill
+                                                className="object-cover"
+                                                unoptimized
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
+                                              <span className="text-white/60 text-[10px]">
+                                                {(creator.twitter_username || '?')[0].toUpperCase()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          <div className="flex gap-0.5 min-w-0">
+                                            <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                                              {creator.twitter_username || 'Unknown'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="py-3 text-right text-xs font-normal text-white leading-4">
+                                        {creator.contribution_pct !== null && creator.contribution_pct !== undefined
+                                          ? `${creator.contribution_pct.toFixed(2)}%`
+                                          : '—'}
+                                      </td>
+                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                        (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-center gap-0.5">
+                                          {formatDelta(creator.delta7d)}
+                                        </div>
+                                      </td>
+                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                        (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-center gap-0.5">
+                                          {formatDelta(creator.delta1m)}
+                                        </div>
+                                      </td>
+                                      <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
+                                        (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-end gap-0.5">
+                                          {formatDelta(creator.delta3m)}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                          </div>
+
+                          {/* Top Losers Table */}
+                          <div className="flex flex-col gap-4">
+                        <h4 className="text-base font-bold text-white px-2 leading-5">Top Losers</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-separate border-spacing-0 text-xs">
+                            <thead>
+                              <tr>
+                                <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
+                                <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
+                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
+                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
+                                <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                // Sort by contribution percentage (ascending for losers)
+                                const sorted = [...leaderboardCreators].sort((a, b) => 
+                                  (a.contribution_pct ?? 0) - (b.contribution_pct ?? 0)
+                                );
+                                const topLosers = sorted.slice(0, 5);
+                                
+                                return topLosers.map((creator, idx) => {
+                                  const formatDelta = (delta: number | null | undefined) => {
+                                    if (delta === null || delta === undefined) return '—';
+                                    if (delta === 0) return '▲ 0bps';
+                                    const isPositive = delta > 0;
+                                    const absDelta = Math.abs(delta);
+                                    if (deltaMode === 'absolute') {
+                                      return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
+                                    } else {
+                                      return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
+                                    }
+                                  };
+                                  
+                                  return (
+                                    <tr 
+                                      key={creator.id || `loser-${idx}`} 
+                                      className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
+                                    >
+                                      <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
+                                        <div className="flex items-center gap-0.5 min-w-0">
+                                          {creator.avatar_url ? (
+                                            <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
+                                              <Image
+                                                src={creator.avatar_url}
+                                                alt={creator.twitter_username || 'Avatar'}
+                                                fill
+                                                className="object-cover"
+                                                unoptimized
+                                              />
+                                            </div>
+                                          ) : (
+                                            <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
+                                              <span className="text-white/60 text-[10px]">
+                                                {(creator.twitter_username || '?')[0].toUpperCase()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          <div className="flex gap-0.5 min-w-0">
+                                            <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                                              {creator.twitter_username || 'Unknown'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="py-3 text-right text-xs font-normal text-white leading-4">
+                                        {creator.contribution_pct !== null && creator.contribution_pct !== undefined
+                                          ? `${creator.contribution_pct.toFixed(2)}%`
+                                          : '—'}
+                                      </td>
+                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                        (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-center gap-0.5">
+                                          {formatDelta(creator.delta7d)}
+                                        </div>
+                                      </td>
+                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                        (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-center gap-0.5">
+                                          {formatDelta(creator.delta1m)}
+                                        </div>
+                                      </td>
+                                      <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
+                                        (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                      }`}>
+                                        <div className="flex items-center justify-end gap-0.5">
+                                          {formatDelta(creator.delta3m)}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Top Tweets Feed */}
+                  <div className="lg:col-span-1">
+                    <TopTweetsFeed tweets={topTweets} loading={topTweetsLoading} />
+                  </div>
+                </div>
+
+                {/* Main Leaderboard Table */}
+                <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
+                        <span className="w-1 h-4 bg-red-500 rounded"></span>
+                        Top 50 Creators
+                      </h3>
+                      {/* Time Period Filters for Main Table */}
+                      <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
+                        {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
+                          <button
+                            key={period}
+                            onClick={() => setTimePeriod(period)}
+                            className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
+                              timePeriod === period
+                                ? 'bg-[#F6623A] text-white font-medium'
+                                : 'text-white/60 hover:text-white/80'
+                            }`}
+                          >
+                            {period}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {leaderboardCreators.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <EmptyState
+                        icon="👥"
+                        title="No creators yet"
+                        description="Creators will appear here once they start contributing or join the leaderboard."
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-white/10 bg-white/5">
+                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Rank</th>
+                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Name</th>
+                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Ring</th>
+                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Points</th>
+                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Smart Followers</th>
+                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">MS</th>
+                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">CT Heat</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              // Calculate pagination
+                              const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
+                              const startIndex = (currentPage - 1) * itemsPerPage;
+                              const endIndex = startIndex + itemsPerPage;
+                              const paginatedCreators = leaderboardCreators.slice(startIndex, endIndex);
+                              
+                              return paginatedCreators.map((creator, index) => {
+                                const globalRank = startIndex + index + 1;
+                                const isTopThree = globalRank <= 3;
+                                const rankBgColor = 
+                                  globalRank === 1 ? 'bg-gradient-to-r from-yellow-500/10 to-yellow-400/5' :
+                                  globalRank === 2 ? 'bg-gradient-to-r from-gray-400/10 to-gray-300/5' :
+                                  globalRank === 3 ? 'bg-gradient-to-r from-orange-500/10 to-orange-400/5' :
+                                  '';
+                                
+                                return (
+                                  <tr
+                                    key={creator.id || `creator-${globalRank}`}
+                                    className={`border-b border-white/5 hover:bg-white/5 transition-colors ${rankBgColor}`}
+                                  >
+                                    <td className="py-4 px-6">
+                                      <span className={`font-bold ${
+                                        globalRank === 1 ? 'text-yellow-400' :
+                                        globalRank === 2 ? 'text-gray-300' :
+                                        globalRank === 3 ? 'text-orange-400' :
+                                        'text-white'
+                                      }`}>
+                                        #{globalRank}
+                                      </span>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                      <div className="flex items-center gap-3">
+                                        {creator.avatar_url ? (
+                                          <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
+                                            <Image
+                                              src={creator.avatar_url}
+                                              alt={creator.twitter_username || 'Creator avatar'}
+                                              fill
+                                              className="object-cover"
+                                              unoptimized
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="w-10 h-10 rounded-full bg-white/10 border-2 border-white/20 flex-shrink-0 flex items-center justify-center">
+                                            <span className="text-white/60 text-sm font-medium">
+                                              {(creator.twitter_username || '?')[0].toUpperCase()}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <Link
+                                            href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
+                                            className="text-white font-medium hover:text-teal-400 transition-colors block truncate"
+                                          >
+                                            {creator.twitter_username || 'Unknown'}
+                                          </Link>
+                                          {creator.is_auto_tracked && (
+                                            <span className="text-xs text-white/40">Auto-tracked</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                      {creator.ring && (
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                          creator.ring === 'core'
+                                            ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+                                            : creator.ring === 'momentum'
+                                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                                            : 'bg-teal-500/20 text-teal-400 border-teal-500/50'
+                                        }`}>
+                                          {creator.ring}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-white font-semibold">{creator.arc_points.toLocaleString()}</span>
+                                        {creator.multiplier && creator.multiplier > 1 && (
+                                          <span className="text-xs text-teal-400 font-medium">({creator.multiplier}x)</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                      {creator.smart_followers_count !== null && creator.smart_followers_count !== undefined ? (
+                                        <div>
+                                          <div className="text-white font-medium">{creator.smart_followers_count.toLocaleString()}</div>
+                                          {creator.smart_followers_pct !== null && creator.smart_followers_pct !== undefined && (
+                                            <div className="text-xs text-white/50">({creator.smart_followers_pct.toFixed(1)}%)</div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-white/40">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-4 px-6">
+                                      {creator.contribution_pct !== null && creator.contribution_pct !== undefined ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-white font-medium min-w-[3rem] text-right">{creator.contribution_pct.toFixed(2)}%</span>
+                                          <div className="flex-1 max-w-[100px] h-2 bg-white/10 rounded-full overflow-hidden">
+                                            <div 
+                                              className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all"
+                                              style={{ width: `${Math.min(100, (creator.contribution_pct / (leaderboardCreators[0]?.contribution_pct ?? 1)) * 100)}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-white/40">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-4 px-6 text-right">
+                                      {creator.ct_heat !== null && creator.ct_heat !== undefined ? (
+                                        <span className="text-white font-medium">{creator.ct_heat}</span>
+                                      ) : (
+                                        <span className="text-white/40">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    
+                      {/* Pagination Controls */}
+                      {leaderboardCreators.length > itemsPerPage && (() => {
+                        const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
+                        return (
+                          <div className="flex items-center justify-between p-4 border-t border-white/10 bg-white/5">
+                            <div className="text-sm text-white/60">
+                              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, leaderboardCreators.length)} of {leaderboardCreators.length} creators
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
+                              >
+                                Previous
+                              </button>
+                              <span className="text-sm text-white/60 px-3">
+                                Page {currentPage} of {totalPages}
+                              </span>
+                              <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage >= totalPages}
+                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>

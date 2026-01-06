@@ -45,6 +45,10 @@ interface LeaderboardEntry {
   // Contribution & CT Heat
   contribution_pct: number | null; // Percentage contribution to project mindshare
   ct_heat: number | null; // CT Heat score (0-100) for this creator
+  // Delta values (in basis points - bps)
+  delta7d: number | null; // Change in contribution % over 7 days (in bps)
+  delta1m: number | null; // Change in contribution % over 1 month (in bps)
+  delta3m: number | null; // Change in contribution % over 3 months (in bps)
 }
 
 type LeaderboardResponse =
@@ -199,17 +203,26 @@ async function buildCreatorPostMetrics(
 /**
  * Calculate mindshare points from project_tweets (mentions only)
  * Points = sum of engagement (likes + replies*2 + retweets*3) for mentions
+ * @param beforeDate If provided, only count tweets before this date (for historical calculations)
  */
 async function calculateAutoTrackedPoints(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  projectId: string
+  projectId: string,
+  beforeDate?: Date
 ): Promise<Map<string, number>> {
   // Get all mentions (non-official tweets) for this project
-  const { data: mentions, error } = await supabase
+  let query = supabase
     .from('project_tweets')
     .select('author_handle, likes, replies, retweets')
     .eq('project_id', projectId)
     .eq('is_official', false); // Only mentions, not official project tweets
+
+  // If beforeDate is provided, only count tweets before that date
+  if (beforeDate) {
+    query = query.lt('created_at', beforeDate.toISOString());
+  }
+
+  const { data: mentions, error } = await query;
 
   if (error || !mentions) {
     console.error('[ARC Leaderboard] Error fetching mentions:', error);
@@ -229,6 +242,86 @@ async function calculateAutoTrackedPoints(
   }
 
   return pointsMap;
+}
+
+/**
+ * Calculate historical contribution percentages for a given date
+ * Returns a map of username -> contribution percentage
+ */
+async function calculateHistoricalContributions(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  projectId: string,
+  arenaId: string | null,
+  historicalDate: Date
+): Promise<Map<string, number>> {
+  // Calculate auto-tracked points up to historical date
+  const historicalAutoTrackedPoints = await calculateAutoTrackedPoints(supabase, projectId, historicalDate);
+
+  // Get joined creators' points up to historical date
+  const historicalJoinedPoints = new Map<string, number>();
+  if (arenaId) {
+    // Get arena creators who joined before historical date
+    const { data: creators } = await supabase
+      .from('arena_creators')
+      .select('id, profile_id, twitter_username, arc_points, created_at')
+      .eq('arena_id', arenaId)
+      .lt('created_at', historicalDate.toISOString());
+
+    if (creators) {
+      for (const creator of creators) {
+        const normalizedUsername = normalizeTwitterUsername(creator.twitter_username);
+        if (normalizedUsername && creator.profile_id) {
+          // Get adjustments up to historical date
+          const { data: adjustments } = await supabase
+            .from('arc_point_adjustments')
+            .select('points_delta, created_at')
+            .eq('arena_id', arenaId)
+            .eq('creator_profile_id', creator.profile_id)
+            .lt('created_at', historicalDate.toISOString());
+
+          const adjustmentTotal = adjustments?.reduce((sum, adj) => sum + (adj.points_delta || 0), 0) || 0;
+          const basePoints = (creator.arc_points || 0) + adjustmentTotal;
+
+          // Check if follow verified up to historical date
+          const { data: followVerification } = await supabase
+            .from('arc_project_follows')
+            .select('verified_at')
+            .eq('project_id', projectId)
+            .eq('twitter_username', normalizedUsername)
+            .not('verified_at', 'is', null)
+            .lt('verified_at', historicalDate.toISOString())
+            .maybeSingle();
+
+          const multiplier = followVerification?.verified_at ? 1.5 : 1.0;
+          const score = Math.floor(basePoints * multiplier);
+          historicalJoinedPoints.set(normalizedUsername, score);
+        }
+      }
+    }
+  }
+
+  // Combine joined and auto-tracked points
+  const allHistoricalPoints = new Map<string, number>();
+  for (const [username, points] of historicalJoinedPoints.entries()) {
+    allHistoricalPoints.set(username, points);
+  }
+  for (const [username, points] of historicalAutoTrackedPoints.entries()) {
+    const existing = allHistoricalPoints.get(username) || 0;
+    allHistoricalPoints.set(username, existing + points);
+  }
+
+  // Calculate total and contribution percentages
+  const total = Array.from(allHistoricalPoints.values()).reduce((sum, p) => sum + p, 0);
+  const contributions = new Map<string, number>();
+
+  if (total > 0) {
+    for (const [username, points] of allHistoricalPoints.entries()) {
+      const contributionPct = (points / total) * 100;
+      contributions.set(username, contributionPct);
+    }
+  }
+
+  return contributions;
 }
 
 /**
@@ -557,7 +650,23 @@ export default async function handler(
     // Calculate total project mindshare (sum of all scores)
     const totalMindshare = entries.reduce((sum, entry) => sum + entry.score, 0);
 
-    // Calculate contribution percentage and CT Heat for each entry
+    // Calculate historical contribution percentages for delta calculations
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const oneMonthAgo = new Date(now);
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    // Calculate historical contributions in parallel
+    const [historical7d, historical1m, historical3m] = await Promise.all([
+      calculateHistoricalContributions(supabase, pid, activeArena?.id || null, sevenDaysAgo),
+      calculateHistoricalContributions(supabase, pid, activeArena?.id || null, oneMonthAgo),
+      calculateHistoricalContributions(supabase, pid, activeArena?.id || null, threeMonthsAgo),
+    ]);
+
+    // Calculate contribution percentage, CT Heat, and deltas for each entry
     for (const entry of entries) {
       // Contribution percentage
       if (totalMindshare > 0) {
@@ -565,6 +674,24 @@ export default async function handler(
       } else {
         entry.contribution_pct = null;
       }
+
+      // Calculate deltas (in basis points: 1% = 100 bps)
+      const currentPct = entry.contribution_pct || 0;
+      
+      const historical7dPct = historical7d.get(entry.twitter_username) || 0;
+      entry.delta7d = currentPct > 0 || historical7dPct > 0 
+        ? Math.round((currentPct - historical7dPct) * 100) // Convert % to bps
+        : null;
+
+      const historical1mPct = historical1m.get(entry.twitter_username) || 0;
+      entry.delta1m = currentPct > 0 || historical1mPct > 0
+        ? Math.round((currentPct - historical1mPct) * 100) // Convert % to bps
+        : null;
+
+      const historical3mPct = historical3m.get(entry.twitter_username) || 0;
+      entry.delta3m = currentPct > 0 || historical3mPct > 0
+        ? Math.round((currentPct - historical3mPct) * 100) // Convert % to bps
+        : null;
 
       // CT Heat (calculate asynchronously, but we'll do it synchronously for now)
       try {
