@@ -700,7 +700,7 @@ export default async function handler(
         ? Math.round((currentPct - historical3mPct) * 100) // Convert % to bps
         : null;
 
-      // CT Heat (calculate asynchronously, but we'll do it synchronously for now)
+      // CT Heat (calculate for all entries)
       try {
         const ctHeat = await calculateCreatorCtHeat(supabase, pid, entry.twitter_username);
         entry.ct_heat = ctHeat;
@@ -708,12 +708,20 @@ export default async function handler(
         console.error(`[ARC Leaderboard] Error calculating CT Heat for ${entry.twitter_username}:`, error);
         entry.ct_heat = null;
       }
+      
+      // Ensure smart_followers fields are set (they should already be set, but double-check)
+      if (entry.smart_followers_count === undefined) {
+        entry.smart_followers_count = null;
+      }
+      if (entry.smart_followers_pct === undefined) {
+        entry.smart_followers_pct = null;
+      }
     }
 
     // Fetch avatar URLs from profiles and project_tweets
     const usernamesToFetch = entries.map(e => e.twitter_username);
     if (usernamesToFetch.length > 0) {
-      // Try to get avatars from profiles first
+      // Try to get avatars from profiles first (for joined creators)
       const profileIds = Array.from(joinedCreatorsMap.values())
         .map(c => c.profile_id)
         .filter(Boolean) as string[];
@@ -741,19 +749,20 @@ export default async function handler(
         }
       }
 
-      // Fallback: get avatars from project_tweets for auto-tracked users
+      // Fallback: get avatars from project_tweets for all users (including auto-tracked)
       const usernamesWithoutAvatars = entries
         .filter(e => !e.avatar_url)
         .map(e => e.twitter_username);
 
       if (usernamesWithoutAvatars.length > 0) {
-        // Fetch all project_tweets with avatars (no .in() filter to avoid case sensitivity issues)
+        // Fetch all project_tweets with avatars for this project
+        // Use a larger limit to get more avatars
         const { data: tweets } = await supabase
           .from('project_tweets')
           .select('author_handle, author_profile_image_url')
           .eq('project_id', pid)
           .not('author_profile_image_url', 'is', null)
-          .limit(100);
+          .limit(500); // Increased limit
 
         if (tweets) {
           // Build map keyed by normalized username (handles case/@ variations)
@@ -772,6 +781,32 @@ export default async function handler(
           for (const entry of entries) {
             if (!entry.avatar_url && tweetAvatarMap.has(entry.twitter_username)) {
               entry.avatar_url = tweetAvatarMap.get(entry.twitter_username) || null;
+            }
+          }
+        }
+      }
+
+      // Final fallback: try tracked_profiles table
+      const stillMissingAvatars = entries.filter(e => !e.avatar_url);
+      if (stillMissingAvatars.length > 0) {
+        const usernamesToCheck = stillMissingAvatars.map(e => e.twitter_username);
+        const { data: trackedProfiles } = await supabase
+          .from('tracked_profiles')
+          .select('username, profile_image_url')
+          .in('username', usernamesToCheck.map(u => u.toLowerCase().replace('@', '')));
+
+        if (trackedProfiles) {
+          const trackedAvatarMap = new Map<string, string | null>();
+          for (const profile of trackedProfiles) {
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            if (normalizedUsername && profile.profile_image_url) {
+              trackedAvatarMap.set(normalizedUsername, profile.profile_image_url);
+            }
+          }
+
+          for (const entry of entries) {
+            if (!entry.avatar_url && trackedAvatarMap.has(entry.twitter_username)) {
+              entry.avatar_url = trackedAvatarMap.get(entry.twitter_username) || null;
             }
           }
         }
