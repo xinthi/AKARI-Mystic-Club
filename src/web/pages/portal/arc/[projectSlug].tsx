@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { requireArcAccessRoute } from '@/lib/server/require-arc-access';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { MindshareTreemap } from '@/components/arc/MindshareTreemap';
+import { CreatorTreemap } from '@/components/arc/CreatorTreemap';
 import { CountdownTimer } from '@/components/arc/CountdownTimer';
 import { TopTweetsFeed } from '@/components/arc/TopTweetsFeed';
 
@@ -490,7 +490,7 @@ export default function ArcProjectHub() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left: Treemap */}
                 <div className="lg:col-span-2">
-                  <MindshareTreemap creators={leaderboardCreators} timePeriod={timePeriod} loading={leaderboardLoading} />
+                  <CreatorTreemap creators={leaderboardCreators} timePeriod={timePeriod} loading={leaderboardLoading} />
                 </div>
                 
                 {/* Right: Project Details + Countdown */}
