@@ -111,9 +111,7 @@ export default function ArcProjectHub() {
   type TimePeriod = '7D' | '1M' | '3M' | 'ALL';
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('ALL');
 
-  // Treemap data
-  const [treemapData, setTreemapData] = useState<Array<{ name: string; value: number; handle: string; avatar: string | null }>>([]);
-  const [treemapLoading, setTreemapLoading] = useState(false);
+  // Treemap uses leaderboard data directly, no separate state needed
 
   // Top tweets data
   const [topTweets, setTopTweets] = useState<Array<{
@@ -332,37 +330,7 @@ export default function ArcProjectHub() {
     fetchLeaderboard();
   }, [projectId, msEnabled]);
 
-  // Fetch treemap data
-  useEffect(() => {
-    if (!projectId || !msEnabled) {
-      setTreemapData([]);
-      return;
-    }
-
-    // Store projectId in a const so TypeScript knows it's non-null
-    const validProjectId = projectId;
-
-    async function fetchTreemap() {
-      setTreemapLoading(true);
-      try {
-        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(validProjectId)}/treemap`, {
-          credentials: 'include',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.ok && data.nodes) {
-            setTreemapData(data.nodes);
-          }
-        }
-      } catch (err) {
-        console.error('[ArcProjectHub] Treemap fetch error:', err);
-      } finally {
-        setTreemapLoading(false);
-      }
-    }
-
-    fetchTreemap();
-  }, [projectId, msEnabled]);
+  // Treemap uses leaderboard data directly, no separate fetch needed
 
   // Fetch top tweets
   useEffect(() => {
@@ -522,7 +490,7 @@ export default function ArcProjectHub() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left: Treemap */}
                 <div className="lg:col-span-2">
-                  <MindshareTreemap nodes={treemapData} loading={treemapLoading} />
+                  <MindshareTreemap creators={leaderboardCreators} timePeriod={timePeriod} loading={leaderboardLoading} />
                 </div>
                 
                 {/* Right: Project Details + Countdown */}
