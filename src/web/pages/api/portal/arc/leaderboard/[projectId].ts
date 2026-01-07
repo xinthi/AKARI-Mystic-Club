@@ -567,6 +567,9 @@ export default async function handler(
         trust_band: trustBand,
         contribution_pct: null, // Will be calculated after sorting
         ct_heat: null, // Will be calculated after sorting
+        delta7d: null, // Will be calculated after sorting
+        delta1m: null, // Will be calculated after sorting
+        delta3m: null, // Will be calculated after sorting
       });
     }
 
@@ -628,6 +631,9 @@ export default async function handler(
           trust_band: trustBand,
           contribution_pct: null, // Will be calculated after sorting
           ct_heat: null, // Will be calculated after sorting
+          delta7d: null, // Will be calculated after sorting
+          delta1m: null, // Will be calculated after sorting
+          delta3m: null, // Will be calculated after sorting
         });
       } else if (entriesMap.has(username)) {
         // If already joined, add auto-tracked points to base_points
@@ -645,6 +651,7 @@ export default async function handler(
         rank: index + 1,
         contribution_pct: null, // Will be calculated after we have total
         ct_heat: null, // Will be calculated per creator
+        // Delta fields are already set to null in entriesMap, preserved by spread
       }));
 
     // Calculate total project mindshare (sum of all scores)
