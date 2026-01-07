@@ -853,22 +853,26 @@ export default async function handler(
               avatarMap.set(normalizedUsername, userInfo.profileImageUrl);
               
               // Also save to database for future use (async, don't await)
-              supabase
-                .from('profiles')
-                .upsert({
-                  username: normalizedUsername,
-                  twitter_id: userInfo.id || null,
-                  name: userInfo.name || normalizedUsername,
-                  profile_image_url: userInfo.profileImageUrl,
-                  updated_at: new Date().toISOString(),
-                }, {
-                  onConflict: 'username',
-                  ignoreDuplicates: false,
-                })
-                .catch(err => {
+              // Wrap in async function to handle promise properly
+              (async () => {
+                try {
+                  await supabase
+                    .from('profiles')
+                    .upsert({
+                      username: normalizedUsername,
+                      twitter_id: userInfo.id || null,
+                      name: userInfo.name || normalizedUsername,
+                      profile_image_url: userInfo.profileImageUrl,
+                      updated_at: new Date().toISOString(),
+                    }, {
+                      onConflict: 'username',
+                      ignoreDuplicates: false,
+                    });
+                } catch (err) {
                   // Silently fail - this is just for caching
                   console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, err);
-                });
+                }
+              })();
             }
           }
         } catch (error) {
