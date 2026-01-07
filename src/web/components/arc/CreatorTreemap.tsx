@@ -174,7 +174,7 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
         originalItem: creator,
       };
     });
-  }, [topCreators, timePeriod]);
+  }, [topCreators, timePeriod, mode]);
 
   if (loading) {
     return (

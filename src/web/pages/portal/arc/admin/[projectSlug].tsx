@@ -246,7 +246,7 @@ export default function ArenaManager({ project, arenas: initialArenas, error, pr
         setFormProductType('ms');
       }
     }
-  }, [initialFeatures?.leaderboard_enabled, initialFeatures?.gamefi_enabled, initialFeatures?.crm_enabled, formProductType]);
+  }, [initialFeatures, formProductType]);
 
   // Helper function to determine if request form should be shown and get available options
   const getRequestFormConfig = React.useMemo(() => {

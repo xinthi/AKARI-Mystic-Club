@@ -835,33 +835,6 @@ export default async function handler(
       }
     }
 
-      // Final fallback: try tracked_profiles table
-      const stillMissingAvatars = entries.filter(e => !e.avatar_url);
-      if (stillMissingAvatars.length > 0) {
-        const usernamesToCheck = stillMissingAvatars.map(e => e.twitter_username);
-        const { data: trackedProfiles } = await supabase
-          .from('tracked_profiles')
-          .select('username, profile_image_url')
-          .in('username', usernamesToCheck.map(u => u.toLowerCase().replace('@', '')));
-
-        if (trackedProfiles) {
-          const trackedAvatarMap = new Map<string, string | null>();
-          for (const profile of trackedProfiles) {
-            const normalizedUsername = normalizeTwitterUsername(profile.username);
-            if (normalizedUsername && profile.profile_image_url) {
-              trackedAvatarMap.set(normalizedUsername, profile.profile_image_url);
-            }
-          }
-
-          for (const entry of entries) {
-            if (!entry.avatar_url && trackedAvatarMap.has(entry.twitter_username)) {
-              entry.avatar_url = trackedAvatarMap.get(entry.twitter_username) || null;
-            }
-          }
-        }
-      }
-    }
-
     return res.status(200).json({
       ok: true,
       entries,
