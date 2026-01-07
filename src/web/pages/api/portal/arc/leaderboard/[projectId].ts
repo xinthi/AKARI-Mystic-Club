@@ -718,34 +718,86 @@ export default async function handler(
       }
     }
 
-    // Fetch avatar URLs from profiles and project_tweets
+    // Fetch avatar URLs from multiple sources
     const usernamesToFetch = entries.map(e => e.twitter_username);
     if (usernamesToFetch.length > 0) {
-      // Try to get avatars from profiles first (for joined creators)
+      // Step 1: Get avatars from profiles table by username (for ALL creators)
+      // Query each username individually to handle case variations
+      const profileAvatarMap = new Map<string, string | null>();
+      
+      // Get all usernames that need avatars
+      const allNormalizedUsernames = usernamesToFetch
+        .map(u => normalizeTwitterUsername(u))
+        .filter(Boolean) as string[];
+
+      // Try batch query first (faster)
+      if (allNormalizedUsernames.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .in('username', allNormalizedUsernames);
+
+        if (profiles) {
+          for (const profile of profiles) {
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            if (normalizedUsername && profile.profile_image_url) {
+              profileAvatarMap.set(normalizedUsername, profile.profile_image_url);
+            }
+          }
+        }
+
+        // If batch query didn't find all, try individual queries with case-insensitive matching
+        const foundUsernames = new Set(profileAvatarMap.keys());
+        const missingUsernames = allNormalizedUsernames.filter(u => !foundUsernames.has(u));
+
+        // Query missing usernames individually (use ILIKE for case-insensitive)
+        for (const username of missingUsernames.slice(0, 50)) { // Limit to avoid too many queries
+          const { data: profileResults } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .ilike('username', username)
+            .not('profile_image_url', 'is', null)
+            .limit(1);
+
+          if (profileResults && profileResults.length > 0) {
+            const profile = profileResults[0];
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            if (normalizedUsername && profile.profile_image_url) {
+              profileAvatarMap.set(normalizedUsername, profile.profile_image_url);
+            }
+          }
+        }
+      }
+
+      // Step 1b: Also try by profile_id (for joined creators) as a backup
       const profileIds = Array.from(joinedCreatorsMap.values())
         .map(c => c.profile_id)
         .filter(Boolean) as string[];
 
       if (profileIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profilesById } = await supabase
           .from('profiles')
           .select('id, username, profile_image_url')
           .in('id', profileIds);
 
-        if (profiles) {
-          const avatarMap = new Map<string, string | null>();
-          for (const profile of profiles) {
+        if (profilesById) {
+          for (const profile of profilesById) {
             const normalizedUsername = normalizeTwitterUsername(profile.username);
-            if (normalizedUsername) {
-              avatarMap.set(normalizedUsername, profile.profile_image_url || null);
+            if (normalizedUsername && profile.profile_image_url) {
+              // Add to map if not already present
+              if (!profileAvatarMap.has(normalizedUsername)) {
+                profileAvatarMap.set(normalizedUsername, profile.profile_image_url);
+              }
             }
           }
+        }
+      }
 
-          for (const entry of entries) {
-            if (avatarMap.has(entry.twitter_username)) {
-              entry.avatar_url = avatarMap.get(entry.twitter_username) || null;
-            }
-          }
+      // Now match entries to avatars
+      for (const entry of entries) {
+        const normalizedEntryUsername = normalizeTwitterUsername(entry.twitter_username);
+        if (normalizedEntryUsername && profileAvatarMap.has(normalizedEntryUsername)) {
+          entry.avatar_url = profileAvatarMap.get(normalizedEntryUsername) || null;
         }
       }
 
