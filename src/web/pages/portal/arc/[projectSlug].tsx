@@ -339,10 +339,13 @@ export default function ArcProjectHub() {
       return;
     }
 
+    // Store projectId in a const so TypeScript knows it's non-null
+    const validProjectId = projectId;
+
     async function fetchTreemap() {
       setTreemapLoading(true);
       try {
-        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(projectId)}/treemap`, {
+        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(validProjectId)}/treemap`, {
           credentials: 'include',
         });
         if (res.ok) {
@@ -368,11 +371,14 @@ export default function ArcProjectHub() {
       return;
     }
 
+    // Store projectId in a const so TypeScript knows it's non-null
+    const validProjectId = projectId;
+
     async function fetchTopTweets() {
       setTopTweetsLoading(true);
       try {
         const range = timePeriod === 'ALL' ? '7d' : timePeriod.toLowerCase();
-        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(projectId)}/top-tweets?range=${range}&limit=10`, {
+        const res = await fetch(`/api/portal/arc/projects/${encodeURIComponent(validProjectId)}/top-tweets?range=${range}&limit=10`, {
           credentials: 'include',
         });
         if (res.ok) {
