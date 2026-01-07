@@ -720,26 +720,26 @@ export default async function handler(
     }
 
     // Fetch avatar URLs from multiple sources
-    // Priority: project_tweets (most recent) -> profiles -> tracked_profiles
+    // Priority: project_tweets (most recent) -> profiles -> tracked_profiles -> Twitter API
     const avatarMap = new Map<string, string | null>();
     
     // Step 1: Get avatars from project_tweets FIRST (most likely to have current avatars)
-    // Fetch recent tweets with avatars for this project
+    // Fetch ALL tweets with avatars for this project (no limit to get all unique avatars)
     const { data: tweets } = await supabase
       .from('project_tweets')
       .select('author_handle, author_profile_image_url')
       .eq('project_id', pid)
-      .not('author_profile_image_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1000); // Large limit to get all unique avatars
+      .not('author_profile_image_url', 'is', null);
 
     if (tweets && tweets.length > 0) {
       for (const tweet of tweets) {
-        const normalizedUsername = normalizeTwitterUsername(tweet.author_handle);
-        if (normalizedUsername && tweet.author_profile_image_url) {
-          // Only add if not already present (first match wins, ordered by most recent)
-          if (!avatarMap.has(normalizedUsername)) {
-            avatarMap.set(normalizedUsername, tweet.author_profile_image_url);
+        if (tweet.author_handle && tweet.author_profile_image_url) {
+          const normalizedUsername = normalizeTwitterUsername(tweet.author_handle);
+          if (normalizedUsername) {
+            // Only add if not already present (first match wins, ordered by most recent)
+            if (!avatarMap.has(normalizedUsername)) {
+              avatarMap.set(normalizedUsername, tweet.author_profile_image_url);
+            }
           }
         }
       }
@@ -750,18 +750,45 @@ export default async function handler(
     const missingFromTweets = allUsernames.filter(u => !avatarMap.has(u));
 
     if (missingFromTweets.length > 0) {
-      // Try batch query first
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('username, profile_image_url')
-        .in('username', missingFromTweets)
-        .not('profile_image_url', 'is', null);
+      // Try batch query first - query all missing usernames at once
+      if (missingFromTweets.length > 0) {
+        // Split into chunks if too many (PostgreSQL IN clause limit)
+        const chunkSize = 100;
+        for (let i = 0; i < missingFromTweets.length; i += chunkSize) {
+          const chunk = missingFromTweets.slice(i, i + chunkSize);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .in('username', chunk)
+            .not('profile_image_url', 'is', null);
 
-      if (profiles && profiles.length > 0) {
-        for (const profile of profiles) {
-          const normalizedUsername = normalizeTwitterUsername(profile.username);
-          if (normalizedUsername && profile.profile_image_url && !avatarMap.has(normalizedUsername)) {
-            avatarMap.set(normalizedUsername, profile.profile_image_url);
+          if (profiles && profiles.length > 0) {
+            for (const profile of profiles) {
+              if (profile.username && profile.profile_image_url) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, profile.profile_image_url);
+                }
+              }
+            }
+          }
+
+          // Also try lowercase variations
+          const { data: profilesLower } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .in('username', chunk.map(u => u.toLowerCase()))
+            .not('profile_image_url', 'is', null);
+
+          if (profilesLower && profilesLower.length > 0) {
+            for (const profile of profilesLower) {
+              if (profile.username && profile.profile_image_url) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, profile.profile_image_url);
+                }
+              }
+            }
           }
         }
       }
@@ -780,38 +807,21 @@ export default async function handler(
 
         if (profilesById) {
           for (const profile of profilesById) {
-            const normalizedUsername = normalizeTwitterUsername(profile.username);
-            if (normalizedUsername && profile.profile_image_url && !avatarMap.has(normalizedUsername)) {
-              avatarMap.set(normalizedUsername, profile.profile_image_url);
+            if (profile.username && profile.profile_image_url) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              }
             }
-          }
-        }
-      }
-
-      // Step 2c: Try case-insensitive queries for remaining usernames
-      const stillMissing = allUsernames.filter(u => !avatarMap.has(u));
-      for (const username of stillMissing.slice(0, 100)) { // Limit queries
-        // Try exact match first (case-insensitive via SQL)
-        const { data: profileResults } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .eq('username', username.toLowerCase())
-          .not('profile_image_url', 'is', null)
-          .limit(1);
-
-        if (profileResults && profileResults.length > 0) {
-          const profile = profileResults[0];
-          const normalizedUsername = normalizeTwitterUsername(profile.username);
-          if (normalizedUsername && profile.profile_image_url) {
-            avatarMap.set(normalizedUsername, profile.profile_image_url);
           }
         }
       }
     }
 
-    // Step 3: Final fallback to tracked_profiles
+    // Step 3: Fallback to tracked_profiles
     const finalMissing = allUsernames.filter(u => !avatarMap.has(u));
     if (finalMissing.length > 0) {
+      // Query tracked_profiles with lowercase usernames
       const { data: trackedProfiles } = await supabase
         .from('tracked_profiles')
         .select('username, profile_image_url')
@@ -820,9 +830,29 @@ export default async function handler(
 
       if (trackedProfiles) {
         for (const profile of trackedProfiles) {
-          const normalizedUsername = normalizeTwitterUsername(profile.username);
-          if (normalizedUsername && profile.profile_image_url && !avatarMap.has(normalizedUsername)) {
-            avatarMap.set(normalizedUsername, profile.profile_image_url);
+          if (profile.username && profile.profile_image_url) {
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+              avatarMap.set(normalizedUsername, profile.profile_image_url);
+            }
+          }
+        }
+      }
+
+      // Also try without lowercase conversion (in case stored with case)
+      const { data: trackedProfilesCase } = await supabase
+        .from('tracked_profiles')
+        .select('username, profile_image_url')
+        .in('username', finalMissing)
+        .not('profile_image_url', 'is', null);
+
+      if (trackedProfilesCase) {
+        for (const profile of trackedProfilesCase) {
+          if (profile.username && profile.profile_image_url) {
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+              avatarMap.set(normalizedUsername, profile.profile_image_url);
+            }
           }
         }
       }
@@ -897,6 +927,10 @@ export default async function handler(
         }
       }
     }
+
+    // Final check: Log how many entries have avatars for debugging
+    const entriesWithAvatars = entries.filter(e => e.avatar_url !== null && e.avatar_url !== undefined).length;
+    console.log(`[ARC Leaderboard] Total entries: ${entries.length}, Entries with avatars: ${entriesWithAvatars}`);
 
     return res.status(200).json({
       ok: true,
