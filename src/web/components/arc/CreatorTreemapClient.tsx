@@ -101,16 +101,17 @@ const renderContent = (p: any) => {
   // Always render the rectangle, even if tiny
   const rx = Math.max(0, Math.min(8, Math.min(w, h) * 0.12));
 
-  // Text rules
+  // Text rules - ensure text fits within bounds
   const isTiny = w < 70 || h < 38;
-  const maxChars = isTiny ? 0 : (w < 120 || h < 55) ? 10 : 18;
+  const isSmall = w < 100 || h < 50;
+  const maxChars = isTiny ? 0 : isSmall ? 8 : (w < 150 || h < 70) ? 12 : 18;
   const name =
     maxChars === 0 ? '' :
     nameRaw.length > maxChars ? nameRaw.slice(0, maxChars - 1) + '…' : nameRaw;
 
-  // Font sizes
-  const nameFontSize = Math.max(9, Math.min(14, w / 10));
-  const pctFontSize = Math.max(9, Math.min(14, w / 11));
+  // Font sizes - responsive to tile size, ensure they fit
+  const nameFontSize = Math.max(8, Math.min(14, Math.min(w / 12, h / 4)));
+  const pctFontSize = Math.max(8, Math.min(12, Math.min(w / 14, h / 5)));
 
   return (
     <g>
@@ -125,11 +126,11 @@ const renderContent = (p: any) => {
         stroke="rgba(255,255,255,0.12)"
       />
 
-      {/* Name (bold) */}
-      {!isTiny && (
+      {/* Name (bold) - positioned to fit within bounds */}
+      {!isTiny && name && (
         <text
-          x={x + 10}
-          y={y + 18}
+          x={x + Math.min(8, w * 0.1)}
+          y={y + Math.min(16, h * 0.25)}
           fill="rgba(255,255,255,0.95)"
           fontSize={nameFontSize}
           fontWeight={800}
@@ -142,10 +143,10 @@ const renderContent = (p: any) => {
         </text>
       )}
 
-      {/* Contribution % (bold) */}
+      {/* Contribution % (bold) - positioned below name */}
       <text
-        x={x + 10}
-        y={isTiny ? y + 20 : y + 38}
+        x={x + Math.min(8, w * 0.1)}
+        y={isTiny ? y + h / 2 : y + Math.min(32, h * 0.5)}
         fill="rgba(255,255,255,0.95)"
         fontSize={pctFontSize}
         fontWeight={800}
@@ -157,13 +158,13 @@ const renderContent = (p: any) => {
         {contributionPct.toFixed(2)}%
       </text>
 
-      {/* Delta (if available and not tiny) */}
-      {!isTiny && delta !== null && delta !== undefined && (
+      {/* Delta (if available and not tiny) - positioned at bottom */}
+      {!isTiny && delta !== null && delta !== undefined && h > 50 && (
         <text
-          x={x + 10}
-          y={y + 58}
+          x={x + Math.min(8, w * 0.1)}
+          y={y + Math.min(48, h * 0.75)}
           fill={delta > 0 ? '#4ade80' : delta < 0 ? '#f87171' : 'rgba(255,255,255,0.7)'}
-          fontSize={Math.max(8, Math.min(12, w / 12))}
+          fontSize={Math.max(7, Math.min(10, Math.min(w / 15, h / 6)))}
           fontWeight={700}
           paintOrder="stroke"
           stroke="rgba(0,0,0,0.35)"
@@ -226,8 +227,21 @@ export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
     );
   }
 
+  // Ensure we have valid data
+  if (!data || data.length === 0) {
+    return (
+      <div 
+        ref={containerRef}
+        className="w-full flex items-center justify-center text-white/60"
+        style={{ height: `${TREEMAP_HEIGHT}px` }}
+      >
+        <div>No data available</div>
+      </div>
+    );
+  }
+
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: `${TREEMAP_HEIGHT}px` }}>
+    <div ref={containerRef} className="relative w-full overflow-hidden" style={{ height: `${TREEMAP_HEIGHT}px` }}>
       {/* Treemap */}
       <div className="w-full h-full">
         <Treemap
@@ -237,6 +251,7 @@ export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
           dataKey="value"
           stroke="rgba(255,255,255,0.12)"
           isAnimationActive={false}
+          aspectRatio={4/3}
           content={((props: any) => {
             // Ensure we completely replace default rendering
             const result = renderContent(props);

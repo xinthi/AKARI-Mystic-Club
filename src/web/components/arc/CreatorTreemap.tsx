@@ -52,21 +52,26 @@ interface CreatorTreemapDataPoint {
 /**
  * Normalize values for treemap sizing
  * Uses square root to prevent very large values from dominating
+ * Ensures minimum value so all tiles are visible
  */
 function normalizeForTreemap(values: number[]): number[] {
   if (values.length === 0) return [];
   
+  // Ensure all values are positive and have a minimum
+  const positiveValues = values.map(v => Math.max(0.1, v));
+  
   // Use square root to compress the range
-  const sqrtValues = values.map(v => Math.sqrt(Math.abs(v)));
+  const sqrtValues = positiveValues.map(v => Math.sqrt(v));
   const min = Math.min(...sqrtValues);
   const max = Math.max(...sqrtValues);
   
-  // Normalize to 1-100 range
+  // Normalize to 1-100 range with minimum floor
   if (max === min) {
     return values.map(() => 50); // All equal
   }
   
-  return sqrtValues.map(v => 1 + ((v - min) / (max - min)) * 99);
+  // Normalize with minimum value of 5 to ensure visibility
+  return sqrtValues.map(v => Math.max(5, 1 + ((v - min) / (max - min)) * 99));
 }
 
 // =============================================================================
@@ -108,28 +113,35 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
     });
 
     // Filter based on mode
-    const filtered = sorted.filter(creator => {
+    let filtered = sorted.filter(creator => {
       const metric = getMetric(creator);
       const contributionPct = creator.contribution_pct ?? 0;
       
       if (timePeriod === 'ALL') {
-        // For ALL, show creators with contribution > 0
+        // For ALL, show creators with contribution > 0 (both gainers and losers)
+        // Gainers = highest contribution, Losers = lowest contribution
         return contributionPct > 0;
       }
       
       // For time periods with deltas
-      // If delta is null/undefined, fall back to contribution_pct
-      if (metric === 0 && contributionPct > 0) {
-        // If no delta but has contribution, include it (treat as gainer)
-        return mode === 'gainers';
-      }
-      
       if (mode === 'gainers') {
-        return metric > 0; // Positive deltas
+        // For gainers: positive deltas, or if delta is null but has contribution, include it
+        if (metric > 0) return true;
+        if (metric === 0 && contributionPct > 0) return true; // Fallback to contribution
+        return false;
       } else {
-        return metric < 0; // Negative deltas
+        // For losers: negative deltas only
+        return metric < 0;
       }
     });
+
+    // Fallback: if no losers found for time periods, show lowest contributors
+    if (mode === 'losers' && filtered.length === 0 && timePeriod !== 'ALL') {
+      // Fallback to showing creators with lowest contribution percentages
+      filtered = sorted
+        .filter(creator => (creator.contribution_pct ?? 0) > 0)
+        .slice(0, 10);
+    }
 
     // Get top 10
     return filtered.slice(0, 10);
