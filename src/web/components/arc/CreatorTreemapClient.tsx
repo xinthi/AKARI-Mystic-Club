@@ -19,6 +19,7 @@ export interface CreatorTreemapDataPoint {
   delta?: number | null; // Delta in bps (for time period)
   twitter_username: string;
   avatar_url?: string | null;
+  isLoser?: boolean; // Whether this is a loser (for color)
   originalItem: any;
 }
 
@@ -88,9 +89,14 @@ const renderContent = (p: any) => {
   const nameRaw = String(d?.name ?? d?.twitter_username ?? 'Unknown');
   const contributionPct = typeof d?.contribution_pct === 'number' ? d.contribution_pct : 0;
   const delta = d?.delta ?? null;
+  const isLoser = d?.isLoser === true;
 
-  // Color based on contribution (green gradient)
-  const fill = `rgba(34, 197, 94, ${0.4 + (contributionPct / 30) * 0.4})`; // 0.4 to 0.8 opacity
+  // Color based on mode: green for gainers, red for losers
+  // Opacity varies with contribution percentage
+  const opacity = 0.4 + (Math.min(contributionPct, 30) / 30) * 0.4; // 0.4 to 0.8 opacity
+  const fill = isLoser 
+    ? `rgba(239, 68, 68, ${opacity})` // red-500 for losers
+    : `rgba(34, 197, 94, ${opacity})`; // green-500 for gainers
 
   // Always render the rectangle, even if tiny
   const rx = Math.max(0, Math.min(8, Math.min(w, h) * 0.12));

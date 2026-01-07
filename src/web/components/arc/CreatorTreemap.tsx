@@ -34,6 +34,8 @@ interface CreatorTreemapProps {
   creators: Creator[];
   timePeriod: '7D' | '1M' | '3M' | 'ALL';
   loading?: boolean;
+  mode?: 'gainers' | 'losers';
+  onModeChange?: (mode: 'gainers' | 'losers') => void;
 }
 
 interface CreatorTreemapDataPoint {
@@ -43,6 +45,7 @@ interface CreatorTreemapDataPoint {
   delta?: number | null; // Delta in bps (for time period)
   twitter_username: string;
   avatar_url?: string | null;
+  isLoser?: boolean; // Whether this is a loser (for color)
   originalItem: Creator;
 }
 
@@ -70,64 +73,79 @@ function normalizeForTreemap(values: number[]): number[] {
 // COMPONENT
 // =============================================================================
 
-export function CreatorTreemap({ creators, timePeriod, loading }: CreatorTreemapProps) {
-  // Calculate top 10 gainers based on selected time period
-  const topGainers = useMemo(() => {
+export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers', onModeChange }: CreatorTreemapProps) {
+  // Calculate top 10 gainers/losers based on selected time period and mode
+  const topCreators = useMemo(() => {
     if (!creators || creators.length === 0) {
       return [];
     }
 
-    // Sort by delta for the selected time period (or contribution for ALL)
-    const sorted = [...creators].sort((a, b) => {
-      let deltaA = 0;
-      let deltaB = 0;
-
-      switch (timePeriod) {
-        case '7D':
-          deltaA = a.delta7d ?? 0;
-          deltaB = b.delta7d ?? 0;
-          break;
-        case '1M':
-          deltaA = a.delta1m ?? 0;
-          deltaB = b.delta1m ?? 0;
-          break;
-        case '3M':
-          deltaA = a.delta3m ?? 0;
-          deltaB = b.delta3m ?? 0;
-          break;
-        case 'ALL':
-          // For ALL, use contribution percentage
-          deltaA = a.contribution_pct ?? 0;
-          deltaB = b.contribution_pct ?? 0;
-          break;
+    // Get the relevant metric for sorting
+    const getMetric = (creator: Creator): number => {
+      if (timePeriod === 'ALL') {
+        // For ALL, use contribution percentage
+        return creator.contribution_pct ?? 0;
       }
+      // For time periods, use delta
+      const delta = timePeriod === '7D' ? creator.delta7d : 
+                    timePeriod === '1M' ? creator.delta1m : 
+                    creator.delta3m;
+      return delta ?? 0;
+    };
 
-      return deltaB - deltaA; // Descending order
+    // Sort by metric
+    const sorted = [...creators].sort((a, b) => {
+      const metricA = getMetric(a);
+      const metricB = getMetric(b);
+      
+      if (mode === 'gainers') {
+        // For gainers: descending order (highest first)
+        return metricB - metricA;
+      } else {
+        // For losers: ascending order (lowest first)
+        return metricA - metricB;
+      }
     });
 
-    // Get top 10 gainers (positive deltas or highest contribution for ALL)
-    return sorted
-      .filter(creator => {
-        if (timePeriod === 'ALL') {
-          return (creator.contribution_pct ?? 0) > 0;
-        }
-        const delta = timePeriod === '7D' ? creator.delta7d : timePeriod === '1M' ? creator.delta1m : creator.delta3m;
-        return (delta ?? 0) > 0;
-      })
-      .slice(0, 10);
-  }, [creators, timePeriod]);
+    // Filter based on mode
+    const filtered = sorted.filter(creator => {
+      const metric = getMetric(creator);
+      const contributionPct = creator.contribution_pct ?? 0;
+      
+      if (timePeriod === 'ALL') {
+        // For ALL, show creators with contribution > 0
+        return contributionPct > 0;
+      }
+      
+      // For time periods with deltas
+      // If delta is null/undefined, fall back to contribution_pct
+      if (metric === 0 && contributionPct > 0) {
+        // If no delta but has contribution, include it (treat as gainer)
+        return mode === 'gainers';
+      }
+      
+      if (mode === 'gainers') {
+        return metric > 0; // Positive deltas
+      } else {
+        return metric < 0; // Negative deltas
+      }
+    });
 
-  // Prepare data for treemap
+    // Get top 10
+    return filtered.slice(0, 10);
+  }, [creators, timePeriod, mode]);
+
+  // Prepare data for treemap - tiles sized by contribution percentage
   const treemapData = useMemo((): CreatorTreemapDataPoint[] => {
-    if (topGainers.length === 0) {
+    if (topCreators.length === 0) {
       return [];
     }
 
-    // Get contribution percentages for sizing
-    const contributionValues = topGainers.map(creator => creator.contribution_pct ?? 0);
+    // Use contribution percentages for sizing (always use contribution, not delta)
+    const contributionValues = topCreators.map(creator => Math.max(0, creator.contribution_pct ?? 0));
     const normalizedValues = normalizeForTreemap(contributionValues);
 
-    return topGainers.map((creator, index) => {
+    return topCreators.map((creator, index) => {
       const delta = timePeriod === '7D' ? creator.delta7d : 
                     timePeriod === '1M' ? creator.delta1m : 
                     timePeriod === '3M' ? creator.delta3m : 
@@ -135,15 +153,16 @@ export function CreatorTreemap({ creators, timePeriod, loading }: CreatorTreemap
 
       return {
         name: creator.twitter_username || 'Unknown',
-        value: normalizedValues[index],
+        value: normalizedValues[index], // Normalized contribution for tile sizing
         contribution_pct: creator.contribution_pct ?? 0,
         delta: delta,
         twitter_username: creator.twitter_username || '',
         avatar_url: creator.avatar_url || null,
+        isLoser: mode === 'losers',
         originalItem: creator,
       };
     });
-  }, [topGainers, timePeriod]);
+  }, [topCreators, timePeriod]);
 
   if (loading) {
     return (
@@ -158,15 +177,70 @@ export function CreatorTreemap({ creators, timePeriod, loading }: CreatorTreemap
 
   if (!treemapData || treemapData.length === 0) {
     return (
-      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4 flex items-center justify-center" style={{ height: `${TREEMAP_HEIGHT}px` }}>
-        <p className="text-white/40 text-sm">No gainers data available</p>
+      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4" style={{ minHeight: `${TREEMAP_HEIGHT}px` }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
+          {onModeChange && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => onModeChange('gainers')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  mode === 'gainers'
+                    ? 'bg-white/10 text-white border border-white/20'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                }`}
+              >
+                Top Gainers
+              </button>
+              <button
+                onClick={() => onModeChange('losers')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  mode === 'losers'
+                    ? 'bg-white/10 text-white border border-white/20'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                }`}
+              >
+                Top Losers
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-center" style={{ height: `${TREEMAP_HEIGHT}px` }}>
+          <p className="text-white/40 text-sm">No {mode === 'gainers' ? 'gainers' : 'losers'} data available</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4">
-      <h3 className="text-sm font-medium text-white/80 mb-4">Top 10 Gainers ({timePeriod})</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
+        {onModeChange && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onModeChange('gainers')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                mode === 'gainers'
+                  ? 'bg-white/10 text-white border border-white/20'
+                  : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+              }`}
+            >
+              Top Gainers
+            </button>
+            <button
+              onClick={() => onModeChange('losers')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                mode === 'losers'
+                  ? 'bg-white/10 text-white border border-white/20'
+                  : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+              }`}
+            >
+              Top Losers
+            </button>
+          </div>
+        )}
+      </div>
       <div className="rounded-lg overflow-hidden" style={{ height: `${TREEMAP_HEIGHT}px` }}>
         <CreatorTreemapClient data={treemapData} />
       </div>

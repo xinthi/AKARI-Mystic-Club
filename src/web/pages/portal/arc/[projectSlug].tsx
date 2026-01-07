@@ -111,7 +111,8 @@ export default function ArcProjectHub() {
   type TimePeriod = '7D' | '1M' | '3M' | 'ALL';
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('ALL');
 
-  // Treemap uses leaderboard data directly, no separate state needed
+  // Treemap mode: gainers or losers
+  const [treemapMode, setTreemapMode] = useState<'gainers' | 'losers'>('gainers');
 
   // Top tweets data
   const [topTweets, setTopTweets] = useState<Array<{
@@ -490,7 +491,13 @@ export default function ArcProjectHub() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left: Treemap */}
                 <div className="lg:col-span-2">
-                  <CreatorTreemap creators={leaderboardCreators} timePeriod={timePeriod} loading={leaderboardLoading} />
+                  <CreatorTreemap 
+                    creators={leaderboardCreators} 
+                    timePeriod={timePeriod} 
+                    loading={leaderboardLoading}
+                    mode={treemapMode}
+                    onModeChange={setTreemapMode}
+                  />
                 </div>
                 
                 {/* Right: Project Details + Countdown */}
