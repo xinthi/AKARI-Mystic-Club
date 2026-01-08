@@ -202,17 +202,29 @@ export default async function handler(
           if (userInfo && userInfo.profileImageUrl) {
             const avatarUrl = userInfo.profileImageUrl.trim();
             if (avatarUrl && avatarUrl.startsWith('http')) {
-              // Update profile
+              // Update existing profile - never overwrite username (single source of truth)
+              // Note: profile.id exists because we queried for existing profiles that need refresh
+              const updateData: any = {
+                profile_image_url: avatarUrl,
+                avatar_updated_at: new Date().toISOString(),
+                needs_avatar_refresh: false,
+                updated_at: new Date().toISOString(),
+              };
+
+              // Only update twitter_id if we have it (don't overwrite existing non-null values)
+              if (userInfo.id) {
+                updateData.twitter_id = userInfo.id;
+              }
+
+              // Only update name if we have it (don't overwrite existing non-null values)
+              if (userInfo.name) {
+                updateData.name = userInfo.name;
+              }
+
+              // Never update username - it's the primary identifier and single source of truth
               const { error: updateError } = await supabase
                 .from('profiles')
-                .update({
-                  profile_image_url: avatarUrl,
-                  avatar_updated_at: new Date().toISOString(),
-                  needs_avatar_refresh: false,
-                  twitter_id: userInfo.id || profile.id, // Update twitter_id if available
-                  name: userInfo.name || profile.username,
-                  updated_at: new Date().toISOString(),
-                })
+                .update(updateData)
                 .eq('id', profile.id);
 
               if (updateError) {
