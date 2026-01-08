@@ -28,6 +28,7 @@ import { getProjectTopicStats, TopicScore } from '@/lib/portal/topic-stats';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { calculateProjectMindshare } from '@/server/mindshare/calculate';
 import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
+import { fetchAvatarsFromProfiles, normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
 
 // =============================================================================
 // TYPES
@@ -176,74 +177,19 @@ export default async function handler(
     }
 
     // =========================================================================
-    // ENRICH TWEETS WITH PROFILE IMAGES FROM DATABASE
-    // For tweets missing author_profile_image_url, look up from:
-    // 1. profiles table (CT influencers)
-    // 2. akari_users + akari_user_identities (registered AKARI users)
-    // Uses case-insensitive matching since Twitter handles can vary in casing
+    // ENRICH TWEETS WITH PROFILE IMAGES FROM DATABASE (DB-only, no live API calls)
+    // Uses profiles table with normalized username matching
     // =========================================================================
     const rawTweets = tweetsResult.data || [];
-    const authorsNeedingImages = rawTweets
-      .filter((t: any) => !t.author_profile_image_url && t.author_handle)
+    const allAuthorHandles = rawTweets
+      .filter((t: any) => t.author_handle)
       .map((t: any) => t.author_handle);
     
-    // Build a map of author handle (lowercase) -> profile image URL
-    const authorProfileImages = new Map<string, string>();
+    // Fetch avatars from profiles table using normalized usernames
+    const authorProfileImages = await fetchAvatarsFromProfiles(supabaseAdmin, allAuthorHandles);
     
-    if (authorsNeedingImages.length > 0) {
-      const uniqueAuthorsSet = new Set(authorsNeedingImages.map((h: string) => h.toLowerCase()));
-      const uniqueAuthors = Array.from(uniqueAuthorsSet);
-      
-      try {
-        // 1. Fetch from profiles table (CT influencers)
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .not('profile_image_url', 'is', null);
-        
-        if (profilesData && profilesData.length > 0) {
-          for (const p of profilesData) {
-            if (p.username && p.profile_image_url) {
-              const usernameLower = p.username.toLowerCase();
-              if (uniqueAuthors.includes(usernameLower)) {
-                authorProfileImages.set(usernameLower, p.profile_image_url);
-              }
-            }
-          }
-        }
-        
-        // 2. Fetch from akari_users (registered AKARI platform users)
-        // Join with akari_user_identities to get X username
-        const { data: akariUsersData } = await supabase
-          .from('akari_user_identities')
-          .select(`
-            username,
-            akari_users!inner (
-              avatar_url
-            )
-          `)
-          .eq('provider', 'x')
-          .not('akari_users.avatar_url', 'is', null);
-        
-        if (akariUsersData && akariUsersData.length > 0) {
-          for (const u of akariUsersData) {
-            if (u.username && (u as any).akari_users?.avatar_url) {
-              const usernameLower = u.username.toLowerCase();
-              // Only add if not already found in profiles table
-              if (uniqueAuthors.includes(usernameLower) && !authorProfileImages.has(usernameLower)) {
-                authorProfileImages.set(usernameLower, (u as any).akari_users.avatar_url);
-              }
-            }
-          }
-        }
-        
-        if (authorProfileImages.size > 0) {
-          console.log(`[API /portal/sentiment/${slug}] Enriched ${authorProfileImages.size}/${uniqueAuthors.length} tweet authors with profile images`);
-        }
-      } catch (err: any) {
-        // Non-critical, just log and continue
-        console.warn(`[API /portal/sentiment/${slug}] Could not fetch author profile images:`, err.message);
-      }
+    if (authorProfileImages.size > 0) {
+      console.log(`[API /portal/sentiment/${slug}] Enriched ${authorProfileImages.size}/${allAuthorHandles.length} tweet authors with profile images from DB`);
     }
 
     // Map tweets to camelCase for frontend
@@ -260,13 +206,14 @@ export default async function handler(
         tweetUrl = `https://x.com/${authorHandle}/status/${t.tweet_id}`;
       }
       
-      // Get profile image with priority:
+      // Get profile image with priority (DB-only, no live API calls):
       // 1. From tweet record in DB (author_profile_image_url)
-      // 2. From profiles table lookup (CT influencers)
+      // 2. From profiles table lookup (normalized username)
       // 3. For official tweets: use project's profile image
       // 4. null (frontend will show letter avatar)
       const profileImageFromDb = t.author_profile_image_url || null;
-      const profileImageFromProfiles = authorProfileImages.get(authorHandle.toLowerCase()) || null;
+      const normalizedHandle = normalizeTwitterUsername(authorHandle);
+      const profileImageFromProfiles = authorProfileImages.get(normalizedHandle) || null;
       const isOfficial = t.is_official || false;
       const authorProfileImageUrl = profileImageFromDb || profileImageFromProfiles || (isOfficial ? projectProfileImageUrl : null);
       
@@ -320,10 +267,37 @@ export default async function handler(
     
     const changes24h = compute24hChanges(latestMetrics, previousMetrics);
 
+    // Enrich influencers with avatars from profiles table if missing (DB-only)
+    const influencerHandles = influencers
+      .filter((inf) => inf.x_handle && (!inf.avatar_url || !inf.avatar_url.startsWith('http')))
+      .map((inf) => inf.x_handle);
+    
+    if (influencerHandles.length > 0) {
+      const influencerAvatars = await fetchAvatarsFromProfiles(supabaseAdmin, influencerHandles);
+      
+      // Update influencers with avatars from profiles table
+      influencers = influencers.map((inf) => {
+        if (inf.x_handle && (!inf.avatar_url || !inf.avatar_url.startsWith('http'))) {
+          const normalizedHandle = normalizeTwitterUsername(inf.x_handle);
+          const profileAvatar = influencerAvatars.get(normalizedHandle);
+          if (profileAvatar) {
+            return {
+              ...inf,
+              avatar_url: profileAvatar,
+            };
+          }
+        }
+        return inf;
+      });
+      
+      console.log(`[API /portal/sentiment/${slug}] Enriched ${influencerAvatars.size}/${influencerHandles.length} influencers with avatars from DB`);
+    }
+    
     // DEBUG: Log metrics and influencers
     console.log(`[API /portal/sentiment/${slug}] Metrics: ${metrics.length} days, latest tweet_count: ${metrics[0]?.tweet_count ?? 'N/A'}`);
     console.log(`[API /portal/sentiment/${slug}] Influencers: ${influencers.length}`);
     console.log(`[API /portal/sentiment/${slug}] Project inner_circle_count: ${(project as any).inner_circle_count}, inner_circle_power: ${(project as any).inner_circle_power}`);
+    console.log(`[API /portal/sentiment/${slug}] ✓ DB-only avatar fetching - no live X API calls`);
 
     // Compute inner circle summary from project data or estimate from influencers
     const innerCircle: InnerCircleSummary = {

@@ -990,8 +990,9 @@ export default async function handler(
               const thirtyDaysAgo = new Date();
               thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
               const avatarUpdatedAt = profile.avatar_updated_at ? new Date(profile.avatar_updated_at) : null;
-              entry.needsAvatarRefresh = profile.needs_avatar_refresh === true || 
-                                        (avatarUpdatedAt && avatarUpdatedAt < thirtyDaysAgo);
+              const needsRefresh = profile.needs_avatar_refresh === true;
+              const isOld = avatarUpdatedAt !== null && avatarUpdatedAt < thirtyDaysAgo;
+              entry.needsAvatarRefresh = needsRefresh || isOld;
             }
           }
         }

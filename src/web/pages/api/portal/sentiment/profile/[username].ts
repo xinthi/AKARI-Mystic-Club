@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getUserProfile, getUserTweets, TwitterUserProfile, TwitterTweet } from '@/lib/twitter/twitter';
+import { fetchAvatarForUsername, normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -69,7 +70,20 @@ export default async function handler(
   }
 
   try {
-    // Fetch profile
+    const supabase = getSupabaseAdmin();
+    
+    // Try to get avatar from DB first (DB-only approach)
+    const normalizedUsername = normalizeTwitterUsername(cleanUsername);
+    let dbAvatarUrl: string | null = null;
+    try {
+      dbAvatarUrl = await fetchAvatarForUsername(supabase, normalizedUsername);
+      console.log(`[Profile API] DB avatar lookup for ${normalizedUsername}: ${dbAvatarUrl ? 'found' : 'not found'}`);
+    } catch (dbErr) {
+      console.warn(`[Profile API] Error fetching avatar from DB:`, dbErr);
+    }
+    
+    // Fetch profile from Twitter API (still needed for other data like bio, followers, etc.)
+    // But we'll prefer DB avatar if available
     const userProfile = await getUserProfile(cleanUsername);
 
     if (!userProfile) {
@@ -85,11 +99,11 @@ export default async function handler(
       // Continue without tweets
     }
 
-    // Normalize the profile data
+    // Normalize the profile data - prefer DB avatar over API avatar
     const profile = {
       username: userProfile.handle || cleanUsername,
       name: userProfile.name || cleanUsername,
-      profileImageUrl: userProfile.profileImageUrl || userProfile.avatarUrl || null,
+      profileImageUrl: dbAvatarUrl || userProfile.profileImageUrl || userProfile.avatarUrl || null,
       bio: userProfile.bio || null,
       followers: userProfile.followersCount || 0,
       following: userProfile.followingCount || 0,
