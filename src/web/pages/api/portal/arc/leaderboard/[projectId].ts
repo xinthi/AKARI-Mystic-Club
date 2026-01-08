@@ -54,7 +54,19 @@ interface LeaderboardEntry {
 }
 
 type LeaderboardResponse =
-  | { ok: true; entries: LeaderboardEntry[]; arenaId: string | null; arenaName: string | null }
+  | { 
+      ok: true; 
+      entries: LeaderboardEntry[]; 
+      arenaId: string | null; 
+      arenaName: string | null;
+      avatarAudit?: {
+        total: number;
+        withAvatars: number;
+        withoutAvatars: number;
+        missingProfiles: number;
+        needsRefresh: number;
+      };
+    }
   | { ok: false; error: string };
 
 // =============================================================================
@@ -1137,11 +1149,23 @@ export default async function handler(
     });
     console.log(`[ARC Leaderboard] ========================================`);
 
+    // Avatar audit summary
+    const avatarAudit = {
+      total: finalEntries.length,
+      withAvatars: finalEntriesWithAvatars,
+      withoutAvatars: finalEntries.length - finalEntriesWithAvatars,
+      missingProfiles: finalEntries.filter(e => e.needsAvatarRefresh === true && !e.avatar_url).length,
+      needsRefresh: finalEntries.filter(e => e.needsAvatarRefresh === true).length,
+    };
+
+    console.log(`[ARC Leaderboard] Avatar Audit Summary:`, avatarAudit);
+
     return res.status(200).json({
       ok: true,
       entries: finalEntries, // Use cleaned entries
       arenaId: activeArena?.id || null,
       arenaName: activeArena?.name || null,
+      avatarAudit, // Include audit summary in response
     });
   } catch (error: any) {
     console.error('[ARC Leaderboard] Error:', error);

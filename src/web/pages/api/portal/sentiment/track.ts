@@ -460,56 +460,55 @@ async function fetchAndSaveRealData(
           }
           
           console.log(`[Track] Updated scores for ${profileRows.length} profiles`);
+          
+          // Get profile IDs for inner circle
+          const { data: savedProfiles } = await supabase
+            .from('profiles')
+            .select('id, twitter_id, akari_profile_score')
+            .in('twitter_id', qualifiedFollowers.map(f => f.id));
+          
+          if (savedProfiles && savedProfiles.length > 0) {
+            // Create inner_circle_members entries
+            const memberRows = savedProfiles.map(p => ({
+              profile_id: p.id,
+              akari_profile_score: p.akari_profile_score || 0,
+              influence_score: profileRows.find(pr => pr.twitter_id === p.twitter_id)?.influence_score || 0,
+              segment: 'follower',
+            }));
             
-            // Get profile IDs for inner circle
-            const { data: savedProfiles } = await supabase
-              .from('profiles')
-              .select('id, twitter_id, akari_profile_score')
-              .in('twitter_id', qualifiedFollowers.map(f => f.id));
+            await supabase
+              .from('inner_circle_members')
+              .upsert(memberRows, { onConflict: 'profile_id' });
             
-            if (savedProfiles && savedProfiles.length > 0) {
-              // Create inner_circle_members entries
-              const memberRows = savedProfiles.map(p => ({
-                profile_id: p.id,
-                akari_profile_score: p.akari_profile_score || 0,
-                influence_score: profileRows.find(pr => pr.twitter_id === p.twitter_id)?.influence_score || 0,
-                segment: 'follower',
-              }));
-              
+            // Create project_inner_circle entries
+            const circleRows = savedProfiles.map(p => ({
+              project_id: projectId,
+              profile_id: p.id,
+              is_follower: true,
+              is_author: false,
+              weight: (p.akari_profile_score || 0) / 100,
+              last_interaction_at: new Date().toISOString(),
+            }));
+            
+            const { error: circleError } = await supabase
+              .from('project_inner_circle')
+              .upsert(circleRows, { onConflict: 'project_id,profile_id' });
+            
+            if (circleError) {
+              console.warn(`[Track] Failed to create inner circle:`, circleError.message);
+            } else {
+              // Update project with inner circle stats
+              const totalPower = savedProfiles.reduce((sum, p) => sum + (p.akari_profile_score || 0), 0);
               await supabase
-                .from('inner_circle_members')
-                .upsert(memberRows, { onConflict: 'profile_id' });
+                .from('projects')
+                .update({
+                  inner_circle_count: savedProfiles.length,
+                  inner_circle_power: Math.round(totalPower),
+                  quality_follower_ratio: Math.round(qualifiedFollowers.length / Math.max(followers.length, 1) * 100),
+                })
+                .eq('id', projectId);
               
-              // Create project_inner_circle entries
-              const circleRows = savedProfiles.map(p => ({
-                project_id: projectId,
-                profile_id: p.id,
-                is_follower: true,
-                is_author: false,
-                weight: (p.akari_profile_score || 0) / 100,
-                last_interaction_at: new Date().toISOString(),
-              }));
-              
-              const { error: circleError } = await supabase
-                .from('project_inner_circle')
-                .upsert(circleRows, { onConflict: 'project_id,profile_id' });
-              
-              if (circleError) {
-                console.warn(`[Track] Failed to create inner circle:`, circleError.message);
-              } else {
-                // Update project with inner circle stats
-                const totalPower = savedProfiles.reduce((sum, p) => sum + (p.akari_profile_score || 0), 0);
-                await supabase
-                  .from('projects')
-                  .update({
-                    inner_circle_count: savedProfiles.length,
-                    inner_circle_power: Math.round(totalPower),
-                    quality_follower_ratio: Math.round(qualifiedFollowers.length / Math.max(followers.length, 1) * 100),
-                  })
-                  .eq('id', projectId);
-                
-                console.log(`[Track] ✅ Inner circle created: ${savedProfiles.length} members, power: ${totalPower}`);
-              }
+              console.log(`[Track] ✅ Inner circle created: ${savedProfiles.length} members, power: ${totalPower}`);
             }
           }
         }
