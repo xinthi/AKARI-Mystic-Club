@@ -272,11 +272,12 @@ export default async function handler(
       .filter((inf) => inf.x_handle && (!inf.avatar_url || !inf.avatar_url.startsWith('http')))
       .map((inf) => inf.x_handle);
     
+    let enrichedInfluencers = influencers;
     if (influencerHandles.length > 0) {
       const influencerAvatars = await fetchAvatarsFromProfiles(supabaseAdmin, influencerHandles);
       
       // Update influencers with avatars from profiles table
-      influencers = influencers.map((inf) => {
+      enrichedInfluencers = influencers.map((inf) => {
         if (inf.x_handle && (!inf.avatar_url || !inf.avatar_url.startsWith('http'))) {
           const normalizedHandle = normalizeTwitterUsername(inf.x_handle);
           const profileAvatar = influencerAvatars.get(normalizedHandle);
@@ -295,15 +296,15 @@ export default async function handler(
     
     // DEBUG: Log metrics and influencers
     console.log(`[API /portal/sentiment/${slug}] Metrics: ${metrics.length} days, latest tweet_count: ${metrics[0]?.tweet_count ?? 'N/A'}`);
-    console.log(`[API /portal/sentiment/${slug}] Influencers: ${influencers.length}`);
+    console.log(`[API /portal/sentiment/${slug}] Influencers: ${enrichedInfluencers.length}`);
     console.log(`[API /portal/sentiment/${slug}] Project inner_circle_count: ${(project as any).inner_circle_count}, inner_circle_power: ${(project as any).inner_circle_power}`);
     console.log(`[API /portal/sentiment/${slug}] ✓ DB-only avatar fetching - no live X API calls`);
 
     // Compute inner circle summary from project data or estimate from influencers
     const innerCircle: InnerCircleSummary = {
-      count: (project as any).inner_circle_count || influencers.length,
+      count: (project as any).inner_circle_count || enrichedInfluencers.length,
       power: (project as any).inner_circle_power || 
-        influencers.reduce((sum, inf) => sum + (inf.akari_score || 0), 0),
+        enrichedInfluencers.reduce((sum, inf) => sum + (inf.akari_score || 0), 0),
     };
 
     // Ensure we have a profile image URL and add last_updated_at
@@ -426,7 +427,7 @@ export default async function handler(
       previousMetrics,
       changes24h,
       tweets,
-      influencers,
+      influencers: enrichedInfluencers,
       innerCircle,
       topics30d,
       metricsHistoryLong: metrics90d, // 90-day history for Deep Explorer
