@@ -387,6 +387,33 @@ export default async function handler(
   }
 
   try {
+    // Check Twitter API key configuration at the start
+    const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
+    if (twitterApiKey) {
+      console.log(`[ARC Leaderboard] ✓ Twitter API key is configured (length: ${twitterApiKey.length} chars)`);
+      
+      // Quick test: Try fetching one user to verify API is working
+      const testUsername = '0x_jhayy';
+      try {
+        console.log(`[ARC Leaderboard] Testing Twitter API with username: ${testUsername}...`);
+        const testStartTime = Date.now();
+        const testUserInfo = await taioGetUserInfo(testUsername);
+        const testElapsed = Date.now() - testStartTime;
+        
+        if (testUserInfo && testUserInfo.profileImageUrl) {
+          console.log(`[ARC Leaderboard] ✓ Twitter API test SUCCESSFUL for ${testUsername} (${testElapsed}ms)`);
+          console.log(`[ARC Leaderboard]   Profile Image: ${testUserInfo.profileImageUrl.substring(0, 60)}...`);
+        } else {
+          console.warn(`[ARC Leaderboard] ⚠ Twitter API test returned null for ${testUsername} (${testElapsed}ms)`);
+        }
+      } catch (testError: any) {
+        console.error(`[ARC Leaderboard] ❌ Twitter API test FAILED:`, testError.message);
+      }
+    } else {
+      console.error(`[ARC Leaderboard] ❌ Twitter API key is NOT configured - avatar fetching will be limited to database sources only`);
+      console.error(`[ARC Leaderboard] To enable Twitter API avatar fetching, set TWITTERAPIIO_API_KEY in your environment variables`);
+    }
+    
     // Authentication
     const portalUser = await requirePortalUser(req, res);
     if (!portalUser) {
@@ -870,7 +897,7 @@ export default async function handler(
                 : null;
               
               if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
                 if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
                   avatarMap.set(normalizedUsername, avatarUrl);
                 }
@@ -935,7 +962,7 @@ export default async function handler(
 
     // Now assign avatars to entries from avatarMap
     let assignedFromMap = 0;
-    for (const entry of entries) {
+          for (const entry of entries) {
       const normalizedEntryUsername = normalizeTwitterUsername(entry.twitter_username);
       if (normalizedEntryUsername && avatarMap.has(normalizedEntryUsername)) {
         const avatarUrl = avatarMap.get(normalizedEntryUsername);
@@ -968,7 +995,10 @@ export default async function handler(
     // Check if Twitter API is configured
     const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
     if (!twitterApiKey) {
-      console.warn(`[ARC Leaderboard] WARNING: TWITTERAPIIO_API_KEY is not configured. Twitter API fallback will not work.`);
+      console.error(`[ARC Leaderboard] ❌ ERROR: TWITTERAPIIO_API_KEY is not configured. Twitter API fallback will not work.`);
+      console.error(`[ARC Leaderboard] Please set TWITTERAPIIO_API_KEY in your environment variables to enable avatar fetching.`);
+    } else {
+      console.log(`[ARC Leaderboard] ✓ Twitter API key is configured. Will fetch avatars for all missing profiles.`);
     }
     
     // Helper function to validate and set avatar URL
@@ -1025,35 +1055,28 @@ export default async function handler(
     };
     
     if (stillMissingAvatars.length > 0 && twitterApiKey) {
-      console.log(`[ARC Leaderboard] Starting Twitter API fetch for ${stillMissingAvatars.length} missing avatars...`);
-      
-      // Prioritize top 50 entries (most visible on leaderboard)
-      const topMissing = stillMissingAvatars.slice(0, 50);
-      const restMissing = stillMissingAvatars.slice(50);
-      
-      console.log(`[ARC Leaderboard] Prioritizing top ${topMissing.length} entries, ${restMissing.length} will be processed if time permits`);
+      console.log(`[ARC Leaderboard] ========================================`);
+      console.log(`[ARC Leaderboard] Starting Twitter API fetch for ALL ${stillMissingAvatars.length} missing avatars...`);
+      console.log(`[ARC Leaderboard] This may take a while, but will fetch avatars for ALL profiles.`);
+      console.log(`[ARC Leaderboard] ========================================`);
       
       let totalFetched = 0;
-      const maxTime = 15000; // 15 seconds max for Twitter API calls
+      let totalFailed = 0;
       const startTime = Date.now();
       
-      // Process top entries first
-      for (let i = 0; i < topMissing.length; i++) {
-        // Check if we're running out of time
-        if (Date.now() - startTime > maxTime) {
-          console.log(`[ARC Leaderboard] Time limit reached, stopping Twitter API calls. Processed ${i}/${topMissing.length} top entries.`);
-          break;
-        }
+      // Process ALL missing avatars (not just top 50)
+      for (let i = 0; i < stillMissingAvatars.length; i++) {
+        const entry = stillMissingAvatars[i];
+        const progress = `[${i + 1}/${stillMissingAvatars.length}]`;
         
-        const entry = topMissing[i];
         try {
-          console.log(`[ARC Leaderboard] [${i + 1}/${topMissing.length}] Fetching avatar for ${entry.twitter_username}...`);
+          console.log(`[ARC Leaderboard] ${progress} Fetching avatar for ${entry.twitter_username}...`);
           const avatarUrl = await fetchAvatarWithRetry(entry, 1); // 1 retry for speed
           if (avatarUrl) {
             const success = setAvatarIfValid(entry, avatarUrl, 'Twitter API');
             if (success) {
               totalFetched++;
-              console.log(`[ARC Leaderboard] ✓ Successfully fetched avatar for ${entry.twitter_username}`);
+              console.log(`[ARC Leaderboard] ${progress} ✓ Successfully fetched avatar for ${entry.twitter_username}`);
               
               // Cache to database (async, don't await)
               (async () => {
@@ -1073,20 +1096,38 @@ export default async function handler(
                         onConflict: 'username',
                         ignoreDuplicates: false,
                       });
+                    console.log(`[ARC Leaderboard] ${progress} ✓ Cached avatar for ${normalizedUsername} to database`);
                   }
                 } catch (err) {
                   // Silently fail - caching is not critical
+                  console.warn(`[ARC Leaderboard] ${progress} Failed to cache avatar for ${entry.twitter_username}:`, err);
                 }
               })();
+            } else {
+              totalFailed++;
+              console.warn(`[ARC Leaderboard] ${progress} ✗ Avatar URL validation failed for ${entry.twitter_username}`);
             }
+          } else {
+            totalFailed++;
+            console.warn(`[ARC Leaderboard] ${progress} ✗ Could not fetch avatar for ${entry.twitter_username} from Twitter API (returned null)`);
           }
         } catch (error) {
-          console.warn(`[ARC Leaderboard] Error fetching avatar for ${entry.twitter_username}:`, error);
+          totalFailed++;
+          console.warn(`[ARC Leaderboard] ${progress} ✗ Error fetching avatar for ${entry.twitter_username}:`, error);
         }
         
-        // Small delay between requests (except for last one)
-        if (i < topMissing.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 150)); // 150ms delay
+        // Small delay between requests to avoid rate limits (except for last one)
+        if (i < stillMissingAvatars.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay between requests
+        }
+        
+        // Log progress every 10 entries
+        if ((i + 1) % 10 === 0) {
+          const elapsed = Date.now() - startTime;
+          const avgTime = elapsed / (i + 1);
+          const remaining = stillMissingAvatars.length - (i + 1);
+          const estimatedTimeLeft = Math.round((remaining * avgTime) / 1000);
+          console.log(`[ARC Leaderboard] Progress: ${i + 1}/${stillMissingAvatars.length} processed. ${totalFetched} succeeded, ${totalFailed} failed. Estimated time left: ~${estimatedTimeLeft}s`);
         }
       }
       
@@ -1097,9 +1138,17 @@ export default async function handler(
         e.avatar_url.trim().length > 0 &&
         e.avatar_url.startsWith('http')
       ).length;
-      console.log(`[ARC Leaderboard] After Twitter API calls: ${afterTwitterAvatars} entries now have avatars (fetched ${totalFetched} new ones in ${Date.now() - startTime}ms)`);
+      const totalTime = Date.now() - startTime;
+      console.log(`[ARC Leaderboard] ========================================`);
+      console.log(`[ARC Leaderboard] Twitter API fetch completed in ${Math.round(totalTime / 1000)}s`);
+      console.log(`[ARC Leaderboard] Total entries with avatars: ${afterTwitterAvatars}/${entries.length}`);
+      console.log(`[ARC Leaderboard] Successfully fetched: ${totalFetched} new avatars`);
+      console.log(`[ARC Leaderboard] Failed to fetch: ${totalFailed} avatars`);
+      console.log(`[ARC Leaderboard] ========================================`);
     } else if (stillMissingAvatars.length > 0 && !twitterApiKey) {
-      console.warn(`[ARC Leaderboard] Skipping Twitter API fetch - API key not configured. ${stillMissingAvatars.length} entries will have no avatars.`);
+      console.error(`[ARC Leaderboard] ❌ Cannot fetch avatars - TWITTERAPIIO_API_KEY is not configured.`);
+      console.error(`[ARC Leaderboard] ${stillMissingAvatars.length} entries will have no avatars.`);
+      console.error(`[ARC Leaderboard] Please set TWITTERAPIIO_API_KEY in your environment variables.`);
     }
 
     // Final check: Log how many entries have avatars for debugging
@@ -1170,7 +1219,7 @@ export default async function handler(
       console.log(`[ARC Leaderboard]   Entry ${idx + 1}: username="${entry.twitter_username}", avatar_url="${avatarPreview}"`);
     });
     console.log(`[ARC Leaderboard] ========================================`);
-    
+
     return res.status(200).json({
       ok: true,
       entries: finalEntries, // Use cleaned entries
