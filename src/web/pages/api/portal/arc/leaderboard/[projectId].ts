@@ -751,42 +751,61 @@ export default async function handler(
 
     if (missingFromTweets.length > 0) {
       // Try batch query first - query all missing usernames at once
-      if (missingFromTweets.length > 0) {
-        // Split into chunks if too many (PostgreSQL IN clause limit)
-        const chunkSize = 100;
-        for (let i = 0; i < missingFromTweets.length; i += chunkSize) {
-          const chunk = missingFromTweets.slice(i, i + chunkSize);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('username, profile_image_url')
-            .in('username', chunk)
-            .not('profile_image_url', 'is', null);
+      // Split into chunks if too many (PostgreSQL IN clause limit)
+      const chunkSize = 100;
+      for (let i = 0; i < missingFromTweets.length; i += chunkSize) {
+        const chunk = missingFromTweets.slice(i, i + chunkSize);
+        
+        // Query with original case
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .in('username', chunk)
+          .not('profile_image_url', 'is', null);
 
-          if (profiles && profiles.length > 0) {
-            for (const profile of profiles) {
-              if (profile.username && profile.profile_image_url) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                  avatarMap.set(normalizedUsername, profile.profile_image_url);
-                }
+        if (profiles && profiles.length > 0) {
+          for (const profile of profiles) {
+            if (profile.username && profile.profile_image_url) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, profile.profile_image_url);
               }
             }
           }
+        }
 
-          // Also try lowercase variations
-          const { data: profilesLower } = await supabase
-            .from('profiles')
-            .select('username, profile_image_url')
-            .in('username', chunk.map(u => u.toLowerCase()))
-            .not('profile_image_url', 'is', null);
+        // Also try lowercase variations
+        const { data: profilesLower } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .in('username', chunk.map(u => u.toLowerCase()))
+          .not('profile_image_url', 'is', null);
 
-          if (profilesLower && profilesLower.length > 0) {
-            for (const profile of profilesLower) {
-              if (profile.username && profile.profile_image_url) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                  avatarMap.set(normalizedUsername, profile.profile_image_url);
-                }
+        if (profilesLower && profilesLower.length > 0) {
+          for (const profile of profilesLower) {
+            if (profile.username && profile.profile_image_url) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              }
+            }
+          }
+        }
+
+        // Also try with @ prefix variations
+        const chunkWithAt = chunk.map(u => `@${u}`);
+        const { data: profilesWithAt } = await supabase
+          .from('profiles')
+          .select('username, profile_image_url')
+          .in('username', chunkWithAt)
+          .not('profile_image_url', 'is', null);
+
+        if (profilesWithAt && profilesWithAt.length > 0) {
+          for (const profile of profilesWithAt) {
+            if (profile.username && profile.profile_image_url) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, profile.profile_image_url);
               }
             }
           }
@@ -868,7 +887,9 @@ export default async function handler(
 
     // Step 4: Final fallback - fetch from Twitter API for remaining missing avatars
     // Fetch for all missing avatars in batches to avoid rate limits
-    const stillMissingAvatars = entries.filter(e => !e.avatar_url);
+    const stillMissingAvatars = entries.filter((e: LeaderboardEntry) => !e.avatar_url);
+    console.log(`[ARC Leaderboard] Fetching avatars from Twitter API for ${stillMissingAvatars.length} missing entries`);
+    
     if (stillMissingAvatars.length > 0) {
       // Process in batches of 10 with small delays to avoid rate limits
       const batchSize = 10;
@@ -877,7 +898,7 @@ export default async function handler(
         
         // Process batch in parallel
         await Promise.all(
-          batch.map(async (entry) => {
+          batch.map(async (entry: LeaderboardEntry) => {
             try {
               const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
               if (normalizedUsername) {
@@ -887,6 +908,7 @@ export default async function handler(
                   // Update both the entry and the map for consistency
                   entry.avatar_url = userInfo.profileImageUrl;
                   avatarMap.set(normalizedUsername, userInfo.profileImageUrl);
+                  console.log(`[ARC Leaderboard] Fetched avatar from Twitter API for ${normalizedUsername}`);
                   
                   // Also save to database for future use (async, don't await)
                   // Wrap in async function to handle promise properly
@@ -906,16 +928,20 @@ export default async function handler(
                         });
                       if (error) {
                         console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, error);
+                      } else {
+                        console.log(`[ARC Leaderboard] Cached avatar for ${normalizedUsername} to database`);
                       }
                     } catch (err) {
                       // Silently fail - this is just for caching
                       console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, err);
                     }
                   })();
+                } else {
+                  console.warn(`[ARC Leaderboard] Twitter API returned no avatar for ${normalizedUsername}`);
                 }
               }
             } catch (error) {
-              // Silently fail - don't block the response
+              // Log but don't block the response
               console.warn(`[ARC Leaderboard] Failed to fetch avatar from Twitter API for ${entry.twitter_username}:`, error);
             }
           })
@@ -923,14 +949,18 @@ export default async function handler(
         
         // Small delay between batches to avoid rate limits (only if not the last batch)
         if (i + batchSize < stillMissingAvatars.length) {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay to be safer
         }
       }
     }
 
     // Final check: Log how many entries have avatars for debugging
-    const entriesWithAvatars = entries.filter(e => e.avatar_url !== null && e.avatar_url !== undefined).length;
+    const entriesWithAvatars = entries.filter((e: LeaderboardEntry) => e.avatar_url !== null && e.avatar_url !== undefined).length;
+    const missingAvatars = entries.filter((e: LeaderboardEntry) => !e.avatar_url).map(e => e.twitter_username).slice(0, 10);
     console.log(`[ARC Leaderboard] Total entries: ${entries.length}, Entries with avatars: ${entriesWithAvatars}`);
+    if (missingAvatars.length > 0) {
+      console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.join(', ')}`);
+    }
 
     return res.status(200).json({
       ok: true,

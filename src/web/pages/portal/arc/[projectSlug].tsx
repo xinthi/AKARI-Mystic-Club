@@ -329,7 +329,7 @@ export default function ArcProjectHub() {
           });
           
           // Log summary
-          const withAvatars = mappedCreators.filter(c => c.avatar_url).length;
+          const withAvatars = mappedCreators.filter((c: { avatar_url: string | null }) => !!c.avatar_url).length;
           console.log(`[Leaderboard] Loaded ${mappedCreators.length} creators, ${withAvatars} with avatars`);
           
           setLeaderboardCreators(mappedCreators);
