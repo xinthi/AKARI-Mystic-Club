@@ -726,7 +726,7 @@ export default async function handler(
     // Step 1: Get avatars from project_tweets FIRST (most likely to have current avatars)
     // Fetch ALL tweets with avatars for this project (ordered by most recent first)
     // This ensures we get the most up-to-date avatars
-    const { data: tweets } = await supabase
+    const { data: tweets, error: tweetsError } = await supabase
       .from('project_tweets')
       .select('author_handle, author_profile_image_url')
       .eq('project_id', pid)
@@ -734,8 +734,13 @@ export default async function handler(
       .order('created_at', { ascending: false })
       .limit(5000); // Limit to prevent huge queries, but get enough to cover all creators
 
+    if (tweetsError) {
+      console.warn(`[ARC Leaderboard] Error fetching tweets for avatars:`, tweetsError);
+    }
+
     if (tweets && tweets.length > 0) {
       console.log(`[ARC Leaderboard] Found ${tweets.length} tweets with avatars from project_tweets`);
+      let addedFromTweets = 0;
       for (const tweet of tweets) {
         if (tweet.author_handle && tweet.author_profile_image_url) {
           // Validate URL before using
@@ -749,12 +754,15 @@ export default async function handler(
               // Only add if not already present (first match wins, ordered by most recent)
               if (!avatarMap.has(normalizedUsername)) {
                 avatarMap.set(normalizedUsername, avatarUrl);
+                addedFromTweets++;
               }
             }
           }
         }
       }
-      console.log(`[ARC Leaderboard] Extracted ${avatarMap.size} unique avatars from project_tweets`);
+      console.log(`[ARC Leaderboard] Extracted ${addedFromTweets} new unique avatars from project_tweets (total in map: ${avatarMap.size})`);
+    } else {
+      console.log(`[ARC Leaderboard] No tweets found with avatars for project ${pid}`);
     }
 
     // Step 2: Get avatars from profiles table (for creators who have profiles)
@@ -957,6 +965,12 @@ export default async function handler(
       console.log(`[ARC Leaderboard] Missing avatars for: ${stillMissingAvatars.map(e => e.twitter_username).join(', ')}`);
     }
     
+    // Check if Twitter API is configured
+    const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
+    if (!twitterApiKey) {
+      console.warn(`[ARC Leaderboard] WARNING: TWITTERAPIIO_API_KEY is not configured. Twitter API fallback will not work.`);
+    }
+    
     // Helper function to validate and set avatar URL
     const setAvatarIfValid = (entry: LeaderboardEntry, url: string | null | undefined, source: string) => {
       if (url && typeof url === 'string' && url.trim().length > 0 && url.startsWith('http')) {
@@ -1017,52 +1031,64 @@ export default async function handler(
         const batch = stillMissingAvatars.slice(i, i + batchSize);
         
         // Process batch in parallel
-        await Promise.all(
+        const batchResults = await Promise.allSettled(
           batch.map(async (entry: LeaderboardEntry) => {
             try {
+              console.log(`[ARC Leaderboard] Attempting to fetch avatar for ${entry.twitter_username}...`);
               const avatarUrl = await fetchAvatarWithRetry(entry);
               if (avatarUrl) {
-                setAvatarIfValid(entry, avatarUrl, 'Twitter API');
-                
-                // Cache to database for future use (async, don't await)
-                (async () => {
-                  try {
-                    const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
-                    if (normalizedUsername) {
-                      // Get user info to cache additional data
-                      const userInfo = await taioGetUserInfo(normalizedUsername);
-                      const { error } = await supabase
-                        .from('profiles')
-                        .upsert({
-                          username: normalizedUsername,
-                          twitter_id: userInfo?.id || null,
-                          name: userInfo?.name || normalizedUsername,
-                          profile_image_url: avatarUrl,
-                          updated_at: new Date().toISOString(),
-                        }, {
-                          onConflict: 'username',
-                          ignoreDuplicates: false,
-                        });
-                      if (error) {
-                        console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, error);
-                      } else {
-                        console.log(`[ARC Leaderboard] ✓ Cached avatar for ${normalizedUsername} to database`);
+                const success = setAvatarIfValid(entry, avatarUrl, 'Twitter API');
+                if (success) {
+                  console.log(`[ARC Leaderboard] ✓ Successfully set avatar for ${entry.twitter_username}`);
+                  
+                  // Cache to database for future use (async, don't await)
+                  (async () => {
+                    try {
+                      const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
+                      if (normalizedUsername) {
+                        // Get user info to cache additional data
+                        const userInfo = await taioGetUserInfo(normalizedUsername);
+                        const { error } = await supabase
+                          .from('profiles')
+                          .upsert({
+                            username: normalizedUsername,
+                            twitter_id: userInfo?.id || null,
+                            name: userInfo?.name || normalizedUsername,
+                            profile_image_url: avatarUrl,
+                            updated_at: new Date().toISOString(),
+                          }, {
+                            onConflict: 'username',
+                            ignoreDuplicates: false,
+                          });
+                        if (error) {
+                          console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, error);
+                        } else {
+                          console.log(`[ARC Leaderboard] ✓ Cached avatar for ${normalizedUsername} to database`);
+                        }
                       }
+                    } catch (err) {
+                      // Silently fail - this is just for caching
+                      console.warn(`[ARC Leaderboard] Failed to cache avatar for ${entry.twitter_username}:`, err);
                     }
-                  } catch (err) {
-                    // Silently fail - this is just for caching
-                    console.warn(`[ARC Leaderboard] Failed to cache avatar for ${entry.twitter_username}:`, err);
-                  }
-                })();
+                  })();
+                } else {
+                  console.warn(`[ARC Leaderboard] ✗ Avatar URL validation failed for ${entry.twitter_username}: ${avatarUrl}`);
+                }
               } else {
-                console.warn(`[ARC Leaderboard] ✗ Could not fetch avatar for ${entry.twitter_username} from Twitter API`);
+                console.warn(`[ARC Leaderboard] ✗ Could not fetch avatar for ${entry.twitter_username} from Twitter API (returned null)`);
               }
             } catch (error) {
               // Log but don't block the response
               console.warn(`[ARC Leaderboard] Error fetching avatar from Twitter API for ${entry.twitter_username}:`, error);
+              throw error; // Re-throw to be caught by Promise.allSettled
             }
           })
         );
+        
+        // Log batch results
+        const successful = batchResults.filter(r => r.status === 'fulfilled').length;
+        const failed = batchResults.filter(r => r.status === 'rejected').length;
+        console.log(`[ARC Leaderboard] Batch ${Math.floor(i / batchSize) + 1}: ${successful} succeeded, ${failed} failed`);
         
         // Small delay between batches to avoid rate limits (only if not the last batch)
         if (i + batchSize < stillMissingAvatars.length) {
@@ -1117,9 +1143,41 @@ export default async function handler(
     });
     console.log(`[ARC Leaderboard] ========================================`);
 
+    // Final verification: Ensure all entries have avatar_url field and log sample
+    // Also create a clean copy to ensure proper serialization
+    const finalEntries: LeaderboardEntry[] = entries.map((entry) => ({
+      ...entry,
+      avatar_url: entry.avatar_url && 
+                  typeof entry.avatar_url === 'string' && 
+                  entry.avatar_url.trim().length > 0 &&
+                  entry.avatar_url.startsWith('http')
+        ? entry.avatar_url
+        : null, // Explicitly set to null if invalid
+    }));
+    
+    const finalEntriesWithAvatars = finalEntries.filter((e: LeaderboardEntry) => 
+      e.avatar_url && 
+      typeof e.avatar_url === 'string' && 
+      e.avatar_url.trim().length > 0 &&
+      e.avatar_url.startsWith('http')
+    ).length;
+    
+    console.log(`[ARC Leaderboard] ========================================`);
+    console.log(`[ARC Leaderboard] FINAL RESPONSE PREPARATION:`);
+    console.log(`[ARC Leaderboard] Total entries to return: ${finalEntries.length}`);
+    console.log(`[ARC Leaderboard] Entries with valid avatars: ${finalEntriesWithAvatars}`);
+    console.log(`[ARC Leaderboard] Sample of first 5 entries being returned:`);
+    finalEntries.slice(0, 5).forEach((entry, idx) => {
+      const avatarPreview = entry.avatar_url 
+        ? entry.avatar_url.substring(0, 60) + '...' 
+        : 'NULL';
+      console.log(`[ARC Leaderboard]   Entry ${idx + 1}: username="${entry.twitter_username}", avatar_url="${avatarPreview}"`);
+    });
+    console.log(`[ARC Leaderboard] ========================================`);
+    
     return res.status(200).json({
       ok: true,
-      entries,
+      entries: finalEntries, // Use cleaned entries
       arenaId: activeArena?.id || null,
       arenaName: activeArena?.name || null,
     });
