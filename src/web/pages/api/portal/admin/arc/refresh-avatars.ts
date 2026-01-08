@@ -140,6 +140,11 @@ export default async function handler(
     const batchSizeNum = Math.min(parseInt(batchSize as string, 10) || 10, 50); // Cap at 50
 
     // Find profiles that need avatar refresh
+    // Query includes profiles with:
+    // - NULL profile_image_url
+    // - NULL avatar_updated_at
+    // - avatar_updated_at older than 30 days
+    // - needs_avatar_refresh = true
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 

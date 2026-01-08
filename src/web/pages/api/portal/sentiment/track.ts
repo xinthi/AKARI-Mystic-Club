@@ -33,6 +33,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getUserProfile, getUserTweets, getUserFollowers, getUserMentions, TwitterTweet, TwitterFollower, TwitterMention } from '@/lib/twitter/twitter';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
+import { upsertProfileFromTwitter, upsertProfilesFromTwitter } from '@/lib/portal/profile-sync';
 
 // =============================================================================
 // LOCAL HELPERS (inlined to avoid cross-package imports)
@@ -257,6 +258,18 @@ async function fetchAndSaveRealData(
       followerCount = profile.followersCount || 0;
       console.log(`[Track] Profile: ${profile.name} - ${followerCount} followers, userId: ${profile.userId || 'N/A'}`);
       
+      // IMPORTANT: Save profile data (including avatar) to profiles table
+      // This ensures we have the latest avatar in the database for all leaderboards
+      try {
+        const profileId = await upsertProfileFromTwitter(supabase, profile);
+        if (profileId) {
+          console.log(`[Track] ✓ Synced profile to DB (profile_id: ${profileId})`);
+        }
+      } catch (syncError) {
+        console.warn(`[Track] Error syncing profile to DB:`, syncError);
+        // Continue even if sync fails
+      }
+      
       // Update project with real profile data INCLUDING twitter_id (permanent X User ID)
       const updateData: Record<string, any> = {
         avatar_url: profile.profileImageUrl || profile.avatarUrl || null,
@@ -398,37 +411,61 @@ async function fetchAndSaveRealData(
         
         console.log(`[Track] Qualified ${qualifiedFollowers.length} followers for inner circle`);
         
-        // Upsert profiles
+        // IMPORTANT: Sync follower profiles to profiles table (including avatars)
+        const followerProfiles: TwitterUserProfile[] = qualifiedFollowers.map((f: TwitterFollower) => ({
+          handle: f.username,
+          userId: f.id,
+          name: f.name,
+          profileImageUrl: f.profileImageUrl || null,
+          avatarUrl: f.profileImageUrl || null,
+          bio: f.bio || null,
+          followersCount: f.followers,
+          followingCount: f.following,
+          tweetCount: f.tweetCount,
+          verified: f.verified,
+        }));
+        
+        try {
+          const syncedProfiles = await upsertProfilesFromTwitter(supabase, followerProfiles);
+          console.log(`[Track] ✓ Synced ${syncedProfiles.size}/${qualifiedFollowers.length} follower profiles to DB`);
+        } catch (syncError) {
+          console.warn(`[Track] Error syncing follower profiles to DB:`, syncError);
+          // Continue even if sync fails
+        }
+        
+        // Also update profiles with scoring data (influence_score, farm_risk_score, etc.)
         const profileRows = qualifiedFollowers.map(f => ({
           twitter_id: f.id,
           username: f.username,
-          name: f.name,
-          profile_image_url: f.profileImageUrl,
-          bio: f.bio,
-          followers: f.followers,
-          following: f.following,
-          tweet_count: f.tweetCount,
-          is_blue_verified: f.verified,
           influence_score: f.influenceScore,
           farm_risk_score: f.farmRisk,
           akari_profile_score: Math.round(f.influenceScore * 10 - f.farmRisk * 5),
         }));
         
         if (profileRows.length > 0) {
-          const { error: profilesError } = await supabase
-            .from('profiles')
-            .upsert(profileRows, { onConflict: 'twitter_id' });
+          // Update profiles with scoring data (profiles should already exist from upsertProfilesFromTwitter)
+          for (const profileRow of profileRows) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                influence_score: profileRow.influence_score,
+                farm_risk_score: profileRow.farm_risk_score,
+                akari_profile_score: profileRow.akari_profile_score,
+              })
+              .eq('twitter_id', profileRow.twitter_id);
+            
+            if (updateError) {
+              console.warn(`[Track] Failed to update profile scores for ${profileRow.username}:`, updateError.message);
+            }
+          }
           
-          if (profilesError) {
-            console.warn(`[Track] Failed to upsert profiles:`, profilesError.message);
-          } else {
-            console.log(`[Track] Upserted ${profileRows.length} profiles`);
+          console.log(`[Track] Updated scores for ${profileRows.length} profiles`);
             
             // Get profile IDs for inner circle
             const { data: savedProfiles } = await supabase
               .from('profiles')
               .select('id, twitter_id, akari_profile_score')
-              .in('twitter_id', profileRows.map(p => p.twitter_id));
+              .in('twitter_id', qualifiedFollowers.map(f => f.id));
             
             if (savedProfiles && savedProfiles.length > 0) {
               // Create inner_circle_members entries
@@ -616,9 +653,19 @@ export default async function handler(
       // This ensures we can identify the project even if they change their handle
       if (!existingProject.twitter_id) {
         const profileForTwitterId = await getUserProfile(handleToUse);
-        if (profileForTwitterId?.userId) {
-          updates.twitter_id = profileForTwitterId.userId;
-          console.log(`[API /portal/sentiment/track] Setting missing twitter_id: ${profileForTwitterId.userId}`);
+        if (profileForTwitterId) {
+          if (profileForTwitterId.userId) {
+            updates.twitter_id = profileForTwitterId.userId;
+            console.log(`[API /portal/sentiment/track] Setting missing twitter_id: ${profileForTwitterId.userId}`);
+          }
+          
+          // IMPORTANT: Also save this profile to profiles table
+          try {
+            await upsertProfileFromTwitter(supabase, profileForTwitterId);
+            console.log(`[API /portal/sentiment/track] ✓ Synced profile to DB`);
+          } catch (syncError) {
+            console.warn(`[API /portal/sentiment/track] Error syncing profile to DB:`, syncError);
+          }
         }
       }
       
@@ -696,15 +743,25 @@ export default async function handler(
           
           // Just fetch profile to get follower count
           const profile = await getUserProfile(handleToUse);
-          if (profile && profile.followersCount) {
-            await supabase
-              .from('metrics_daily')
-              .upsert({
-                project_id: existingProject.id,
-                date: today,
-                followers: profile.followersCount,
-              }, { onConflict: 'project_id,date' });
-            console.log(`[API /portal/sentiment/track] Updated followers: ${profile.followersCount}`);
+          if (profile) {
+            // IMPORTANT: Always save profile to profiles table when fetching from Twitter
+            try {
+              await upsertProfileFromTwitter(supabase, profile);
+              console.log(`[API /portal/sentiment/track] ✓ Synced profile to DB during follower update`);
+            } catch (syncError) {
+              console.warn(`[API /portal/sentiment/track] Error syncing profile to DB:`, syncError);
+            }
+            
+            if (profile.followersCount) {
+              await supabase
+                .from('metrics_daily')
+                .upsert({
+                  project_id: existingProject.id,
+                  date: today,
+                  followers: profile.followersCount,
+                }, { onConflict: 'project_id,date' });
+              console.log(`[API /portal/sentiment/track] Updated followers: ${profile.followersCount}`);
+            }
           }
         }
       }

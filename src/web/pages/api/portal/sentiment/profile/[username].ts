@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getUserProfile, getUserTweets, TwitterUserProfile, TwitterTweet } from '@/lib/twitter/twitter';
 import { fetchAvatarForUsername, normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
+import { upsertProfileFromTwitter } from '@/lib/portal/profile-sync';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -88,6 +89,23 @@ export default async function handler(
 
     if (!userProfile) {
       return res.status(404).json({ ok: false, error: 'Profile not found' });
+    }
+
+    // IMPORTANT: Save profile data (including avatar) to profiles table
+    // This ensures we have the latest avatar in the database
+    try {
+      const profileId = await upsertProfileFromTwitter(supabase, userProfile);
+      if (profileId) {
+        console.log(`[Profile API] ✓ Synced profile ${normalizedUsername} to DB (profile_id: ${profileId})`);
+        
+        // Update dbAvatarUrl after sync (might have changed)
+        if (userProfile.profileImageUrl || userProfile.avatarUrl) {
+          dbAvatarUrl = userProfile.profileImageUrl || userProfile.avatarUrl || null;
+        }
+      }
+    } catch (syncError) {
+      console.warn(`[Profile API] Error syncing profile to DB:`, syncError);
+      // Continue even if sync fails - we still return the API data
     }
 
     // Fetch recent tweets
