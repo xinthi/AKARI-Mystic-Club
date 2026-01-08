@@ -295,26 +295,43 @@ export default function ArcProjectHub() {
         const data = await res.json();
         if (data.ok && data.entries) {
           // Map the leaderboard entries to our format
-          const mappedCreators = data.entries.map((entry: any, index: number) => ({
-            id: `creator-${index}`,
-            twitter_username: entry.twitter_username || '',
-            avatar_url: entry.avatar_url || null,
-            arc_points: entry.score || entry.base_points || 0,
-            score: entry.score,
-            base_points: entry.base_points,
-            multiplier: entry.multiplier,
-            ring: entry.ring || null,
-            style: null,
-            is_joined: entry.is_joined || false,
-            is_auto_tracked: entry.is_auto_tracked || false,
-            smart_followers_count: entry.smart_followers_count || null,
-            smart_followers_pct: entry.smart_followers_pct || null,
-            contribution_pct: entry.contribution_pct || null,
-            ct_heat: entry.ct_heat || null,
-            delta7d: entry.delta7d ?? null,
-            delta1m: entry.delta1m ?? null,
-            delta3m: entry.delta3m ?? null,
-          }));
+          const mappedCreators = data.entries.map((entry: any, index: number) => {
+            // Log first few entries for debugging
+            if (index < 5) {
+              console.log(`[Leaderboard] Entry ${index}:`, {
+                username: entry.twitter_username,
+                avatar_url: entry.avatar_url,
+                has_avatar: !!entry.avatar_url,
+                avatar_url_type: typeof entry.avatar_url,
+              });
+            }
+            
+            return {
+              id: `creator-${index}`,
+              twitter_username: entry.twitter_username || '',
+              avatar_url: entry.avatar_url || null,
+              arc_points: entry.score || entry.base_points || 0,
+              score: entry.score,
+              base_points: entry.base_points,
+              multiplier: entry.multiplier,
+              ring: entry.ring || null,
+              style: null,
+              is_joined: entry.is_joined || false,
+              is_auto_tracked: entry.is_auto_tracked || false,
+              smart_followers_count: entry.smart_followers_count || null,
+              smart_followers_pct: entry.smart_followers_pct || null,
+              contribution_pct: entry.contribution_pct || null,
+              ct_heat: entry.ct_heat || null,
+              delta7d: entry.delta7d ?? null,
+              delta1m: entry.delta1m ?? null,
+              delta3m: entry.delta3m ?? null,
+            };
+          });
+          
+          // Log summary
+          const withAvatars = mappedCreators.filter(c => c.avatar_url).length;
+          console.log(`[Leaderboard] Loaded ${mappedCreators.length} creators, ${withAvatars} with avatars`);
+          
           setLeaderboardCreators(mappedCreators);
         } else {
           setLeaderboardCreators([]);
@@ -669,13 +686,20 @@ export default function ArcProjectHub() {
                                         <div className="flex items-center gap-0.5 min-w-0">
                                           {creator.avatar_url ? (
                                             <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
-                                              <Image
-                                                src={creator.avatar_url}
-                                                alt={creator.twitter_username || 'Avatar'}
-                                                fill
-                                                className="object-cover"
-                                                unoptimized
-                                              />
+                                            {/* Use img tag for better error handling */}
+                                            <img
+                                              src={creator.avatar_url}
+                                              alt={creator.twitter_username || 'Avatar'}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
+                                                // Hide broken image
+                                                const target = e.target as HTMLImageElement;
+                                                if (target.parentElement) {
+                                                  target.parentElement.style.display = 'none';
+                                                }
+                                              }}
+                                            />
                                             </div>
                                           ) : (
                                             <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
@@ -770,13 +794,20 @@ export default function ArcProjectHub() {
                                         <div className="flex items-center gap-0.5 min-w-0">
                                           {creator.avatar_url ? (
                                             <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
-                                              <Image
-                                                src={creator.avatar_url}
-                                                alt={creator.twitter_username || 'Avatar'}
-                                                fill
-                                                className="object-cover"
-                                                unoptimized
-                                              />
+                                            {/* Use img tag for better error handling */}
+                                            <img
+                                              src={creator.avatar_url}
+                                              alt={creator.twitter_username || 'Avatar'}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
+                                                // Hide broken image
+                                                const target = e.target as HTMLImageElement;
+                                                if (target.parentElement) {
+                                                  target.parentElement.style.display = 'none';
+                                                }
+                                              }}
+                                            />
                                             </div>
                                           ) : (
                                             <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
@@ -923,12 +954,26 @@ export default function ArcProjectHub() {
                                       <div className="flex items-center gap-3">
                                         {creator.avatar_url ? (
                                           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
-                                            <Image
+                                            {/* Use img tag for better error handling */}
+                                            <img
                                               src={creator.avatar_url}
                                               alt={creator.twitter_username || 'Creator avatar'}
-                                              fill
-                                              className="object-cover"
-                                              unoptimized
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
+                                                // Replace with fallback
+                                                const target = e.target as HTMLImageElement;
+                                                const parent = target.parentElement;
+                                                if (parent) {
+                                                  parent.innerHTML = `
+                                                    <div class="w-10 h-10 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center">
+                                                      <span class="text-white/60 text-sm font-medium">
+                                                        ${(creator.twitter_username || '?')[0].toUpperCase()}
+                                                      </span>
+                                                    </div>
+                                                  `;
+                                                }
+                                              }}
                                             />
                                           </div>
                                         ) : (
