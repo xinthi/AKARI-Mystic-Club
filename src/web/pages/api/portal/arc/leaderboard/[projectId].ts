@@ -394,11 +394,13 @@ export default async function handler(
       console.log(`[ARC Leaderboard] ✓ Twitter API key is configured (length: ${twitterApiKey.length} chars)`);
       
       // Quick test: Try fetching one user to verify API is working
-      const testUsername = '0x_jhayy';
+      const testUsername = '0x_jhayy'; // Already clean, no @ symbol
       try {
         console.log(`[ARC Leaderboard] Testing Twitter API with username: ${testUsername}...`);
         const testStartTime = Date.now();
-        const testUserInfo = await taioGetUserInfo(testUsername);
+        // Ensure no @ symbol is passed to API
+        const cleanTestUsername = testUsername.replace(/^@+/, '').trim();
+        const testUserInfo = await taioGetUserInfo(cleanTestUsername);
         const testElapsed = Date.now() - testStartTime;
         
         if (testUserInfo && testUserInfo.profileImageUrl) {
@@ -1016,19 +1018,20 @@ export default async function handler(
     };
 
     // Helper function to try fetching with retry and multiple username variations
-    const fetchAvatarWithRetry = async (entry: LeaderboardEntry, maxRetries = 2): Promise<string | null> => {
+    const fetchAvatarWithRetry = async (entry: LeaderboardEntry, maxRetries = 1): Promise<string | null> => {
+      // Always remove @ symbol - Twitter API doesn't accept it
       const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
       const originalUsername = entry.twitter_username.replace(/^@+/, '').trim();
       
-      // Try multiple username variations
+      // Try username variations WITHOUT @ symbol (Twitter API doesn't accept @)
       const usernameVariations = [
         normalizedUsername,
         originalUsername,
-        `@${normalizedUsername}`,
-        `@${originalUsername}`,
-      ].filter((u, i, arr) => u && arr.indexOf(u) === i); // Remove duplicates
+      ].filter((u, i, arr) => u && u.length > 0 && arr.indexOf(u) === i); // Remove duplicates and empty strings
       
       for (const username of usernameVariations) {
+        if (!username || username.length === 0) continue;
+        
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           try {
             if (attempt > 0) {
@@ -1036,16 +1039,21 @@ export default async function handler(
               await new Promise(resolve => setTimeout(resolve, 300 * attempt));
             }
             
-            const userInfo = await taioGetUserInfo(username);
+            // Twitter API expects username WITHOUT @ symbol
+            const cleanUsername = username.replace(/^@+/, '').trim();
+            if (!cleanUsername) continue;
+            
+            const userInfo = await taioGetUserInfo(cleanUsername);
             if (userInfo && userInfo.profileImageUrl && 
                 typeof userInfo.profileImageUrl === 'string' && 
                 userInfo.profileImageUrl.trim().length > 0 &&
                 userInfo.profileImageUrl.startsWith('http')) {
               return userInfo.profileImageUrl;
             }
-          } catch (error) {
+          } catch (error: any) {
+            // Log error but continue trying other variations
             if (attempt === maxRetries) {
-              console.warn(`[ARC Leaderboard] Failed to fetch avatar for ${username} after ${maxRetries + 1} attempts:`, error);
+              console.warn(`[ARC Leaderboard] Failed to fetch avatar for ${username} after ${maxRetries + 1} attempts:`, error?.message || error);
             }
           }
         }
@@ -1083,13 +1091,12 @@ export default async function handler(
                 try {
                   const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
                   if (normalizedUsername) {
-                    const userInfo = await taioGetUserInfo(normalizedUsername);
+                    // Don't fetch userInfo again - we already have it from fetchAvatarWithRetry
+                    // Just cache the avatar URL we already fetched
                     await supabase
                       .from('profiles')
                       .upsert({
                         username: normalizedUsername,
-                        twitter_id: userInfo?.id || null,
-                        name: userInfo?.name || normalizedUsername,
                         profile_image_url: avatarUrl,
                         updated_at: new Date().toISOString(),
                       }, {
