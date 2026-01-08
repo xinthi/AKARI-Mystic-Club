@@ -386,9 +386,10 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
+  // Check Twitter API key configuration at the start (declare outside try block)
+  const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
+
   try {
-    // Check Twitter API key configuration at the start
-    const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
     if (twitterApiKey) {
       console.log(`[ARC Leaderboard] ✓ Twitter API key is configured (length: ${twitterApiKey.length} chars)`);
       
