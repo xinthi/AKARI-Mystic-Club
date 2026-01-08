@@ -937,7 +937,22 @@ export default async function handler(
                     }
                   })();
                 } else {
-                  console.warn(`[ARC Leaderboard] Twitter API returned no avatar for ${normalizedUsername}`);
+                  console.warn(`[ARC Leaderboard] Twitter API returned no avatar for ${normalizedUsername} (userInfo exists: ${!!userInfo}, has profileImageUrl: ${!!userInfo?.profileImageUrl})`);
+                  // If userInfo exists but no profileImageUrl, the user might not exist or be private
+                  // Try alternative username variations if available
+                  if (userInfo && !userInfo.profileImageUrl && entry.twitter_username !== normalizedUsername) {
+                    // Try with original case
+                    try {
+                      const altUserInfo = await taioGetUserInfo(entry.twitter_username);
+                      if (altUserInfo && altUserInfo.profileImageUrl) {
+                        entry.avatar_url = altUserInfo.profileImageUrl;
+                        avatarMap.set(normalizedUsername, altUserInfo.profileImageUrl);
+                        console.log(`[ARC Leaderboard] Found avatar with original case for ${entry.twitter_username}`);
+                      }
+                    } catch (altError) {
+                      // Ignore alternative attempt
+                    }
+                  }
                 }
               }
             } catch (error) {

@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 // =============================================================================
 // TYPES
@@ -205,16 +206,75 @@ export default async function handler(
     // Get the actual twitter_username from the first row (should be consistent)
     const twitterUsernameActual = creatorsData[0]?.twitter_username || normalizedUsername;
 
-    // Fetch profile image for this creator
+    // Fetch profile image for this creator from multiple sources
     let avatar_url: string | null = null;
     try {
       const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
+      
+      // Step 1: Try from database (profiles and akari_users)
       const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabase, [cleanUsername]);
-      // akariUsersMap takes precedence if both exist
       avatar_url = akariUsersMap.get(cleanUsername) || profilesMap.get(cleanUsername) || null;
+      
+      // Step 2: If not found, try from project_tweets
+      if (!avatar_url) {
+        const { data: tweets } = await supabaseAdmin
+          .from('project_tweets')
+          .select('author_handle, author_profile_image_url')
+          .ilike('author_handle', cleanUsername)
+          .not('author_profile_image_url', 'is', null)
+          .limit(1)
+          .order('created_at', { ascending: false })
+          .maybeSingle();
+        
+        if (tweets?.author_profile_image_url) {
+          avatar_url = tweets.author_profile_image_url;
+        }
+      }
+      
+      // Step 3: If still not found, fetch from Twitter API
+      if (!avatar_url) {
+        try {
+          const userInfo = await taioGetUserInfo(cleanUsername);
+          if (userInfo && userInfo.profileImageUrl) {
+            avatar_url = userInfo.profileImageUrl;
+            
+            // Cache in database for future use (async, don't await)
+            (async () => {
+              try {
+                await supabaseAdmin
+                  .from('profiles')
+                  .upsert({
+                    username: cleanUsername,
+                    twitter_id: userInfo.id || null,
+                    name: userInfo.name || cleanUsername,
+                    profile_image_url: userInfo.profileImageUrl,
+                    updated_at: new Date().toISOString(),
+                  }, {
+                    onConflict: 'username',
+                    ignoreDuplicates: false,
+                  });
+                console.log(`[API /portal/arc/creator] Cached avatar for ${cleanUsername} to database`);
+              } catch (err) {
+                console.warn(`[API /portal/arc/creator] Failed to cache avatar for ${cleanUsername}:`, err);
+              }
+            })();
+          }
+        } catch (twitterError) {
+          console.warn(`[API /portal/arc/creator] Failed to fetch avatar from Twitter API for ${cleanUsername}:`, twitterError);
+        }
+      }
     } catch (error) {
       console.error('[API /portal/arc/creator] Error fetching profile image:', error);
-      // Continue without avatar
+      // Continue without avatar, but try Twitter API as last resort
+      try {
+        const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
+        const userInfo = await taioGetUserInfo(cleanUsername);
+        if (userInfo && userInfo.profileImageUrl) {
+          avatar_url = userInfo.profileImageUrl;
+        }
+      } catch (twitterError) {
+        console.warn(`[API /portal/arc/creator] Failed to fetch avatar from Twitter API for ${twitterUsernameActual}:`, twitterError);
+      }
     }
 
     // Calculate Smart Followers for the creator
