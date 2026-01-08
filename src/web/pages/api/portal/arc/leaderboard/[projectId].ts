@@ -19,7 +19,7 @@ import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { getSmartFollowers } from '@/server/smart-followers/calculate';
 import { calculateCreatorSignalScore, type CreatorPostMetrics } from '@/server/arc/signal-score';
 import { computeCtHeatScore } from '@/server/scoring/akari';
-import { taioGetUserInfo } from '@/server/twitterapiio';
+// Twitter API removed - leaderboard is DB-only. Use /api/portal/admin/arc/refresh-avatars for avatar updates.
 
 // =============================================================================
 // TYPES
@@ -28,6 +28,7 @@ import { taioGetUserInfo } from '@/server/twitterapiio';
 interface LeaderboardEntry {
   twitter_username: string;
   avatar_url: string | null;
+  needsAvatarRefresh: boolean; // Flag indicating avatar needs to be refreshed from Twitter API
   rank: number;
   base_points: number;
   multiplier: number;
@@ -62,10 +63,11 @@ type LeaderboardResponse =
 
 /**
  * Normalize twitter username: strip @, lowercase, trim
+ * This ensures consistent username matching across all database queries
  */
 function normalizeTwitterUsername(username: string | null | undefined): string {
   if (!username) return '';
-  return username.toLowerCase().replace(/^@/, '').trim();
+  return username.toLowerCase().replace(/^@+/, '').trim();
 }
 
 /**
@@ -386,36 +388,9 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // Check Twitter API key configuration at the start (declare outside try block)
-  const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
-
+  // Leaderboard endpoint is DB-only - no live Twitter API calls
+  // Use /api/portal/admin/arc/refresh-avatars for avatar updates
   try {
-    if (twitterApiKey) {
-      console.log(`[ARC Leaderboard] ✓ Twitter API key is configured (length: ${twitterApiKey.length} chars)`);
-      
-      // Quick test: Try fetching one user to verify API is working
-      const testUsername = '0x_jhayy'; // Already clean, no @ symbol
-      try {
-        console.log(`[ARC Leaderboard] Testing Twitter API with username: ${testUsername}...`);
-        const testStartTime = Date.now();
-        // Ensure no @ symbol is passed to API
-        const cleanTestUsername = testUsername.replace(/^@+/, '').trim();
-        const testUserInfo = await taioGetUserInfo(cleanTestUsername);
-        const testElapsed = Date.now() - testStartTime;
-        
-        if (testUserInfo && testUserInfo.profileImageUrl) {
-          console.log(`[ARC Leaderboard] ✓ Twitter API test SUCCESSFUL for ${testUsername} (${testElapsed}ms)`);
-          console.log(`[ARC Leaderboard]   Profile Image: ${testUserInfo.profileImageUrl.substring(0, 60)}...`);
-        } else {
-          console.warn(`[ARC Leaderboard] ⚠ Twitter API test returned null for ${testUsername} (${testElapsed}ms)`);
-        }
-      } catch (testError: any) {
-        console.error(`[ARC Leaderboard] ❌ Twitter API test FAILED:`, testError.message);
-      }
-    } else {
-      console.error(`[ARC Leaderboard] ❌ Twitter API key is NOT configured - avatar fetching will be limited to database sources only`);
-      console.error(`[ARC Leaderboard] To enable Twitter API avatar fetching, set TWITTERAPIIO_API_KEY in your environment variables`);
-    }
     
     // Authentication
     const portalUser = await requirePortalUser(req, res);
@@ -582,7 +557,8 @@ export default async function handler(
 
       entriesMap.set(username, {
         twitter_username: username,
-        avatar_url: null, // Will be populated later
+        avatar_url: null, // Will be populated later from DB
+        needsAvatarRefresh: false, // Will be set based on DB state
         rank: 0, // Will be set after sorting
         base_points: basePoints,
         multiplier,
@@ -646,7 +622,8 @@ export default async function handler(
 
         entriesMap.set(username, {
           twitter_username: username,
-          avatar_url: null,
+          avatar_url: null, // Will be populated later from DB
+          needsAvatarRefresh: false, // Will be set based on DB state
           rank: 0,
           base_points: points,
           multiplier: 1.0,
@@ -982,8 +959,9 @@ export default async function handler(
     }
     console.log(`[ARC Leaderboard] Assigned ${assignedFromMap} avatars from avatarMap to entries`);
 
-    // Step 4: Final fallback - fetch from Twitter API for remaining missing avatars
-    // Fetch for all missing avatars in batches to avoid rate limits
+    // Step 4: Check for profiles that need avatar refresh
+    // Leaderboard is DB-only - no live Twitter API calls
+    // Set needsAvatarRefresh flag based on DB state
     const stillMissingAvatars = entries.filter((e: LeaderboardEntry) => 
       !e.avatar_url || 
       typeof e.avatar_url !== 'string' || 
@@ -991,215 +969,60 @@ export default async function handler(
       !e.avatar_url.startsWith('http')
     );
     
+    // Check profiles table for avatar_updated_at and needs_avatar_refresh
+    if (stillMissingAvatars.length > 0) {
+      const missingUsernames = stillMissingAvatars.map(e => normalizeTwitterUsername(e.twitter_username)).filter(Boolean);
+      const chunkSize = 100;
+      
+      for (let i = 0; i < missingUsernames.length; i += chunkSize) {
+        const chunk = missingUsernames.slice(i, i + chunkSize);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('username, avatar_updated_at, needs_avatar_refresh')
+          .in('username', chunk);
+        
+        if (profiles) {
+          for (const profile of profiles) {
+            const normalizedUsername = normalizeTwitterUsername(profile.username);
+            const entry = entries.find(e => normalizeTwitterUsername(e.twitter_username) === normalizedUsername);
+            if (entry) {
+              // Set needsAvatarRefresh if profile needs refresh or avatar_updated_at is old (>30 days)
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              const avatarUpdatedAt = profile.avatar_updated_at ? new Date(profile.avatar_updated_at) : null;
+              entry.needsAvatarRefresh = profile.needs_avatar_refresh === true || 
+                                        (avatarUpdatedAt && avatarUpdatedAt < thirtyDaysAgo);
+            }
+          }
+        }
+      }
+      
+      // For entries without profiles, set needsAvatarRefresh = true
+      for (const entry of stillMissingAvatars) {
+        if (entry.needsAvatarRefresh === undefined) {
+          entry.needsAvatarRefresh = true;
+        }
+      }
+    }
+    
     // Logging: Count missing avatars by type
     const missingAutoTracked = stillMissingAvatars.filter(e => e.is_auto_tracked).length;
     const missingJoined = stillMissingAvatars.filter(e => e.is_joined).length;
+    const needsRefresh = entries.filter(e => e.needsAvatarRefresh === true).length;
+    
     console.log(`[ARC Leaderboard] ========================================`);
-    console.log(`[ARC Leaderboard] Avatar Status Summary:`);
+    console.log(`[ARC Leaderboard] Avatar Status Summary (DB-only):`);
     console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
     console.log(`[ARC Leaderboard] Entries with avatars: ${entries.length - stillMissingAvatars.length}`);
     console.log(`[ARC Leaderboard] Missing avatars: ${stillMissingAvatars.length}`);
     console.log(`[ARC Leaderboard]   - Auto-tracked creators missing avatars: ${missingAutoTracked}`);
     console.log(`[ARC Leaderboard]   - Joined creators missing avatars: ${missingJoined}`);
-    
+    console.log(`[ARC Leaderboard] Entries needing avatar refresh: ${needsRefresh}`);
+    console.log(`[ARC Leaderboard] Use /api/portal/admin/arc/refresh-avatars to update avatars`);
     if (stillMissingAvatars.length > 0 && stillMissingAvatars.length <= 20) {
       console.log(`[ARC Leaderboard] Missing avatars for: ${stillMissingAvatars.map(e => e.twitter_username).join(', ')}`);
     }
     console.log(`[ARC Leaderboard] ========================================`);
-    
-    // Check if Twitter API is configured (twitterApiKey already declared at the start of handler)
-    if (!twitterApiKey) {
-      console.error(`[ARC Leaderboard] ❌ ERROR: TWITTERAPIIO_API_KEY is not configured. Twitter API fallback will not work.`);
-      console.error(`[ARC Leaderboard] Please set TWITTERAPIIO_API_KEY in your environment variables to enable avatar fetching.`);
-    } else {
-      console.log(`[ARC Leaderboard] ✓ Twitter API key is configured. Will fetch avatars for all missing profiles.`);
-    }
-    
-    // Helper function to validate and set avatar URL
-    const setAvatarIfValid = (entry: LeaderboardEntry, url: string | null | undefined, source: string) => {
-      if (url && typeof url === 'string' && url.trim().length > 0 && url.startsWith('http')) {
-        const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
-        entry.avatar_url = url;
-        if (normalizedUsername) {
-          avatarMap.set(normalizedUsername, url);
-        }
-        console.log(`[ARC Leaderboard] ✓ Set avatar for ${entry.twitter_username} from ${source}`);
-        return true;
-      }
-      return false;
-    };
-
-    // Helper function to try fetching with retry and multiple username variations
-    const fetchAvatarWithRetry = async (entry: LeaderboardEntry, maxRetries = 1): Promise<string | null> => {
-      // Always remove @ symbol - Twitter API doesn't accept it
-      const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
-      const originalUsername = entry.twitter_username.replace(/^@+/, '').trim();
-      
-      // Try username variations WITHOUT @ symbol (Twitter API doesn't accept @)
-      const usernameVariations = [
-        normalizedUsername,
-        originalUsername,
-      ].filter((u, i, arr) => u && u.length > 0 && arr.indexOf(u) === i); // Remove duplicates and empty strings
-      
-      for (const username of usernameVariations) {
-        if (!username || username.length === 0) continue;
-        
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-          try {
-            if (attempt > 0) {
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 300 * attempt));
-            }
-            
-            // Twitter API expects username WITHOUT @ symbol
-            const cleanUsername = username.replace(/^@+/, '').trim();
-            if (!cleanUsername) continue;
-            
-            const userInfo = await taioGetUserInfo(cleanUsername);
-            if (userInfo && userInfo.profileImageUrl && 
-                typeof userInfo.profileImageUrl === 'string' && 
-                userInfo.profileImageUrl.trim().length > 0 &&
-                userInfo.profileImageUrl.startsWith('http')) {
-              return userInfo.profileImageUrl;
-            }
-          } catch (error: any) {
-            // Log error but continue trying other variations
-            if (attempt === maxRetries) {
-              console.warn(`[ARC Leaderboard] Failed to fetch avatar for ${username} after ${maxRetries + 1} attempts:`, error?.message || error);
-            }
-          }
-        }
-      }
-      
-      return null;
-    };
-    
-    if (stillMissingAvatars.length > 0 && twitterApiKey) {
-      console.log(`[ARC Leaderboard] ========================================`);
-      console.log(`[ARC Leaderboard] Starting Twitter API fetch for ALL ${stillMissingAvatars.length} missing avatars...`);
-      console.log(`[ARC Leaderboard] This will ensure all auto-tracked creators have profiles with avatars.`);
-      console.log(`[ARC Leaderboard] ========================================`);
-      
-      let totalFetched = 0;
-      let totalFailed = 0;
-      const profileUpsertPromises: Promise<void>[] = [];
-      const startTime = Date.now();
-      
-      // Process ALL missing avatars (not just top 50)
-      for (let i = 0; i < stillMissingAvatars.length; i++) {
-        const entry = stillMissingAvatars[i];
-        const progress = `[${i + 1}/${stillMissingAvatars.length}]`;
-        
-        try {
-          console.log(`[ARC Leaderboard] ${progress} Fetching avatar for ${entry.twitter_username} (${entry.is_auto_tracked ? 'auto-tracked' : 'joined'})...`);
-          const avatarUrl = await fetchAvatarWithRetry(entry, 1); // 1 retry for speed
-          if (avatarUrl) {
-            const success = setAvatarIfValid(entry, avatarUrl, 'Twitter API');
-            if (success) {
-              totalFetched++;
-              console.log(`[ARC Leaderboard] ${progress} ✓ Successfully fetched avatar for ${entry.twitter_username}`);
-              
-              // Cache to database and ensure profile exists (async, don't await)
-              // This is critical for auto-tracked creators who may not have profiles
-              const upsertPromise = (async () => {
-                try {
-                  const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
-                  if (normalizedUsername) {
-                    // Fetch full user info to populate profile completely
-                    const cleanUsername = normalizedUsername.replace(/^@+/, '').trim();
-                    let userInfo: any = null;
-                    try {
-                      userInfo = await taioGetUserInfo(cleanUsername);
-                    } catch (err) {
-                      // If we can't fetch user info, just cache the avatar
-                      console.warn(`[ARC Leaderboard] ${progress} Could not fetch full user info for ${cleanUsername}, caching avatar only`);
-                    }
-                    
-                    // Upsert profile with avatar and basic info
-                    // This ensures auto-tracked creators have profiles in the database
-                    const { error: upsertError } = await supabase
-                      .from('profiles')
-                      .upsert({
-                        username: normalizedUsername,
-                        twitter_id: userInfo?.id || null,
-                        name: userInfo?.name || normalizedUsername,
-                        profile_image_url: avatarUrl,
-                        updated_at: new Date().toISOString(),
-                      }, {
-                        onConflict: 'username',
-                        ignoreDuplicates: false,
-                      });
-                    
-                    if (upsertError) {
-                      console.warn(`[ARC Leaderboard] ${progress} Failed to upsert profile for ${normalizedUsername}:`, upsertError);
-                    } else {
-                      console.log(`[ARC Leaderboard] ${progress} ✓ Upserted profile for ${normalizedUsername} with avatar`);
-                    }
-                  }
-                } catch (err) {
-                  // Log but don't fail - caching is not critical
-                  console.warn(`[ARC Leaderboard] ${progress} Failed to cache avatar for ${entry.twitter_username}:`, err);
-                }
-              })();
-              profileUpsertPromises.push(upsertPromise);
-            } else {
-              totalFailed++;
-              console.warn(`[ARC Leaderboard] ${progress} ✗ Avatar URL validation failed for ${entry.twitter_username}`);
-            }
-          } else {
-            totalFailed++;
-            console.warn(`[ARC Leaderboard] ${progress} ✗ Could not fetch avatar for ${entry.twitter_username} from Twitter API (returned null)`);
-          }
-        } catch (error) {
-          totalFailed++;
-          console.warn(`[ARC Leaderboard] ${progress} ✗ Error fetching avatar for ${entry.twitter_username}:`, error);
-        }
-        
-        // Small delay between requests to avoid rate limits (except for last one)
-        if (i < stillMissingAvatars.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay between requests
-        }
-        
-        // Log progress every 10 entries
-        if ((i + 1) % 10 === 0) {
-          const elapsed = Date.now() - startTime;
-          const avgTime = elapsed / (i + 1);
-          const remaining = stillMissingAvatars.length - (i + 1);
-          const estimatedTimeLeft = Math.round((remaining * avgTime) / 1000);
-          console.log(`[ARC Leaderboard] Progress: ${i + 1}/${stillMissingAvatars.length} processed. ${totalFetched} succeeded, ${totalFailed} failed. Estimated time left: ~${estimatedTimeLeft}s`);
-        }
-      }
-      
-      // Wait for profile upserts to complete (with timeout)
-      try {
-        await Promise.race([
-          Promise.all(profileUpsertPromises),
-          new Promise(resolve => setTimeout(resolve, 5000)), // 5 second timeout
-        ]);
-      } catch (err) {
-        console.warn(`[ARC Leaderboard] Some profile upserts may still be processing`);
-      }
-      
-      // Verify avatars were set after Twitter API calls
-      const afterTwitterAvatars = entries.filter((e: LeaderboardEntry) => 
-        e.avatar_url && 
-        typeof e.avatar_url === 'string' && 
-        e.avatar_url.trim().length > 0 &&
-        e.avatar_url.startsWith('http')
-      ).length;
-      const totalTime = Date.now() - startTime;
-      console.log(`[ARC Leaderboard] ========================================`);
-      console.log(`[ARC Leaderboard] Twitter API fetch completed in ${Math.round(totalTime / 1000)}s`);
-      console.log(`[ARC Leaderboard] Total entries with avatars: ${afterTwitterAvatars}/${entries.length}`);
-      console.log(`[ARC Leaderboard] Successfully fetched: ${totalFetched} new avatars`);
-      console.log(`[ARC Leaderboard] Failed to fetch: ${totalFailed} avatars`);
-      console.log(`[ARC Leaderboard] Profile upsert promises: ${profileUpsertPromises.length}`);
-      console.log(`[ARC Leaderboard] ========================================`);
-    } else if (stillMissingAvatars.length > 0 && !twitterApiKey) {
-      console.error(`[ARC Leaderboard] ❌ Cannot fetch avatars - TWITTERAPIIO_API_KEY is not configured.`);
-      console.error(`[ARC Leaderboard] ${stillMissingAvatars.length} entries will have no avatars.`);
-      console.error(`[ARC Leaderboard] Please set TWITTERAPIIO_API_KEY in your environment variables.`);
-    }
 
     // Final check: Log how many entries have avatars for debugging
     // Also ensure all entries have avatar_url explicitly set (even if null)
@@ -1248,10 +1071,8 @@ export default async function handler(
     });
     console.log(`[ARC Leaderboard] ========================================`);
 
-    // Final verification: Ensure all entries have avatar_url field and log sample
+    // Final verification: Ensure all entries have avatar_url and needsAvatarRefresh fields
     // Also create a clean copy to ensure proper serialization
-    // IMPORTANT: Don't filter out invalid URLs here - let frontend handle it
-    // Just ensure the field exists and is a string or null
     const finalEntries: LeaderboardEntry[] = entries.map((entry) => {
       // Ensure avatar_url is always a string or null (never undefined)
       let avatarUrl: string | null = null;
@@ -1261,9 +1082,13 @@ export default async function handler(
         }
       }
       
+      // Ensure needsAvatarRefresh is always a boolean
+      const needsRefresh = entry.needsAvatarRefresh === true;
+      
       return {
         ...entry,
         avatar_url: avatarUrl,
+        needsAvatarRefresh: needsRefresh,
       };
     });
     
