@@ -1153,7 +1153,7 @@ export default async function handler(
 
     // Final check: Log how many entries have avatars for debugging
     // Also ensure all entries have avatar_url explicitly set (even if null)
-    for (const entry of entries) {
+          for (const entry of entries) {
       if (entry.avatar_url === undefined) {
         entry.avatar_url = null;
       }
@@ -1190,15 +1190,22 @@ export default async function handler(
 
     // Final verification: Ensure all entries have avatar_url field and log sample
     // Also create a clean copy to ensure proper serialization
-    const finalEntries: LeaderboardEntry[] = entries.map((entry) => ({
-      ...entry,
-      avatar_url: entry.avatar_url && 
-                  typeof entry.avatar_url === 'string' && 
-                  entry.avatar_url.trim().length > 0 &&
-                  entry.avatar_url.startsWith('http')
-        ? entry.avatar_url
-        : null, // Explicitly set to null if invalid
-    }));
+    // IMPORTANT: Don't filter out invalid URLs here - let frontend handle it
+    // Just ensure the field exists and is a string or null
+    const finalEntries: LeaderboardEntry[] = entries.map((entry) => {
+      // Ensure avatar_url is always a string or null (never undefined)
+      let avatarUrl: string | null = null;
+      if (entry.avatar_url) {
+        if (typeof entry.avatar_url === 'string' && entry.avatar_url.trim().length > 0) {
+          avatarUrl = entry.avatar_url.trim();
+        }
+      }
+      
+      return {
+        ...entry,
+        avatar_url: avatarUrl,
+      };
+    });
     
     const finalEntriesWithAvatars = finalEntries.filter((e: LeaderboardEntry) => 
       e.avatar_url && 
