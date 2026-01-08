@@ -328,19 +328,40 @@ export default function ArcProjectHub() {
             };
           });
           
-          // Log summary
+          // Log summary with detailed breakdown
           const withAvatars = mappedCreators.filter((c: { avatar_url: string | null }) => 
             c.avatar_url && 
             typeof c.avatar_url === 'string' && 
             c.avatar_url.trim().length > 0 &&
             c.avatar_url.startsWith('http')
           ).length;
-          console.log(`[Leaderboard] Loaded ${mappedCreators.length} creators, ${withAvatars} with valid avatars`);
+          const missingAvatars = mappedCreators.length - withAvatars;
+          const autoTrackedMissing = mappedCreators.filter((c: any) => 
+            c.is_auto_tracked && 
+            (!c.avatar_url || 
+             typeof c.avatar_url !== 'string' || 
+             c.avatar_url.trim().length === 0 ||
+             !c.avatar_url.startsWith('http'))
+          ).length;
+          
+          console.log(`[Leaderboard] ========================================`);
+          console.log(`[Leaderboard] Avatar Status Summary:`);
+          console.log(`[Leaderboard] Total creators loaded: ${mappedCreators.length}`);
+          console.log(`[Leaderboard] Creators with valid avatars: ${withAvatars}`);
+          console.log(`[Leaderboard] Creators missing avatars: ${missingAvatars}`);
+          console.log(`[Leaderboard] Auto-tracked creators missing avatars: ${autoTrackedMissing}`);
+          console.log(`[Leaderboard] ========================================`);
           
           // Log first 5 entries with their avatar status
           console.log(`[Leaderboard] First 5 entries avatar status:`);
           mappedCreators.slice(0, 5).forEach((creator: any, idx: number) => {
-            console.log(`[Leaderboard]   ${idx + 1}. ${creator.twitter_username}: ${creator.avatar_url ? '✓ ' + creator.avatar_url.substring(0, 50) + '...' : '✗ MISSING'}`);
+            const avatarStatus = creator.avatar_url && 
+                                typeof creator.avatar_url === 'string' && 
+                                creator.avatar_url.trim().length > 0 &&
+                                creator.avatar_url.startsWith('http')
+              ? '✓ ' + creator.avatar_url.substring(0, 50) + '...'
+              : '✗ MISSING';
+            console.log(`[Leaderboard]   ${idx + 1}. ${creator.twitter_username} (${creator.is_auto_tracked ? 'auto-tracked' : 'joined'}): ${avatarStatus}`);
           });
           
           setLeaderboardCreators(mappedCreators);
@@ -980,9 +1001,16 @@ export default function ArcProjectHub() {
                                               alt={creator.twitter_username || 'Creator avatar'}
                                               className="w-full h-full object-cover"
                                               onError={(e) => {
-                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
-                                                // Replace with fallback
+                                                // Track image load errors
                                                 const target = e.target as HTMLImageElement;
+                                                const failedUrl = target.src;
+                                                console.error(`[Leaderboard] ❌ Image load error for ${creator.twitter_username}:`, {
+                                                  avatar_url: creator.avatar_url,
+                                                  attempted_url: failedUrl,
+                                                  is_auto_tracked: creator.is_auto_tracked,
+                                                });
+                                                
+                                                // Replace with fallback initials
                                                 const parent = target.parentElement;
                                                 if (parent) {
                                                   parent.innerHTML = `

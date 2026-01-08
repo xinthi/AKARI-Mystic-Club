@@ -990,10 +990,22 @@ export default async function handler(
       e.avatar_url.trim().length === 0 ||
       !e.avatar_url.startsWith('http')
     );
-    console.log(`[ARC Leaderboard] Fetching avatars from Twitter API for ${stillMissingAvatars.length} missing entries`);
-    if (stillMissingAvatars.length > 0 && stillMissingAvatars.length <= 10) {
+    
+    // Logging: Count missing avatars by type
+    const missingAutoTracked = stillMissingAvatars.filter(e => e.is_auto_tracked).length;
+    const missingJoined = stillMissingAvatars.filter(e => e.is_joined).length;
+    console.log(`[ARC Leaderboard] ========================================`);
+    console.log(`[ARC Leaderboard] Avatar Status Summary:`);
+    console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
+    console.log(`[ARC Leaderboard] Entries with avatars: ${entries.length - stillMissingAvatars.length}`);
+    console.log(`[ARC Leaderboard] Missing avatars: ${stillMissingAvatars.length}`);
+    console.log(`[ARC Leaderboard]   - Auto-tracked creators missing avatars: ${missingAutoTracked}`);
+    console.log(`[ARC Leaderboard]   - Joined creators missing avatars: ${missingJoined}`);
+    
+    if (stillMissingAvatars.length > 0 && stillMissingAvatars.length <= 20) {
       console.log(`[ARC Leaderboard] Missing avatars for: ${stillMissingAvatars.map(e => e.twitter_username).join(', ')}`);
     }
+    console.log(`[ARC Leaderboard] ========================================`);
     
     // Check if Twitter API is configured (twitterApiKey already declared at the start of handler)
     if (!twitterApiKey) {
@@ -1065,11 +1077,12 @@ export default async function handler(
     if (stillMissingAvatars.length > 0 && twitterApiKey) {
       console.log(`[ARC Leaderboard] ========================================`);
       console.log(`[ARC Leaderboard] Starting Twitter API fetch for ALL ${stillMissingAvatars.length} missing avatars...`);
-      console.log(`[ARC Leaderboard] This may take a while, but will fetch avatars for ALL profiles.`);
+      console.log(`[ARC Leaderboard] This will ensure all auto-tracked creators have profiles with avatars.`);
       console.log(`[ARC Leaderboard] ========================================`);
       
       let totalFetched = 0;
       let totalFailed = 0;
+      const profileUpsertPromises: Promise<void>[] = [];
       const startTime = Date.now();
       
       // Process ALL missing avatars (not just top 50)
@@ -1078,7 +1091,7 @@ export default async function handler(
         const progress = `[${i + 1}/${stillMissingAvatars.length}]`;
         
         try {
-          console.log(`[ARC Leaderboard] ${progress} Fetching avatar for ${entry.twitter_username}...`);
+          console.log(`[ARC Leaderboard] ${progress} Fetching avatar for ${entry.twitter_username} (${entry.is_auto_tracked ? 'auto-tracked' : 'joined'})...`);
           const avatarUrl = await fetchAvatarWithRetry(entry, 1); // 1 retry for speed
           if (avatarUrl) {
             const success = setAvatarIfValid(entry, avatarUrl, 'Twitter API');
@@ -1086,30 +1099,49 @@ export default async function handler(
               totalFetched++;
               console.log(`[ARC Leaderboard] ${progress} ✓ Successfully fetched avatar for ${entry.twitter_username}`);
               
-              // Cache to database (async, don't await)
-              (async () => {
+              // Cache to database and ensure profile exists (async, don't await)
+              // This is critical for auto-tracked creators who may not have profiles
+              const upsertPromise = (async () => {
                 try {
                   const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
                   if (normalizedUsername) {
-                    // Don't fetch userInfo again - we already have it from fetchAvatarWithRetry
-                    // Just cache the avatar URL we already fetched
-                    await supabase
+                    // Fetch full user info to populate profile completely
+                    const cleanUsername = normalizedUsername.replace(/^@+/, '').trim();
+                    let userInfo: any = null;
+                    try {
+                      userInfo = await taioGetUserInfo(cleanUsername);
+                    } catch (err) {
+                      // If we can't fetch user info, just cache the avatar
+                      console.warn(`[ARC Leaderboard] ${progress} Could not fetch full user info for ${cleanUsername}, caching avatar only`);
+                    }
+                    
+                    // Upsert profile with avatar and basic info
+                    // This ensures auto-tracked creators have profiles in the database
+                    const { error: upsertError } = await supabase
                       .from('profiles')
                       .upsert({
                         username: normalizedUsername,
+                        twitter_id: userInfo?.id || null,
+                        name: userInfo?.name || normalizedUsername,
                         profile_image_url: avatarUrl,
                         updated_at: new Date().toISOString(),
                       }, {
                         onConflict: 'username',
                         ignoreDuplicates: false,
                       });
-                    console.log(`[ARC Leaderboard] ${progress} ✓ Cached avatar for ${normalizedUsername} to database`);
+                    
+                    if (upsertError) {
+                      console.warn(`[ARC Leaderboard] ${progress} Failed to upsert profile for ${normalizedUsername}:`, upsertError);
+                    } else {
+                      console.log(`[ARC Leaderboard] ${progress} ✓ Upserted profile for ${normalizedUsername} with avatar`);
+                    }
                   }
                 } catch (err) {
-                  // Silently fail - caching is not critical
+                  // Log but don't fail - caching is not critical
                   console.warn(`[ARC Leaderboard] ${progress} Failed to cache avatar for ${entry.twitter_username}:`, err);
                 }
               })();
+              profileUpsertPromises.push(upsertPromise);
             } else {
               totalFailed++;
               console.warn(`[ARC Leaderboard] ${progress} ✗ Avatar URL validation failed for ${entry.twitter_username}`);
@@ -1138,6 +1170,16 @@ export default async function handler(
         }
       }
       
+      // Wait for profile upserts to complete (with timeout)
+      try {
+        await Promise.race([
+          Promise.all(profileUpsertPromises),
+          new Promise(resolve => setTimeout(resolve, 5000)), // 5 second timeout
+        ]);
+      } catch (err) {
+        console.warn(`[ARC Leaderboard] Some profile upserts may still be processing`);
+      }
+      
       // Verify avatars were set after Twitter API calls
       const afterTwitterAvatars = entries.filter((e: LeaderboardEntry) => 
         e.avatar_url && 
@@ -1151,6 +1193,7 @@ export default async function handler(
       console.log(`[ARC Leaderboard] Total entries with avatars: ${afterTwitterAvatars}/${entries.length}`);
       console.log(`[ARC Leaderboard] Successfully fetched: ${totalFetched} new avatars`);
       console.log(`[ARC Leaderboard] Failed to fetch: ${totalFailed} avatars`);
+      console.log(`[ARC Leaderboard] Profile upsert promises: ${profileUpsertPromises.length}`);
       console.log(`[ARC Leaderboard] ========================================`);
     } else if (stillMissingAvatars.length > 0 && !twitterApiKey) {
       console.error(`[ARC Leaderboard] ❌ Cannot fetch avatars - TWITTERAPIIO_API_KEY is not configured.`);
@@ -1160,7 +1203,7 @@ export default async function handler(
 
     // Final check: Log how many entries have avatars for debugging
     // Also ensure all entries have avatar_url explicitly set (even if null)
-          for (const entry of entries) {
+    for (const entry of entries) {
       if (entry.avatar_url === undefined) {
         entry.avatar_url = null;
       }
@@ -1178,20 +1221,30 @@ export default async function handler(
       typeof e.avatar_url !== 'string' || 
       e.avatar_url.trim().length === 0 ||
       !e.avatar_url.startsWith('http')
-    ).map(e => e.twitter_username).slice(0, 20);
+    );
+    const missingAutoTrackedFinal = missingAvatars.filter(e => e.is_auto_tracked).length;
+    const missingJoinedFinal = missingAvatars.filter(e => e.is_joined).length;
     
-    // Log first 5 entries with their avatar status for debugging
+    // Log comprehensive summary
     console.log(`[ARC Leaderboard] ========================================`);
-    console.log(`[ARC Leaderboard] Avatar Fetching Summary:`);
+    console.log(`[ARC Leaderboard] FINAL AVATAR STATUS SUMMARY:`);
     console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
     console.log(`[ARC Leaderboard] Entries with valid avatars: ${entriesWithAvatars}`);
-    console.log(`[ARC Leaderboard] Entries missing avatars: ${entries.length - entriesWithAvatars}`);
-    if (missingAvatars.length > 0) {
-      console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.join(', ')}${missingAvatars.length < entries.length - entriesWithAvatars ? '...' : ''}`);
+    console.log(`[ARC Leaderboard] Entries missing avatars: ${missingAvatars.length}`);
+    console.log(`[ARC Leaderboard]   - Auto-tracked creators missing: ${missingAutoTrackedFinal}`);
+    console.log(`[ARC Leaderboard]   - Joined creators missing: ${missingJoinedFinal}`);
+    if (missingAvatars.length > 0 && missingAvatars.length <= 20) {
+      console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.map(e => e.twitter_username).join(', ')}`);
     }
     console.log(`[ARC Leaderboard] First 5 entries avatar status:`);
     entries.slice(0, 5).forEach((entry, idx) => {
-      console.log(`[ARC Leaderboard]   ${idx + 1}. ${entry.twitter_username}: ${entry.avatar_url ? '✓ ' + entry.avatar_url.substring(0, 50) + '...' : '✗ MISSING'}`);
+      const status = entry.avatar_url && 
+                     typeof entry.avatar_url === 'string' && 
+                     entry.avatar_url.trim().length > 0 &&
+                     entry.avatar_url.startsWith('http')
+        ? '✓ ' + entry.avatar_url.substring(0, 50) + '...'
+        : '✗ MISSING';
+      console.log(`[ARC Leaderboard]   ${idx + 1}. ${entry.twitter_username} (${entry.is_auto_tracked ? 'auto' : 'joined'}): ${status}`);
     });
     console.log(`[ARC Leaderboard] ========================================`);
 
