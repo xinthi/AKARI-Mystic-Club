@@ -724,25 +724,37 @@ export default async function handler(
     const avatarMap = new Map<string, string | null>();
     
     // Step 1: Get avatars from project_tweets FIRST (most likely to have current avatars)
-    // Fetch ALL tweets with avatars for this project (no limit to get all unique avatars)
+    // Fetch ALL tweets with avatars for this project (ordered by most recent first)
+    // This ensures we get the most up-to-date avatars
     const { data: tweets } = await supabase
       .from('project_tweets')
       .select('author_handle, author_profile_image_url')
       .eq('project_id', pid)
-      .not('author_profile_image_url', 'is', null);
+      .not('author_profile_image_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5000); // Limit to prevent huge queries, but get enough to cover all creators
 
     if (tweets && tweets.length > 0) {
+      console.log(`[ARC Leaderboard] Found ${tweets.length} tweets with avatars from project_tweets`);
       for (const tweet of tweets) {
         if (tweet.author_handle && tweet.author_profile_image_url) {
-          const normalizedUsername = normalizeTwitterUsername(tweet.author_handle);
-          if (normalizedUsername) {
-            // Only add if not already present (first match wins, ordered by most recent)
-            if (!avatarMap.has(normalizedUsername)) {
-              avatarMap.set(normalizedUsername, tweet.author_profile_image_url);
+          // Validate URL before using
+          const avatarUrl = typeof tweet.author_profile_image_url === 'string' 
+            ? tweet.author_profile_image_url.trim() 
+            : null;
+          
+          if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+            const normalizedUsername = normalizeTwitterUsername(tweet.author_handle);
+            if (normalizedUsername) {
+              // Only add if not already present (first match wins, ordered by most recent)
+              if (!avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, avatarUrl);
+              }
             }
           }
         }
       }
+      console.log(`[ARC Leaderboard] Extracted ${avatarMap.size} unique avatars from project_tweets`);
     }
 
     // Step 2: Get avatars from profiles table (for creators who have profiles)
@@ -766,9 +778,15 @@ export default async function handler(
         if (profiles && profiles.length > 0) {
           for (const profile of profiles) {
             if (profile.username && profile.profile_image_url) {
-              const normalizedUsername = normalizeTwitterUsername(profile.username);
-              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              const avatarUrl = typeof profile.profile_image_url === 'string' 
+                ? profile.profile_image_url.trim() 
+                : null;
+              
+              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, avatarUrl);
+                }
               }
             }
           }
@@ -784,9 +802,15 @@ export default async function handler(
         if (profilesLower && profilesLower.length > 0) {
           for (const profile of profilesLower) {
             if (profile.username && profile.profile_image_url) {
-              const normalizedUsername = normalizeTwitterUsername(profile.username);
-              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              const avatarUrl = typeof profile.profile_image_url === 'string' 
+                ? profile.profile_image_url.trim() 
+                : null;
+              
+              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, avatarUrl);
+                }
               }
             }
           }
@@ -803,9 +827,15 @@ export default async function handler(
         if (profilesWithAt && profilesWithAt.length > 0) {
           for (const profile of profilesWithAt) {
             if (profile.username && profile.profile_image_url) {
-              const normalizedUsername = normalizeTwitterUsername(profile.username);
-              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              const avatarUrl = typeof profile.profile_image_url === 'string' 
+                ? profile.profile_image_url.trim() 
+                : null;
+              
+              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, avatarUrl);
+                }
               }
             }
           }
@@ -827,9 +857,15 @@ export default async function handler(
         if (profilesById) {
           for (const profile of profilesById) {
             if (profile.username && profile.profile_image_url) {
-              const normalizedUsername = normalizeTwitterUsername(profile.username);
-              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                avatarMap.set(normalizedUsername, profile.profile_image_url);
+              const avatarUrl = typeof profile.profile_image_url === 'string' 
+                ? profile.profile_image_url.trim() 
+                : null;
+              
+              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+                const normalizedUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                  avatarMap.set(normalizedUsername, avatarUrl);
+                }
               }
             }
           }
@@ -850,9 +886,15 @@ export default async function handler(
       if (trackedProfiles) {
         for (const profile of trackedProfiles) {
           if (profile.username && profile.profile_image_url) {
-            const normalizedUsername = normalizeTwitterUsername(profile.username);
-            if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-              avatarMap.set(normalizedUsername, profile.profile_image_url);
+            const avatarUrl = typeof profile.profile_image_url === 'string' 
+              ? profile.profile_image_url.trim() 
+              : null;
+            
+            if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, avatarUrl);
+              }
             }
           }
         }
@@ -868,9 +910,15 @@ export default async function handler(
       if (trackedProfilesCase) {
         for (const profile of trackedProfilesCase) {
           if (profile.username && profile.profile_image_url) {
-            const normalizedUsername = normalizeTwitterUsername(profile.username);
-            if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-              avatarMap.set(normalizedUsername, profile.profile_image_url);
+            const avatarUrl = typeof profile.profile_image_url === 'string' 
+              ? profile.profile_image_url.trim() 
+              : null;
+            
+            if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+              const normalizedUsername = normalizeTwitterUsername(profile.username);
+              if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
+                avatarMap.set(normalizedUsername, avatarUrl);
+              }
             }
           }
         }
@@ -890,6 +938,59 @@ export default async function handler(
     const stillMissingAvatars = entries.filter((e: LeaderboardEntry) => !e.avatar_url);
     console.log(`[ARC Leaderboard] Fetching avatars from Twitter API for ${stillMissingAvatars.length} missing entries`);
     
+    // Helper function to validate and set avatar URL
+    const setAvatarIfValid = (entry: LeaderboardEntry, url: string | null | undefined, source: string) => {
+      if (url && typeof url === 'string' && url.trim().length > 0 && url.startsWith('http')) {
+        const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
+        entry.avatar_url = url;
+        if (normalizedUsername) {
+          avatarMap.set(normalizedUsername, url);
+        }
+        console.log(`[ARC Leaderboard] ✓ Set avatar for ${entry.twitter_username} from ${source}`);
+        return true;
+      }
+      return false;
+    };
+
+    // Helper function to try fetching with retry and multiple username variations
+    const fetchAvatarWithRetry = async (entry: LeaderboardEntry, maxRetries = 2): Promise<string | null> => {
+      const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
+      const originalUsername = entry.twitter_username.replace(/^@+/, '').trim();
+      
+      // Try multiple username variations
+      const usernameVariations = [
+        normalizedUsername,
+        originalUsername,
+        `@${normalizedUsername}`,
+        `@${originalUsername}`,
+      ].filter((u, i, arr) => u && arr.indexOf(u) === i); // Remove duplicates
+      
+      for (const username of usernameVariations) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            if (attempt > 0) {
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+            }
+            
+            const userInfo = await taioGetUserInfo(username);
+            if (userInfo && userInfo.profileImageUrl && 
+                typeof userInfo.profileImageUrl === 'string' && 
+                userInfo.profileImageUrl.trim().length > 0 &&
+                userInfo.profileImageUrl.startsWith('http')) {
+              return userInfo.profileImageUrl;
+            }
+          } catch (error) {
+            if (attempt === maxRetries) {
+              console.warn(`[ARC Leaderboard] Failed to fetch avatar for ${username} after ${maxRetries + 1} attempts:`, error);
+            }
+          }
+        }
+      }
+      
+      return null;
+    };
+    
     if (stillMissingAvatars.length > 0) {
       // Process in batches of 10 with small delays to avoid rate limits
       const batchSize = 10;
@@ -900,27 +1001,24 @@ export default async function handler(
         await Promise.all(
           batch.map(async (entry: LeaderboardEntry) => {
             try {
-              const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
-              if (normalizedUsername) {
-                // Fetch user info from Twitter API
-                const userInfo = await taioGetUserInfo(normalizedUsername);
-                if (userInfo && userInfo.profileImageUrl) {
-                  // Update both the entry and the map for consistency
-                  entry.avatar_url = userInfo.profileImageUrl;
-                  avatarMap.set(normalizedUsername, userInfo.profileImageUrl);
-                  console.log(`[ARC Leaderboard] Fetched avatar from Twitter API for ${normalizedUsername}`);
-                  
-                  // Also save to database for future use (async, don't await)
-                  // Wrap in async function to handle promise properly
-                  (async () => {
-                    try {
+              const avatarUrl = await fetchAvatarWithRetry(entry);
+              if (avatarUrl) {
+                setAvatarIfValid(entry, avatarUrl, 'Twitter API');
+                
+                // Cache to database for future use (async, don't await)
+                (async () => {
+                  try {
+                    const normalizedUsername = normalizeTwitterUsername(entry.twitter_username);
+                    if (normalizedUsername) {
+                      // Get user info to cache additional data
+                      const userInfo = await taioGetUserInfo(normalizedUsername);
                       const { error } = await supabase
                         .from('profiles')
                         .upsert({
                           username: normalizedUsername,
-                          twitter_id: userInfo.id || null,
-                          name: userInfo.name || normalizedUsername,
-                          profile_image_url: userInfo.profileImageUrl,
+                          twitter_id: userInfo?.id || null,
+                          name: userInfo?.name || normalizedUsername,
+                          profile_image_url: avatarUrl,
                           updated_at: new Date().toISOString(),
                         }, {
                           onConflict: 'username',
@@ -929,35 +1027,20 @@ export default async function handler(
                       if (error) {
                         console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, error);
                       } else {
-                        console.log(`[ARC Leaderboard] Cached avatar for ${normalizedUsername} to database`);
+                        console.log(`[ARC Leaderboard] ✓ Cached avatar for ${normalizedUsername} to database`);
                       }
-                    } catch (err) {
-                      // Silently fail - this is just for caching
-                      console.warn(`[ARC Leaderboard] Failed to cache avatar for ${normalizedUsername}:`, err);
                     }
-                  })();
-                } else {
-                  console.warn(`[ARC Leaderboard] Twitter API returned no avatar for ${normalizedUsername} (userInfo exists: ${!!userInfo}, has profileImageUrl: ${!!userInfo?.profileImageUrl})`);
-                  // If userInfo exists but no profileImageUrl, the user might not exist or be private
-                  // Try alternative username variations if available
-                  if (userInfo && !userInfo.profileImageUrl && entry.twitter_username !== normalizedUsername) {
-                    // Try with original case
-                    try {
-                      const altUserInfo = await taioGetUserInfo(entry.twitter_username);
-                      if (altUserInfo && altUserInfo.profileImageUrl) {
-                        entry.avatar_url = altUserInfo.profileImageUrl;
-                        avatarMap.set(normalizedUsername, altUserInfo.profileImageUrl);
-                        console.log(`[ARC Leaderboard] Found avatar with original case for ${entry.twitter_username}`);
-                      }
-                    } catch (altError) {
-                      // Ignore alternative attempt
-                    }
+                  } catch (err) {
+                    // Silently fail - this is just for caching
+                    console.warn(`[ARC Leaderboard] Failed to cache avatar for ${entry.twitter_username}:`, err);
                   }
-                }
+                })();
+              } else {
+                console.warn(`[ARC Leaderboard] ✗ Could not fetch avatar for ${entry.twitter_username} from Twitter API`);
               }
             } catch (error) {
               // Log but don't block the response
-              console.warn(`[ARC Leaderboard] Failed to fetch avatar from Twitter API for ${entry.twitter_username}:`, error);
+              console.warn(`[ARC Leaderboard] Error fetching avatar from Twitter API for ${entry.twitter_username}:`, error);
             }
           })
         );
@@ -970,12 +1053,29 @@ export default async function handler(
     }
 
     // Final check: Log how many entries have avatars for debugging
-    const entriesWithAvatars = entries.filter((e: LeaderboardEntry) => e.avatar_url !== null && e.avatar_url !== undefined).length;
-    const missingAvatars = entries.filter((e: LeaderboardEntry) => !e.avatar_url).map(e => e.twitter_username).slice(0, 10);
-    console.log(`[ARC Leaderboard] Total entries: ${entries.length}, Entries with avatars: ${entriesWithAvatars}`);
+    const entriesWithAvatars = entries.filter((e: LeaderboardEntry) => 
+      e.avatar_url !== null && 
+      e.avatar_url !== undefined && 
+      typeof e.avatar_url === 'string' && 
+      e.avatar_url.trim().length > 0 &&
+      e.avatar_url.startsWith('http')
+    ).length;
+    const missingAvatars = entries.filter((e: LeaderboardEntry) => 
+      !e.avatar_url || 
+      typeof e.avatar_url !== 'string' || 
+      e.avatar_url.trim().length === 0 ||
+      !e.avatar_url.startsWith('http')
+    ).map(e => e.twitter_username).slice(0, 20);
+    
+    console.log(`[ARC Leaderboard] ========================================`);
+    console.log(`[ARC Leaderboard] Avatar Fetching Summary:`);
+    console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
+    console.log(`[ARC Leaderboard] Entries with valid avatars: ${entriesWithAvatars}`);
+    console.log(`[ARC Leaderboard] Entries missing avatars: ${entries.length - entriesWithAvatars}`);
     if (missingAvatars.length > 0) {
-      console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.join(', ')}`);
+      console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.join(', ')}${missingAvatars.length < entries.length - entriesWithAvatars ? '...' : ''}`);
     }
+    console.log(`[ARC Leaderboard] ========================================`);
 
     return res.status(200).json({
       ok: true,

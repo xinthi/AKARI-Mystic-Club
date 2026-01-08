@@ -684,7 +684,10 @@ export default function ArcProjectHub() {
                                     >
                                       <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
                                         <div className="flex items-center gap-0.5 min-w-0">
-                                          {creator.avatar_url ? (
+                                          {creator.avatar_url && 
+                                           typeof creator.avatar_url === 'string' && 
+                                           creator.avatar_url.trim().length > 0 &&
+                                           creator.avatar_url.startsWith('http') ? (
                                             <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
                                             {/* Use img tag for better error handling */}
                                             <img
@@ -792,7 +795,10 @@ export default function ArcProjectHub() {
                                     >
                                       <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
                                         <div className="flex items-center gap-0.5 min-w-0">
-                                          {creator.avatar_url ? (
+                                          {creator.avatar_url && 
+                                           typeof creator.avatar_url === 'string' && 
+                                           creator.avatar_url.trim().length > 0 &&
+                                           creator.avatar_url.startsWith('http') ? (
                                             <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
                                             {/* Use img tag for better error handling */}
                                             <img
@@ -952,7 +958,10 @@ export default function ArcProjectHub() {
                                     </td>
                                     <td className="py-4 px-6">
                                       <div className="flex items-center gap-3">
-                                        {creator.avatar_url ? (
+                                        {creator.avatar_url && 
+                                         typeof creator.avatar_url === 'string' && 
+                                         creator.avatar_url.trim().length > 0 &&
+                                         creator.avatar_url.startsWith('http') ? (
                                           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
                                             {/* Use img tag for better error handling */}
                                             <img
