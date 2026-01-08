@@ -777,20 +777,45 @@ export default async function handler(
     const missingFromTweets = allUsernames.filter(u => !avatarMap.has(u));
 
     if (missingFromTweets.length > 0) {
-      // Try batch query first - query all missing usernames at once
-      // Split into chunks if too many (PostgreSQL IN clause limit)
+      console.log(`[ARC Leaderboard] Querying profiles table for ${missingFromTweets.length} missing avatars`);
+      console.log(`[ARC Leaderboard] Sample missing usernames: ${missingFromTweets.slice(0, 5).join(', ')}`);
+      
+      // Use the avatar helper for consistent fetching
+      // But first, we need to query with all possible username variations
+      // since profiles.username might be stored with different casing or @ prefix
       const chunkSize = 100;
       for (let i = 0; i < missingFromTweets.length; i += chunkSize) {
         const chunk = missingFromTweets.slice(i, i + chunkSize);
         
-        // Query with original case
-        const { data: profiles } = await supabase
+        // Build all possible variations for case-insensitive matching
+        const allVariations = new Set<string>();
+        for (const username of chunk) {
+          // Add normalized version (already normalized, but add variations)
+          allVariations.add(username);
+          allVariations.add(username.toLowerCase());
+          // Also try with @ prefix (some profiles might have it)
+          allVariations.add(`@${username}`);
+          allVariations.add(`@${username.toLowerCase()}`);
+        }
+        
+        const variationsArray = Array.from(allVariations);
+        console.log(`[ARC Leaderboard] Querying ${variationsArray.length} username variations for chunk ${Math.floor(i / chunkSize) + 1}`);
+        
+        // Query profiles with all variations
+        const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('username, profile_image_url')
-          .in('username', chunk)
+          .in('username', variationsArray)
           .not('profile_image_url', 'is', null);
 
+        if (profilesError) {
+          console.error('[ARC Leaderboard] Error querying profiles:', profilesError);
+          console.error('[ARC Leaderboard] Error details:', JSON.stringify(profilesError, null, 2));
+        }
+
         if (profiles && profiles.length > 0) {
+          console.log(`[ARC Leaderboard] Found ${profiles.length} profiles with avatars in chunk ${Math.floor(i / chunkSize) + 1}`);
+          let addedFromProfiles = 0;
           for (const profile of profiles) {
             if (profile.username && profile.profile_image_url) {
               const avatarUrl = typeof profile.profile_image_url === 'string' 
@@ -799,60 +824,37 @@ export default async function handler(
               
               if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
                 const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                  avatarMap.set(normalizedUsername, avatarUrl);
+                if (normalizedUsername) {
+                  // Map the normalized username from the profile to all possible matching entry usernames
+                  // Check if this normalized username matches any of the missing usernames
+                  const matchingEntry = missingFromTweets.find(u => normalizeTwitterUsername(u) === normalizedUsername);
+                  if (matchingEntry && !avatarMap.has(normalizedUsername)) {
+                    avatarMap.set(normalizedUsername, avatarUrl);
+                    addedFromProfiles++;
+                    console.log(`[ARC Leaderboard] ✓ Mapped avatar for ${normalizedUsername} (from profile.username="${profile.username}")`);
+                  }
                 }
               }
             }
           }
-        }
-
-        // Also try lowercase variations
-        const { data: profilesLower } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .in('username', chunk.map(u => u.toLowerCase()))
-          .not('profile_image_url', 'is', null);
-
-        if (profilesLower && profilesLower.length > 0) {
-          for (const profile of profilesLower) {
-            if (profile.username && profile.profile_image_url) {
-              const avatarUrl = typeof profile.profile_image_url === 'string' 
-                ? profile.profile_image_url.trim() 
-                : null;
-              
-              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                  avatarMap.set(normalizedUsername, avatarUrl);
-                }
-              }
-            }
-          }
-        }
-
-        // Also try with @ prefix variations
-        const chunkWithAt = chunk.map(u => `@${u}`);
-        const { data: profilesWithAt } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .in('username', chunkWithAt)
-          .not('profile_image_url', 'is', null);
-
-        if (profilesWithAt && profilesWithAt.length > 0) {
-          for (const profile of profilesWithAt) {
-            if (profile.username && profile.profile_image_url) {
-              const avatarUrl = typeof profile.profile_image_url === 'string' 
-                ? profile.profile_image_url.trim() 
-                : null;
-              
-              if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername && !avatarMap.has(normalizedUsername)) {
-                  avatarMap.set(normalizedUsername, avatarUrl);
-                }
-              }
-            }
+          console.log(`[ARC Leaderboard] Added ${addedFromProfiles} avatars from profiles table (chunk ${Math.floor(i / chunkSize) + 1})`);
+        } else {
+          console.log(`[ARC Leaderboard] No profiles found with avatars in chunk ${Math.floor(i / chunkSize) + 1}`);
+          
+          // Diagnostic: Check if profiles exist but without avatars
+          const { data: profilesWithoutAvatars } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .in('username', variationsArray)
+            .limit(10);
+          
+          if (profilesWithoutAvatars && profilesWithoutAvatars.length > 0) {
+            console.log(`[ARC Leaderboard] ⚠️ Found ${profilesWithoutAvatars.length} profiles in DB but without avatars:`);
+            profilesWithoutAvatars.forEach(p => {
+              console.log(`[ARC Leaderboard]   - ${p.username}: avatar=${p.profile_image_url ? 'EXISTS' : 'NULL'}`);
+            });
+          } else {
+            console.log(`[ARC Leaderboard] ⚠️ No profiles found in DB for these usernames at all`);
           }
         }
       }
@@ -942,22 +944,44 @@ export default async function handler(
 
     // Now assign avatars to entries from avatarMap
     let assignedFromMap = 0;
-          for (const entry of entries) {
+    const assignmentLog: string[] = [];
+    
+    for (const entry of entries) {
       const normalizedEntryUsername = normalizeTwitterUsername(entry.twitter_username);
       if (normalizedEntryUsername && avatarMap.has(normalizedEntryUsername)) {
         const avatarUrl = avatarMap.get(normalizedEntryUsername);
         if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim().length > 0 && avatarUrl.startsWith('http')) {
           entry.avatar_url = avatarUrl;
           assignedFromMap++;
+          if (assignmentLog.length < 10) {
+            assignmentLog.push(`✓ ${normalizedEntryUsername}: ${avatarUrl.substring(0, 50)}...`);
+          }
         } else {
           entry.avatar_url = null;
+          if (assignmentLog.length < 10) {
+            assignmentLog.push(`✗ ${normalizedEntryUsername}: Invalid URL in map`);
+          }
         }
       } else {
         // Ensure it's explicitly null if not found
         entry.avatar_url = null;
+        if (assignmentLog.length < 10) {
+          assignmentLog.push(`✗ ${normalizedEntryUsername}: Not in avatarMap`);
+        }
       }
     }
-    console.log(`[ARC Leaderboard] Assigned ${assignedFromMap} avatars from avatarMap to entries`);
+    
+    console.log(`[ARC Leaderboard] ========================================`);
+    console.log(`[ARC Leaderboard] Avatar Assignment Summary:`);
+    console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
+    console.log(`[ARC Leaderboard] Avatars assigned: ${assignedFromMap}`);
+    console.log(`[ARC Leaderboard] Avatars missing: ${entries.length - assignedFromMap}`);
+    console.log(`[ARC Leaderboard] AvatarMap size: ${avatarMap.size}`);
+    if (assignmentLog.length > 0) {
+      console.log(`[ARC Leaderboard] Sample assignments (first 10):`);
+      assignmentLog.forEach(log => console.log(`[ARC Leaderboard]   ${log}`));
+    }
+    console.log(`[ARC Leaderboard] ========================================`);
 
     // Step 4: Check for profiles that need avatar refresh
     // Leaderboard is DB-only - no live Twitter API calls
