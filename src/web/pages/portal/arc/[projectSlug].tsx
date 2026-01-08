@@ -329,8 +329,19 @@ export default function ArcProjectHub() {
           });
           
           // Log summary
-          const withAvatars = mappedCreators.filter((c: { avatar_url: string | null }) => !!c.avatar_url).length;
-          console.log(`[Leaderboard] Loaded ${mappedCreators.length} creators, ${withAvatars} with avatars`);
+          const withAvatars = mappedCreators.filter((c: { avatar_url: string | null }) => 
+            c.avatar_url && 
+            typeof c.avatar_url === 'string' && 
+            c.avatar_url.trim().length > 0 &&
+            c.avatar_url.startsWith('http')
+          ).length;
+          console.log(`[Leaderboard] Loaded ${mappedCreators.length} creators, ${withAvatars} with valid avatars`);
+          
+          // Log first 5 entries with their avatar status
+          console.log(`[Leaderboard] First 5 entries avatar status:`);
+          mappedCreators.slice(0, 5).forEach((creator: any, idx: number) => {
+            console.log(`[Leaderboard]   ${idx + 1}. ${creator.twitter_username}: ${creator.avatar_url ? '✓ ' + creator.avatar_url.substring(0, 50) + '...' : '✗ MISSING'}`);
+          });
           
           setLeaderboardCreators(mappedCreators);
         } else {

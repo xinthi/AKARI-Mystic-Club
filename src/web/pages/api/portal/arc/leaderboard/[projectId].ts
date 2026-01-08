@@ -925,18 +925,37 @@ export default async function handler(
       }
     }
 
-    // Now assign avatars to entries
+    // Now assign avatars to entries from avatarMap
+    let assignedFromMap = 0;
     for (const entry of entries) {
       const normalizedEntryUsername = normalizeTwitterUsername(entry.twitter_username);
       if (normalizedEntryUsername && avatarMap.has(normalizedEntryUsername)) {
-        entry.avatar_url = avatarMap.get(normalizedEntryUsername) || null;
+        const avatarUrl = avatarMap.get(normalizedEntryUsername);
+        if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim().length > 0 && avatarUrl.startsWith('http')) {
+          entry.avatar_url = avatarUrl;
+          assignedFromMap++;
+        } else {
+          entry.avatar_url = null;
+        }
+      } else {
+        // Ensure it's explicitly null if not found
+        entry.avatar_url = null;
       }
     }
+    console.log(`[ARC Leaderboard] Assigned ${assignedFromMap} avatars from avatarMap to entries`);
 
     // Step 4: Final fallback - fetch from Twitter API for remaining missing avatars
     // Fetch for all missing avatars in batches to avoid rate limits
-    const stillMissingAvatars = entries.filter((e: LeaderboardEntry) => !e.avatar_url);
+    const stillMissingAvatars = entries.filter((e: LeaderboardEntry) => 
+      !e.avatar_url || 
+      typeof e.avatar_url !== 'string' || 
+      e.avatar_url.trim().length === 0 ||
+      !e.avatar_url.startsWith('http')
+    );
     console.log(`[ARC Leaderboard] Fetching avatars from Twitter API for ${stillMissingAvatars.length} missing entries`);
+    if (stillMissingAvatars.length > 0 && stillMissingAvatars.length <= 10) {
+      console.log(`[ARC Leaderboard] Missing avatars for: ${stillMissingAvatars.map(e => e.twitter_username).join(', ')}`);
+    }
     
     // Helper function to validate and set avatar URL
     const setAvatarIfValid = (entry: LeaderboardEntry, url: string | null | undefined, source: string) => {
@@ -1050,9 +1069,25 @@ export default async function handler(
           await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay to be safer
         }
       }
+      
+      // Verify avatars were set after Twitter API calls
+      const afterTwitterAvatars = entries.filter((e: LeaderboardEntry) => 
+        e.avatar_url && 
+        typeof e.avatar_url === 'string' && 
+        e.avatar_url.trim().length > 0 &&
+        e.avatar_url.startsWith('http')
+      ).length;
+      console.log(`[ARC Leaderboard] After Twitter API calls: ${afterTwitterAvatars} entries now have avatars`);
     }
 
     // Final check: Log how many entries have avatars for debugging
+    // Also ensure all entries have avatar_url explicitly set (even if null)
+    for (const entry of entries) {
+      if (entry.avatar_url === undefined) {
+        entry.avatar_url = null;
+      }
+    }
+    
     const entriesWithAvatars = entries.filter((e: LeaderboardEntry) => 
       e.avatar_url !== null && 
       e.avatar_url !== undefined && 
@@ -1067,6 +1102,7 @@ export default async function handler(
       !e.avatar_url.startsWith('http')
     ).map(e => e.twitter_username).slice(0, 20);
     
+    // Log first 5 entries with their avatar status for debugging
     console.log(`[ARC Leaderboard] ========================================`);
     console.log(`[ARC Leaderboard] Avatar Fetching Summary:`);
     console.log(`[ARC Leaderboard] Total entries: ${entries.length}`);
@@ -1075,6 +1111,10 @@ export default async function handler(
     if (missingAvatars.length > 0) {
       console.log(`[ARC Leaderboard] Missing avatars for: ${missingAvatars.join(', ')}${missingAvatars.length < entries.length - entriesWithAvatars ? '...' : ''}`);
     }
+    console.log(`[ARC Leaderboard] First 5 entries avatar status:`);
+    entries.slice(0, 5).forEach((entry, idx) => {
+      console.log(`[ARC Leaderboard]   ${idx + 1}. ${entry.twitter_username}: ${entry.avatar_url ? '✓ ' + entry.avatar_url.substring(0, 50) + '...' : '✗ MISSING'}`);
+    });
     console.log(`[ARC Leaderboard] ========================================`);
 
     return res.status(200).json({
