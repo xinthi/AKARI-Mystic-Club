@@ -992,8 +992,7 @@ export default async function handler(
       console.log(`[ARC Leaderboard] Missing avatars for: ${stillMissingAvatars.map(e => e.twitter_username).join(', ')}`);
     }
     
-    // Check if Twitter API is configured
-    const twitterApiKey = process.env.TWITTERAPIIO_API_KEY;
+    // Check if Twitter API is configured (twitterApiKey already declared at the start of handler)
     if (!twitterApiKey) {
       console.error(`[ARC Leaderboard] ❌ ERROR: TWITTERAPIIO_API_KEY is not configured. Twitter API fallback will not work.`);
       console.error(`[ARC Leaderboard] Please set TWITTERAPIIO_API_KEY in your environment variables to enable avatar fetching.`);
