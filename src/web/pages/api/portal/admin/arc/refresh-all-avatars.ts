@@ -134,6 +134,24 @@ async function getUsernamesFromSource(
           }
         }
       }
+
+      // IMPORTANT: Also get auto-tracked creators from project_tweets (mentions)
+      // These are creators who appear on leaderboards but haven't joined
+      const { data: autoTrackedTweets } = await supabase
+        .from('project_tweets')
+        .select('author_handle')
+        .eq('is_official', false) // Only mentions, not official tweets
+        .not('author_handle', 'is', null)
+        .limit(10000); // Limit to prevent huge queries
+
+      if (autoTrackedTweets) {
+        for (const tweet of autoTrackedTweets) {
+          const normalized = normalizeTwitterUsername(tweet.author_handle);
+          if (normalized) {
+            usernames.add(normalized);
+          }
+        }
+      }
     } else if (source === 'sentiment') {
       // Get from project_influencers
       const { data: influencers } = await supabase

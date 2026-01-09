@@ -151,6 +151,39 @@ async function getLeaderboardCreators(
     }
   }
 
+  // IMPORTANT: Also get auto-tracked creators from project_tweets (mentions)
+  // These are creators who appear on the leaderboard but haven't joined
+  const { data: autoTrackedTweets, error: tweetsError } = await supabase
+    .from('project_tweets')
+    .select('author_handle')
+    .eq('project_id', projectId)
+    .eq('is_official', false) // Only mentions, not official tweets
+    .not('author_handle', 'is', null);
+
+  if (!tweetsError && autoTrackedTweets) {
+    // Get unique authors (these are auto-tracked creators)
+    const autoTrackedUsernames = new Set<string>();
+    for (const tweet of autoTrackedTweets) {
+      const normalized = normalizeTwitterUsername(tweet.author_handle);
+      if (normalized) {
+        autoTrackedUsernames.add(normalized);
+      }
+    }
+
+    // Add auto-tracked creators (only if not already in creators map)
+    for (const username of autoTrackedUsernames) {
+      if (!creators.has(username)) {
+        creators.set(username, {
+          twitter_username: username,
+          is_auto_tracked: true,
+          is_joined: false,
+        });
+      }
+    }
+
+    console.log(`[RefreshLeaderboardAvatars] Found ${autoTrackedUsernames.size} auto-tracked creators from project_tweets`);
+  }
+
   return Array.from(creators.values());
 }
 
