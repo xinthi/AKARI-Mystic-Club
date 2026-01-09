@@ -30,7 +30,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Use web-local Twitter client (inside src/web, can be compiled by Next.js)
-import { getUserProfile, getUserTweets, getUserFollowers, getUserMentions, TwitterTweet, TwitterFollower, TwitterMention } from '@/lib/twitter/twitter';
+import { getUserProfile, getUserTweets, getUserFollowers, getUserMentions, TwitterTweet, TwitterFollower, TwitterMention, TwitterUserProfile } from '@/lib/twitter/twitter';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
 import { upsertProfileFromTwitter, upsertProfilesFromTwitter } from '@/lib/portal/profile-sync';
