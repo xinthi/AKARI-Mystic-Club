@@ -112,7 +112,7 @@ export default async function handler(
     const supabase = getSupabaseAdmin();
 
     // Check SuperAdmin
-    const isSuperAdmin = await checkSuperAdmin(supabase, user.id);
+    const isSuperAdmin = await checkSuperAdmin(supabase, user.userId);
     if (!isSuperAdmin) {
       return res.status(403).json({
         ok: false,
