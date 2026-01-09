@@ -305,7 +305,13 @@ export default async function handler(
 
     // Build profile status report
     const profileStatuses: AvatarStatus[] = [];
-    const profileMap = new Map<string, typeof profiles[0]>();
+    type ProfileRow = {
+      username: string;
+      profile_image_url: string | null;
+      avatar_updated_at: string | null;
+      needs_avatar_refresh: boolean | null;
+    };
+    const profileMap = new Map<string, ProfileRow>();
 
     if (profiles) {
       for (const profile of profiles) {
