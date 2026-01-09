@@ -785,6 +785,7 @@ export default async function handler(
     }
 
     // Step 2: Get avatars from profiles table (for creators who have profiles)
+    // IMPORTANT: This is critical for auto-tracked creators who may not have avatars in project_tweets
     const allUsernames = entries.map(e => normalizeTwitterUsername(e.twitter_username)).filter(Boolean) as string[];
     const missingFromTweets = allUsernames.filter(u => !avatarMap.has(u));
 
@@ -792,40 +793,53 @@ export default async function handler(
       console.log(`[ARC Leaderboard] Querying profiles table for ${missingFromTweets.length} missing avatars`);
       console.log(`[ARC Leaderboard] Sample missing usernames: ${missingFromTweets.slice(0, 5).join(', ')}`);
       
-      // Use the avatar helper for consistent fetching
-      // But first, we need to query with all possible username variations
-      // since profiles.username might be stored with different casing or @ prefix
+      // Use functional index for case-insensitive matching (if available)
+      // Otherwise, query with normalized usernames directly
       const chunkSize = 100;
       for (let i = 0; i < missingFromTweets.length; i += chunkSize) {
         const chunk = missingFromTweets.slice(i, i + chunkSize);
         
-        // Build all possible variations for case-insensitive matching
-        const allVariations = new Set<string>();
-        for (const username of chunk) {
-          // Add normalized version (already normalized, but add variations)
-          allVariations.add(username);
-          allVariations.add(username.toLowerCase());
-          // Also try with @ prefix (some profiles might have it)
-          allVariations.add(`@${username}`);
-          allVariations.add(`@${username.toLowerCase()}`);
-        }
+        // Query profiles using case-insensitive matching
+        // Build OR conditions for each username (with and without @)
+        const orConditions = chunk.flatMap(u => [
+          `username.ilike.${u}`,
+          `username.ilike.@${u}`,
+          `username.eq.${u}`,
+          `username.eq.@${u}`
+        ]);
         
-        const variationsArray = Array.from(allVariations);
-        console.log(`[ARC Leaderboard] Querying ${variationsArray.length} username variations for chunk ${Math.floor(i / chunkSize) + 1}`);
-        
-        // Query profiles with all variations
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('username, profile_image_url')
-          .in('username', variationsArray)
+          .or(orConditions.join(','))
           .not('profile_image_url', 'is', null);
 
         if (profilesError) {
           console.error('[ARC Leaderboard] Error querying profiles:', profilesError);
-          console.error('[ARC Leaderboard] Error details:', JSON.stringify(profilesError, null, 2));
-        }
-
-        if (profiles && profiles.length > 0) {
+          // Fallback: try with exact matches
+          const { data: profilesExact } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .in('username', chunk)
+            .not('profile_image_url', 'is', null);
+          
+          if (profilesExact) {
+            for (const profile of profilesExact) {
+              if (profile.username && profile.profile_image_url) {
+                const avatarUrl = typeof profile.profile_image_url === 'string' 
+                  ? profile.profile_image_url.trim() 
+                  : null;
+                
+                if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
+                  const normalizedUsername = normalizeTwitterUsername(profile.username);
+                  if (normalizedUsername && chunk.includes(normalizedUsername) && !avatarMap.has(normalizedUsername)) {
+                    avatarMap.set(normalizedUsername, avatarUrl);
+                  }
+                }
+              }
+            }
+          }
+        } else if (profiles && profiles.length > 0) {
           console.log(`[ARC Leaderboard] Found ${profiles.length} profiles with avatars in chunk ${Math.floor(i / chunkSize) + 1}`);
           let addedFromProfiles = 0;
           for (const profile of profiles) {
@@ -835,15 +849,18 @@ export default async function handler(
                 : null;
               
               if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
-                const normalizedUsername = normalizeTwitterUsername(profile.username);
-                if (normalizedUsername) {
-                  // Map the normalized username from the profile to all possible matching entry usernames
-                  // Check if this normalized username matches any of the missing usernames
-                  const matchingEntry = missingFromTweets.find(u => normalizeTwitterUsername(u) === normalizedUsername);
-                  if (matchingEntry && !avatarMap.has(normalizedUsername)) {
-                    avatarMap.set(normalizedUsername, avatarUrl);
+                const normalizedProfileUsername = normalizeTwitterUsername(profile.username);
+                if (normalizedProfileUsername) {
+                  // Match against all missing usernames (case-insensitive)
+                  const matchingUsername = chunk.find(u => 
+                    normalizeTwitterUsername(u) === normalizedProfileUsername ||
+                    u.toLowerCase() === normalizedProfileUsername.toLowerCase()
+                  );
+                  
+                  if (matchingUsername && !avatarMap.has(normalizedProfileUsername)) {
+                    avatarMap.set(normalizedProfileUsername, avatarUrl);
                     addedFromProfiles++;
-                    console.log(`[ARC Leaderboard] ✓ Mapped avatar for ${normalizedUsername} (from profile.username="${profile.username}")`);
+                    console.log(`[ARC Leaderboard] ✓ Mapped avatar for ${normalizedProfileUsername} (from profile.username="${profile.username}")`);
                   }
                 }
               }
@@ -853,11 +870,11 @@ export default async function handler(
         } else {
           console.log(`[ARC Leaderboard] No profiles found with avatars in chunk ${Math.floor(i / chunkSize) + 1}`);
           
-          // Diagnostic: Check if profiles exist but without avatars
+          // Diagnostic: Check if profiles exist but without avatars (for auto-tracked creators)
           const { data: profilesWithoutAvatars } = await supabase
             .from('profiles')
             .select('username, profile_image_url')
-            .in('username', variationsArray)
+            .or(chunk.map(u => `username.ilike.${u},username.ilike.@${u}`).join(','))
             .limit(10);
           
           if (profilesWithoutAvatars && profilesWithoutAvatars.length > 0) {
@@ -866,7 +883,7 @@ export default async function handler(
               console.log(`[ARC Leaderboard]   - ${p.username}: avatar=${p.profile_image_url ? 'EXISTS' : 'NULL'}`);
             });
           } else {
-            console.log(`[ARC Leaderboard] ⚠️ No profiles found in DB for these usernames at all`);
+            console.log(`[ARC Leaderboard] ⚠️ No profiles found in DB for these usernames at all (these are likely auto-tracked creators without profiles yet)`);
           }
         }
       }
