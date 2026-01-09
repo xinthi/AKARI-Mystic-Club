@@ -8,7 +8,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { checkSuperAdmin } from '@/lib/server/check-super-admin';
 import { normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
 
 interface AvatarStatus {
@@ -37,6 +36,65 @@ interface CheckAvatarsResponse {
   };
   error?: string;
 }
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+async function checkSuperAdmin(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  userId: string
+): Promise<boolean> {
+  try {
+    // Check akari_user_roles table
+    const { data: userRoles, error: rolesError } = await supabase
+      .from('akari_user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin');
+
+    if (rolesError) {
+      console.error('[CheckAvatars] Error checking akari_user_roles:', rolesError);
+    } else if (userRoles && userRoles.length > 0) {
+      return true;
+    }
+
+    // Also check profiles.real_roles via Twitter username
+    const { data: xIdentity, error: identityError } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .eq('provider', 'x')
+      .maybeSingle();
+
+    if (identityError) {
+      console.error('[CheckAvatars] Error checking akari_user_identities:', identityError);
+    } else if (xIdentity?.username) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('real_roles')
+        .eq('username', normalizeTwitterUsername(xIdentity.username))
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('[CheckAvatars] Error checking profiles.real_roles:', profileError);
+      } else if (profile?.real_roles && Array.isArray(profile.real_roles)) {
+        if (profile.real_roles.includes('super_admin')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[CheckAvatars] Error in checkSuperAdmin:', error);
+    return false;
+  }
+}
+
+// =============================================================================
+// HANDLER
+// =============================================================================
 
 export default async function handler(
   req: NextApiRequest,
