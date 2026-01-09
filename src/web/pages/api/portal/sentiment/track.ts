@@ -372,6 +372,72 @@ async function fetchAndSaveRealData(
         console.log(`[Track] Saved ${allTweetRows.length} tweets (${projectTweetRows.length} official, ${mentionRows.length} mentions)`);
       }
     }
+
+    // IMPORTANT: Save profiles for mention authors (auto-tracked creators)
+    // This ensures they have profiles with avatars in the database for leaderboards
+    if (mentions.length > 0) {
+      console.log(`[Track] Saving profiles for ${mentions.length} mention authors...`);
+      const uniqueMentionAuthors = new Map<string, TwitterMention>();
+      
+      // Collect unique mention authors with their profile data
+      for (const mention of mentions) {
+        if (mention.author && !uniqueMentionAuthors.has(mention.author.toLowerCase())) {
+          uniqueMentionAuthors.set(mention.author.toLowerCase(), mention);
+        }
+      }
+      
+      console.log(`[Track] Found ${uniqueMentionAuthors.size} unique mention authors to save profiles for`);
+      
+      // Save profiles for each unique mention author
+      let profilesSaved = 0;
+      for (const [handle, mention] of uniqueMentionAuthors) {
+        try {
+          // Create a minimal profile from mention data
+          // If we have profile image URL from the mention, use it
+          if (mention.author && mention.authorProfileImageUrl) {
+            const profileData: TwitterUserProfile = {
+              handle: mention.author,
+              userId: undefined, // We don't have userId from mentions
+              name: mention.authorName || mention.author,
+              profileImageUrl: mention.authorProfileImageUrl || undefined,
+              avatarUrl: mention.authorProfileImageUrl || undefined,
+              bio: undefined,
+              followersCount: undefined,
+              followingCount: undefined,
+              tweetCount: undefined,
+              verified: undefined,
+            };
+            
+            const profileId = await upsertProfileFromTwitter(supabase, profileData);
+            if (profileId) {
+              profilesSaved++;
+              console.log(`[Track] ✓ Saved profile for mention author @${mention.author}`);
+            }
+          } else {
+            // If no profile image, try to fetch full profile from Twitter API
+            // This ensures we get complete profile data including avatar
+            try {
+              const fullProfile = await getUserProfile(mention.author);
+              if (fullProfile) {
+                const profileId = await upsertProfileFromTwitter(supabase, fullProfile);
+                if (profileId) {
+                  profilesSaved++;
+                  console.log(`[Track] ✓ Fetched and saved full profile for mention author @${mention.author}`);
+                }
+              }
+            } catch (fetchError) {
+              console.warn(`[Track] Could not fetch full profile for @${mention.author}:`, fetchError);
+              // Continue with other authors
+            }
+          }
+        } catch (saveError) {
+          console.warn(`[Track] Error saving profile for mention author @${mention.author}:`, saveError);
+          // Continue with other authors
+        }
+      }
+      
+      console.log(`[Track] ✓ Saved profiles for ${profilesSaved}/${uniqueMentionAuthors.size} mention authors`);
+    }
     
     // 5. Fetch followers and build initial inner circle
     console.log(`[Track] Fetching followers for inner circle...`);
