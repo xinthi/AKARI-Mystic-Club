@@ -443,6 +443,19 @@ export default async function handler(
 
               if (tweetsError) {
                 console.error(`[${projectNum}] ⚠️ Failed to save tweets:`, tweetsError.message);
+              } else {
+                // IMPORTANT: After saving tweets, save profiles for mention authors
+                // This ensures auto-tracked creators have profiles with avatars for ARC leaderboards
+                try {
+                  const { saveMentionProfiles } = await import('@/lib/portal/save-mention-profiles');
+                  const profileStats = await saveMentionProfiles(supabase, project.id);
+                  if (profileStats.profilesCreated > 0 || profileStats.profilesUpdated > 0) {
+                    console.log(`[${projectNum}] ✅ Saved ${profileStats.profilesCreated + profileStats.profilesUpdated} profiles for mention authors`);
+                  }
+                } catch (profileError: any) {
+                  console.warn(`[${projectNum}] ⚠️ Failed to save mention profiles:`, profileError?.message);
+                  // Non-critical, continue anyway
+                }
               }
             }
 

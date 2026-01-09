@@ -15,6 +15,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { saveMentionProfiles } from '@/lib/portal/save-mention-profiles';
 import { getUserProfile } from '@/lib/twitter/twitter';
 import { upsertProfileFromTwitter } from '@/lib/portal/profile-sync';
 import { normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
@@ -22,7 +23,8 @@ import { normalizeTwitterUsername } from '@/lib/portal/avatar-helper';
 interface ComprehensiveFixResponse {
   ok: boolean;
   step1?: {
-    totalMentionAuthors: number;
+    totalMentions: number;
+    uniqueAuthors: number;
     profilesCreated: number;
     profilesUpdated: number;
     profilesSkipped: number;
@@ -100,125 +102,26 @@ export default async function handler(
 
     console.log('[ComprehensiveFix] Starting comprehensive profile fix...');
 
-    // STEP 1: Update profiles from sentiment data
+    // STEP 1: Update profiles from sentiment data using helper function
     console.log('[ComprehensiveFix] Step 1: Updating profiles from sentiment data...');
     
-    const { data: mentionTweets } = await supabase
-      .from('project_tweets')
-      .select('author_handle, author_profile_image_url')
-      .eq('is_official', false)
-      .not('author_handle', 'is', null)
-      .limit(10000);
-
-    const uniqueAuthors = new Map<string, { handle: string; avatarUrl: string | null }>();
-    if (mentionTweets) {
-      for (const tweet of mentionTweets) {
-        if (tweet.author_handle) {
-          const normalized = normalizeTwitterUsername(tweet.author_handle);
-          if (normalized && !uniqueAuthors.has(normalized)) {
-            uniqueAuthors.set(normalized, {
-              handle: normalized,
-              avatarUrl: tweet.author_profile_image_url || null,
-            });
-          }
-        }
-      }
-    }
-
-    console.log(`[ComprehensiveFix] Found ${uniqueAuthors.size} unique mention authors`);
-
-    // Check existing profiles
-    const authorsToProcess: string[] = [];
-    const existingProfiles = new Map<string, { hasAvatar: boolean }>();
-
-    if (uniqueAuthors.size > 0) {
-      const authorHandles = Array.from(uniqueAuthors.keys());
-      const chunkSize = 100;
-
-      for (let i = 0; i < authorHandles.length; i += chunkSize) {
-        const chunk = authorHandles.slice(i, i + chunkSize);
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .in('username', chunk);
-
-        if (profiles) {
-          for (const profile of profiles) {
-            const normalized = normalizeTwitterUsername(profile.username);
-            if (normalized) {
-              existingProfiles.set(normalized, {
-                hasAvatar: !!(profile.profile_image_url && profile.profile_image_url.startsWith('http')),
-              });
-            }
-          }
-        }
-      }
-
-      for (const [normalized, data] of uniqueAuthors) {
-        const existing = existingProfiles.get(normalized);
-        if (!existing || !existing.hasAvatar) {
-          authorsToProcess.push(normalized);
-        }
-      }
-    }
-
-    console.log(`[ComprehensiveFix] ${authorsToProcess.length} authors need profiles/avatars`);
-
-    // Create/update profiles
-    let profilesCreated = 0;
-    let profilesUpdated = 0;
-    let profilesSkipped = 0;
-    let profilesFailed = 0;
-
-    const batchSize = 5;
-    for (let i = 0; i < authorsToProcess.length; i += batchSize) {
-      const batch = authorsToProcess.slice(i, i + batchSize);
-      console.log(`[ComprehensiveFix] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(authorsToProcess.length / batchSize)}...`);
-
-      for (const username of batch) {
-        try {
-          const profile = await getUserProfile(username);
-          if (profile) {
-            const profileId = await upsertProfileFromTwitter(supabase, profile);
-            if (profileId) {
-              const existing = existingProfiles.has(username);
-              if (existing) {
-                profilesUpdated++;
-              } else {
-                profilesCreated++;
-              }
-            } else {
-              profilesSkipped++;
-            }
-          } else {
-            profilesSkipped++;
-          }
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error: any) {
-          profilesFailed++;
-          console.error(`[ComprehensiveFix] Error processing @${username}:`, error?.message);
-        }
-      }
-
-      if (i + batchSize < authorsToProcess.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-
+    const profileStats = await saveMentionProfiles(supabase);
+    
     const step1Result = {
-      totalMentionAuthors: uniqueAuthors.size,
-      profilesCreated,
-      profilesUpdated,
-      profilesSkipped,
-      profilesFailed,
+      totalMentions: profileStats.totalMentions,
+      uniqueAuthors: profileStats.uniqueAuthors,
+      profilesCreated: profileStats.profilesCreated,
+      profilesUpdated: profileStats.profilesUpdated,
+      profilesSkipped: profileStats.profilesSkipped,
+      profilesFailed: profileStats.profilesFailed,
     };
+    
+      console.log(`[ComprehensiveFix] Step 1 complete:`, step1Result);
 
-    console.log(`[ComprehensiveFix] Step 1 complete:`, step1Result);
-
-    // STEP 2: Refresh all avatars
+    // STEP 2: Refresh all avatars for missing ones
     console.log('[ComprehensiveFix] Step 2: Refreshing all avatars...');
 
-    // Get all usernames that need avatars
+    // Get all usernames that need avatars from all sources
     const allUsernames = new Set<string>();
     
     // From arena_creators
@@ -245,9 +148,15 @@ export default async function handler(
       });
     }
 
-    // From project_tweets (auto-tracked)
-    if (mentionTweets) {
-      mentionTweets.forEach(t => {
+    // From project_tweets (auto-tracked) - get fresh data
+    const { data: allMentionTweets } = await supabase
+      .from('project_tweets')
+      .select('author_handle')
+      .eq('is_official', false)
+      .not('author_handle', 'is', null)
+      .limit(10000);
+    if (allMentionTweets) {
+      allMentionTweets.forEach(t => {
         if (t.author_handle) {
           const normalized = normalizeTwitterUsername(t.author_handle);
           if (normalized) allUsernames.add(normalized);
@@ -288,6 +197,7 @@ export default async function handler(
     let totalFailed = 0;
     let totalSkipped = 0;
 
+    const batchSize = 5;
     for (let i = 0; i < missingAvatars.length; i += batchSize) {
       const batch = missingAvatars.slice(i, i + batchSize);
       console.log(`[ComprehensiveFix] Refreshing avatars batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(missingAvatars.length / batchSize)}...`);

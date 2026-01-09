@@ -214,6 +214,19 @@ export async function refreshProjectById(
 
           if (tweetsError) {
             console.error(`[Project Refresh] Failed to save tweets:`, tweetsError.message);
+          } else {
+            // IMPORTANT: After saving tweets, save profiles for mention authors
+            // This ensures auto-tracked creators have profiles with avatars for ARC leaderboards
+            try {
+              const { saveMentionProfiles } = await import('@/lib/portal/save-mention-profiles');
+              const profileStats = await saveMentionProfiles(supabase, project.id);
+              if (profileStats.profilesCreated > 0 || profileStats.profilesUpdated > 0) {
+                console.log(`[Project Refresh] ✅ Saved ${profileStats.profilesCreated + profileStats.profilesUpdated} profiles for mention authors`);
+              }
+            } catch (profileError: any) {
+              console.warn(`[Project Refresh] ⚠️ Failed to save mention profiles:`, profileError?.message);
+              // Non-critical, continue anyway
+            }
           }
         }
       }
