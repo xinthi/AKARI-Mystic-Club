@@ -1,6 +1,31 @@
 # Refresh Missing Avatars on Leaderboard
 
-## Quick Fix: Refresh Avatars for Your Project
+## 🚀 NEW: Refresh ALL Avatars (Recommended)
+
+**For refreshing avatars across ALL projects and ALL places**, use the comprehensive endpoint:
+
+See `REFRESH_ALL_AVATARS_GUIDE.md` for the complete solution that refreshes:
+- ✅ All ARC leaderboards (all projects)
+- ✅ All Sentiment pages
+- ✅ All Creator Manager programs
+- ✅ All profiles missing avatars
+
+**Quick browser console method:**
+```javascript
+fetch('/api/portal/admin/arc/refresh-all-avatars?batchSize=5', {
+  method: 'POST',
+  credentials: 'include',
+})
+  .then(res => res.json())
+  .then(data => {
+    console.log('✅ Results:', data);
+    alert(`Refreshed ${data.totalSucceeded} avatars!`);
+  });
+```
+
+---
+
+## Quick Fix: Refresh Avatars for Single Project
 
 Some profiles on the leaderboard are missing avatars (like `0x_jhayy`). Here's how to fix it:
 
