@@ -72,19 +72,19 @@ export function TopTweetsFeed({ tweets, loading }: TopTweetsFeedProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-medium text-white/80 mb-4">Top Performing Tweets</h3>
+    <div className="space-y-3 sm:space-y-4">
+      <h3 className="text-xs sm:text-sm font-medium text-white/80 mb-3 sm:mb-4">Top Performing Tweets</h3>
       {tweets.map((tweet) => (
         <Link
           key={tweet.tweet_id}
           href={tweet.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="block bg-white/5 rounded-lg border border-white/10 p-4 hover:bg-white/10 transition-colors"
+          className="block bg-white/5 rounded-lg border border-white/10 p-3 sm:p-4 hover:bg-white/10 transition-colors"
         >
-          <div className="flex items-start gap-3 mb-2">
+          <div className="flex items-start gap-2 sm:gap-3 mb-2">
             {tweet.author_avatar ? (
-              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
+              <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-white/20 flex-shrink-0">
                 <Image
                   src={tweet.author_avatar}
                   alt={tweet.author_handle || 'Avatar'}
@@ -94,25 +94,25 @@ export function TopTweetsFeed({ tweets, loading }: TopTweetsFeedProps) {
                 />
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex-shrink-0 flex items-center justify-center">
-                <span className="text-white/60 text-xs">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 border border-white/20 flex-shrink-0 flex items-center justify-center">
+                <span className="text-white/60 text-[10px] sm:text-xs">
                   {(tweet.author_handle || '?')[0].toUpperCase()}
                 </span>
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-white text-sm font-medium truncate">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                <span className="text-white text-xs sm:text-sm font-medium truncate">
                   {tweet.author_name || tweet.author_handle || 'Unknown'}
                 </span>
-                <span className="text-white/60 text-xs">@{tweet.author_handle}</span>
-                <span className="text-white/40 text-xs">·</span>
-                <span className="text-white/40 text-xs">{formatTimeAgo(tweet.created_at)}</span>
+                <span className="text-white/60 text-[10px] sm:text-xs">@{tweet.author_handle}</span>
+                <span className="text-white/40 text-[10px] sm:text-xs hidden sm:inline">·</span>
+                <span className="text-white/40 text-[10px] sm:text-xs">{formatTimeAgo(tweet.created_at)}</span>
               </div>
-              <p className="text-white/80 text-sm line-clamp-3 mb-2">
+              <p className="text-white/80 text-xs sm:text-sm line-clamp-3 mb-2">
                 {tweet.text}
               </p>
-              <div className="flex items-center gap-4 text-white/60 text-xs">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/60 text-[10px] sm:text-xs">
                 <span>❤️ {tweet.likes}</span>
                 <span>💬 {tweet.replies}</span>
                 <span>🔄 {tweet.reposts}</span>

@@ -14,8 +14,10 @@ const CreatorTreemapClient = dynamic(
   { ssr: false }
 );
 
-// Single source of truth for treemap height
-const TREEMAP_HEIGHT = 400;
+// Responsive treemap heights
+const TREEMAP_HEIGHT_MOBILE = 300;
+const TREEMAP_HEIGHT_TABLET = 350;
+const TREEMAP_HEIGHT_DESKTOP = 400;
 
 // =============================================================================
 // TYPES
@@ -178,9 +180,9 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
 
   if (loading) {
     return (
-      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4" style={{ height: `${TREEMAP_HEIGHT}px` }}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-white/10 rounded w-1/3"></div>
+      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-3 sm:p-4">
+        <div className="animate-pulse space-y-2" style={{ minHeight: `${TREEMAP_HEIGHT_MOBILE}px` }}>
+          <div className="h-3 sm:h-4 bg-white/10 rounded w-1/3"></div>
           <div className="h-full bg-white/5 rounded"></div>
         </div>
       </div>
@@ -189,14 +191,14 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
 
   if (!treemapData || treemapData.length === 0) {
     return (
-      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4" style={{ minHeight: `${TREEMAP_HEIGHT}px` }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
+      <div className="w-full bg-white/5 rounded-lg border border-white/10 p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+          <h3 className="text-xs sm:text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
           {onModeChange && (
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button
                 onClick={() => onModeChange('gainers')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-colors ${
                   mode === 'gainers'
                     ? 'bg-white/10 text-white border border-white/20'
                     : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
@@ -206,7 +208,7 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
               </button>
               <button
                 onClick={() => onModeChange('losers')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-colors ${
                   mode === 'losers'
                     ? 'bg-white/10 text-white border border-white/20'
                     : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
@@ -217,22 +219,22 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
             </div>
           )}
         </div>
-        <div className="flex items-center justify-center" style={{ height: `${TREEMAP_HEIGHT}px` }}>
-          <p className="text-white/40 text-sm">No {mode === 'gainers' ? 'gainers' : 'losers'} data available</p>
+        <div className="flex items-center justify-center h-[300px] sm:h-[350px] md:h-[400px]">
+          <p className="text-white/40 text-xs sm:text-sm">No {mode === 'gainers' ? 'gainers' : 'losers'} data available</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white/5 rounded-lg border border-white/10 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
+    <div className="w-full bg-white/5 rounded-lg border border-white/10 p-3 sm:p-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+        <h3 className="text-xs sm:text-sm font-medium text-white/80">Top 10 {mode === 'gainers' ? 'Gainers' : 'Losers'} ({timePeriod})</h3>
         {onModeChange && (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto">
             <button
               onClick={() => onModeChange('gainers')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-colors ${
                 mode === 'gainers'
                   ? 'bg-white/10 text-white border border-white/20'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
@@ -242,7 +244,7 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
             </button>
             <button
               onClick={() => onModeChange('losers')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              className={`flex-1 sm:flex-none px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg transition-colors ${
                 mode === 'losers'
                   ? 'bg-white/10 text-white border border-white/20'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
@@ -253,7 +255,7 @@ export function CreatorTreemap({ creators, timePeriod, loading, mode = 'gainers'
           </div>
         )}
       </div>
-      <div className="rounded-lg overflow-hidden" style={{ height: `${TREEMAP_HEIGHT}px` }}>
+      <div className="rounded-lg overflow-hidden h-[300px] sm:h-[350px] md:h-[400px]">
         <CreatorTreemapClient data={treemapData} />
       </div>
     </div>

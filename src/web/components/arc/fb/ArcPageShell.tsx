@@ -67,7 +67,7 @@ export function ArcPageShell({
             />
 
             {/* Center Feed - Page Content */}
-            <div className="flex-1 min-w-0 max-w-[1400px] mx-auto px-4 space-y-6 py-6">
+            <div className="flex-1 min-w-0 max-w-[1400px] mx-auto px-2 sm:px-4 space-y-6 py-4 sm:py-6">
               {children}
             </div>
 

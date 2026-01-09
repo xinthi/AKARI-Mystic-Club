@@ -9,8 +9,11 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Treemap, Tooltip } from 'recharts';
 import Image from 'next/image';
 
-// Single source of truth for treemap height
-const TREEMAP_HEIGHT = 400;
+// Responsive treemap heights
+// Note: Heights are controlled by parent container, these are fallbacks
+const TREEMAP_HEIGHT_MOBILE = 300;
+const TREEMAP_HEIGHT_TABLET = 350;
+const TREEMAP_HEIGHT_DESKTOP = 400;
 
 export interface CreatorTreemapDataPoint {
   name: string;
@@ -185,25 +188,55 @@ interface CreatorTreemapClientProps {
 export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(TREEMAP_HEIGHT_DESKTOP);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Set initial width
-    const updateWidth = () => {
+    // Set initial dimensions
+    const updateDimensions = () => {
       if (containerRef.current) {
         const newWidth = containerRef.current.clientWidth;
+        const newHeight = containerRef.current.clientHeight;
         setWidth(newWidth);
+        // Use actual container height if available, otherwise responsive fallback
+        if (newHeight > 0) {
+          setHeight(newHeight);
+        } else {
+          // Responsive height fallback based on width
+          if (newWidth < 640) {
+            setHeight(TREEMAP_HEIGHT_MOBILE);
+          } else if (newWidth < 768) {
+            setHeight(TREEMAP_HEIGHT_TABLET);
+          } else {
+            setHeight(TREEMAP_HEIGHT_DESKTOP);
+          }
+        }
       }
     };
 
     // Initial measurement
-    updateWidth();
+    updateDimensions();
 
     // Use ResizeObserver to track size changes
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setWidth(entry.contentRect.width);
+        const newWidth = entry.contentRect.width;
+        const newHeight = entry.contentRect.height;
+        setWidth(newWidth);
+        // Use actual container height if available
+        if (newHeight > 0) {
+          setHeight(newHeight);
+        } else {
+          // Responsive height fallback
+          if (newWidth < 640) {
+            setHeight(TREEMAP_HEIGHT_MOBILE);
+          } else if (newWidth < 768) {
+            setHeight(TREEMAP_HEIGHT_TABLET);
+          } else {
+            setHeight(TREEMAP_HEIGHT_DESKTOP);
+          }
+        }
       }
     });
 
@@ -219,8 +252,7 @@ export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
     return (
       <div 
         ref={containerRef}
-        className="w-full flex items-center justify-center text-white/60"
-        style={{ height: `${TREEMAP_HEIGHT}px` }}
+        className="w-full h-full flex items-center justify-center text-white/60"
       >
         <div>Measuring...</div>
       </div>
@@ -232,8 +264,7 @@ export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
     return (
       <div 
         ref={containerRef}
-        className="w-full flex items-center justify-center text-white/60"
-        style={{ height: `${TREEMAP_HEIGHT}px` }}
+        className="w-full h-full flex items-center justify-center text-white/60"
       >
         <div>No data available</div>
       </div>
@@ -241,17 +272,16 @@ export function CreatorTreemapClient({ data }: CreatorTreemapClientProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-hidden" style={{ height: `${TREEMAP_HEIGHT}px` }}>
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden">
       {/* Treemap */}
       <div className="w-full h-full">
         <Treemap
           width={width}
-          height={TREEMAP_HEIGHT}
+          height={height}
           data={data}
           dataKey="value"
           stroke="rgba(255,255,255,0.12)"
           isAnimationActive={false}
-          aspectRatio={4/3}
           content={((props: any) => {
             // Ensure we completely replace default rendering
             const result = renderContent(props);

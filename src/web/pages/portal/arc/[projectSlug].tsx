@@ -477,11 +477,11 @@ export default function ArcProjectHub() {
       canManageProject={canManageProject}
       isSuperAdmin={userIsSuperAdmin}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Project Hero Section */}
         <div className="relative rounded-lg overflow-hidden border border-white/10 bg-black/40">
           {project.header_image_url ? (
-            <div className="relative h-48 w-full">
+            <div className="relative h-32 sm:h-40 md:h-48 w-full">
               <Image
                 src={project.header_image_url}
                 alt={project.name || 'Project banner'}
@@ -491,13 +491,13 @@ export default function ArcProjectHub() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
             </div>
           ) : (
-            <div className="h-48 bg-gradient-to-br from-teal-500/20 to-cyan-500/20" />
+            <div className="h-32 sm:h-40 md:h-48 bg-gradient-to-br from-teal-500/20 to-cyan-500/20" />
           )}
 
-          <div className="p-6">
-            <div className="flex items-start gap-4">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
               {project.avatar_url && (
-                <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
+                <div className="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
                   <Image
                     src={project.avatar_url}
                     alt={project.name || 'Project avatar'}
@@ -507,25 +507,25 @@ export default function ArcProjectHub() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold text-white mb-1">{project.name}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">{project.name}</h1>
                 {project.twitter_username && (
-                  <p className="text-white/60 text-sm">@{project.twitter_username}</p>
+                  <p className="text-white/60 text-xs sm:text-sm">@{project.twitter_username}</p>
                 )}
               </div>
               {canManageProject && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/portal/arc/${encodeURIComponent(projectSlug || '')}/team`}
-                    className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
+                    className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
                   >
                     Manage Team
                   </Link>
-                <Link
-                  href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
-                  className="px-4 py-2 text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  Admin
-                </Link>
+                  <Link
+                    href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
+                    className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border border-white/20 text-white rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Admin
+                  </Link>
                 </div>
               )}
             </div>
@@ -534,12 +534,12 @@ export default function ArcProjectHub() {
 
         {/* Mindshare Leaderboard Section */}
         {msEnabled && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Top Section: Treemap (Left) and Project Details (Right) */}
             {currentArena && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Left: Treemap */}
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2 order-1 lg:order-1">
                   <CreatorTreemap 
                     creators={leaderboardCreators} 
                     timePeriod={timePeriod} 
@@ -550,19 +550,19 @@ export default function ArcProjectHub() {
                 </div>
                 
                 {/* Right: Project Details + Countdown */}
-                <div className="bg-white/5 rounded-lg border border-white/10 p-6">
-                  <div className="space-y-4">
+                <div className="bg-white/5 rounded-lg border border-white/10 p-4 sm:p-6 order-2 lg:order-2">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <h2 className="text-xl font-bold text-white mb-1">
+                      <h2 className="text-lg sm:text-xl font-bold text-white mb-1">
                         {project?.name || 'Project'} Mindshare
                       </h2>
-                      <p className="text-white/70 text-sm">
+                      <p className="text-white/70 text-xs sm:text-sm">
                         {currentArena.name || 'Active Arena'}
                       </p>
                     </div>
                     {currentArena.starts_at && currentArena.ends_at && (
                       <div className="space-y-2">
-                        <div className="text-sm text-white/80">
+                        <div className="text-xs sm:text-sm text-white/80">
                           <div>Start: {new Date(currentArena.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                           <div>End: {new Date(currentArena.ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         </div>
@@ -575,7 +575,7 @@ export default function ArcProjectHub() {
                     {canManageProject && (
                       <Link
                         href={`/portal/arc/admin/${encodeURIComponent(projectSlug || '')}`}
-                        className="block w-full mt-4 px-4 py-2 text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-center"
+                        className="block w-full mt-3 sm:mt-4 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 transition-colors text-center"
                       >
                         Manage Arena
                       </Link>
@@ -621,14 +621,14 @@ export default function ArcProjectHub() {
               </div>
             ) : (
               <>
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Time Period Filters */}
-                  <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
+                  <div className="flex items-center gap-1.5 sm:gap-2 bg-white/5 px-0.5 py-0 rounded-full w-fit">
                     {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
                       <button
                         key={period}
                         onClick={() => setTimePeriod(period)}
-                        className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
+                        className={`w-7 sm:w-8 h-6 sm:h-5 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-normal transition-all duration-200 ${
                           timePeriod === period
                             ? 'bg-[#F6623A] text-white font-medium'
                             : 'text-white/60 hover:text-white/80'
@@ -640,20 +640,20 @@ export default function ArcProjectHub() {
                   </div>
 
                   {/* Top Gainers/Losers and Top Tweets Section */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     {/* Left: Top Gainers & Losers */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-2 order-1 lg:order-1">
                       {leaderboardCreators.length > 0 && (
-                        <div className="rounded-lg border border-white/10 bg-black/40 p-6">
-                          <div className="flex items-center justify-between mb-4 px-2">
-                            <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
+                        <div className="rounded-lg border border-white/10 bg-black/40 p-3 sm:p-4 md:p-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 mb-3 sm:mb-4 px-1 sm:px-2">
+                            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2 leading-5">
                               <span className="w-1 h-4 bg-red-500 rounded"></span>
                               Mindshare
                             </h3>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 sm:gap-2">
                               <button
                                 onClick={() => setDeltaMode('absolute')}
-                                className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                className={`w-[100px] sm:w-[120px] h-6 sm:h-5 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-medium transition-all duration-200 ${
                                   deltaMode === 'absolute'
                                     ? 'bg-[#14CC7F] text-white'
                                     : 'text-white/40'
@@ -663,7 +663,7 @@ export default function ArcProjectHub() {
                               </button>
                               <button
                                 onClick={() => setDeltaMode('relative')}
-                                className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                className={`w-[100px] sm:w-[120px] h-6 sm:h-5 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-medium transition-all duration-200 ${
                                   deltaMode === 'relative'
                                     ? 'bg-[#14CC7F] text-white'
                                     : 'text-white/40'
@@ -674,12 +674,12 @@ export default function ArcProjectHub() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                             {/* Top Gainers Table */}
-                            <div className="flex flex-col gap-4">
-                          <h4 className="text-base font-bold text-white px-2 leading-5">Top Gainers</h4>
+                            <div className="flex flex-col gap-3 sm:gap-4">
+                          <h4 className="text-sm sm:text-base font-bold text-white px-1 sm:px-2 leading-5">Top Gainers</h4>
                           <div className="overflow-x-auto">
-                            <table className="w-full border-separate border-spacing-0 text-xs">
+                            <table className="w-full border-separate border-spacing-0 text-[10px] sm:text-xs min-w-[400px]">
                               <thead>
                                 <tr>
                                   <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
@@ -787,10 +787,10 @@ export default function ArcProjectHub() {
                             </div>
 
                             {/* Top Losers Table */}
-                            <div className="flex flex-col gap-4">
-                          <h4 className="text-base font-bold text-white px-2 leading-5">Top Losers</h4>
+                            <div className="flex flex-col gap-3 sm:gap-4">
+                          <h4 className="text-sm sm:text-base font-bold text-white px-1 sm:px-2 leading-5">Top Losers</h4>
                           <div className="overflow-x-auto">
-                            <table className="w-full border-separate border-spacing-0 text-xs">
+                            <table className="w-full border-separate border-spacing-0 text-[10px] sm:text-xs min-w-[400px]">
                               <thead>
                                 <tr>
                                   <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
@@ -902,7 +902,7 @@ export default function ArcProjectHub() {
                     </div>
 
                     {/* Right: Top Tweets Feed */}
-                    <div className="lg:col-span-1">
+                    <div className="lg:col-span-1 order-2 lg:order-2">
                       <TopTweetsFeed tweets={topTweets} loading={topTweetsLoading} />
                     </div>
                   </div>
@@ -910,19 +910,19 @@ export default function ArcProjectHub() {
 
                 {/* Main Leaderboard Table */}
                 <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
-                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
+                  <div className="p-3 sm:p-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2 leading-5">
                         <span className="w-1 h-4 bg-red-500 rounded"></span>
                         Top 50 Creators
                       </h3>
                       {/* Time Period Filters for Main Table */}
-                      <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
+                      <div className="flex items-center gap-1.5 sm:gap-2 bg-white/5 px-0.5 py-0 rounded-full w-fit">
                         {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
                           <button
                             key={period}
                             onClick={() => setTimePeriod(period)}
-                            className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
+                            className={`w-7 sm:w-8 h-6 sm:h-5 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-normal transition-all duration-200 ${
                               timePeriod === period
                                 ? 'bg-[#F6623A] text-white font-medium'
                                 : 'text-white/60 hover:text-white/80'
@@ -936,7 +936,7 @@ export default function ArcProjectHub() {
                   </div>
 
                   {leaderboardCreators.length === 0 ? (
-                    <div className="p-12 text-center">
+                    <div className="p-8 sm:p-12 text-center">
                       <EmptyState
                         icon="👥"
                         title="No creators yet"
@@ -946,16 +946,16 @@ export default function ArcProjectHub() {
                   ) : (
                     <>
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full min-w-[640px] sm:min-w-0">
                           <thead>
                             <tr className="border-b border-white/10 bg-white/5">
-                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Rank</th>
-                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Name</th>
-                              <th className="text-left py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Ring</th>
-                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Points</th>
-                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">Smart Followers</th>
-                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">MS</th>
-                              <th className="text-right py-4 px-6 text-xs font-semibold text-white/60 uppercase tracking-wider">CT Heat</th>
+                              <th className="text-left py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider">Rank</th>
+                              <th className="text-left py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider">Name</th>
+                              <th className="text-left py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider hidden sm:table-cell">Ring</th>
+                              <th className="text-right py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider">Points</th>
+                              <th className="text-right py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider hidden md:table-cell">Smart Followers</th>
+                              <th className="text-right py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider">MS</th>
+                              <th className="text-right py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-[10px] sm:text-xs font-semibold text-white/60 uppercase tracking-wider hidden lg:table-cell">CT Heat</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -980,8 +980,8 @@ export default function ArcProjectHub() {
                                     key={creator.id || `creator-${globalRank}`}
                                     className={`border-b border-white/5 hover:bg-white/5 transition-colors ${rankBgColor}`}
                                   >
-                                    <td className="py-4 px-6">
-                                      <span className={`font-bold ${
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6">
+                                      <span className={`text-xs sm:text-sm font-bold ${
                                         globalRank === 1 ? 'text-yellow-400' :
                                         globalRank === 2 ? 'text-gray-300' :
                                         globalRank === 3 ? 'text-orange-400' :
@@ -990,13 +990,13 @@ export default function ArcProjectHub() {
                                         #{globalRank}
                                       </span>
                                     </td>
-                                    <td className="py-4 px-6">
-                                      <div className="flex items-center gap-3">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6">
+                                      <div className="flex items-center gap-2 sm:gap-3">
                                         {creator.avatar_url && 
                                          typeof creator.avatar_url === 'string' && 
                                          creator.avatar_url.trim().length > 0 &&
                                          creator.avatar_url.startsWith('http') ? (
-                                          <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
+                                          <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
                                             {/* Use img tag for better error handling */}
                                             <img
                                               src={creator.avatar_url}
@@ -1012,12 +1012,12 @@ export default function ArcProjectHub() {
                                                   is_auto_tracked: creator.is_auto_tracked,
                                                 });
                                                 
-                                                // Replace with fallback initials
+                                                  // Replace with fallback initials
                                                 const parent = target.parentElement;
                                                 if (parent) {
                                                   parent.innerHTML = `
-                                                    <div class="w-10 h-10 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center">
-                                                      <span class="text-white/60 text-sm font-medium">
+                                                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center">
+                                                      <span class="text-white/60 text-xs sm:text-sm font-medium">
                                                         ${(creator.twitter_username || '?')[0].toUpperCase()}
                                                       </span>
                                                     </div>
@@ -1027,8 +1027,8 @@ export default function ArcProjectHub() {
                                             />
                                           </div>
                                         ) : (
-                                          <div className="w-10 h-10 rounded-full bg-white/10 border-2 border-white/20 flex-shrink-0 flex items-center justify-center">
-                                            <span className="text-white/60 text-sm font-medium">
+                                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/10 border-2 border-white/20 flex-shrink-0 flex items-center justify-center">
+                                            <span className="text-white/60 text-xs sm:text-sm font-medium">
                                               {(creator.twitter_username || '?')[0].toUpperCase()}
                                             </span>
                                           </div>
@@ -1036,19 +1036,19 @@ export default function ArcProjectHub() {
                                         <div className="flex-1 min-w-0">
                                           <Link
                                             href={`/portal/arc/creator/${encodeURIComponent(creator.twitter_username?.replace(/^@+/, '') || '')}`}
-                                            className="text-white font-medium hover:text-teal-400 transition-colors block truncate"
+                                            className="text-xs sm:text-sm text-white font-medium hover:text-teal-400 transition-colors block truncate"
                                           >
                                             {creator.twitter_username || 'Unknown'}
                                           </Link>
                                           {creator.is_auto_tracked && (
-                                            <span className="text-xs text-white/40">Auto-tracked</span>
+                                            <span className="text-[10px] sm:text-xs text-white/40">Auto-tracked</span>
                                           )}
                                         </div>
                                       </div>
                                     </td>
-                                    <td className="py-4 px-6">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6 hidden sm:table-cell">
                                       {creator.ring && (
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                        <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium border ${
                                           creator.ring === 'core'
                                             ? 'bg-purple-500/20 text-purple-400 border-purple-500/50'
                                             : creator.ring === 'momentum'
@@ -1059,31 +1059,31 @@ export default function ArcProjectHub() {
                                         </span>
                                       )}
                                     </td>
-                                    <td className="py-4 px-6 text-right">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-right">
                                       <div className="flex items-center justify-end gap-1">
-                                        <span className="text-white font-semibold">{creator.arc_points.toLocaleString()}</span>
+                                        <span className="text-xs sm:text-sm text-white font-semibold">{creator.arc_points.toLocaleString()}</span>
                                         {creator.multiplier && creator.multiplier > 1 && (
-                                          <span className="text-xs text-teal-400 font-medium">({creator.multiplier}x)</span>
+                                          <span className="text-[10px] sm:text-xs text-teal-400 font-medium">({creator.multiplier}x)</span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="py-4 px-6 text-right">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-right hidden md:table-cell">
                                       {creator.smart_followers_count !== null && creator.smart_followers_count !== undefined ? (
                                         <div>
-                                          <div className="text-white font-medium">{creator.smart_followers_count.toLocaleString()}</div>
+                                          <div className="text-xs sm:text-sm text-white font-medium">{creator.smart_followers_count.toLocaleString()}</div>
                                           {creator.smart_followers_pct !== null && creator.smart_followers_pct !== undefined && (
-                                            <div className="text-xs text-white/50">({creator.smart_followers_pct.toFixed(1)}%)</div>
+                                            <div className="text-[10px] sm:text-xs text-white/50">({creator.smart_followers_pct.toFixed(1)}%)</div>
                                           )}
                                         </div>
                                       ) : (
                                         <span className="text-white/40">—</span>
                                       )}
                                     </td>
-                                    <td className="py-4 px-6">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6">
                                       {creator.contribution_pct !== null && creator.contribution_pct !== undefined ? (
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-white font-medium min-w-[3rem] text-right">{creator.contribution_pct.toFixed(2)}%</span>
-                                          <div className="flex-1 max-w-[100px] h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div className="flex items-center gap-1.5 sm:gap-2">
+                                          <span className="text-xs sm:text-sm text-white font-medium min-w-[2.5rem] sm:min-w-[3rem] text-right">{creator.contribution_pct.toFixed(2)}%</span>
+                                          <div className="flex-1 max-w-[60px] sm:max-w-[100px] h-1.5 sm:h-2 bg-white/10 rounded-full overflow-hidden">
                                             <div 
                                               className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all"
                                               style={{ width: `${Math.min(100, (creator.contribution_pct / (leaderboardCreators[0]?.contribution_pct ?? 1)) * 100)}%` }}
@@ -1094,9 +1094,9 @@ export default function ArcProjectHub() {
                                         <span className="text-white/40">—</span>
                                       )}
                                     </td>
-                                    <td className="py-4 px-6 text-right">
+                                    <td className="py-3 sm:py-4 px-3 sm:px-4 md:px-6 text-right hidden lg:table-cell">
                                       {creator.ct_heat !== null && creator.ct_heat !== undefined ? (
-                                        <span className="text-white font-medium">{creator.ct_heat}</span>
+                                        <span className="text-xs sm:text-sm text-white font-medium">{creator.ct_heat}</span>
                                       ) : (
                                         <span className="text-white/40">—</span>
                                       )}
@@ -1113,25 +1113,25 @@ export default function ArcProjectHub() {
                       {leaderboardCreators.length > itemsPerPage && (() => {
                         const totalPages = Math.ceil(leaderboardCreators.length / itemsPerPage);
                         return (
-                          <div className="flex items-center justify-between p-4 border-t border-white/10 bg-white/5">
-                            <div className="text-sm text-white/60">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2 p-3 sm:p-4 border-t border-white/10 bg-white/5">
+                            <div className="text-xs sm:text-sm text-white/60 text-center sm:text-left">
                               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, leaderboardCreators.length)} of {leaderboardCreators.length} creators
                             </div>
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                 disabled={currentPage === 1}
-                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
+                                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
                               >
                                 Previous
                               </button>
-                              <span className="text-sm text-white/60 px-3">
+                              <span className="text-xs sm:text-sm text-white/60 px-2 sm:px-3">
                                 Page {currentPage} of {totalPages}
                               </span>
                               <button
                                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                 disabled={currentPage >= totalPages}
-                                className="px-4 py-2 text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
+                                className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-white/5 border border-white/20 text-white/80 rounded-lg hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/5"
                               >
                                 Next
                               </button>
