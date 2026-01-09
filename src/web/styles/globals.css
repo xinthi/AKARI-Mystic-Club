@@ -286,12 +286,22 @@ nextjs-portal[style*="width:0"],
 nextjs-portal[style*="height: 0px"],
 nextjs-portal[style*="height:0px"],
 nextjs-portal[style*="height: 0"],
-nextjs-portal[style*="height:0"] {
+nextjs-portal[style*="height:0"],
+nextjs-portal[width="0"],
+nextjs-portal[width="0px"],
+nextjs-portal[height="0"],
+nextjs-portal[height="0px"] {
   display: none !important;
   visibility: hidden !important;
   position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
   pointer-events: none !important;
   opacity: 0 !important;
+  z-index: -9999 !important;
 }
 
 /* Hide portals that have no children (using :has selector for modern browsers) */
@@ -299,12 +309,37 @@ nextjs-portal[style*="height:0"] {
   nextjs-portal:not(:has(*)) {
     display: none !important;
     visibility: hidden !important;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
     opacity: 0 !important;
+    z-index: -9999 !important;
   }
 }
 
 /* Additional rule: hide any portal with zero computed dimensions */
 nextjs-portal {
-  min-width: 0;
-  min-height: 0;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+/* Ultra-aggressive: Hide any portal that's positioned but has zero dimensions */
+nextjs-portal[style*="position"] {
+  /* Check if it has zero dimensions via inline style */
+}
+
+/* Hide portals that are empty and positioned at top-left with zero dimensions */
+nextjs-portal:empty[style*="top"],
+nextjs-portal:empty[style*="left"] {
+  display: none !important;
+  visibility: hidden !important;
+  position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  z-index: -9999 !important;
 }

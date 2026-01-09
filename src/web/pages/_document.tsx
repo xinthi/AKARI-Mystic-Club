@@ -18,19 +18,37 @@ export default function Document() {
         {/* Inline style to hide empty portals immediately - runs before React hydration */}
         <style dangerouslySetInnerHTML={{
           __html: `
+            /* Hide empty portals or portals with zero dimensions - most aggressive rules */
             nextjs-portal:empty,
             nextjs-portal[style*="width: 0"],
             nextjs-portal[style*="width:0"],
+            nextjs-portal[style*="width: 0px"],
+            nextjs-portal[style*="width:0px"],
             nextjs-portal[style*="height: 0"],
-            nextjs-portal[style*="height:0"] {
+            nextjs-portal[style*="height:0"],
+            nextjs-portal[style*="height: 0px"],
+            nextjs-portal[style*="height:0px"],
+            nextjs-portal[width="0"],
+            nextjs-portal[width="0px"],
+            nextjs-portal[height="0"],
+            nextjs-portal[height="0px"] {
               display: none !important;
               visibility: hidden !important;
               width: 0 !important;
               height: 0 !important;
               overflow: hidden !important;
               position: absolute !important;
+              top: -9999px !important;
+              left: -9999px !important;
               pointer-events: none !important;
               opacity: 0 !important;
+              z-index: -9999 !important;
+            }
+            
+            /* Additional rule: Hide any portal with zero computed dimensions */
+            nextjs-portal {
+              min-width: 0 !important;
+              min-height: 0 !important;
             }
           `
         }} />
@@ -50,8 +68,13 @@ export default function Document() {
                     var isEmpty = !portal.children.length;
                     var hasZeroWidth = portal.offsetWidth === 0 || portal.clientWidth === 0;
                     var hasZeroHeight = portal.offsetHeight === 0 || portal.clientHeight === 0;
+                    var style = window.getComputedStyle(portal);
+                    var computedWidth = parseFloat(style.width) || 0;
+                    var computedHeight = parseFloat(style.height) || 0;
+                    var hasZeroComputed = (computedWidth === 0 && computedHeight === 0);
                     
-                    if (isEmpty || (hasZeroWidth && hasZeroHeight)) {
+                    // Hide if empty, has zero dimensions, or has zero computed dimensions
+                    if (isEmpty || (hasZeroWidth && hasZeroHeight) || hasZeroComputed) {
                       portal.style.setProperty('display', 'none', 'important');
                       portal.style.setProperty('visibility', 'hidden', 'important');
                       portal.style.setProperty('width', '0', 'important');
@@ -60,8 +83,9 @@ export default function Document() {
                       portal.style.setProperty('position', 'absolute', 'important');
                       portal.style.setProperty('pointer-events', 'none', 'important');
                       portal.style.setProperty('opacity', '0', 'important');
-                      portal.style.setProperty('top', '0', 'important');
-                      portal.style.setProperty('left', '0', 'important');
+                      portal.style.setProperty('top', '-9999px', 'important');
+                      portal.style.setProperty('left', '-9999px', 'important');
+                      portal.style.setProperty('z-index', '-9999', 'important');
                       portal.setAttribute('hidden', '');
                       portal.setAttribute('aria-hidden', 'true');
                     }

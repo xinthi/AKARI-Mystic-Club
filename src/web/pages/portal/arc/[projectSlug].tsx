@@ -620,289 +620,291 @@ export default function ArcProjectHub() {
                 <p className="text-red-400 text-sm">{leaderboardError}</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Time Period Filters */}
-                <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
-                  {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
-                    <button
-                      key={period}
-                      onClick={() => setTimePeriod(period)}
-                      className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
-                        timePeriod === period
-                          ? 'bg-[#F6623A] text-white font-medium'
-                          : 'text-white/60 hover:text-white/80'
-                      }`}
-                    >
-                      {period}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Top Gainers/Losers and Top Tweets Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left: Top Gainers & Losers */}
-                  <div className="lg:col-span-2">
-                    {leaderboardCreators.length > 0 && (
-                      <div className="rounded-lg border border-white/10 bg-black/40 p-6">
-                        <div className="flex items-center justify-between mb-4 px-2">
-                          <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
-                            <span className="w-1 h-4 bg-red-500 rounded"></span>
-                            Mindshare
-                          </h3>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setDeltaMode('absolute')}
-                              className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
-                                deltaMode === 'absolute'
-                                  ? 'bg-[#14CC7F] text-white'
-                                  : 'text-white/40'
-                              }`}
-                            >
-                              △ Absolute (bps)
-                            </button>
-                            <button
-                              onClick={() => setDeltaMode('relative')}
-                              className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
-                                deltaMode === 'relative'
-                                  ? 'bg-[#14CC7F] text-white'
-                                  : 'text-white/40'
-                              }`}
-                            >
-                              △ Relative (%)
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          {/* Top Gainers Table */}
-                          <div className="flex flex-col gap-4">
-                        <h4 className="text-base font-bold text-white px-2 leading-5">Top Gainers</h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-separate border-spacing-0 text-xs">
-                            <thead>
-                              <tr>
-                                <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
-                                <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
-                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
-                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
-                                <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                // Sort by contribution percentage (or points as fallback)
-                                const sorted = [...leaderboardCreators].sort((a, b) => 
-                                  (b.contribution_pct ?? 0) - (a.contribution_pct ?? 0)
-                                );
-                                const topGainers = sorted.slice(0, 5);
-                                
-                                return topGainers.map((creator, idx) => {
-                                  const formatDelta = (delta: number | null | undefined) => {
-                                    if (delta === null || delta === undefined) return '—';
-                                    if (delta === 0) return '▲ 0bps';
-                                    const isPositive = delta > 0;
-                                    const absDelta = Math.abs(delta);
-                                    if (deltaMode === 'absolute') {
-                                      return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
-                                    } else {
-                                      return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
-                                    }
-                                  };
-                                  
-                                  return (
-                                    <tr 
-                                      key={creator.id || `gainer-${idx}`} 
-                                      className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
-                                    >
-                                      <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
-                                        <div className="flex items-center gap-0.5 min-w-0">
-                                          {creator.avatar_url && 
-                                           typeof creator.avatar_url === 'string' && 
-                                           creator.avatar_url.trim().length > 0 &&
-                                           creator.avatar_url.startsWith('http') ? (
-                                            <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
-                                            {/* Use img tag for better error handling */}
-                                            <img
-                                              src={creator.avatar_url}
-                                              alt={creator.twitter_username || 'Avatar'}
-                                              className="w-full h-full object-cover"
-                                              onError={(e) => {
-                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
-                                                // Hide broken image
-                                                const target = e.target as HTMLImageElement;
-                                                if (target.parentElement) {
-                                                  target.parentElement.style.display = 'none';
-                                                }
-                                              }}
-                                            />
-                                            </div>
-                                          ) : (
-                                            <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
-                                              <span className="text-white/60 text-[10px]">
-                                                {(creator.twitter_username || '?')[0].toUpperCase()}
-                                              </span>
-                                            </div>
-                                          )}
-                                          <div className="flex gap-0.5 min-w-0">
-                                            <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                                              {creator.twitter_username || 'Unknown'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="py-3 text-right text-xs font-normal text-white leading-4">
-                                        {creator.contribution_pct !== null && creator.contribution_pct !== undefined
-                                          ? `${creator.contribution_pct.toFixed(2)}%`
-                                          : '—'}
-                                      </td>
-                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
-                                        (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-center gap-0.5">
-                                          {formatDelta(creator.delta7d)}
-                                        </div>
-                                      </td>
-                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
-                                        (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-center gap-0.5">
-                                          {formatDelta(creator.delta1m)}
-                                        </div>
-                                      </td>
-                                      <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
-                                        (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-end gap-0.5">
-                                          {formatDelta(creator.delta3m)}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                });
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                          </div>
-
-                          {/* Top Losers Table */}
-                          <div className="flex flex-col gap-4">
-                        <h4 className="text-base font-bold text-white px-2 leading-5">Top Losers</h4>
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-separate border-spacing-0 text-xs">
-                            <thead>
-                              <tr>
-                                <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
-                                <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
-                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
-                                <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
-                                <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                // Sort by contribution percentage (ascending for losers)
-                                const sorted = [...leaderboardCreators].sort((a, b) => 
-                                  (a.contribution_pct ?? 0) - (b.contribution_pct ?? 0)
-                                );
-                                const topLosers = sorted.slice(0, 5);
-                                
-                                return topLosers.map((creator, idx) => {
-                                  const formatDelta = (delta: number | null | undefined) => {
-                                    if (delta === null || delta === undefined) return '—';
-                                    if (delta === 0) return '▲ 0bps';
-                                    const isPositive = delta > 0;
-                                    const absDelta = Math.abs(delta);
-                                    if (deltaMode === 'absolute') {
-                                      return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
-                                    } else {
-                                      return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
-                                    }
-                                  };
-                                  
-                                  return (
-                                    <tr 
-                                      key={creator.id || `loser-${idx}`} 
-                                      className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
-                                    >
-                                      <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
-                                        <div className="flex items-center gap-0.5 min-w-0">
-                                          {creator.avatar_url && 
-                                           typeof creator.avatar_url === 'string' && 
-                                           creator.avatar_url.trim().length > 0 &&
-                                           creator.avatar_url.startsWith('http') ? (
-                                            <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
-                                            {/* Use img tag for better error handling */}
-                                            <img
-                                              src={creator.avatar_url}
-                                              alt={creator.twitter_username || 'Avatar'}
-                                              className="w-full h-full object-cover"
-                                              onError={(e) => {
-                                                console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
-                                                // Hide broken image
-                                                const target = e.target as HTMLImageElement;
-                                                if (target.parentElement) {
-                                                  target.parentElement.style.display = 'none';
-                                                }
-                                              }}
-                                            />
-                                            </div>
-                                          ) : (
-                                            <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
-                                              <span className="text-white/60 text-[10px]">
-                                                {(creator.twitter_username || '?')[0].toUpperCase()}
-                                              </span>
-                                            </div>
-                                          )}
-                                          <div className="flex gap-0.5 min-w-0">
-                                            <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                                              {creator.twitter_username || 'Unknown'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </td>
-                                      <td className="py-3 text-right text-xs font-normal text-white leading-4">
-                                        {creator.contribution_pct !== null && creator.contribution_pct !== undefined
-                                          ? `${creator.contribution_pct.toFixed(2)}%`
-                                          : '—'}
-                                      </td>
-                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
-                                        (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-center gap-0.5">
-                                          {formatDelta(creator.delta7d)}
-                                        </div>
-                                      </td>
-                                      <td className={`py-3 text-center text-xs font-normal leading-4 ${
-                                        (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-center gap-0.5">
-                                          {formatDelta(creator.delta1m)}
-                                        </div>
-                                      </td>
-                                      <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
-                                        (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
-                                      }`}>
-                                        <div className="flex items-center justify-end gap-0.5">
-                                          {formatDelta(creator.delta3m)}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                });
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+              <>
+                <div className="space-y-6">
+                  {/* Time Period Filters */}
+                  <div className="flex items-center gap-2 bg-white/5 px-0.5 py-0 rounded-full">
+                    {(['7D', '1M', '3M', 'ALL'] as TimePeriod[]).map((period) => (
+                      <button
+                        key={period}
+                        onClick={() => setTimePeriod(period)}
+                        className={`w-8 h-5 flex items-center justify-center rounded-full text-xs font-normal transition-all duration-200 ${
+                          timePeriod === period
+                            ? 'bg-[#F6623A] text-white font-medium'
+                            : 'text-white/60 hover:text-white/80'
+                        }`}
+                      >
+                        {period}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Right: Top Tweets Feed */}
-                  <div className="lg:col-span-1">
-                    <TopTweetsFeed tweets={topTweets} loading={topTweetsLoading} />
+                  {/* Top Gainers/Losers and Top Tweets Section */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left: Top Gainers & Losers */}
+                    <div className="lg:col-span-2">
+                      {leaderboardCreators.length > 0 && (
+                        <div className="rounded-lg border border-white/10 bg-black/40 p-6">
+                          <div className="flex items-center justify-between mb-4 px-2">
+                            <h3 className="text-base font-bold text-white flex items-center gap-2 leading-5">
+                              <span className="w-1 h-4 bg-red-500 rounded"></span>
+                              Mindshare
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setDeltaMode('absolute')}
+                                className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                  deltaMode === 'absolute'
+                                    ? 'bg-[#14CC7F] text-white'
+                                    : 'text-white/40'
+                                }`}
+                              >
+                                △ Absolute (bps)
+                              </button>
+                              <button
+                                onClick={() => setDeltaMode('relative')}
+                                className={`w-[120px] h-5 flex items-center justify-center rounded-full text-xs font-medium transition-all duration-200 ${
+                                  deltaMode === 'relative'
+                                    ? 'bg-[#14CC7F] text-white'
+                                    : 'text-white/40'
+                                }`}
+                              >
+                                △ Relative (%)
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Top Gainers Table */}
+                            <div className="flex flex-col gap-4">
+                          <h4 className="text-base font-bold text-white px-2 leading-5">Top Gainers</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-separate border-spacing-0 text-xs">
+                              <thead>
+                                <tr>
+                                  <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
+                                  <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
+                                  <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
+                                  <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
+                                  <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  // Sort by contribution percentage (or points as fallback)
+                                  const sorted = [...leaderboardCreators].sort((a, b) => 
+                                    (b.contribution_pct ?? 0) - (a.contribution_pct ?? 0)
+                                  );
+                                  const topGainers = sorted.slice(0, 5);
+                                  
+                                  return topGainers.map((creator, idx) => {
+                                    const formatDelta = (delta: number | null | undefined) => {
+                                      if (delta === null || delta === undefined) return '—';
+                                      if (delta === 0) return '▲ 0bps';
+                                      const isPositive = delta > 0;
+                                      const absDelta = Math.abs(delta);
+                                      if (deltaMode === 'absolute') {
+                                        return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
+                                      } else {
+                                        return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
+                                      }
+                                    };
+                                    
+                                    return (
+                                      <tr 
+                                        key={creator.id || `gainer-${idx}`} 
+                                        className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
+                                      >
+                                        <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
+                                          <div className="flex items-center gap-0.5 min-w-0">
+                                            {creator.avatar_url && 
+                                             typeof creator.avatar_url === 'string' && 
+                                             creator.avatar_url.trim().length > 0 &&
+                                             creator.avatar_url.startsWith('http') ? (
+                                              <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
+                                              {/* Use img tag for better error handling */}
+                                              <img
+                                                src={creator.avatar_url}
+                                                alt={creator.twitter_username || 'Avatar'}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
+                                                  // Hide broken image
+                                                  const target = e.target as HTMLImageElement;
+                                                  if (target.parentElement) {
+                                                    target.parentElement.style.display = 'none';
+                                                  }
+                                                }}
+                                              />
+                                              </div>
+                                            ) : (
+                                              <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
+                                                <span className="text-white/60 text-[10px]">
+                                                  {(creator.twitter_username || '?')[0].toUpperCase()}
+                                                </span>
+                                              </div>
+                                            )}
+                                            <div className="flex gap-0.5 min-w-0">
+                                              <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                                                {creator.twitter_username || 'Unknown'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="py-3 text-right text-xs font-normal text-white leading-4">
+                                          {creator.contribution_pct !== null && creator.contribution_pct !== undefined
+                                            ? `${creator.contribution_pct.toFixed(2)}%`
+                                            : '—'}
+                                        </td>
+                                        <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                          (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-center gap-0.5">
+                                            {formatDelta(creator.delta7d)}
+                                          </div>
+                                        </td>
+                                        <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                          (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-center gap-0.5">
+                                            {formatDelta(creator.delta1m)}
+                                          </div>
+                                        </td>
+                                        <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
+                                          (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-end gap-0.5">
+                                            {formatDelta(creator.delta3m)}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                            </div>
+
+                            {/* Top Losers Table */}
+                            <div className="flex flex-col gap-4">
+                          <h4 className="text-base font-bold text-white px-2 leading-5">Top Losers</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-separate border-spacing-0 text-xs">
+                              <thead>
+                                <tr>
+                                  <th className="w-[20%] text-left py-1 px-2 font-normal text-white/60 leading-3">Name</th>
+                                  <th className="w-[20%] text-right py-1 px-0 font-normal text-white/60 leading-3">Current</th>
+                                  <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ7D</th>
+                                  <th className="w-[20%] text-center py-1 px-0 font-normal text-white/60 leading-3">Δ1M</th>
+                                  <th className="w-[20%] text-right py-1 pr-2 font-normal text-white/60 leading-3 rounded-r-lg">Δ3M</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(() => {
+                                  // Sort by contribution percentage (ascending for losers)
+                                  const sorted = [...leaderboardCreators].sort((a, b) => 
+                                    (a.contribution_pct ?? 0) - (b.contribution_pct ?? 0)
+                                  );
+                                  const topLosers = sorted.slice(0, 5);
+                                  
+                                  return topLosers.map((creator, idx) => {
+                                    const formatDelta = (delta: number | null | undefined) => {
+                                      if (delta === null || delta === undefined) return '—';
+                                      if (delta === 0) return '▲ 0bps';
+                                      const isPositive = delta > 0;
+                                      const absDelta = Math.abs(delta);
+                                      if (deltaMode === 'absolute') {
+                                        return `${isPositive ? '▲' : '▼'} ${Math.round(absDelta)}bps`;
+                                      } else {
+                                        return `${isPositive ? '▲' : '▼'} ${absDelta.toFixed(2)}%`;
+                                      }
+                                    };
+                                    
+                                    return (
+                                      <tr 
+                                        key={creator.id || `loser-${idx}`} 
+                                        className="hover:bg-white/5 transition-colors duration-200 cursor-pointer last:border-b-0"
+                                      >
+                                        <td className="max-w-[130px] py-2 pl-2 text-left rounded-l-lg">
+                                          <div className="flex items-center gap-0.5 min-w-0">
+                                            {creator.avatar_url && 
+                                             typeof creator.avatar_url === 'string' && 
+                                             creator.avatar_url.trim().length > 0 &&
+                                             creator.avatar_url.startsWith('http') ? (
+                                              <div className="relative w-[18px] h-[18px] rounded-full overflow-hidden flex-shrink-0">
+                                              {/* Use img tag for better error handling */}
+                                              <img
+                                                src={creator.avatar_url}
+                                                alt={creator.twitter_username || 'Avatar'}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  console.error(`[Leaderboard] Failed to load avatar for ${creator.twitter_username}:`, creator.avatar_url);
+                                                  // Hide broken image
+                                                  const target = e.target as HTMLImageElement;
+                                                  if (target.parentElement) {
+                                                    target.parentElement.style.display = 'none';
+                                                  }
+                                                }}
+                                              />
+                                              </div>
+                                            ) : (
+                                              <div className="w-[18px] h-[18px] rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center">
+                                                <span className="text-white/60 text-[10px]">
+                                                  {(creator.twitter_username || '?')[0].toUpperCase()}
+                                                </span>
+                                              </div>
+                                            )}
+                                            <div className="flex gap-0.5 min-w-0">
+                                              <span className="font-medium text-white text-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                                                {creator.twitter_username || 'Unknown'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="py-3 text-right text-xs font-normal text-white leading-4">
+                                          {creator.contribution_pct !== null && creator.contribution_pct !== undefined
+                                            ? `${creator.contribution_pct.toFixed(2)}%`
+                                            : '—'}
+                                        </td>
+                                        <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                          (creator.delta7d ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta7d ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-center gap-0.5">
+                                            {formatDelta(creator.delta7d)}
+                                          </div>
+                                        </td>
+                                        <td className={`py-3 text-center text-xs font-normal leading-4 ${
+                                          (creator.delta1m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta1m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-center gap-0.5">
+                                            {formatDelta(creator.delta1m)}
+                                          </div>
+                                        </td>
+                                        <td className={`py-3 pr-2 text-right text-xs font-normal leading-4 rounded-r-lg ${
+                                          (creator.delta3m ?? 0) > 0 ? 'text-[#14CC7F]' : (creator.delta3m ?? 0) < 0 ? 'text-[#FE3C70]' : 'text-white/60'
+                                        }`}>
+                                          <div className="flex items-center justify-end gap-0.5">
+                                            {formatDelta(creator.delta3m)}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Top Tweets Feed */}
+                    <div className="lg:col-span-1">
+                      <TopTweetsFeed tweets={topTweets} loading={topTweetsLoading} />
+                    </div>
                   </div>
                 </div>
 
@@ -1140,7 +1142,7 @@ export default function ArcProjectHub() {
                     </>
                   )}
                 </div>
-              </div>
+              </>
             )}
           </div>
         )}
