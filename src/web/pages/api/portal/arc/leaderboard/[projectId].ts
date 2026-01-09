@@ -800,23 +800,30 @@ export default async function handler(
         const chunk = missingFromTweets.slice(i, i + chunkSize);
         
         // Query profiles using case-insensitive matching
-        // Build OR conditions for each username (with and without @)
-        const orConditions = chunk.flatMap(u => [
-          `username.ilike.${u}`,
-          `username.ilike.@${u}`,
-          `username.eq.${u}`,
-          `username.eq.@${u}`
-        ]);
+        // Try multiple approaches for better matching
+        let profiles: any[] | null = null;
+        let profilesError: any = null;
         
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('username, profile_image_url')
-          .or(orConditions.join(','))
-          .not('profile_image_url', 'is', null);
-
-        if (profilesError) {
-          console.error('[ARC Leaderboard] Error querying profiles:', profilesError);
-          // Fallback: try with exact matches
+        // Approach 1: Try with ilike for each username individually (more reliable)
+        const profilePromises = chunk.map(async (u) => {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('username, profile_image_url')
+            .or(`username.ilike.${u},username.ilike.@${u},username.eq.${u},username.eq.@${u}`)
+            .not('profile_image_url', 'is', null);
+          
+          if (error) {
+            console.warn(`[ARC Leaderboard] Error querying profile for ${u}:`, error);
+          }
+          
+          return data || [];
+        });
+        
+        const profileResults = await Promise.all(profilePromises);
+        profiles = profileResults.flat();
+        
+        // If no results, try exact match as fallback
+        if (!profiles || profiles.length === 0) {
           const { data: profilesExact } = await supabase
             .from('profiles')
             .select('username, profile_image_url')
@@ -824,22 +831,11 @@ export default async function handler(
             .not('profile_image_url', 'is', null);
           
           if (profilesExact) {
-            for (const profile of profilesExact) {
-              if (profile.username && profile.profile_image_url) {
-                const avatarUrl = typeof profile.profile_image_url === 'string' 
-                  ? profile.profile_image_url.trim() 
-                  : null;
-                
-                if (avatarUrl && avatarUrl.length > 0 && avatarUrl.startsWith('http')) {
-                  const normalizedUsername = normalizeTwitterUsername(profile.username);
-                  if (normalizedUsername && chunk.includes(normalizedUsername) && !avatarMap.has(normalizedUsername)) {
-                    avatarMap.set(normalizedUsername, avatarUrl);
-                  }
-                }
-              }
-            }
+            profiles = profilesExact;
           }
-        } else if (profiles && profiles.length > 0) {
+        }
+
+        if (profiles && profiles.length > 0) {
           console.log(`[ARC Leaderboard] Found ${profiles.length} profiles with avatars in chunk ${Math.floor(i / chunkSize) + 1}`);
           let addedFromProfiles = 0;
           for (const profile of profiles) {
