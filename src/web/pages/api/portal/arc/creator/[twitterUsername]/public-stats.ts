@@ -244,12 +244,12 @@ export default async function handler(
     const uniqueArenas = new Set(arenaCreators.map((ac: any) => ac.arena_id));
     const totalArenas = uniqueArenas.size;
 
-    // Get all contributions for engagement type classification
+    // Get all contributions for engagement type classification and CT Heat calculation
     const projectIds = [...new Set(arenaCreators.map((ac: any) => ac.arenas?.projects?.id).filter(Boolean))];
     
     const { data: contributions, error: contribError } = await supabase
       .from('project_tweets')
-      .select('project_id, text')
+      .select('project_id, text, likes, replies, retweets')
       .in('project_id', projectIds)
       .or('is_official.is.null,is_official.eq.false')
       .ilike('author_handle', normalizedUsername);
