@@ -230,9 +230,9 @@ export default async function handler(
   }
 
   try {
-    const user = await requirePortalUser(req);
+    const user = await requirePortalUser(req, res);
     if (!user) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+      return; // requirePortalUser already sent 401 response
     }
 
     const supabase = getSupabaseAdmin();
