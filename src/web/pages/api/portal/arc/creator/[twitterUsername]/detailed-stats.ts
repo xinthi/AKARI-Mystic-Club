@@ -24,7 +24,7 @@ interface DetailedCreatorStats {
   total_mindshare: number; // Total mindshare points across all projects
   average_mindshare: number; // Average mindshare per project
   total_ct_heat: number | null; // Average CT Heat across all projects
-  total_noise: number | null; // Average Noise score
+  total_noise: number | null; // Average Noise score (currently not available)
   total_signal: number | null; // Average Signal score
   total_signal_score: number | null; // Average Signal Score (0-100)
   total_trust_band: string | null; // Most common trust band
@@ -122,6 +122,7 @@ async function buildCreatorPostMetrics(
     return [];
   }
 
+  // Get creator's smart score and audience org score (if available)
   const xUserId = await getXUserIdFromUsername(supabase, username);
   let smartScore: number | null = null;
   let audienceOrgScore: number | null = null;
@@ -138,6 +139,7 @@ async function buildCreatorPostMetrics(
 
     smartScore = smartAccount?.smart_score ? Number(smartAccount.smart_score) : null;
 
+    // Get audience org score from profile (if available)
     const { data: profile } = await supabase
       .from('profiles')
       .select('authenticity_score')
@@ -147,16 +149,46 @@ async function buildCreatorPostMetrics(
     audienceOrgScore = profile?.authenticity_score || null;
   }
 
-  return tweets.map(tweet => ({
-    tweetId: tweet.tweet_id,
-    likes: tweet.likes || 0,
-    replies: tweet.replies || 0,
-    retweets: tweet.retweets || 0,
-    sentiment: tweet.sentiment_score || 0,
-    smartScore: smartScore || 0,
-    audienceOrgScore: audienceOrgScore || 0,
-    createdAt: new Date(tweet.created_at),
-  }));
+  // Track seen tweet texts for duplicate detection
+  const seenTexts = new Set<string>();
+
+  return tweets.map(tweet => {
+    const text = tweet.text || '';
+    const normalizedText = text.toLowerCase().trim();
+    const isOriginal = !seenTexts.has(normalizedText);
+    if (isOriginal) {
+      seenTexts.add(normalizedText);
+    }
+
+    // Classify content type
+    let contentType: CreatorPostMetrics['contentType'] = 'other';
+    if (/\d+\/\d+/.test(text) || text.toLowerCase().includes('thread') || text.includes('🧵')) {
+      contentType = 'thread';
+    } else if (text.toLowerCase().includes('analysis') || text.toLowerCase().includes('deep dive')) {
+      contentType = 'analysis';
+    } else if (text.toLowerCase().includes('meme') || text.includes('😂')) {
+      contentType = 'meme';
+    } else if (text.toLowerCase().includes('quote')) {
+      contentType = 'quote_rt';
+    } else if (text.toLowerCase().startsWith('rt @') || text.toLowerCase().startsWith('retweet')) {
+      contentType = 'retweet';
+    } else if (text.toLowerCase().startsWith('@')) {
+      contentType = 'reply';
+    }
+
+    const engagementPoints = (tweet.likes || 0) + (tweet.replies || 0) * 2 + (tweet.retweets || 0) * 3;
+
+    return {
+      tweetId: tweet.tweet_id || '',
+      engagementPoints,
+      createdAt: new Date(tweet.created_at || now),
+      contentType,
+      isOriginal,
+      sentimentScore: tweet.sentiment_score || null,
+      smartScore: smartScore || null,
+      audienceOrgScore: audienceOrgScore || null,
+    };
+  });
 }
 
 function classifyTweetType(text: string | null): 'threader' | 'video' | 'clipper' | 'meme' | null {
@@ -269,7 +301,6 @@ export default async function handler(
     let totalContributions = 0;
     const engagementTypes = { threader: 0, video: 0, clipper: 0, meme: 0 };
     const ctHeatScores: number[] = [];
-    const noiseScores: number[] = [];
     const signalScores: number[] = [];
     const signalScoreValues: number[] = [];
     const trustBands: string[] = [];
@@ -300,14 +331,64 @@ export default async function handler(
 
       // Calculate Signal Score, CT Heat, etc. for this project
       const postMetrics = await buildCreatorPostMetrics(supabase, projectId, normalizedUsername, '30d');
-      const signalResult = calculateCreatorSignalScore(postMetrics);
-      const ctHeat = computeCtHeatScore(signalResult.signalScore, signalResult.noiseScore);
+      
+      // Calculate CT Heat from tweets
+      let ctHeat: number | null = null;
+      if (projectContributions.length > 0) {
+        const mentionsCount = projectContributions.length;
+        const totalLikes = projectContributions.reduce((sum, t) => sum + (t.likes || 0), 0);
+        const totalRetweets = projectContributions.reduce((sum, t) => sum + (t.retweets || 0), 0);
+        const avgLikes = totalLikes / mentionsCount;
+        const avgRetweets = totalRetweets / mentionsCount;
+        const uniqueAuthors = 1; // Single creator
+        
+        ctHeat = computeCtHeatScore(
+          mentionsCount,
+          avgLikes,
+          avgRetweets,
+          uniqueAuthors,
+          0 // influencerMentions (not applicable for single creator)
+        );
+      }
 
-      if (signalResult.signalScore !== null) signalScores.push(signalResult.signalScore);
-      if (signalResult.noiseScore !== null) noiseScores.push(signalResult.noiseScore);
+      // Calculate Signal Score
+      let signalScore: number | null = null;
+      let trustBand: 'A' | 'B' | 'C' | 'D' | null = null;
+      if (postMetrics.length > 0) {
+        const xUserId = await getXUserIdFromUsername(supabase, normalizedUsername);
+        let smartFollowersCount = 0;
+        
+        if (xUserId) {
+          try {
+            const smartResult = await getSmartFollowers(
+              supabase,
+              'creator',
+              xUserId,
+              xUserId,
+              new Date()
+            );
+            smartFollowersCount = smartResult.smart_followers_count || 0;
+          } catch (error) {
+            console.error('[DetailedStats] Error getting smart followers:', error);
+          }
+        }
+        
+        const signalResult = calculateCreatorSignalScore(
+          postMetrics,
+          '30d',
+          false, // isJoined - we don't track this per project
+          smartFollowersCount
+        );
+        signalScore = signalResult.signal_score;
+        trustBand = signalResult.trust_band;
+      }
+
+      if (signalScore !== null) {
+        signalScores.push(signalScore);
+        signalScoreValues.push(signalScore);
+      }
       if (ctHeat !== null) ctHeatScores.push(ctHeat);
-      if (signalResult.signalScore !== null) signalScoreValues.push(signalResult.signalScore);
-      if (signalResult.trustBand) trustBands.push(signalResult.trustBand);
+      if (trustBand) trustBands.push(trustBand);
 
       // Get contribution percentage (need to calculate total project mindshare)
       const { data: allProjectContributions } = await supabase
@@ -337,10 +418,10 @@ export default async function handler(
         mindshare_points: projectMindshare,
         contributions_count: projectContributions.length,
         ct_heat: ctHeat,
-        noise: signalResult.noiseScore,
-        signal: signalResult.signalScore,
-        signal_score: signalResult.signalScore,
-        trust_band: signalResult.trustBand,
+        noise: null, // Noise score not available from signal score calculation
+        signal: signalScore,
+        signal_score: signalScore,
+        trust_band: trustBand,
         contribution_pct: contributionPct,
       });
     }
@@ -353,9 +434,6 @@ export default async function handler(
     // Calculate averages
     const avgCtHeat = ctHeatScores.length > 0 
       ? ctHeatScores.reduce((a, b) => a + b, 0) / ctHeatScores.length 
-      : null;
-    const avgNoise = noiseScores.length > 0 
-      ? noiseScores.reduce((a, b) => a + b, 0) / noiseScores.length 
       : null;
     const avgSignal = signalScores.length > 0 
       ? signalScores.reduce((a, b) => a + b, 0) / signalScores.length 
@@ -407,7 +485,7 @@ export default async function handler(
       total_mindshare: totalMindshare,
       average_mindshare: projectStatsMap.size > 0 ? totalMindshare / projectStatsMap.size : 0,
       total_ct_heat: avgCtHeat,
-      total_noise: avgNoise,
+      total_noise: null, // Noise score not available from signal score calculation
       total_signal: avgSignal,
       total_signal_score: avgSignalScore,
       total_trust_band: mostCommonTrustBand as 'A' | 'B' | 'C' | 'D' | null,
