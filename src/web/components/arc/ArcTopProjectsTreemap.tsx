@@ -768,7 +768,13 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for memo - only re-render if data actually changed
+  // Custom comparison for memo - always re-render if timeframe or mode changes
+  // This ensures the treemap updates when user switches timeframes
+  if (prevProps.timeframe !== nextProps.timeframe || prevProps.mode !== nextProps.mode) {
+    return false; // Re-render
+  }
+  
+  // For same timeframe/mode, only re-render if data actually changed
   return (
     prevProps.items.length === nextProps.items.length &&
     prevProps.items.every((item, idx) => {
@@ -779,9 +785,7 @@ export const ArcTopProjectsTreemap = memo(function ArcTopProjectsTreemap({
         item.arc_active === nextItem.arc_active &&
         item.arc_access_level === nextItem.arc_access_level
       );
-    }) &&
-    prevProps.mode === nextProps.mode &&
-    prevProps.timeframe === nextProps.timeframe
+    })
   );
 });
 

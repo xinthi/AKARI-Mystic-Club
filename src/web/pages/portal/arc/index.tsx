@@ -247,7 +247,21 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       setTopProjectsLoading(true);
       setTopProjectsError(null);
       
-      const res = await fetch(`/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=30`, { credentials: 'include' });
+      // Add cache-busting timestamp to ensure fresh data on timeframe change
+      const timestamp = Date.now();
+      const url = `/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=30&_t=${timestamp}`;
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ARC Home] Fetching top projects:', { mode: topProjectsView, timeframe: topProjectsTimeframe, url });
+      }
+      
+      const res = await fetch(url, { 
+        credentials: 'include',
+        cache: 'no-store', // Prevent browser caching
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       
       if (!res.ok) {
         const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -265,6 +279,10 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       }
 
       const items = data.items || data.projects || [];
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ARC Home] Received top projects:', { count: items.length, timeframe: topProjectsTimeframe, mode: topProjectsView });
+      }
       
       // Normalize items to match TopProjectItem format, handling projectId variations
       const normalizedItems: TopProjectItem[] = (items ?? []).map((p: any) => {
