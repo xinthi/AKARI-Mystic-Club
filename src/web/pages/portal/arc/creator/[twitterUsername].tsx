@@ -4,13 +4,14 @@
  * Shows creator profile with stats and all arenas they participate in
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { GetServerSideProps } from 'next';
 import Link from 'next/link';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
+import { useAkariUser } from '@/lib/akari-auth';
 
 // =============================================================================
 // TYPES
@@ -52,6 +53,62 @@ interface CreatorArenaEntry {
   ends_at: string | null;
 }
 
+interface DetailedStats {
+  twitter_username: string;
+  total_arc_points: number;
+  total_arenas: number;
+  total_contributions: number;
+  total_mindshare: number;
+  average_mindshare: number;
+  total_ct_heat: number | null;
+  total_noise: number | null;
+  total_signal: number | null;
+  total_signal_score: number | null;
+  total_trust_band: string | null;
+  total_smart_followers: number | null;
+  smart_followers_pct: number | null;
+  engagement_types: {
+    threader: number;
+    video: number;
+    clipper: number;
+    meme: number;
+  };
+  projects: Array<{
+    project_id: string;
+    project_name: string;
+    project_slug: string | null;
+    arena_id: string | null;
+    arena_name: string | null;
+    contribution_pct: number | null;
+    mindshare_points: number;
+    ct_heat: number | null;
+    noise: number | null;
+    signal: number | null;
+    signal_score: number | null;
+    trust_band: 'A' | 'B' | 'C' | 'D' | null;
+    contributions_count: number;
+  }>;
+}
+
+interface PublicStats {
+  twitter_username: string;
+  total_arc_points: number;
+  total_arenas: number;
+  total_smart_followers: number | null;
+  smart_followers_pct: number | null;
+  average_ct_heat: number | null;
+  average_noise: number | null;
+  average_signal: number | null;
+  average_signal_score: number | null;
+  most_common_trust_band: string | null;
+  engagement_types: {
+    threader: number;
+    video: number;
+    clipper: number;
+    meme: number;
+  };
+}
+
 interface CreatorProfilePageProps {
   creator: CreatorProfile | null;
   arenas: CreatorArenaEntry[];
@@ -64,6 +121,63 @@ interface CreatorProfilePageProps {
 // =============================================================================
 
 export default function CreatorProfilePage({ creator, arenas, error, twitterUsername }: CreatorProfilePageProps) {
+  const akariUser = useAkariUser();
+  const [detailedStats, setDetailedStats] = useState<DetailedStats | null>(null);
+  const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingPublicStats, setLoadingPublicStats] = useState(false);
+
+  // Check if current user is viewing their own profile
+  const normalizedViewingUsername = normalizeUsername(twitterUsername);
+  const normalizedCurrentUsername = akariUser.xUsername 
+    ? normalizeUsername(akariUser.xUsername) 
+    : null;
+  const isOwner = normalizedCurrentUsername && 
+    normalizedCurrentUsername.toLowerCase() === normalizedViewingUsername.toLowerCase();
+
+  // Fetch detailed stats if owner
+  useEffect(() => {
+    if (isOwner && creator && !detailedStats && !loadingStats) {
+      setLoadingStats(true);
+      fetch(`/api/portal/arc/creator/${encodeURIComponent(twitterUsername)}/detailed-stats`, {
+        credentials: 'include',
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.stats) {
+            setDetailedStats(data.stats);
+          }
+        })
+        .catch(err => {
+          console.error('[CreatorProfile] Error fetching detailed stats:', err);
+        })
+        .finally(() => {
+          setLoadingStats(false);
+        });
+    }
+  }, [isOwner, creator, twitterUsername, detailedStats, loadingStats]);
+
+  // Fetch public stats if not owner
+  useEffect(() => {
+    if (!isOwner && creator && !publicStats && !loadingPublicStats) {
+      setLoadingPublicStats(true);
+      fetch(`/api/portal/arc/creator/${encodeURIComponent(twitterUsername)}/public-stats`, {
+        credentials: 'include',
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.stats) {
+            setPublicStats(data.stats);
+          }
+        })
+        .catch(err => {
+          console.error('[CreatorProfile] Error fetching public stats:', err);
+        })
+        .finally(() => {
+          setLoadingPublicStats(false);
+        });
+    }
+  }, [isOwner, creator, twitterUsername, publicStats, loadingPublicStats]);
   // Helper function to get ring badge color
   const getRingColor = (ring: string | null) => {
     if (!ring) return 'bg-white/10 border-white/20 text-white/60';
@@ -368,42 +482,336 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
               </div>
             </div>
 
-            {/* Detailed Metrics Section - Metrics removed from leaderboard */}
-            <section>
-              <h2 className="text-xl font-semibold text-akari-text mb-4">Detailed Metrics</h2>
-              <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
-                <p className="text-sm text-akari-muted mb-4">
-                  These metrics are calculated per project and available in individual arena leaderboards. 
-                  Visit each arena&apos;s leaderboard to see detailed Signal, Noise, CT Heat, Engagement, Signal Score, and Trust Band metrics.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">Signal</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+            {/* Owner View: Detailed Stats */}
+            {isOwner && (
+              <>
+                {loadingStats ? (
+                  <div className="rounded-xl border border-slate-700 p-6 bg-akari-card text-center">
+                    <p className="text-sm text-akari-muted">Loading detailed stats...</p>
                   </div>
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">Noise</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                ) : detailedStats ? (
+                  <>
+                    {/* Detailed Stats Section */}
+                    <section>
+                      <h2 className="text-xl font-semibold text-akari-text mb-4">Your Detailed Stats</h2>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Total Contributions */}
+                        <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                          <p className="text-xs text-akari-muted mb-1">Total Contributions</p>
+                          <p className="text-2xl font-bold text-akari-text">
+                            {detailedStats.total_contributions.toLocaleString()}
+                          </p>
+                        </div>
+
+                        {/* Total Mindshare */}
+                        <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                          <p className="text-xs text-akari-muted mb-1">Total Mindshare</p>
+                          <p className="text-2xl font-bold text-akari-text">
+                            {detailedStats.total_mindshare.toLocaleString()}
+                          </p>
+                        </div>
+
+                        {/* Average Mindshare */}
+                        <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                          <p className="text-xs text-akari-muted mb-1">Avg Mindshare per Project</p>
+                          <p className="text-2xl font-bold text-akari-text">
+                            {detailedStats.average_mindshare.toFixed(0)}
+                          </p>
+                        </div>
+
+                        {/* CT Heat */}
+                        {detailedStats.total_ct_heat !== null && (
+                          <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                            <p className="text-xs text-akari-muted mb-1">CT Heat</p>
+                            <p className="text-2xl font-bold text-akari-text">
+                              {detailedStats.total_ct_heat.toFixed(1)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Noise */}
+                        {detailedStats.total_noise !== null && (
+                          <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                            <p className="text-xs text-akari-muted mb-1">Noise</p>
+                            <p className="text-2xl font-bold text-akari-text">
+                              {detailedStats.total_noise.toFixed(1)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Signal */}
+                        {detailedStats.total_signal !== null && (
+                          <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                            <p className="text-xs text-akari-muted mb-1">Signal</p>
+                            <p className="text-2xl font-bold text-akari-text">
+                              {detailedStats.total_signal.toFixed(1)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Signal Score */}
+                        {detailedStats.total_signal_score !== null && (
+                          <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                            <p className="text-xs text-akari-muted mb-1">Signal Score</p>
+                            <p className="text-2xl font-bold text-akari-text">
+                              {detailedStats.total_signal_score.toFixed(1)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Trust Band */}
+                        {detailedStats.total_trust_band && (
+                          <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                            <p className="text-xs text-akari-muted mb-1">Trust Band</p>
+                            <p className="text-2xl font-bold text-akari-text">
+                              {detailedStats.total_trust_band}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Engagement Types */}
+                        <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
+                          <p className="text-xs text-akari-muted mb-2">Engagement Types</p>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-akari-muted">Threader:</span>
+                              <span className="text-akari-text font-medium">{detailedStats.engagement_types.threader}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-akari-muted">Video:</span>
+                              <span className="text-akari-text font-medium">{detailedStats.engagement_types.video}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-akari-muted">Clipper:</span>
+                              <span className="text-akari-text font-medium">{detailedStats.engagement_types.clipper}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-akari-muted">Meme:</span>
+                              <span className="text-akari-text font-medium">{detailedStats.engagement_types.meme}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Project Breakdown */}
+                    {detailedStats.projects.length > 0 && (
+                      <section>
+                        <h2 className="text-xl font-semibold text-akari-text mb-4">Project Breakdown</h2>
+                        <div className="rounded-xl border border-slate-700 bg-akari-card overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="bg-akari-cardSoft/30 border-b border-akari-border/30">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Project</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Contributions</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Mindshare</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Contribution %</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">CT Heat</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Signal Score</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-akari-muted">Trust</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-akari-border/30">
+                                {detailedStats.projects.map((project) => (
+                                  <tr key={project.project_id} className="hover:bg-akari-cardSoft/20 transition-colors">
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.project_slug ? (
+                                        <Link
+                                          href={`/portal/arc/${project.project_slug}`}
+                                          className="font-medium text-akari-primary hover:text-akari-neon-teal transition-colors"
+                                        >
+                                          {project.project_name}
+                                        </Link>
+                                      ) : (
+                                        <span className="font-medium">{project.project_name}</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.contributions_count.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.mindshare_points.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.contribution_pct !== null 
+                                        ? `${project.contribution_pct.toFixed(2)}%`
+                                        : '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.ct_heat !== null ? project.ct_heat.toFixed(1) : '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.signal_score !== null ? project.signal_score.toFixed(1) : '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-akari-text">
+                                      {project.trust_band || '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                  </>
+                ) : null}
+              </>
+            )}
+
+            {/* Public View: Basic Stats */}
+            {!isOwner && (
+              <section>
+                <h2 className="text-xl font-semibold text-akari-text mb-4">Public Stats</h2>
+                {loadingPublicStats ? (
+                  <div className="rounded-xl border border-slate-700 p-6 bg-akari-card text-center">
+                    <p className="text-sm text-akari-muted">Loading stats...</p>
                   </div>
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">CT Heat</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                ) : publicStats ? (
+                  <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                        <p className="text-xs text-akari-muted mb-1">Total ARC Points</p>
+                        <p className="text-lg font-semibold text-akari-text">{publicStats.total_arc_points.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                        <p className="text-xs text-akari-muted mb-1">Arenas Joined</p>
+                        <p className="text-lg font-semibold text-akari-text">{publicStats.total_arenas}</p>
+                      </div>
+                      {publicStats.total_smart_followers !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Smart Followers</p>
+                          <p className="text-lg font-semibold text-akari-text">
+                            {publicStats.total_smart_followers.toLocaleString()}
+                            {publicStats.smart_followers_pct !== null && (
+                              <span className="text-xs text-akari-muted ml-1">({publicStats.smart_followers_pct.toFixed(1)}%)</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {publicStats.average_ct_heat !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">CT Heat</p>
+                          <p className="text-lg font-semibold text-akari-text">{publicStats.average_ct_heat.toFixed(1)}</p>
+                        </div>
+                      )}
+                      {publicStats.average_noise !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Noise</p>
+                          <p className="text-lg font-semibold text-akari-text">{publicStats.average_noise.toFixed(1)}</p>
+                        </div>
+                      )}
+                      {publicStats.average_signal !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Signal</p>
+                          <p className="text-lg font-semibold text-akari-text">{publicStats.average_signal.toFixed(1)}</p>
+                        </div>
+                      )}
+                      {publicStats.average_signal_score !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Signal Score</p>
+                          <p className="text-lg font-semibold text-akari-text">{publicStats.average_signal_score.toFixed(1)}</p>
+                        </div>
+                      )}
+                      {publicStats.most_common_trust_band && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Trust Band</p>
+                          <p className="text-lg font-semibold text-akari-text">{publicStats.most_common_trust_band}</p>
+                        </div>
+                      )}
+                      <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                        <p className="text-xs text-akari-muted mb-2">Engagement Types</p>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-akari-muted">Threader:</span>
+                            <span className="text-akari-text font-medium">{publicStats.engagement_types.threader}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-akari-muted">Video:</span>
+                            <span className="text-akari-text font-medium">{publicStats.engagement_types.video}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-akari-muted">Clipper:</span>
+                            <span className="text-akari-text font-medium">{publicStats.engagement_types.clipper}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-akari-muted">Meme:</span>
+                            <span className="text-akari-text font-medium">{publicStats.engagement_types.meme}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">Engagement Types</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                ) : (
+                  <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
+                    <p className="text-sm text-akari-muted mb-4">
+                      Viewing basic public information. Log in as this creator to see detailed stats including all contributions, mindshare breakdown, and engagement metrics.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                        <p className="text-xs text-akari-muted mb-1">Total ARC Points</p>
+                        <p className="text-lg font-semibold text-akari-text">{creator.total_points.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                        <p className="text-xs text-akari-muted mb-1">Arenas Joined</p>
+                        <p className="text-lg font-semibold text-akari-text">{creator.arenas_count}</p>
+                      </div>
+                      {creator.smart_followers && creator.smart_followers.count !== null && (
+                        <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                          <p className="text-xs text-akari-muted mb-1">Smart Followers</p>
+                          <p className="text-lg font-semibold text-akari-text">
+                            {creator.smart_followers.count.toLocaleString()}
+                            {creator.smart_followers.pct !== null && (
+                              <span className="text-xs text-akari-muted ml-1">({creator.smart_followers.pct.toFixed(1)}%)</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">Signal Score</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
-                    <p className="text-xs text-akari-muted mb-1">Trust Band</p>
-                    <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                )}
+              </section>
+            )}
+
+            {/* Detailed Metrics Section - Only show for public view */}
+            {!isOwner && (
+              <section>
+                <h2 className="text-xl font-semibold text-akari-text mb-4">Detailed Metrics</h2>
+                <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
+                  <p className="text-sm text-akari-muted mb-4">
+                    These metrics are calculated per project and available in individual arena leaderboards. 
+                    Visit each arena&apos;s leaderboard to see detailed Signal, Noise, CT Heat, Engagement, Signal Score, and Trust Band metrics.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">Signal</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">Noise</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">CT Heat</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">Engagement Types</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">Signal Score</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-600/50 p-3 bg-akari-cardSoft/30">
+                      <p className="text-xs text-akari-muted mb-1">Trust Band</p>
+                      <p className="text-sm text-akari-text">View in arena leaderboards</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* Narrative Summary Section */}
             {creator && (
