@@ -32,6 +32,16 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
   const userDisplayName = akariUser.user?.displayName || 'User';
   const userAvatarUrl = akariUser.user?.avatarUrl || null;
   const userInitials = getUserInitials(userDisplayName);
+  const userXUsername = akariUser.xUsername || null;
+  
+  // Normalize username for URL (remove @ if present)
+  const normalizedXUsername = userXUsername 
+    ? userXUsername.replace(/^@+/, '').toLowerCase()
+    : null;
+  
+  const profileUrl = normalizedXUsername 
+    ? `/portal/arc/creator/${encodeURIComponent(normalizedXUsername)}`
+    : null;
 
   return (
     <div className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/40 backdrop-blur-sm">
@@ -111,18 +121,38 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
 
           {/* Profile Avatar */}
           <div className="relative">
-            {userAvatarUrl ? (
-              <Image
-                src={userAvatarUrl}
-                alt={userDisplayName}
-                width={32}
-                height={32}
-                className="w-8 h-8 rounded-full object-cover cursor-pointer"
-              />
+            {profileUrl ? (
+              <Link href={profileUrl}>
+                {userAvatarUrl ? (
+                  <Image
+                    src={userAvatarUrl}
+                    alt={userDisplayName}
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-white/30 transition-all"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-medium text-white cursor-pointer hover:bg-white/20 hover:ring-2 hover:ring-white/30 transition-all">
+                    {userInitials}
+                  </div>
+                )}
+              </Link>
             ) : (
-              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-medium text-white cursor-pointer">
-                {userInitials}
-              </div>
+              <>
+                {userAvatarUrl ? (
+                  <Image
+                    src={userAvatarUrl}
+                    alt={userDisplayName}
+                    width={32}
+                    height={32}
+                    className="w-8 h-8 rounded-full object-cover cursor-pointer"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-medium text-white cursor-pointer">
+                    {userInitials}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
