@@ -257,7 +257,7 @@ export default async function handler(
       approved_requests_count: approvedRequests.length,
       
       is_eligible_for_arc_home: isEligible,
-      eligibility_reasons,
+      eligibility_reasons: eligibilityReasons,
       blocking_reasons: blockingReasons,
     };
 
