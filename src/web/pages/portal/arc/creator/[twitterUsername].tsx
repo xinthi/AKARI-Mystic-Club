@@ -117,6 +117,16 @@ interface CreatorProfilePageProps {
 }
 
 // =============================================================================
+// HELPERS
+// =============================================================================
+
+// Helper function to normalize username (remove @ if present)
+function normalizeUsername(username: string): string {
+  if (!username) return '';
+  return username.replace(/^@+/, ''); // Remove leading @ symbols
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
@@ -192,12 +202,6 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       default:
         return 'bg-white/10 border-white/20 text-white/60';
     }
-  };
-
-  // Helper function to normalize username (remove @ if present)
-  const normalizeUsername = (username: string): string => {
-    if (!username) return '';
-    return username.replace(/^@+/, ''); // Remove leading @ symbols
   };
 
   // Helper function to get avatar/initial for creator
