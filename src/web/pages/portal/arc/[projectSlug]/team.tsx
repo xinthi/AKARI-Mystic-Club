@@ -543,10 +543,13 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { notFound: true };
   }
 
-  // Check permissions - must be owner or admin
+  // Check permissions - must be owner or admin (not just moderator)
   const permissions = await checkProjectPermissions(supabase, userId, project.id);
   
-  if (!permissions.canManage && !permissions.isSuperAdmin) {
+  // Only owners and admins can manage team members (moderators cannot)
+  const canManageTeam = permissions.isOwner || permissions.isAdmin || permissions.isSuperAdmin;
+  
+  if (!canManageTeam) {
     return {
       redirect: {
         destination: `/portal/arc/${projectSlug}`,
