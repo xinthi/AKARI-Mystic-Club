@@ -12,6 +12,8 @@ import { createPortalClient, fetchProfileImagesForHandles } from '@/lib/portal/s
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getSmartFollowers, getSmartFollowersDeltas } from '@/server/smart-followers/calculate';
 import { useAkariUser } from '@/lib/akari-auth';
+import { getUserProfile } from '@/lib/twitter/twitter';
+import { upsertProfileFromTwitter } from '@/lib/portal/profile-sync';
 
 // =============================================================================
 // TYPES
@@ -1082,16 +1084,50 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
 
   try {
     const supabase = createPortalClient();
+    const supabaseAdmin = getSupabaseAdmin();
     const normalizedUsername = twitterUsername.toLowerCase().trim().replace(/^@+/, '');
 
     // First, check if the profile exists in the profiles table
-    const { data: profileData, error: profileError } = await supabase
+    let { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, name, profile_image_url')
       .eq('username', normalizedUsername)
       .single();
 
+    // If profile doesn't exist, try to fetch from Twitter API and create it
     if (profileError || !profileData) {
+      try {
+        console.log(`[CreatorProfilePage] Profile not found in DB, fetching from Twitter for @${normalizedUsername}`);
+        const twitterProfile = await getUserProfile(normalizedUsername);
+        
+        if (twitterProfile) {
+          // Upsert the profile to database
+          const profileId = await upsertProfileFromTwitter(supabaseAdmin, twitterProfile);
+          
+          if (profileId) {
+            // Fetch the newly created profile
+            const { data: newProfileData } = await supabaseAdmin
+              .from('profiles')
+              .select('id, username, name, profile_image_url')
+              .eq('id', profileId)
+              .single();
+            
+            profileData = newProfileData;
+            console.log(`[CreatorProfilePage] ✓ Created profile from Twitter: ${profileId}`);
+          } else {
+            console.warn(`[CreatorProfilePage] Failed to upsert profile from Twitter`);
+          }
+        } else {
+          console.warn(`[CreatorProfilePage] Twitter profile not found for @${normalizedUsername}`);
+        }
+      } catch (twitterError) {
+        console.error(`[CreatorProfilePage] Error fetching from Twitter:`, twitterError);
+        // Continue - we'll show the profile page even if Twitter fetch fails
+      }
+    }
+
+    // If still no profile data, show error
+    if (!profileData) {
       return {
         props: {
           creator: null,
