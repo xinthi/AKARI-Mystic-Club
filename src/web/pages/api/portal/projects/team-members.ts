@@ -8,8 +8,7 @@
  * DELETE: Remove a team member (requires owner or admin role, or super_admin for security)
  * 
  * Security:
- * - Only project owner (projects.claimed_by) or admins can add/remove moderators and admins
- * - SuperAdmin can only remove team members (for security reasons), cannot add new ones
+ * - Only project owner (projects.claimed_by), admins, or SuperAdmin can add/remove moderators and admins
  * - When a moderator is removed by super_admin, all ARC campaigns and Creator Manager programs are paused
  */
 
@@ -293,11 +292,7 @@ export default async function handler(
     // Check permissions
     const permission = await checkTeamManagementPermission(supabase, currentUser.userId, body.projectId);
     
-    // SuperAdmin cannot add team members (only remove for security)
-    if (permission.isSuperAdmin) {
-      return res.status(403).json({ ok: false, error: 'SuperAdmin can only remove team members for security reasons, not add them' });
-    }
-
+    // SuperAdmin can manage team members (add and remove)
     if (!permission.canManage) {
       return res.status(403).json({ ok: false, error: 'You do not have permission to manage team members for this project' });
     }
