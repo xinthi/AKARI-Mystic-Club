@@ -227,6 +227,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           console.warn('[CreatorProfile] Could not fetch avatar from API:', err);
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [creator, avatarUrl, twitterUsername, normalizedViewingUsername]);
 
   // Fetch creator profile ID and check circle connection status

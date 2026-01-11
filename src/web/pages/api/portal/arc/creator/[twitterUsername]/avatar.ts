@@ -58,6 +58,11 @@ export default async function handler(
       if (twitterProfile && (twitterProfile.profileImageUrl || twitterProfile.avatarUrl)) {
         const avatarUrl = twitterProfile.profileImageUrl || twitterProfile.avatarUrl;
         
+        // Ensure avatarUrl is a valid string
+        if (!avatarUrl || typeof avatarUrl !== 'string') {
+          return res.status(404).json({ ok: false, error: 'Avatar not found' });
+        }
+        
         // Update profile in database
         if (profileData?.id) {
           await supabaseAdmin
