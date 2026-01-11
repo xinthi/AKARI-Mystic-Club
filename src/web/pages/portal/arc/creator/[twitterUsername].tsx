@@ -137,6 +137,12 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   const [loadingStats, setLoadingStats] = useState(false);
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
 
+  // Circle connection state
+  const [circleStatus, setCircleStatus] = useState<'none' | 'pending' | 'accepted' | 'loading'>('loading');
+  const [circleId, setCircleId] = useState<string | null>(null);
+  const [isAddingToCircle, setIsAddingToCircle] = useState(false);
+  const [viewedCreatorProfileId, setViewedCreatorProfileId] = useState<string | null>(null);
+
   // Check if current user is viewing their own profile
   const normalizedViewingUsername = normalizeUsername(twitterUsername);
   const normalizedCurrentUsername = akariUser.xUsername 
@@ -188,6 +194,134 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         });
     }
   }, [isOwner, creator, twitterUsername, publicStats, loadingPublicStats]);
+
+  // Fetch creator profile ID and check circle connection status
+  useEffect(() => {
+    if (isOwner || !akariUser.isLoggedIn || !creator) {
+      setCircleStatus('none');
+      return;
+    }
+
+    // Get creator profile ID from creator data
+    const fetchCreatorProfileId = async () => {
+      try {
+        const res = await fetch(`/api/portal/arc/creator/${encodeURIComponent(twitterUsername)}/public-stats`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        
+        if (data.ok && data.stats) {
+          // We need to get the profile ID - let's fetch it from the circles API
+          const circlesRes = await fetch('/api/portal/creator-circles', {
+            credentials: 'include',
+          });
+          const circlesData = await circlesRes.json();
+          
+          if (circlesData.ok) {
+            // Find if there's a connection with this creator
+            const connection = circlesData.circles.find((c: any) => {
+              const otherProfile = c.creator_profile_id === viewedCreatorProfileId 
+                ? c.circle_member_profile_id 
+                : c.circle_member_profile_id === viewedCreatorProfileId
+                ? c.creator_profile_id
+                : null;
+              
+              // We need to match by username since we don't have profile ID yet
+              // For now, let's check the connection status differently
+              return false; // We'll update this after getting profile ID
+            });
+            
+            if (connection) {
+              setCircleStatus(connection.status === 'accepted' ? 'accepted' : 'pending');
+              setCircleId(connection.id);
+            } else {
+              setCircleStatus('none');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[CreatorProfile] Error checking circle status:', err);
+        setCircleStatus('none');
+      }
+    };
+
+    // Get profile ID from username
+    const getProfileIdFromUsername = async () => {
+      try {
+        const supabase = createPortalClient();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', normalizedViewingUsername)
+          .single();
+        
+        if (profile) {
+          setViewedCreatorProfileId(profile.id);
+          
+          // Now check circle status
+          const circlesRes = await fetch('/api/portal/creator-circles', {
+            credentials: 'include',
+          });
+          const circlesData = await circlesRes.json();
+          
+          if (circlesData.ok) {
+            const connection = circlesData.circles.find((c: any) => 
+              c.creator_profile_id === profile.id || c.circle_member_profile_id === profile.id
+            );
+            
+            if (connection) {
+              setCircleStatus(connection.status === 'accepted' ? 'accepted' : 'pending');
+              setCircleId(connection.id);
+            } else {
+              setCircleStatus('none');
+            }
+          } else {
+            setCircleStatus('none');
+          }
+        } else {
+          setCircleStatus('none');
+        }
+      } catch (err) {
+        console.error('[CreatorProfile] Error fetching profile ID:', err);
+        setCircleStatus('none');
+      }
+    };
+
+    getProfileIdFromUsername();
+  }, [isOwner, akariUser.isLoggedIn, creator, twitterUsername, normalizedViewingUsername, viewedCreatorProfileId]);
+
+  // Handle adding to circle
+  const handleAddToCircle = async () => {
+    if (!viewedCreatorProfileId || isAddingToCircle) return;
+
+    setIsAddingToCircle(true);
+    try {
+      const res = await fetch('/api/portal/creator-circles/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          creatorProfileId: viewedCreatorProfileId,
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (data.ok) {
+        setCircleStatus('pending');
+        setCircleId(data.circle.id);
+      } else {
+        alert(data.error || 'Failed to add to network');
+      }
+    } catch (err) {
+      console.error('[CreatorProfile] Error adding to circle:', err);
+      alert('Failed to add to network. Please try again.');
+    } finally {
+      setIsAddingToCircle(false);
+    }
+  };
   // Helper function to get ring badge color
   const getRingColor = (ring: string | null) => {
     if (!ring) return 'bg-white/10 border-white/20 text-white/60';
@@ -392,9 +526,46 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                   {getCreatorAvatar(creator.twitter_username, creator.avatar_url, 'large')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-3xl font-bold text-akari-text mb-2">
-                    @{normalizeUsername(creator.twitter_username)}
-                  </h1>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-3xl font-bold text-akari-text">
+                      @{normalizeUsername(creator.twitter_username)}
+                    </h1>
+                    {/* Add to Network Button */}
+                    {!isOwner && akariUser.isLoggedIn && (
+                      <div className="flex-shrink-0">
+                        {circleStatus === 'loading' ? (
+                          <button
+                            disabled
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed"
+                          >
+                            Loading...
+                          </button>
+                        ) : circleStatus === 'accepted' ? (
+                          <button
+                            disabled
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500/20 text-green-300 border border-green-500/40 cursor-default"
+                          >
+                            ✓ Connected
+                          </button>
+                        ) : circleStatus === 'pending' ? (
+                          <button
+                            disabled
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 cursor-default"
+                          >
+                            Request Pending
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleAddToCircle}
+                            disabled={isAddingToCircle}
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-akari-primary text-black hover:bg-akari-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isAddingToCircle ? 'Adding...' : '+ Add to Network'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {creator.primary_style && (
                     <p className="text-base text-akari-muted mb-4">
                       {creator.primary_style}
