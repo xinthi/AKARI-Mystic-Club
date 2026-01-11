@@ -334,6 +334,15 @@ export default function CreatorManagerHome() {
                         {project.crmHasAccess ? 'Awaiting Unlock' : 'Not Approved'}
                       </span>
                     )}
+                    {/* Team Management Button */}
+                    <Link
+                      href={`/portal/projects/${project.id}/team`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-3 py-2 sm:px-4 sm:py-2 bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 rounded-lg transition-colors text-xs sm:text-sm font-medium"
+                      title="Manage Team Members"
+                    >
+                      Team
+                    </Link>
                     {/* Show Create Program if approved, Apply if not */}
                     {project.crmApproved ? (
                       <button
