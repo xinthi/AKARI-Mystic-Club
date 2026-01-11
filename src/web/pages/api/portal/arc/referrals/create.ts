@@ -52,14 +52,54 @@ export default async function handler(
     } else if (username && typeof username === 'string') {
       // Look up profile ID from username
       const normalizedUsername = username.toLowerCase().replace('@', '').trim();
-      const { data: creatorProfile, error: creatorError } = await supabase
+      let { data: creatorProfile, error: creatorError } = await supabase
         .from('profiles')
         .select('id')
         .eq('username', normalizedUsername)
         .single();
 
+      // If profile doesn't exist, try to create it from Twitter
       if (creatorError || !creatorProfile) {
-        return res.status(404).json({ ok: false, error: 'Creator not found' });
+        try {
+          const { getUserProfile } = await import('@/lib/twitter/twitter');
+          const { upsertProfileFromTwitter } = await import('@/lib/portal/profile-sync');
+          const { getSupabaseAdmin } = await import('@/lib/supabase-admin');
+          
+          const twitterProfile = await getUserProfile(normalizedUsername);
+          if (twitterProfile) {
+            const supabaseAdmin = getSupabaseAdmin();
+            const profileId = await upsertProfileFromTwitter(supabaseAdmin, twitterProfile);
+            if (profileId) {
+              // Fetch the newly created profile
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', profileId)
+                .single();
+              creatorProfile = newProfile;
+            }
+          }
+        } catch (twitterError) {
+          console.warn('[Create Referral API] Could not fetch/create profile from Twitter:', twitterError);
+        }
+      }
+
+      if (!creatorProfile) {
+        // Still generate the invite URL even if we can't create the referral in DB
+        const inviteText = `Hey @${normalizedUsername}! 🚀 Join me on AKARI ARC - the ultimate creator network for Web3. Earn ARC points, build your reputation, and connect with top creators. Check it out: https://akari.ai/portal/arc`;
+        const invitePostUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(inviteText)}`;
+        
+        return res.status(200).json({
+          ok: true,
+          referral: {
+            id: '',
+            referrer_profile_id: profileId,
+            referred_profile_id: '',
+            x_post_url: invitePostUrl,
+            referral_code: null,
+          },
+          invitePostUrl,
+        });
       }
       targetProfileId = creatorProfile.id;
     } else {
@@ -99,8 +139,8 @@ export default async function handler(
     const referredUsername = referredProfile.username || username;
     const referredName = referredProfile.name || referredUsername;
 
-    // Generate invite post URL
-    const inviteText = `Hey @${referredUsername}! 🚀 Join me on AKARI ARC - the ultimate creator network for Web3. Earn ARC points, build your reputation, and connect with top creators. Check it out: https://akari.ai/portal/arc`;
+    // Generate organic, natural invite post URL
+    const inviteText = `Hey @${referredUsername}! 🚀\n\nJust discovered AKARI ARC - a really cool creator network for Web3. You can earn ARC points, build your reputation, and connect with other top creators.\n\nThought you'd be interested! Check it out: https://akari.ai/portal/arc`;
     const invitePostUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(inviteText)}`;
 
     if (existingReferral) {

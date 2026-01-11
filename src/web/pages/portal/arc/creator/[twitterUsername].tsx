@@ -314,31 +314,44 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
 
     setIsCreatingReferral(true);
     try {
-      const res = await fetch('/api/portal/arc/referrals/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          username: normalizedViewingUsername,
-        }),
-      });
+      // Generate organic, natural invite text
+      const inviteText = `Hey @${normalizedViewingUsername}! 🚀\n\nJust discovered AKARI ARC - a really cool creator network for Web3. You can earn ARC points, build your reputation, and connect with other top creators.\n\nThought you'd be interested! Check it out: https://akari.ai/portal/arc`;
+      const invitePostUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(inviteText)}`;
 
-      const data = await res.json();
+      // Try to create referral in database (but don't fail if it doesn't work)
+      try {
+        const res = await fetch('/api/portal/arc/referrals/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            username: normalizedViewingUsername,
+          }),
+        });
 
-      if (data.ok) {
-        setReferralStatus('exists');
-        setReferralId(data.referral.id);
-        setInvitePostUrl(data.invitePostUrl);
-        // Open X post in new window
-        window.open(data.invitePostUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        alert(data.error || 'Failed to create invite');
+        const data = await res.json();
+
+        if (data.ok) {
+          setReferralStatus('exists');
+          setReferralId(data.referral.id);
+          setInvitePostUrl(data.invitePostUrl || invitePostUrl);
+          // Use the URL from API if available, otherwise use the one we generated
+          window.open(data.invitePostUrl || invitePostUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          // Even if API fails, still open X with the invite
+          console.warn('[CreatorProfile] Failed to create referral in DB:', data.error);
+          window.open(invitePostUrl, '_blank', 'noopener,noreferrer');
+        }
+      } catch (apiError) {
+        // If API call fails, still open X with the invite
+        console.warn('[CreatorProfile] API error, opening X directly:', apiError);
+        window.open(invitePostUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
-      console.error('[CreatorProfile] Error creating referral:', err);
-      alert('Failed to create invite. Please try again.');
+      console.error('[CreatorProfile] Error creating invite:', err);
+      alert('Failed to open invite. Please try again.');
     } finally {
       setIsCreatingReferral(false);
     }
@@ -367,7 +380,13 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         setCircleStatus('pending');
         setCircleId(data.circle.id);
       } else {
-        alert(data.error || 'Failed to add to network');
+        // Show more helpful error message
+        const errorMsg = data.error || 'Failed to add to network';
+        if (errorMsg.includes('not found')) {
+          alert('Creator not found. They may need to join AKARI first. Try using "Invite to AKARI" instead!');
+        } else {
+          alert(errorMsg);
+        }
       }
     } catch (err) {
       console.error('[CreatorProfile] Error adding to circle:', err);
@@ -397,7 +416,10 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     if (!username) return null;
     const normalizedUsername = normalizeUsername(username);
     const firstLetter = normalizedUsername.charAt(0).toUpperCase();
-    const sizeClasses = size === 'large' ? 'w-16 h-16 text-xl' : 'w-8 h-8 text-sm';
+    // Responsive sizes: smaller on mobile, larger on desktop
+    const sizeClasses = size === 'large' 
+      ? 'w-20 h-20 sm:w-24 sm:h-24 text-xl sm:text-2xl' 
+      : 'w-8 h-8 sm:w-10 sm:h-10 text-sm sm:text-base';
     
     if (avatarUrl) {
       return (
@@ -563,95 +585,102 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         {creator && (
           <>
             {/* Header card */}
-            <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
-              <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
+            <div className="rounded-xl border border-slate-700 p-4 sm:p-6 bg-akari-card">
+              <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
+                {/* Avatar */}
+                <div className="flex-shrink-0 mx-auto sm:mx-0">
                   {getCreatorAvatar(creator.twitter_username, creator.avatar_url, 'large')}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-akari-text">
+                
+                {/* Main content */}
+                <div className="flex-1 min-w-0 w-full">
+                  {/* Username and Ring Badge Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-akari-text text-center sm:text-left">
                       @{normalizeUsername(creator.twitter_username)}
                     </h1>
-                    {/* Action Buttons */}
-                    {!isOwner && akariUser.isLoggedIn && (
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        {/* Add to Network Button */}
-                        {circleStatus === 'loading' ? (
-                          <button
-                            disabled
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed"
-                          >
-                            Loading...
-                          </button>
-                        ) : circleStatus === 'accepted' ? (
-                          <button
-                            disabled
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500/20 text-green-300 border border-green-500/40 cursor-default"
-                          >
-                            ✓ Connected
-                          </button>
-                        ) : circleStatus === 'pending' ? (
-                          <button
-                            disabled
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 cursor-default"
-                          >
-                            Request Pending
-                          </button>
-                        ) : (
-                          <button
-                            onClick={handleAddToCircle}
-                            disabled={isAddingToCircle}
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-akari-primary text-black hover:bg-akari-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isAddingToCircle ? 'Adding...' : '+ Add to Network'}
-                          </button>
-                        )}
-
-                        {/* Invite to AKARI Button */}
-                        {referralStatus === 'loading' ? (
-                          <button
-                            disabled
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed"
-                          >
-                            ...
-                          </button>
-                        ) : referralStatus === 'exists' ? (
-                          <button
-                            onClick={() => invitePostUrl && window.open(invitePostUrl, '_blank', 'noopener,noreferrer')}
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 transition-colors"
-                          >
-                            📤 Share Invite
-                          </button>
-                        ) : (
-                          <button
-                            onClick={handleInviteToAkari}
-                            disabled={isCreatingReferral}
-                            className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isCreatingReferral ? 'Creating...' : '🚀 Invite to AKARI'}
-                          </button>
-                        )}
+                    {creator.primary_ring && (
+                      <div className="flex-shrink-0 mx-auto sm:mx-0">
+                        <span
+                          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium border ${getRingColor(
+                            creator.primary_ring
+                          )}`}
+                        >
+                          {creator.primary_ring}
+                        </span>
                       </div>
                     )}
                   </div>
+
+                  {/* Primary Style */}
                   {creator.primary_style && (
-                    <p className="text-base text-akari-muted mb-4">
+                    <p className="text-sm sm:text-base text-akari-muted mb-4 text-center sm:text-left">
                       {creator.primary_style}
                     </p>
                   )}
+
+                  {/* Action Buttons */}
+                  {!isOwner && akariUser.isLoggedIn && (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2 w-full sm:w-auto">
+                      {/* Add to Network Button */}
+                      {circleStatus === 'loading' ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed w-full sm:w-auto"
+                        >
+                          Loading...
+                        </button>
+                      ) : circleStatus === 'accepted' ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-green-500/20 text-green-300 border border-green-500/40 cursor-default w-full sm:w-auto"
+                        >
+                          ✓ Connected
+                        </button>
+                      ) : circleStatus === 'pending' ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 cursor-default w-full sm:w-auto"
+                        >
+                          Request Pending
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleAddToCircle}
+                          disabled={isAddingToCircle}
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-akari-primary text-black hover:bg-akari-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+                        >
+                          {isAddingToCircle ? 'Adding...' : '+ Add to Network'}
+                        </button>
+                      )}
+
+                      {/* Invite to AKARI Button */}
+                      {referralStatus === 'loading' ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed w-full sm:w-auto"
+                        >
+                          ...
+                        </button>
+                      ) : referralStatus === 'exists' ? (
+                        <button
+                          onClick={() => invitePostUrl && window.open(invitePostUrl, '_blank', 'noopener,noreferrer')}
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 transition-colors w-full sm:w-auto"
+                        >
+                          📤 Share Invite
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleInviteToAkari}
+                          disabled={isCreatingReferral}
+                          className="px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+                        >
+                          {isCreatingReferral ? 'Creating...' : '🚀 Invite to AKARI'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {creator.primary_ring && (
-                  <div className="flex-shrink-0">
-                    <span
-                      className={`px-4 py-2 rounded-full text-sm font-medium border ${getRingColor(
-                        creator.primary_ring
-                      )}`}
-                    >
-                      {creator.primary_ring}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 

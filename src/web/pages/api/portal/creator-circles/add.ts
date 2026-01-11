@@ -47,14 +47,40 @@ export default async function handler(
     } else if (username && typeof username === 'string') {
       // Look up profile ID from username
       const normalizedUsername = username.toLowerCase().replace('@', '').trim();
-      const { data: creatorProfile, error: creatorError } = await supabase
+      let { data: creatorProfile, error: creatorError } = await supabase
         .from('profiles')
         .select('id')
         .eq('username', normalizedUsername)
         .single();
 
+      // If profile doesn't exist, try to create it from Twitter
       if (creatorError || !creatorProfile) {
-        return res.status(404).json({ ok: false, error: 'Creator not found' });
+        try {
+          const { getUserProfile } = await import('@/lib/twitter/twitter');
+          const { upsertProfileFromTwitter } = await import('@/lib/portal/profile-sync');
+          const { getSupabaseAdmin } = await import('@/lib/supabase-admin');
+          
+          const twitterProfile = await getUserProfile(normalizedUsername);
+          if (twitterProfile) {
+            const supabaseAdmin = getSupabaseAdmin();
+            const profileId = await upsertProfileFromTwitter(supabaseAdmin, twitterProfile);
+            if (profileId) {
+              // Fetch the newly created profile
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', profileId)
+                .single();
+              creatorProfile = newProfile;
+            }
+          }
+        } catch (twitterError) {
+          console.warn('[Add Circle API] Could not fetch/create profile from Twitter:', twitterError);
+        }
+      }
+
+      if (!creatorProfile) {
+        return res.status(404).json({ ok: false, error: 'Creator not found. Please make sure the creator exists on X/Twitter.' });
       }
       targetProfileId = creatorProfile.id;
     } else {
