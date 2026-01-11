@@ -155,7 +155,6 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     totalReferrals: number;
     totalRewardsEarned: number;
   } | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(creator?.avatar_url || null);
 
   // Check if current user is viewing their own profile
   const normalizedViewingUsername = normalizeUsername(twitterUsername);
