@@ -125,7 +125,9 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch projects' });
     }
 
-    // Filter projects where user has permissions
+    // Filter projects where user has permissions (owner, admin, or moderator)
+    // Note: We check specific roles, not canManage, because canManage includes super admin
+    // which would show all projects. We only want projects where user is owner/admin/moderator.
     const projectsWithAccess: ProjectWithPrograms[] = [];
 
     for (const project of projectsData || []) {
@@ -135,7 +137,9 @@ export default async function handler(
         project.id
       );
 
-      if (permissions.canManage) {
+      // Only include projects where user is owner, admin, or moderator
+      // Exclude super admin check - we want actual project-level permissions
+      if (permissions.isOwner || permissions.isAdmin || permissions.isModerator) {
         // Check CRM approval status
         const { data: accessData } = await supabase
           .from('arc_project_access')
