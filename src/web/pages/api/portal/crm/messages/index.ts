@@ -56,7 +56,14 @@ export default async function handler(
   }
 
   try {
-    const { profileId } = await requirePortalUser(req, res);
+    const user = await requirePortalUser(req, res);
+    if (!user) {
+      return; // requirePortalUser already sent 401 response
+    }
+    const profileId = user.profileId;
+    if (!profileId) {
+      return res.status(403).json({ ok: false, error: 'Profile not found' });
+    }
     const supabase = createPortalClient();
 
     const { projectId, type } = req.query; // type: 'received' (creator) | 'sent' (project)
