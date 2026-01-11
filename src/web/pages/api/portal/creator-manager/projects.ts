@@ -41,6 +41,8 @@ interface Program {
 
 interface ProjectWithPrograms extends Project {
   programs: Program[];
+  crmApproved: boolean; // Has CRM approval and unlock
+  crmHasAccess: boolean; // Has approval (may not be unlocked yet)
 }
 
 type ProjectsResponse =
@@ -134,6 +136,23 @@ export default async function handler(
       );
 
       if (permissions.canManage) {
+        // Check CRM approval status
+        const { data: accessData } = await supabase
+          .from('arc_project_access')
+          .select('application_status')
+          .eq('project_id', project.id)
+          .eq('application_status', 'approved')
+          .maybeSingle();
+
+        const { data: featuresData } = await supabase
+          .from('arc_project_features')
+          .select('option1_crm_unlocked')
+          .eq('project_id', project.id)
+          .maybeSingle();
+
+        const crmHasAccess = !!accessData; // Has approval
+        const crmApproved = crmHasAccess && (featuresData?.option1_crm_unlocked === true); // Has approval AND unlock
+
         // Get programs for this project
         const { data: programs, error: programsError } = await supabase
           .from('creator_manager_programs')
@@ -180,6 +199,8 @@ export default async function handler(
         projectsWithAccess.push({
           ...project,
           programs: programsWithStats,
+          crmApproved,
+          crmHasAccess,
         });
       }
     }

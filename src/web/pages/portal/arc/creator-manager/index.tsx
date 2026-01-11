@@ -43,6 +43,8 @@ interface Program {
 
 interface ProjectWithPrograms extends Project {
   programs: Program[];
+  crmApproved: boolean; // Has CRM approval and unlock
+  crmHasAccess: boolean; // Has approval (may not be unlocked yet)
 }
 
 // =============================================================================
@@ -56,9 +58,45 @@ export default function CreatorManagerHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [applyingProjectId, setApplyingProjectId] = useState<string | null>(null);
   
   // Get projectId from query params (supports both UUID and slug)
   const projectIdFromQuery = router.query.projectId as string | undefined;
+
+  // Handle applying for CRM access
+  const handleApplyForCrm = async (projectId: string) => {
+    if (applyingProjectId) return; // Prevent double-clicks
+
+    setApplyingProjectId(projectId);
+    try {
+      const res = await fetch(`/api/portal/arc/projects/${projectId}/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          applied_by_official_x: false,
+          notes: 'Requesting CRM access for Creator Manager',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        alert('CRM access request submitted successfully! You will be notified once it\'s approved.');
+        // Reload projects to update status
+        loadProjects();
+      } else {
+        alert(data.error || 'Failed to submit CRM access request');
+      }
+    } catch (err) {
+      console.error('[Creator Manager] Error applying for CRM:', err);
+      alert('Failed to submit CRM access request. Please try again.');
+    } finally {
+      setApplyingProjectId(null);
+    }
+  };
 
   const loadProjects = useCallback(async () => {
     try {
@@ -109,6 +147,41 @@ export default function CreatorManagerHome() {
 
     loadProjects();
   }, [akariUser.isLoggedIn, loadProjects]);
+
+  // Handle applying for CRM access
+  const handleApplyForCrm = async (projectId: string) => {
+    if (applyingProjectId) return; // Prevent double-clicks
+
+    setApplyingProjectId(projectId);
+    try {
+      const res = await fetch(`/api/portal/arc/projects/${projectId}/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          applied_by_official_x: false,
+          notes: 'Requesting CRM access for Creator Manager',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        alert('CRM access request submitted successfully! You will be notified once it\'s approved.');
+        // Reload projects to update status
+        loadProjects();
+      } else {
+        alert(data.error || 'Failed to submit CRM access request');
+      }
+    } catch (err) {
+      console.error('[Creator Manager] Error applying for CRM:', err);
+      alert('Failed to submit CRM access request. Please try again.');
+    } finally {
+      setApplyingProjectId(null);
+    }
+  };
 
   // Filter projects based on projectId query param
   const filteredProjects = projectIdFromQuery
@@ -290,15 +363,35 @@ export default function CreatorManagerHome() {
                         {project.programs.length} program{project.programs.length !== 1 ? 's' : ''}
                       </span>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/portal/arc/creator-manager/create?projectId=${project.id}`);
-                      }}
-                      className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
-                    >
-                      Create Program
-                    </button>
+                    {/* Show status badge if not approved */}
+                    {!project.crmApproved && (
+                      <span className="px-2 py-1 rounded text-xs bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">
+                        {project.crmHasAccess ? 'Awaiting Unlock' : 'Not Approved'}
+                      </span>
+                    )}
+                    {/* Show Create Program if approved, Apply if not */}
+                    {project.crmApproved ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/portal/arc/creator-manager/create?projectId=${project.id}`);
+                        }}
+                        className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
+                      >
+                        Create Program
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleApplyForCrm(project.id);
+                        }}
+                        disabled={applyingProjectId === project.id}
+                        className="px-4 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {applyingProjectId === project.id ? 'Applying...' : 'Apply for CRM'}
+                      </button>
+                    )}
                     <svg
                       className={`w-5 h-5 text-akari-muted transition-transform ${
                         isExpanded ? 'transform rotate-180' : ''
@@ -322,19 +415,40 @@ export default function CreatorManagerHome() {
                   <div className="px-6 pb-6 border-t border-akari-border/50">
                     {!hasPrograms ? (
                       <div className="mt-4 p-6 rounded-lg border border-akari-border/50 bg-akari-cardSoft text-center">
-                        <p className="text-akari-muted mb-4">
-                          This project has not opened Creator Manager programs.
-                        </p>
-                        <button
-                          onClick={() =>
-                            router.push(
-                              `/portal/arc/creator-manager/create?projectId=${project.id}`
-                            )
-                          }
-                          className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
-                        >
-                          Create First Program
-                        </button>
+                        {project.crmApproved ? (
+                          <>
+                            <p className="text-akari-muted mb-4">
+                              This project has not opened Creator Manager programs yet.
+                            </p>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/portal/arc/creator-manager/create?projectId=${project.id}`
+                                )
+                              }
+                              className="px-4 py-2 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors text-sm font-medium"
+                            >
+                              Create First Program
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-akari-muted mb-4">
+                              {project.crmHasAccess
+                                ? 'CRM access is approved but awaiting unlock. Please contact support.'
+                                : 'This project needs CRM approval before you can create Creator Manager programs.'}
+                            </p>
+                            {!project.crmHasAccess && (
+                              <button
+                                onClick={() => handleApplyForCrm(project.id)}
+                                disabled={applyingProjectId === project.id}
+                                className="px-4 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {applyingProjectId === project.id ? 'Applying...' : 'Apply for CRM Access'}
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="mt-4 space-y-2">
