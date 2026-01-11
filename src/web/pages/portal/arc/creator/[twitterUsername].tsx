@@ -145,6 +145,16 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   const [isAddingToCircle, setIsAddingToCircle] = useState(false);
   const [viewedCreatorProfileId, setViewedCreatorProfileId] = useState<string | null>(null);
 
+  // Referral state
+  const [referralStatus, setReferralStatus] = useState<'none' | 'pending' | 'exists' | 'loading'>('loading');
+  const [referralId, setReferralId] = useState<string | null>(null);
+  const [isCreatingReferral, setIsCreatingReferral] = useState(false);
+  const [invitePostUrl, setInvitePostUrl] = useState<string | null>(null);
+  const [referralStats, setReferralStats] = useState<{
+    totalReferrals: number;
+    totalRewardsEarned: number;
+  } | null>(null);
+
   // Check if current user is viewing their own profile
   const normalizedViewingUsername = normalizeUsername(twitterUsername);
   const normalizedCurrentUsername = akariUser.xUsername 
@@ -250,6 +260,89 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
 
     checkCircleStatus();
   }, [isOwner, akariUser.isLoggedIn, creator, twitterUsername, normalizedViewingUsername]);
+
+  // Check referral status and fetch stats
+  useEffect(() => {
+    if (isOwner || !akariUser.isLoggedIn || !creator) {
+      setReferralStatus('none');
+      return;
+    }
+
+    const checkReferralStatus = async () => {
+      try {
+        // Check if current user has referred this creator
+        const referralsRes = await fetch('/api/portal/arc/referrals', {
+          credentials: 'include',
+        });
+        const referralsData = await referralsRes.json();
+
+        if (referralsData.ok) {
+          // Check if this creator is in our referrals
+          const referral = referralsData.asReferrer.find((r: any) => {
+            const referredUsername = r.referred_profile?.username?.toLowerCase();
+            return referredUsername === normalizedViewingUsername.toLowerCase();
+          });
+
+          if (referral) {
+            setReferralStatus('exists');
+            setReferralId(referral.id);
+            setInvitePostUrl(referral.x_post_url);
+          } else {
+            setReferralStatus('none');
+          }
+
+          // Set referral stats
+          setReferralStats({
+            totalReferrals: referralsData.stats.totalReferrals,
+            totalRewardsEarned: referralsData.stats.totalRewardsEarned,
+          });
+        } else {
+          setReferralStatus('none');
+        }
+      } catch (err) {
+        console.error('[CreatorProfile] Error checking referral status:', err);
+        setReferralStatus('none');
+      }
+    };
+
+    checkReferralStatus();
+  }, [isOwner, akariUser.isLoggedIn, creator, twitterUsername, normalizedViewingUsername]);
+
+  // Handle creating referral (invite)
+  const handleInviteToAkari = async () => {
+    if (isCreatingReferral || !normalizedViewingUsername) return;
+
+    setIsCreatingReferral(true);
+    try {
+      const res = await fetch('/api/portal/arc/referrals/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: normalizedViewingUsername,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        setReferralStatus('exists');
+        setReferralId(data.referral.id);
+        setInvitePostUrl(data.invitePostUrl);
+        // Open X post in new window
+        window.open(data.invitePostUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        alert(data.error || 'Failed to create invite');
+      }
+    } catch (err) {
+      console.error('[CreatorProfile] Error creating referral:', err);
+      alert('Failed to create invite. Please try again.');
+    } finally {
+      setIsCreatingReferral(false);
+    }
+  };
 
   // Handle adding to circle
   const handleAddToCircle = async () => {
@@ -491,9 +584,10 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                     <h1 className="text-3xl font-bold text-akari-text">
                       @{normalizeUsername(creator.twitter_username)}
                     </h1>
-                    {/* Add to Network Button */}
+                    {/* Action Buttons */}
                     {!isOwner && akariUser.isLoggedIn && (
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 flex items-center gap-2">
+                        {/* Add to Network Button */}
                         {circleStatus === 'loading' ? (
                           <button
                             disabled
@@ -524,6 +618,31 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
                             {isAddingToCircle ? 'Adding...' : '+ Add to Network'}
                           </button>
                         )}
+
+                        {/* Invite to AKARI Button */}
+                        {referralStatus === 'loading' ? (
+                          <button
+                            disabled
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white/60 border border-white/10 cursor-not-allowed"
+                          >
+                            ...
+                          </button>
+                        ) : referralStatus === 'exists' ? (
+                          <button
+                            onClick={() => invitePostUrl && window.open(invitePostUrl, '_blank', 'noopener,noreferrer')}
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30 transition-colors"
+                          >
+                            📤 Share Invite
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleInviteToAkari}
+                            disabled={isCreatingReferral}
+                            className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isCreatingReferral ? 'Creating...' : '🚀 Invite to AKARI'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -548,7 +667,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
             </div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {/* Total ARC Points */}
               <div className="rounded-xl border border-slate-700 p-4 bg-akari-card">
                 <p className="text-xs text-akari-muted mb-1">Total ARC Points</p>

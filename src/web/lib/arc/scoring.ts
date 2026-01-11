@@ -402,6 +402,20 @@ export async function runArcScoringJob(): Promise<ArcScoringJobResult> {
             `[ARC Scoring] Updated @${creator.twitterUsername}: ` +
             `${creator.currentPoints} → ${newPoints} (+${creatorDeltaPoints})`
           );
+
+          // Calculate referral rewards (if creator was referred)
+          try {
+            const { calculateReferralRewards } = await import('./referral-rewards');
+            await calculateReferralRewards(
+              supabase,
+              creator.profileId,
+              creator.arenaId,
+              creatorDeltaPoints
+            );
+          } catch (rewardError) {
+            // Don't fail the scoring job if referral rewards fail
+            console.warn(`[ARC Scoring] Error calculating referral rewards:`, rewardError);
+          }
         }
       }
 

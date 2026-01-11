@@ -304,6 +304,17 @@ export default async function handler(
       });
     }
 
+    // Mark referral as "joined_arc" if this is the creator's first arena
+    if (userProfile.profileId) {
+      try {
+        const { markReferralAsJoinedArc } = await import('@/lib/arc/referral-rewards');
+        await markReferralAsJoinedArc(supabase, userProfile.profileId);
+      } catch (referralError) {
+        // Don't fail the join if referral marking fails
+        console.warn('[join-leaderboard] Error marking referral as joined:', referralError);
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       arenaId: aid,
