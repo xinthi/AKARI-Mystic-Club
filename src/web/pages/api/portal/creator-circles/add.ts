@@ -37,22 +37,40 @@ export default async function handler(
     }
     const supabase = createPortalClient();
 
-    const { creatorProfileId } = req.body;
+    const { creatorProfileId, username } = req.body;
 
-    if (!creatorProfileId || typeof creatorProfileId !== 'string') {
-      return res.status(400).json({ ok: false, error: 'creatorProfileId is required' });
+    let targetProfileId: string;
+
+    // Support both profileId and username
+    if (creatorProfileId && typeof creatorProfileId === 'string') {
+      targetProfileId = creatorProfileId;
+    } else if (username && typeof username === 'string') {
+      // Look up profile ID from username
+      const normalizedUsername = username.toLowerCase().replace('@', '').trim();
+      const { data: creatorProfile, error: creatorError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', normalizedUsername)
+        .single();
+
+      if (creatorError || !creatorProfile) {
+        return res.status(404).json({ ok: false, error: 'Creator not found' });
+      }
+      targetProfileId = creatorProfile.id;
+    } else {
+      return res.status(400).json({ ok: false, error: 'creatorProfileId or username is required' });
     }
 
     // Cannot add yourself
-    if (creatorProfileId === profileId) {
+    if (targetProfileId === profileId) {
       return res.status(400).json({ ok: false, error: 'Cannot add yourself to your circle' });
     }
 
-    // Check if creator exists
+    // Verify creator exists (double-check)
     const { data: creatorProfile, error: creatorError } = await supabase
       .from('profiles')
       .select('id')
-      .eq('id', creatorProfileId)
+      .eq('id', targetProfileId)
       .single();
 
     if (creatorError || !creatorProfile) {
@@ -63,7 +81,7 @@ export default async function handler(
     const { data: existingCircle, error: checkError } = await supabase
       .from('creator_circles')
       .select('*')
-      .or(`and(creator_profile_id.eq.${profileId},circle_member_profile_id.eq.${creatorProfileId}),and(creator_profile_id.eq.${creatorProfileId},circle_member_profile_id.eq.${profileId})`)
+      .or(`and(creator_profile_id.eq.${profileId},circle_member_profile_id.eq.${targetProfileId}),and(creator_profile_id.eq.${targetProfileId},circle_member_profile_id.eq.${profileId})`)
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -111,7 +129,7 @@ export default async function handler(
       .from('creator_circles')
       .insert({
         creator_profile_id: profileId,
-        circle_member_profile_id: creatorProfileId,
+        circle_member_profile_id: targetProfileId,
         status: 'pending',
         initiated_by_profile_id: profileId,
       })

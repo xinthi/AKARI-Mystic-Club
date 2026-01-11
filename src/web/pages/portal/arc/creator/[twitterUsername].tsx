@@ -202,79 +202,38 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       return;
     }
 
-    // Get creator profile ID from creator data
-    const fetchCreatorProfileId = async () => {
+    const checkCircleStatus = async () => {
       try {
-        const res = await fetch(`/api/portal/arc/creator/${encodeURIComponent(twitterUsername)}/public-stats`, {
+        // Check circle status by matching usernames
+        const circlesRes = await fetch('/api/portal/creator-circles', {
           credentials: 'include',
         });
-        const data = await res.json();
+        const circlesData = await circlesRes.json();
         
-        if (data.ok && data.stats) {
-          // We need to get the profile ID - let's fetch it from the circles API
-          const circlesRes = await fetch('/api/portal/creator-circles', {
-            credentials: 'include',
-          });
-          const circlesData = await circlesRes.json();
-          
-          if (circlesData.ok) {
-            // Find if there's a connection with this creator
-            const connection = circlesData.circles.find((c: any) => {
-              const otherProfile = c.creator_profile_id === viewedCreatorProfileId 
-                ? c.circle_member_profile_id 
-                : c.circle_member_profile_id === viewedCreatorProfileId
-                ? c.creator_profile_id
-                : null;
-              
-              // We need to match by username since we don't have profile ID yet
-              // For now, let's check the connection status differently
-              return false; // We'll update this after getting profile ID
-            });
+        if (circlesData.ok && circlesData.circles) {
+          // Find connection by matching username
+          const connection = circlesData.circles.find((c: any) => {
+            const memberUsername = c.member_profile?.username?.toLowerCase();
+            const creatorUsername = c.creator_profile?.username?.toLowerCase();
+            const viewingUsername = normalizedViewingUsername.toLowerCase();
             
-            if (connection) {
-              setCircleStatus(connection.status === 'accepted' ? 'accepted' : 'pending');
-              setCircleId(connection.id);
-            } else {
-              setCircleStatus('none');
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[CreatorProfile] Error checking circle status:', err);
-        setCircleStatus('none');
-      }
-    };
-
-    // Get profile ID from username
-    const getProfileIdFromUsername = async () => {
-      try {
-        const supabase = createPortalClient();
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', normalizedViewingUsername)
-          .single();
-        
-        if (profile) {
-          setViewedCreatorProfileId(profile.id);
-          
-          // Now check circle status
-          const circlesRes = await fetch('/api/portal/creator-circles', {
-            credentials: 'include',
-          });
-          const circlesData = await circlesRes.json();
-          
-          if (circlesData.ok) {
-            const connection = circlesData.circles.find((c: any) => 
-              c.creator_profile_id === profile.id || c.circle_member_profile_id === profile.id
+            return (
+              (memberUsername === viewingUsername || creatorUsername === viewingUsername) &&
+              (c.status === 'pending' || c.status === 'accepted')
             );
-            
-            if (connection) {
-              setCircleStatus(connection.status === 'accepted' ? 'accepted' : 'pending');
-              setCircleId(connection.id);
-            } else {
-              setCircleStatus('none');
+          });
+          
+          if (connection) {
+            setCircleStatus(connection.status === 'accepted' ? 'accepted' : 'pending');
+            setCircleId(connection.id);
+            // Set profile ID from the connection
+            if (connection.member_profile?.username?.toLowerCase() === normalizedViewingUsername.toLowerCase()) {
+              // This is the member, so we need the creator_profile_id
+              // Actually, we need to get the profile ID differently
+            } else if (connection.creator_profile?.username?.toLowerCase() === normalizedViewingUsername.toLowerCase()) {
+              // This is the creator
             }
+            // For now, we'll get the profile ID when adding
           } else {
             setCircleStatus('none');
           }
@@ -282,17 +241,17 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           setCircleStatus('none');
         }
       } catch (err) {
-        console.error('[CreatorProfile] Error fetching profile ID:', err);
+        console.error('[CreatorProfile] Error checking circle status:', err);
         setCircleStatus('none');
       }
     };
 
-    getProfileIdFromUsername();
-  }, [isOwner, akariUser.isLoggedIn, creator, twitterUsername, normalizedViewingUsername, viewedCreatorProfileId]);
+    checkCircleStatus();
+  }, [isOwner, akariUser.isLoggedIn, creator, twitterUsername, normalizedViewingUsername]);
 
   // Handle adding to circle
   const handleAddToCircle = async () => {
-    if (!viewedCreatorProfileId || isAddingToCircle) return;
+    if (isAddingToCircle) return;
 
     setIsAddingToCircle(true);
     try {
@@ -303,7 +262,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         },
         credentials: 'include',
         body: JSON.stringify({
-          creatorProfileId: viewedCreatorProfileId,
+          username: normalizedViewingUsername,
         }),
       });
 
