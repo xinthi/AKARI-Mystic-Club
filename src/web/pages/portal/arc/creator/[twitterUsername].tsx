@@ -1082,9 +1082,27 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
 
   try {
     const supabase = createPortalClient();
-    const normalizedUsername = twitterUsername.toLowerCase().trim();
+    const normalizedUsername = twitterUsername.toLowerCase().trim().replace(/^@+/, '');
 
-    // Query arena_creators with joins (removed profiles join - will fetch separately for consistency)
+    // First, check if the profile exists in the profiles table
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, name, profile_image_url')
+      .eq('username', normalizedUsername)
+      .single();
+
+    if (profileError || !profileData) {
+      return {
+        props: {
+          creator: null,
+          arenas: [],
+          error: 'CREATOR_NOT_FOUND',
+          twitterUsername,
+        },
+      };
+    }
+
+    // Now query arena_creators for this creator's arena data
     const { data: creatorsData, error: creatorsError } = await supabase
       .from('arena_creators')
       .select(`
@@ -1115,26 +1133,12 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
 
     if (creatorsError) {
       console.error('[CreatorProfilePage] Supabase error:', creatorsError);
-      return {
-        props: {
-          creator: null,
-          arenas: [],
-          error: 'Failed to load creator',
-          twitterUsername,
-        },
-      };
+      // Even if there's an error fetching arenas, we can still show the profile
+      // with empty arenas if the profile exists
     }
 
-    if (!creatorsData || creatorsData.length === 0) {
-      return {
-        props: {
-          creator: null,
-          arenas: [],
-          error: 'CREATOR_NOT_FOUND',
-          twitterUsername,
-        },
-      };
-    }
+    // If no arena data, creator still exists - show profile with 0 arenas
+    const hasArenaData = creatorsData && creatorsData.length > 0;
 
     // Process the data (same logic as API route)
     const arenas: CreatorArenaEntry[] = [];
@@ -1150,71 +1154,61 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
     let primaryStyle: string | null = null;
     let maxPoints = -1;
 
-    for (const row of creatorsData) {
-      const arena = (row as any).arenas;
-      const project = arena?.projects;
+    // Process arena data if it exists
+    if (hasArenaData && creatorsData) {
+      for (const row of creatorsData) {
+        const arena = (row as any).arenas;
+        const project = arena?.projects;
 
-      if (!arena || !project) continue;
+        if (!arena || !project) continue;
 
-      const points = Number(row.arc_points) || 0;
-      totalPoints += points;
+        const points = Number(row.arc_points) || 0;
+        totalPoints += points;
 
-      // Track ring points
-      const rawRing = row.ring;
+        // Track ring points
+        const rawRing = row.ring;
 
-      if (typeof rawRing === 'string') {
-        const lower = rawRing.toLowerCase();
+        if (typeof rawRing === 'string') {
+          const lower = rawRing.toLowerCase();
 
-        if (lower === 'core' || lower === 'momentum' || lower === 'discovery') {
-          const key = lower as RingKey;
-          ringPoints[key] += points;
+          if (lower === 'core' || lower === 'momentum' || lower === 'discovery') {
+            const key = lower as RingKey;
+            ringPoints[key] += points;
+          }
         }
-      }
 
-      // Track primary ring and style from highest points arena
-      if (points > maxPoints) {
-        maxPoints = points;
-        primaryRing = row.ring || null;
-        primaryStyle = row.style || null;
-      }
+        // Track primary ring and style from highest points arena
+        if (points > maxPoints) {
+          maxPoints = points;
+          primaryRing = row.ring || null;
+          primaryStyle = row.style || null;
+        }
 
-      arenas.push({
-        arena_id: row.arena_id,
-        arena_name: arena.name,
-        arena_slug: arena.slug,
-        project_id: arena.project_id,
-        project_name: project.name,
-        project_slug: project.slug || null,
-        project_twitter_username: project.x_handle || null,
-        ring: row.ring || null,
-        arc_points: points,
-        style: row.style || null,
-        joined_at: row.created_at || null,
-        starts_at: arena.starts_at || null,
-        ends_at: arena.ends_at || null,
-      });
+        arenas.push({
+          arena_id: row.arena_id,
+          arena_name: arena.name,
+          arena_slug: arena.slug,
+          project_id: arena.project_id,
+          project_name: project.name,
+          project_slug: project.slug || null,
+          project_twitter_username: project.x_handle || null,
+          ring: row.ring || null,
+          arc_points: points,
+          style: row.style || null,
+          joined_at: row.created_at || null,
+          starts_at: arena.starts_at || null,
+          ends_at: arena.ends_at || null,
+        });
+      }
     }
 
     // Get unique arena count
     const uniqueArenas = new Set(arenas.map(a => a.arena_id));
     const arenasCount = uniqueArenas.size;
 
-    // Get the actual twitter_username and avatar from the first row
-    const firstRow = creatorsData[0];
-    const twitterUsernameActual = firstRow?.twitter_username || normalizedUsername;
-    
-    // Fetch profile image using the helper function for consistent fetching
-    let avatarUrl: string | null = null;
-    try {
-      const supabaseAdmin = getSupabaseAdmin();
-      const cleanUsername = twitterUsernameActual.replace(/^@+/, '').toLowerCase();
-      const { profilesMap, akariUsersMap } = await fetchProfileImagesForHandles(supabaseAdmin, [cleanUsername]);
-      // akariUsersMap takes precedence if both exist
-      avatarUrl = akariUsersMap.get(cleanUsername) || profilesMap.get(cleanUsername) || null;
-    } catch (error) {
-      console.error('[CreatorProfilePage] Error fetching profile image:', error);
-      // Continue without avatar - will show placeholder
-    }
+    // Use profile data for username and avatar
+    const twitterUsernameActual = profileData.username || normalizedUsername;
+    const avatarUrl = profileData.profile_image_url || null;
 
     // Calculate Smart Followers for the creator
     let smartFollowersData: {
