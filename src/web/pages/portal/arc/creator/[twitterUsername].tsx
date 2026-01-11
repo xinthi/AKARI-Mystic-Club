@@ -138,6 +138,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
   const [publicStats, setPublicStats] = useState<PublicStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [loadingPublicStats, setLoadingPublicStats] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(creator?.avatar_url || null);
 
   // Circle connection state
   const [circleStatus, setCircleStatus] = useState<'none' | 'pending' | 'accepted' | 'loading'>('loading');
@@ -154,6 +155,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
     totalReferrals: number;
     totalRewardsEarned: number;
   } | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(creator?.avatar_url || null);
 
   // Check if current user is viewing their own profile
   const normalizedViewingUsername = normalizeUsername(twitterUsername);
@@ -206,6 +208,26 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
         });
     }
   }, [isOwner, creator, twitterUsername, publicStats, loadingPublicStats]);
+
+  // Try to fetch avatar if missing
+  useEffect(() => {
+    if (creator && !avatarUrl && normalizedViewingUsername) {
+      // Try to fetch profile with avatar from API
+      fetch(`/api/portal/arc/creator/${encodeURIComponent(twitterUsername)}/avatar`, {
+        credentials: 'include',
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.avatarUrl) {
+            setAvatarUrl(data.avatarUrl);
+            console.log('[CreatorProfile] Fetched avatar from API:', data.avatarUrl.substring(0, 50));
+          }
+        })
+        .catch(err => {
+          console.warn('[CreatorProfile] Could not fetch avatar from API:', err);
+        });
+    }
+  }, [creator, avatarUrl, twitterUsername, normalizedViewingUsername]);
 
   // Fetch creator profile ID and check circle connection status
   useEffect(() => {
@@ -594,7 +616,7 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
               <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
                 {/* Avatar */}
                 <div className="flex-shrink-0 mx-auto sm:mx-0">
-                  {getCreatorAvatar(creator.twitter_username, creator.avatar_url, 'large')}
+                  {getCreatorAvatar(creator.twitter_username, avatarUrl || creator.avatar_url, 'large')}
                 </div>
                 
                 {/* Main content */}
@@ -1244,33 +1266,45 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
         if (!profileData) {
           console.log(`[CreatorProfilePage] Profile not found in DB, fetching from Twitter for @${normalizedUsername}`);
         } else {
-          console.log(`[CreatorProfilePage] Profile exists but missing avatar, fetching from Twitter for @${normalizedUsername}`);
+          console.log(`[CreatorProfilePage] Profile exists but missing avatar (current: ${profileData.profile_image_url || 'null'}), fetching from Twitter for @${normalizedUsername}`);
         }
         
         const twitterProfile = await getUserProfile(normalizedUsername);
         
         if (twitterProfile) {
+          console.log(`[CreatorProfilePage] Twitter profile fetched:`, {
+            handle: twitterProfile.handle,
+            hasProfileImage: !!(twitterProfile.profileImageUrl || twitterProfile.avatarUrl),
+            profileImageUrl: twitterProfile.profileImageUrl || twitterProfile.avatarUrl || 'none',
+          });
+          
           // Upsert the profile to database (will update avatar if missing)
           const profileId = await upsertProfileFromTwitter(supabaseAdmin, twitterProfile);
           
           if (profileId) {
             // Fetch the updated profile with fresh avatar
-            const { data: updatedProfileData } = await supabaseAdmin
+            const { data: updatedProfileData, error: fetchError } = await supabaseAdmin
               .from('profiles')
               .select('id, username, name, profile_image_url')
               .eq('id', profileId)
               .single();
             
+            if (fetchError) {
+              console.error(`[CreatorProfilePage] Error fetching updated profile:`, fetchError);
+            }
+            
             if (updatedProfileData) {
               profileData = updatedProfileData;
               if (updatedProfileData.profile_image_url) {
-                console.log(`[CreatorProfilePage] ✓ Updated profile with avatar from Twitter: ${profileId}`);
+                console.log(`[CreatorProfilePage] ✓ Updated profile with avatar from Twitter: ${profileId}, avatar: ${updatedProfileData.profile_image_url.substring(0, 50)}...`);
               } else {
-                console.warn(`[CreatorProfilePage] Profile updated but still no avatar for @${normalizedUsername}`);
+                console.warn(`[CreatorProfilePage] Profile updated but still no avatar for @${normalizedUsername}. Twitter profile had: ${twitterProfile.profileImageUrl || twitterProfile.avatarUrl || 'none'}`);
               }
+            } else {
+              console.warn(`[CreatorProfilePage] Profile ID ${profileId} returned but couldn't fetch updated data`);
             }
           } else {
-            console.warn(`[CreatorProfilePage] Failed to upsert profile from Twitter`);
+            console.warn(`[CreatorProfilePage] Failed to upsert profile from Twitter for @${normalizedUsername}`);
           }
         } else {
           console.warn(`[CreatorProfilePage] Twitter profile not found for @${normalizedUsername}`);
@@ -1279,6 +1313,8 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
         console.error(`[CreatorProfilePage] Error fetching from Twitter:`, twitterError);
         // Continue - we'll show the profile page even if Twitter fetch fails
       }
+    } else {
+      console.log(`[CreatorProfilePage] Profile exists with avatar: ${profileData.profile_image_url?.substring(0, 50) || 'none'}...`);
     }
 
     // If still no profile data, create a minimal profile from the username
@@ -1408,7 +1444,24 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
 
     // Use profile data for username and avatar
     const twitterUsernameActual = profileData.username || normalizedUsername;
-    const avatarUrl = profileData.profile_image_url || null;
+    let avatarUrl = profileData.profile_image_url || null;
+    
+    // Ensure avatar URL is valid (must start with http/https)
+    if (avatarUrl && (!avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://'))) {
+      console.warn(`[CreatorProfilePage] Invalid avatar URL format for @${twitterUsernameActual}: ${avatarUrl}`);
+      avatarUrl = null;
+    }
+    
+    // Log avatar status for debugging
+    if (avatarUrl) {
+      console.log(`[CreatorProfilePage] Using avatar URL for @${twitterUsernameActual}: ${avatarUrl.substring(0, 60)}...`);
+    } else {
+      console.warn(`[CreatorProfilePage] No avatar URL available for @${twitterUsernameActual}. Profile data:`, {
+        hasProfileData: !!profileData,
+        profileImageUrl: profileData?.profile_image_url || 'null',
+        profileId: profileData?.id || 'null',
+      });
+    }
 
     // Calculate Smart Followers for the creator
     let smartFollowersData: {
