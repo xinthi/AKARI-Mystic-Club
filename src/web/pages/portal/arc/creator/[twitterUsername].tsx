@@ -550,28 +550,17 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
           <span className="text-white">@{twitterUsername}</span>
         </div>
 
-        {/* Error state */}
-        {error && (
+        {/* Error state - only show for actual errors, not for missing arena data */}
+        {error && error !== 'CREATOR_NOT_FOUND' && !creator && (
           <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
             <p className="text-sm text-red-400">
-              {error === 'CREATOR_NOT_FOUND' 
-                ? 'Creator not found in ARC yet.'
-                : 'Failed to load creator profile. Please try again later.'}
+              {error || 'Failed to load creator profile. Please try again later.'}
             </p>
           </div>
         )}
 
-        {/* Creator not found */}
-        {!error && !creator && (
-          <div className="rounded-xl border border-akari-border bg-akari-card p-8 text-center">
-            <p className="text-sm text-akari-muted">
-              Creator not found in ARC yet.
-            </p>
-          </div>
-        )}
-
-        {/* Creator content */}
-        {!error && creator && (
+        {/* Creator content - show even if creator has no arena data yet */}
+        {creator && (
           <>
             {/* Header card */}
             <div className="rounded-xl border border-slate-700 p-6 bg-akari-card">
@@ -1245,20 +1234,21 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       }
     }
 
-    // If still no profile data, show error
+    // If still no profile data, create a minimal profile from the username
+    // This ensures every creator has a profile page, even if they're not in the database yet
     if (!profileData) {
-      return {
-        props: {
-          creator: null,
-          arenas: [],
-          error: 'CREATOR_NOT_FOUND',
-          twitterUsername,
-        },
+      profileData = {
+        id: '', // Will be empty, but that's ok for display purposes
+        username: normalizedUsername,
+        name: null,
+        profile_image_url: null,
       };
+      console.log(`[CreatorProfilePage] Using minimal profile for @${normalizedUsername}`);
     }
 
     // Now query arena_creators for this creator's arena data
-    const { data: creatorsData, error: creatorsError } = await supabase
+    // Try by profile_id first (more reliable), then fall back to username
+    let creatorsQuery = supabase
       .from('arena_creators')
       .select(`
         id,
@@ -1283,8 +1273,16 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
             x_handle
           )
         )
-      `)
-      .ilike('twitter_username', normalizedUsername);
+      `);
+
+    // Query by profile_id if available, otherwise by username
+    if (profileData?.id) {
+      creatorsQuery = creatorsQuery.eq('profile_id', profileData.id);
+    } else {
+      creatorsQuery = creatorsQuery.ilike('twitter_username', normalizedUsername);
+    }
+
+    const { data: creatorsData, error: creatorsError } = await creatorsQuery;
 
     if (creatorsError) {
       console.error('[CreatorProfilePage] Supabase error:', creatorsError);
