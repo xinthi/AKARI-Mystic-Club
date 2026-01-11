@@ -148,41 +148,6 @@ export default function CreatorManagerHome() {
     loadProjects();
   }, [akariUser.isLoggedIn, loadProjects]);
 
-  // Handle applying for CRM access
-  const handleApplyForCrm = async (projectId: string) => {
-    if (applyingProjectId) return; // Prevent double-clicks
-
-    setApplyingProjectId(projectId);
-    try {
-      const res = await fetch(`/api/portal/arc/projects/${projectId}/apply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          applied_by_official_x: false,
-          notes: 'Requesting CRM access for Creator Manager',
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.ok) {
-        alert('CRM access request submitted successfully! You will be notified once it\'s approved.');
-        // Reload projects to update status
-        loadProjects();
-      } else {
-        alert(data.error || 'Failed to submit CRM access request');
-      }
-    } catch (err) {
-      console.error('[Creator Manager] Error applying for CRM:', err);
-      alert('Failed to submit CRM access request. Please try again.');
-    } finally {
-      setApplyingProjectId(null);
-    }
-  };
-
   // Filter projects based on projectId query param
   const filteredProjects = projectIdFromQuery
     ? allProjects.filter(
