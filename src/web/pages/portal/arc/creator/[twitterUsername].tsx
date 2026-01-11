@@ -1313,7 +1313,7 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
         console.error(`[CreatorProfilePage] Error fetching from Twitter:`, twitterError);
         // Continue - we'll show the profile page even if Twitter fetch fails
       }
-    } else {
+    } else if (profileData) {
       console.log(`[CreatorProfilePage] Profile exists with avatar: ${profileData.profile_image_url?.substring(0, 50) || 'none'}...`);
     }
 
