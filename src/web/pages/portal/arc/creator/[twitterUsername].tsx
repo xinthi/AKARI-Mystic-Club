@@ -421,16 +421,21 @@ export default function CreatorProfilePage({ creator, arenas, error, twitterUser
       ? 'w-20 h-20 sm:w-24 sm:h-24 text-xl sm:text-2xl' 
       : 'w-8 h-8 sm:w-10 sm:h-10 text-sm sm:text-base';
     
-    if (avatarUrl) {
+    // If we have a valid avatar URL, use it
+    const isValidAvatarUrl = avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim().startsWith('http');
+    
+    if (isValidAvatarUrl) {
       return (
         <img
-          src={avatarUrl}
+          src={avatarUrl.trim()}
           alt={normalizedUsername}
           className={`flex-shrink-0 ${sizeClasses} rounded-full border border-white/10 object-cover`}
+          loading="lazy"
         />
       );
     }
     
+    // Fallback: show initial letter
     return (
       <div className={`flex-shrink-0 ${sizeClasses} rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-semibold text-white`}>
         {firstLetter}
@@ -1231,26 +1236,39 @@ export const getServerSideProps: GetServerSideProps<CreatorProfilePageProps> = a
       .eq('username', normalizedUsername)
       .single();
 
-    // If profile doesn't exist, try to fetch from Twitter API and create it
-    if (profileError || !profileData) {
+    // If profile doesn't exist OR profile exists but has no avatar, fetch from Twitter
+    const needsTwitterFetch = !profileData || !profileData.profile_image_url;
+
+    if (needsTwitterFetch) {
       try {
-        console.log(`[CreatorProfilePage] Profile not found in DB, fetching from Twitter for @${normalizedUsername}`);
+        if (!profileData) {
+          console.log(`[CreatorProfilePage] Profile not found in DB, fetching from Twitter for @${normalizedUsername}`);
+        } else {
+          console.log(`[CreatorProfilePage] Profile exists but missing avatar, fetching from Twitter for @${normalizedUsername}`);
+        }
+        
         const twitterProfile = await getUserProfile(normalizedUsername);
         
         if (twitterProfile) {
-          // Upsert the profile to database
+          // Upsert the profile to database (will update avatar if missing)
           const profileId = await upsertProfileFromTwitter(supabaseAdmin, twitterProfile);
           
           if (profileId) {
-            // Fetch the newly created profile
-            const { data: newProfileData } = await supabaseAdmin
+            // Fetch the updated profile with fresh avatar
+            const { data: updatedProfileData } = await supabaseAdmin
               .from('profiles')
               .select('id, username, name, profile_image_url')
               .eq('id', profileId)
               .single();
             
-            profileData = newProfileData;
-            console.log(`[CreatorProfilePage] ✓ Created profile from Twitter: ${profileId}`);
+            if (updatedProfileData) {
+              profileData = updatedProfileData;
+              if (updatedProfileData.profile_image_url) {
+                console.log(`[CreatorProfilePage] ✓ Updated profile with avatar from Twitter: ${profileId}`);
+              } else {
+                console.warn(`[CreatorProfilePage] Profile updated but still no avatar for @${normalizedUsername}`);
+              }
+            }
           } else {
             console.warn(`[CreatorProfilePage] Failed to upsert profile from Twitter`);
           }
