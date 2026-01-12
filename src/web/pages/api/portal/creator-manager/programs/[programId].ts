@@ -1,46 +1,40 @@
 /**
- * API Route: PATCH /api/portal/creator-manager/programs/[programId]
+ * API Route: GET /api/portal/creator-manager/programs/[programId]
  * 
- * Update program status (active, paused, ended)
- * 
- * Input: { status: 'active' | 'paused' | 'ended' }
- * 
- * Permissions:
- * - Owner/Admin: Can change to any status
- * - Moderator: Can pause/resume (active <-> paused) but cannot end
+ * Get a single Creator Manager program by ID
+ * Requires project admin/moderator/owner permissions
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { checkProjectPermissions } from '@/lib/project-permissions';
-import { checkArcProjectApproval } from '@/lib/arc-permissions';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-interface UpdateProgramRequest {
+interface Program {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  objective: string | null; // May not exist if migration not run
+  visibility: 'private' | 'public' | 'hybrid';
   status: 'active' | 'paused' | 'ended';
+  start_at: string | null;
+  end_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
-type UpdateProgramResponse =
-  | { ok: true; message: string; program: { id: string; status: string } }
+type ProgramResponse =
+  | { ok: true; program: Program }
   | { ok: false; error: string };
 
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase configuration');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 function getSessionToken(req: NextApiRequest): string | null {
   const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
@@ -82,96 +76,86 @@ async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, ses
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<UpdateProgramResponse>
+  res: NextApiResponse<ProgramResponse>
 ) {
-  if (req.method !== 'PATCH') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const supabase = getSupabaseAdmin();
-
-  // Get current user
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
-    return res.status(401).json({ ok: false, error: 'Not authenticated' });
-  }
-
-  const currentUser = await getCurrentUser(supabase, sessionToken);
-  if (!currentUser) {
-    return res.status(401).json({ ok: false, error: 'Invalid session' });
-  }
-
-  const programId = req.query.programId as string;
-  if (!programId) {
-    return res.status(400).json({ ok: false, error: 'programId is required' });
-  }
-
-  const body: UpdateProgramRequest = req.body;
-  if (!body.status || !['active', 'paused', 'ended'].includes(body.status)) {
-    return res.status(400).json({ ok: false, error: 'status must be "active", "paused", or "ended"' });
-  }
-
   try {
-    // Get program to find project_id and current status
-    const { data: program, error: programError } = await supabase
+    const supabase = getSupabaseAdmin();
+    const { programId } = req.query;
+
+    if (!programId || typeof programId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'programId is required' });
+    }
+
+    // Get current user
+    const sessionToken = getSessionToken(req);
+    if (!sessionToken) {
+      return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
+
+    const currentUser = await getCurrentUser(supabase, sessionToken);
+    if (!currentUser) {
+      return res.status(401).json({ ok: false, error: 'Invalid or expired session' });
+    }
+
+    // Get program details - try with objective field first, fallback if column doesn't exist
+    let programQuery = supabase
       .from('creator_manager_programs')
-      .select('project_id, status')
+      .select('*')
       .eq('id', programId)
       .single();
 
-    if (programError || !program) {
+    const { data: programData, error: programError } = await programQuery;
+
+    // If error is "column does not exist" (objective column), retry with explicit column list
+    if (programError && programError.message?.includes('column') && programError.message?.includes('does not exist')) {
+      console.warn('[Creator Manager Program] Objective column not found, fetching without it');
+      const { data: retryData, error: retryError } = await supabase
+        .from('creator_manager_programs')
+        .select('id, project_id, title, description, visibility, status, start_at, end_at, created_by, created_at, updated_at')
+        .eq('id', programId)
+        .single();
+
+      if (retryError || !retryData) {
+        return res.status(404).json({ ok: false, error: 'Program not found' });
+      }
+
+      // Add objective as null since column doesn't exist
+      const program: Program = {
+        ...retryData,
+        objective: null,
+      };
+
+      // Check permissions
+      const permissions = await checkProjectPermissions(supabase, currentUser.userId, program.project_id);
+      
+      if (!permissions.canManage) {
+        return res.status(403).json({ ok: false, error: 'You do not have permission to view this program' });
+      }
+
+      return res.status(200).json({ ok: true, program });
+    }
+
+    if (programError || !programData) {
       return res.status(404).json({ ok: false, error: 'Program not found' });
     }
 
-    // Check ARC approval for the project
-    const approval = await checkArcProjectApproval(supabase, program.project_id);
-    if (!approval.isApproved) {
-      return res.status(403).json({
-        ok: false,
-        error: approval.isPending
-          ? 'ARC access is pending approval'
-          : approval.isRejected
-          ? 'ARC access was rejected'
-          : 'ARC access has not been approved for this project',
-      });
-    }
-
     // Check permissions
-    const permissions = await checkProjectPermissions(supabase, currentUser.userId, program.project_id);
+    const permissions = await checkProjectPermissions(supabase, currentUser.userId, programData.project_id);
+    
     if (!permissions.canManage) {
-      return res.status(403).json({ ok: false, error: 'Only project admins and moderators can update program status' });
+      return res.status(403).json({ ok: false, error: 'You do not have permission to view this program' });
     }
 
-    // Check if moderator is trying to end program (not allowed)
-    if (body.status === 'ended' && !permissions.isOwner && !permissions.isAdmin && !permissions.isSuperAdmin) {
-      // Moderator can only pause/resume, not end
-      return res.status(403).json({ ok: false, error: 'Only project owners and admins can end a program' });
-    }
-
-    // Update program status
-    const { data: updatedProgram, error: updateError } = await supabase
-      .from('creator_manager_programs')
-      .update({ status: body.status })
-      .eq('id', programId)
-      .select('id, status')
-      .single();
-
-    if (updateError) {
-      console.error('[Update Program Status] Error:', updateError);
-      return res.status(500).json({ ok: false, error: 'Failed to update program status' });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      message: `Program status updated to ${body.status}`,
-      program: {
-        id: updatedProgram.id,
-        status: updatedProgram.status,
-      },
-    });
+    return res.status(200).json({ ok: true, program: programData as Program });
   } catch (error: any) {
-    console.error('[Update Program Status] Error:', error);
-    return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+    console.error('[Creator Manager Program] Error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || 'Internal server error',
+    });
   }
 }
-

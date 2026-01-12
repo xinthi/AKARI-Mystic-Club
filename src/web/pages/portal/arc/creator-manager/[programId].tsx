@@ -169,20 +169,20 @@ export default function CreatorManagerProgramDetail() {
     if (!programId || typeof programId !== 'string' || !akariUser.userId) return;
 
     try {
-      const supabase = createPortalClient();
+      // Use API endpoint instead of direct Supabase query to bypass RLS issues
+      const response = await fetch(`/api/portal/creator-manager/programs/${programId}`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
 
-      // Get program details
-      const { data: programData, error: programError } = await supabase
-        .from('creator_manager_programs')
-        .select('*')
-        .eq('id', programId)
-        .single();
-
-      if (programError || !programData) {
-        throw new Error('Program not found');
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Program not found');
       }
 
-      // Check permissions
+      const programData = data.program;
+
+      // Check permissions using API (already checked server-side, but verify client-side too)
+      const supabase = createPortalClient();
       const permissions = await checkProjectPermissions(
         supabase,
         akariUser.userId,
@@ -239,8 +239,17 @@ export default function CreatorManagerProgramDetail() {
       const totalArcPoints = creatorsForStats?.reduce((sum, c) => sum + (c.arc_points || 0), 0) || 0;
       const totalXp = creatorsForStats?.reduce((sum, c) => sum + (c.xp || 0), 0) || 0;
 
+      // Set program data from API response
       setProgram({
-        ...programData,
+        id: programData.id,
+        project_id: programData.project_id,
+        title: programData.title,
+        description: programData.description,
+        visibility: programData.visibility,
+        status: programData.status,
+        start_at: programData.start_at,
+        end_at: programData.end_at,
+        created_at: programData.created_at,
         stats: {
           totalCreators: totalCreators || 0,
           approvedCreators: approvedCreators || 0,
