@@ -77,9 +77,11 @@ export default function CreateProgramPage() {
     projectId: '',
     title: '',
     description: '',
+    objective: '',
     visibility: 'private' as 'private' | 'public' | 'hybrid',
     startAt: '',
     endAt: '',
+    spotlightLinks: ['', '', '', '', ''] as string[], // Up to 5 spotlight URLs
   });
 
   // Filter projects based on search query
@@ -172,6 +174,16 @@ export default function CreateProgramPage() {
 
       if (formData.description.trim()) {
         payload.description = formData.description.trim();
+      }
+
+      if (formData.objective.trim()) {
+        payload.objective = formData.objective.trim();
+      }
+
+      // Filter out empty spotlight links
+      const validSpotlightLinks = formData.spotlightLinks.filter(link => link.trim() !== '');
+      if (validSpotlightLinks.length > 0) {
+        payload.spotlightLinks = validSpotlightLinks;
       }
 
       if (formData.startAt) {
@@ -493,19 +505,94 @@ export default function CreateProgramPage() {
                 />
               </div>
 
-              {/* Description */}
+              {/* Description (Project Details) */}
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
-                  Description (optional)
+                  Project Details (optional)
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Describe the program goals, rewards, and requirements..."
+                  placeholder="Describe your project, features, and value proposition..."
                   rows={4}
                   className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40 resize-none"
                   disabled={submitting}
                 />
+                <p className="text-xs text-white/60 mt-1">
+                  Provide details about your project that creators should know
+                </p>
+              </div>
+
+              {/* Objective */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Campaign Objective (optional)
+                </label>
+                <textarea
+                  value={formData.objective}
+                  onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
+                  placeholder="Define the campaign goals and keywords for tracking (e.g., 'Promote our new DeFi protocol, focus on keywords: DeFi, liquidity, staking')..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40 resize-none"
+                  disabled={submitting}
+                />
+                <p className="text-xs text-white/60 mt-1">
+                  Describe campaign goals and keywords. Tweets mentioning these keywords will be tracked for creators on the leaderboard.
+                </p>
+              </div>
+
+              {/* Spotlight Links */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Spotlight Links (optional, up to 5)
+                </label>
+                <p className="text-xs text-white/60 mb-3">
+                  Add up to 5 URLs that creators can share. These will be converted to tracked UTM links per creator. Clicks on these links award points.
+                </p>
+                <div className="space-y-3">
+                  {formData.spotlightLinks.map((link, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={link}
+                        onChange={(e) => {
+                          const newLinks = [...formData.spotlightLinks];
+                          newLinks[index] = e.target.value;
+                          setFormData({ ...formData, spotlightLinks: newLinks });
+                        }}
+                        placeholder={`https://example.com or https://x.com/username/status/123...`}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
+                        disabled={submitting}
+                      />
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLinks = [...formData.spotlightLinks];
+                            newLinks[index] = '';
+                            // Shift all links down
+                            for (let i = index; i < newLinks.length - 1; i++) {
+                              newLinks[i] = newLinks[i + 1];
+                            }
+                            newLinks[newLinks.length - 1] = '';
+                            setFormData({ ...formData, spotlightLinks: newLinks });
+                          }}
+                          className="px-2 py-2 text-red-400 hover:text-red-300 transition-colors"
+                          disabled={submitting}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {formData.spotlightLinks.filter(l => l.trim()).length >= 5 && (
+                  <p className="text-xs text-yellow-400 mt-2">
+                    Maximum 5 spotlight links reached
+                  </p>
+                )}
               </div>
 
               {/* Visibility */}

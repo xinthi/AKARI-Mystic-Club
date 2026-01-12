@@ -22,9 +22,11 @@ interface CreateProgramRequest {
   projectId: string;
   title: string;
   description?: string;
+  objective?: string;
   visibility: 'private' | 'public' | 'hybrid';
   startAt?: string;
   endAt?: string;
+  spotlightLinks?: string[]; // Up to 5 spotlight URLs
 }
 
 interface Program {
@@ -241,6 +243,20 @@ export default async function handler(
     }
 
     try {
+      // Validate spotlight links (max 5)
+      if (body.spotlightLinks && body.spotlightLinks.length > 5) {
+        return res.status(400).json({ ok: false, error: 'Maximum 5 spotlight links allowed' });
+      }
+
+      // Validate spotlight link URLs
+      if (body.spotlightLinks) {
+        for (const link of body.spotlightLinks) {
+          if (link.trim() && !link.match(/^https?:\/\/.+/)) {
+            return res.status(400).json({ ok: false, error: 'Invalid URL format. URLs must start with http:// or https://' });
+          }
+        }
+      }
+
       // Create program
       const { data: program, error: createError } = await supabase
         .from('creator_manager_programs')
@@ -248,6 +264,7 @@ export default async function handler(
           project_id: body.projectId,
           title: body.title,
           description: body.description || null,
+          objective: body.objective || null,
           visibility: body.visibility || 'private',
           status: 'active',
           start_at: body.startAt || null,
@@ -260,6 +277,27 @@ export default async function handler(
       if (createError) {
         console.error('[Creator Manager Programs] Error creating program:', createError);
         return res.status(500).json({ ok: false, error: 'Failed to create program' });
+      }
+
+      // Insert spotlight links if provided
+      if (body.spotlightLinks && body.spotlightLinks.filter(link => link.trim()).length > 0) {
+        const validLinks = body.spotlightLinks
+          .filter(link => link.trim() !== '')
+          .map((url, index) => ({
+            program_id: program.id,
+            url: url.trim(),
+            label: null, // Can be enhanced later
+            display_order: index,
+          }));
+
+        const { error: linksError } = await supabase
+          .from('creator_manager_spotlight_links')
+          .insert(validLinks);
+
+        if (linksError) {
+          console.error('[Creator Manager Programs] Error creating spotlight links:', linksError);
+          // Don't fail the whole request, just log the error
+        }
       }
 
       return res.status(201).json({
