@@ -26,7 +26,7 @@ interface CreateProgramRequest {
   visibility: 'private' | 'public' | 'hybrid';
   startAt?: string;
   endAt?: string;
-  spotlightLinks?: string[]; // Up to 5 spotlight URLs
+  spotlightLinks?: Array<{ label: string | null; url: string }>; // Up to 5 spotlight links with labels
 }
 
 interface Program {
@@ -251,7 +251,7 @@ export default async function handler(
       // Validate spotlight link URLs
       if (body.spotlightLinks) {
         for (const link of body.spotlightLinks) {
-          if (link.trim() && !link.match(/^https?:\/\/.+/)) {
+          if (link.url && link.url.trim() && !link.url.match(/^https?:\/\/.+/)) {
             return res.status(400).json({ ok: false, error: 'Invalid URL format. URLs must start with http:// or https://' });
           }
         }
@@ -312,13 +312,13 @@ export default async function handler(
       }
 
       // Insert spotlight links if provided (may fail if table doesn't exist - migration not run)
-      if (body.spotlightLinks && body.spotlightLinks.filter(link => link.trim()).length > 0) {
+      if (body.spotlightLinks && body.spotlightLinks.filter(link => link.url.trim()).length > 0) {
         const validLinks = body.spotlightLinks
-          .filter(link => link.trim() !== '')
-          .map((url, index) => ({
+          .filter(link => link.url.trim() !== '')
+          .map((link, index) => ({
             program_id: program.id,
-            url: url.trim(),
-            label: null, // Can be enhanced later
+            url: link.url.trim(),
+            label: link.label?.trim() || null,
             display_order: index,
           }));
 

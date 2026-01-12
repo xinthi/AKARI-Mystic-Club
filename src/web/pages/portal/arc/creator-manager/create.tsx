@@ -81,7 +81,13 @@ export default function CreateProgramPage() {
     visibility: 'private' as 'private' | 'public' | 'hybrid',
     startAt: '',
     endAt: '',
-    spotlightLinks: ['', '', '', '', ''] as string[], // Up to 5 spotlight URLs
+    spotlightLinks: [
+      { label: '', url: '' },
+      { label: '', url: '' },
+      { label: '', url: '' },
+      { label: '', url: '' },
+      { label: '', url: '' },
+    ] as Array<{ label: string; url: string }>, // Up to 5 spotlight links with labels
   });
 
   // Filter projects based on search query
@@ -547,48 +553,62 @@ export default function CreateProgramPage() {
                   Spotlight Links (optional, up to 5)
                 </label>
                 <p className="text-xs text-white/60 mb-3">
-                  Add up to 5 URLs that creators can share. These will be converted to tracked UTM links per creator. Clicks on these links award points.
+                  Add up to 5 URLs that creators can share. Each link should have a title. These will be converted to tracked UTM links per creator. Clicks on these links award points.
                 </p>
                 <div className="space-y-3">
                   {formData.spotlightLinks.map((link, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <input
-                        type="url"
-                        value={link}
-                        onChange={(e) => {
-                          const newLinks = [...formData.spotlightLinks];
-                          newLinks[index] = e.target.value;
-                          setFormData({ ...formData, spotlightLinks: newLinks });
-                        }}
-                        placeholder={`https://example.com or https://x.com/username/status/123...`}
-                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
-                        disabled={submitting}
-                      />
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={link.label}
+                          onChange={(e) => {
                             const newLinks = [...formData.spotlightLinks];
-                            newLinks[index] = '';
-                            // Shift all links down
-                            for (let i = index; i < newLinks.length - 1; i++) {
-                              newLinks[i] = newLinks[i + 1];
-                            }
-                            newLinks[newLinks.length - 1] = '';
+                            newLinks[index] = { ...newLinks[index], label: e.target.value };
                             setFormData({ ...formData, spotlightLinks: newLinks });
                           }}
-                          className="px-2 py-2 text-red-400 hover:text-red-300 transition-colors"
+                          placeholder="Link title (e.g., Website, Twitter, Docs)"
+                          className="w-40 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
                           disabled={submitting}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
+                        />
+                        <input
+                          type="url"
+                          value={link.url}
+                          onChange={(e) => {
+                            const newLinks = [...formData.spotlightLinks];
+                            newLinks[index] = { ...newLinks[index], url: e.target.value };
+                            setFormData({ ...formData, spotlightLinks: newLinks });
+                          }}
+                          placeholder="https://example.com or https://x.com/username/status/123..."
+                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50 placeholder-white/40"
+                          disabled={submitting}
+                        />
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newLinks = [...formData.spotlightLinks];
+                              newLinks[index] = { label: '', url: '' };
+                              // Shift all links down
+                              for (let i = index; i < newLinks.length - 1; i++) {
+                                newLinks[i] = newLinks[i + 1];
+                              }
+                              newLinks[newLinks.length - 1] = { label: '', url: '' };
+                              setFormData({ ...formData, spotlightLinks: newLinks });
+                            }}
+                            className="px-2 py-2 text-red-400 hover:text-red-300 transition-colors"
+                            disabled={submitting}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
-                {formData.spotlightLinks.filter(l => l.trim()).length >= 5 && (
+                {formData.spotlightLinks.filter(l => l.url.trim() !== '').length >= 5 && (
                   <p className="text-xs text-yellow-400 mt-2">
                     Maximum 5 spotlight links reached
                   </p>
