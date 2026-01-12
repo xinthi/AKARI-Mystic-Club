@@ -59,6 +59,11 @@ export default function CreatorManagerHome() {
   const [error, setError] = useState<string | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [applyingProjectId, setApplyingProjectId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+  const [kolLists, setKolLists] = useState<Array<{ listName: string; creatorCount: number }>>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [showCreateListModal, setShowCreateListModal] = useState(false);
+  const [newListName, setNewListName] = useState('');
   
   // Get projectId from query params (supports both UUID and slug)
   const projectIdFromQuery = router.query.projectId as string | undefined;
@@ -291,8 +296,183 @@ export default function CreatorManagerHome() {
           )}
         </div>
 
-        {/* Projects List */}
-        <div className="space-y-4">
+        {/* Your Brands Section */}
+        <div>
+          <h2 className="text-xl font-semibold text-white mb-4">Your Brands</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allProjects.map((project) => (
+              <div
+                key={project.id}
+                onClick={() => setSelectedBrandId(project.id === selectedBrandId ? null : project.id)}
+                className={`rounded-lg border p-4 cursor-pointer transition-all ${
+                  selectedBrandId === project.id
+                    ? 'border-teal-400 bg-teal-500/10'
+                    : 'border-white/10 bg-black/40 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {project.avatar_url ? (
+                    <img
+                      src={project.avatar_url}
+                      alt={project.name}
+                      className="w-12 h-12 rounded-lg flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center text-white font-semibold">
+                      {project.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-white truncate">{project.name}</h3>
+                    {project.twitter_username && (
+                      <p className="text-sm text-white/60 truncate">@{project.twitter_username}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* KOL Lists Section - Only show when a brand is selected */}
+        {selectedBrandId && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-white">
+                KOL Lists
+                {allProjects.find(p => p.id === selectedBrandId) && (
+                  <span className="text-sm font-normal text-white/60 ml-2">
+                    for {allProjects.find(p => p.id === selectedBrandId)?.name}
+                  </span>
+                )}
+              </h2>
+              <button
+                onClick={() => setShowCreateListModal(true)}
+                className="px-4 py-2 bg-teal-500 text-black rounded-lg hover:bg-teal-400 transition-colors text-sm font-medium"
+              >
+                Create new
+              </button>
+            </div>
+
+            {loadingLists ? (
+              <div className="text-center py-8">
+                <p className="text-white/60">Loading lists...</p>
+              </div>
+            ) : kolLists.length === 0 ? (
+              <div className="rounded-lg border border-white/10 bg-black/40 p-8 text-center">
+                <p className="text-white/60 mb-4">No KOL lists created yet</p>
+                <button
+                  onClick={() => setShowCreateListModal(true)}
+                  className="px-4 py-2 bg-teal-500 text-black rounded-lg hover:bg-teal-400 transition-colors text-sm font-medium"
+                >
+                  Create First List
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {kolLists.map((list) => (
+                  <div
+                    key={list.listName}
+                    className="rounded-lg border border-white/10 bg-black/40 p-4 hover:border-white/20 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white font-semibold">
+                          {list.listName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-white">{list.listName === 'default' ? 'Default List' : list.listName}</h3>
+                          <p className="text-sm text-white/60">{list.creatorCount} creator{list.creatorCount !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/portal/arc/creator-manager/brand/${selectedBrandId}/list/${encodeURIComponent(list.listName)}`}
+                          className="px-3 py-1.5 bg-white/5 border border-white/10 text-white rounded-lg hover:bg-white/10 transition-colors text-sm"
+                        >
+                          View
+                        </Link>
+                        <button
+                          onClick={() => {
+                            setNewListName(list.listName);
+                            setShowCreateListModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-white/5 border border-white/10 text-white rounded-lg hover:bg-white/10 transition-colors text-sm"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create List Modal */}
+        {showCreateListModal && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={() => {
+                setShowCreateListModal(false);
+                setNewListName('');
+              }}
+            />
+            <div className="fixed inset-0 flex items-center justify-center z-50">
+              <div
+                className="bg-black border border-white/10 rounded-lg p-6 w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-white mb-4">
+                  {newListName ? 'Edit List' : 'Create New List'}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">List Name</label>
+                    <input
+                      type="text"
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      placeholder="e.g., Tier 1 KOLs, Micro-influencers"
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/50"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 justify-end">
+                    <button
+                      onClick={() => {
+                        setShowCreateListModal(false);
+                        setNewListName('');
+                      }}
+                      className="px-4 py-2 bg-white/5 border border-white/10 text-white rounded-lg hover:bg-white/10 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!newListName.trim() || !selectedBrandId) return;
+                        // TODO: Implement create/edit list API call
+                        alert(`List "${newListName}" will be created/updated (API integration pending)`);
+                        setShowCreateListModal(false);
+                        setNewListName('');
+                        loadKolLists(selectedBrandId);
+                      }}
+                      disabled={!newListName.trim()}
+                      className="px-4 py-2 bg-teal-500 text-black rounded-lg hover:bg-teal-400 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {newListName ? 'Save' : 'Create'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Projects List (Legacy - Hidden, can be removed later) */}
+        <div className="space-y-4 hidden">
           {filteredProjects.map((project) => {
             const isExpanded = expandedProjects.has(project.id);
             const hasPrograms = project.programs.length > 0;
