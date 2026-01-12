@@ -257,29 +257,61 @@ export default async function handler(
         }
       }
 
-      // Create program
-      const { data: program, error: createError } = await supabase
+      // Create program - try with objective field first, fallback to without if column doesn't exist
+      let program: any;
+      let createError: any;
+      
+      // Build insert data
+      const insertData: any = {
+        project_id: body.projectId,
+        title: body.title,
+        description: body.description || null,
+        visibility: body.visibility || 'private',
+        status: 'active',
+        start_at: body.startAt || null,
+        end_at: body.endAt || null,
+        created_by: currentUser.profileId,
+      };
+
+      // Try to include objective field (may not exist if migration hasn't been run)
+      if (body.objective) {
+        insertData.objective = body.objective;
+      }
+
+      const { data: programData, error: programError } = await supabase
         .from('creator_manager_programs')
-        .insert({
-          project_id: body.projectId,
-          title: body.title,
-          description: body.description || null,
-          objective: body.objective || null,
-          visibility: body.visibility || 'private',
-          status: 'active',
-          start_at: body.startAt || null,
-          end_at: body.endAt || null,
-          created_by: currentUser.profileId,
-        })
+        .insert(insertData)
         .select()
         .single();
 
-      if (createError) {
-        console.error('[Creator Manager Programs] Error creating program:', createError);
-        return res.status(500).json({ ok: false, error: 'Failed to create program' });
+      program = programData;
+      createError = programError;
+
+      // If error is "column does not exist", retry without objective field
+      if (createError && createError.message?.includes('column') && createError.message?.includes('does not exist')) {
+        console.warn('[Creator Manager Programs] Objective column not found, creating program without it');
+        delete insertData.objective;
+        
+        const { data: retryData, error: retryError } = await supabase
+          .from('creator_manager_programs')
+          .insert(insertData)
+          .select()
+          .single();
+
+        program = retryData;
+        createError = retryError;
       }
 
-      // Insert spotlight links if provided
+      if (createError) {
+        console.error('[Creator Manager Programs] Error creating program:', createError);
+        return res.status(500).json({ ok: false, error: `Failed to create program: ${createError.message || 'Unknown error'}` });
+      }
+
+      if (!program) {
+        return res.status(500).json({ ok: false, error: 'Program created but data not returned' });
+      }
+
+      // Insert spotlight links if provided (may fail if table doesn't exist - migration not run)
       if (body.spotlightLinks && body.spotlightLinks.filter(link => link.trim()).length > 0) {
         const validLinks = body.spotlightLinks
           .filter(link => link.trim() !== '')
@@ -295,8 +327,9 @@ export default async function handler(
           .insert(validLinks);
 
         if (linksError) {
-          console.error('[Creator Manager Programs] Error creating spotlight links:', linksError);
-          // Don't fail the whole request, just log the error
+          console.warn('[Creator Manager Programs] Spotlight links table may not exist (migration not run):', linksError.message);
+          // Don't fail the whole request, just log the warning
+          // The program is created successfully, spotlight links can be added later after migration
         }
       }
 
