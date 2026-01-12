@@ -186,8 +186,13 @@ export default function CreateProgramPage() {
         payload.objective = formData.objective.trim();
       }
 
-      // Filter out empty spotlight links
-      const validSpotlightLinks = formData.spotlightLinks.filter(link => link.trim() !== '');
+      // Filter out empty spotlight links (both label and URL must be provided)
+      const validSpotlightLinks = formData.spotlightLinks
+        .filter(link => link.url.trim() !== '')
+        .map(link => ({
+          label: link.label.trim() || null,
+          url: link.url.trim(),
+        }));
       if (validSpotlightLinks.length > 0) {
         payload.spotlightLinks = validSpotlightLinks;
       }
