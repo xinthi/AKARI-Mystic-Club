@@ -144,6 +144,34 @@ export default function CreatorManagerHome() {
     }
   }, [projectIdFromQuery]);
 
+  // Load KOL lists when a brand is selected
+  const loadKolLists = useCallback(async (projectId: string) => {
+    if (!projectId) {
+      setKolLists([]);
+      return;
+    }
+
+    try {
+      setLoadingLists(true);
+      const response = await fetch(`/api/portal/crm/preferred-creators/lists?projectId=${projectId}`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+
+      if (data.ok) {
+        setKolLists(data.lists || []);
+      } else {
+        console.error('[Creator Manager] Error loading KOL lists:', data.error);
+        setKolLists([]);
+      }
+    } catch (err) {
+      console.error('[Creator Manager] Error loading KOL lists:', err);
+      setKolLists([]);
+    } finally {
+      setLoadingLists(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!akariUser.isLoggedIn) {
       setLoading(false);
@@ -152,6 +180,14 @@ export default function CreatorManagerHome() {
 
     loadProjects();
   }, [akariUser.isLoggedIn, loadProjects]);
+
+  useEffect(() => {
+    if (selectedBrandId) {
+      loadKolLists(selectedBrandId);
+    } else {
+      setKolLists([]);
+    }
+  }, [selectedBrandId, loadKolLists]);
 
   // Filter projects based on projectId query param
   const filteredProjects = projectIdFromQuery
