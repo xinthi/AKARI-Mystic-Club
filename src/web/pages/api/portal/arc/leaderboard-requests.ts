@@ -51,6 +51,37 @@ function isValidUUID(uuid: string): boolean {
 }
 
 /**
+ * Get session token from request
+ */
+function getSessionToken(req: NextApiRequest): string | null {
+  const cookies = req.headers.cookie?.split(';').map(c => c.trim()) || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith('akari_session=')) {
+      return cookie.substring('akari_session='.length);
+    }
+  }
+  return null;
+}
+
+/**
+ * Get user ID from session token
+ */
+async function getUserIdFromSession(sessionToken: string): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data: session } = await supabase
+    .from('akari_user_sessions')
+    .select('user_id, expires_at')
+    .eq('session_token', sessionToken)
+    .single();
+
+  if (!session || new Date(session.expires_at) < new Date()) {
+    return null;
+  }
+
+  return session.user_id;
+}
+
+/**
  * Get profile ID from user ID
  */
 async function getProfileIdFromUserId(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<string | null> {
@@ -92,12 +123,62 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<LeaderboardRequestResponse>
 ) {
-  // Handle GET - list requests for a project
+  // Handle GET - list requests for a project or user's own requests
   if (req.method === 'GET') {
-    const { projectId } = req.query;
+    const { projectId, scope } = req.query;
 
+    // Handle scope=my to get user's own requests
+    if (scope === 'my') {
+      try {
+        const supabase = getSupabaseAdmin();
+        const sessionToken = getSessionToken(req);
+        
+        if (!sessionToken) {
+          return res.status(401).json({ ok: false, error: 'Not authenticated' });
+        }
+
+        const userId = await getUserIdFromSession(sessionToken);
+        if (!userId) {
+          return res.status(401).json({ ok: false, error: 'Invalid or expired session' });
+        }
+
+        const profileId = await getProfileIdFromUserId(supabase, userId);
+        if (!profileId) {
+          return res.status(403).json({ ok: false, error: 'Profile not found' });
+        }
+
+        // Fetch all requests made by this user
+        const { data: requests, error: requestsError } = await supabase
+          .from('arc_leaderboard_requests')
+          .select('id, project_id, product_type, status, start_at, end_at, created_at')
+          .eq('applied_by_profile_id', profileId)
+          .order('created_at', { ascending: false });
+
+        if (requestsError) {
+          console.error('[Leaderboard Requests API] Error fetching user requests:', requestsError);
+          return res.status(500).json({ ok: false, error: 'Failed to fetch requests' });
+        }
+
+        return res.status(200).json({
+          ok: true,
+          requests: (requests || []).map((r: any) => ({
+            id: r.id,
+            projectId: r.project_id,
+            productType: r.product_type || 'ms',
+            status: r.status,
+            startAt: r.start_at,
+            endAt: r.end_at,
+          })),
+        });
+      } catch (error: any) {
+        console.error('[Leaderboard Requests API] Error:', error);
+        return res.status(500).json({ ok: false, error: error.message || 'Internal server error' });
+      }
+    }
+
+    // Handle projectId query (existing functionality)
     if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({ ok: false, error: 'projectId is required' });
+      return res.status(400).json({ ok: false, error: 'projectId is required (or use scope=my)' });
     }
 
     if (!isValidUUID(projectId)) {

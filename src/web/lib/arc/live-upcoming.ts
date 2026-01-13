@@ -15,7 +15,7 @@ import { requireArcAccess } from '@/lib/arc-access';
 // TYPES
 // =============================================================================
 
-export type ArcLiveItemKind = 'arena' | 'campaign' | 'gamified';
+export type ArcLiveItemKind = 'arena' | 'campaign' | 'gamified' | 'crm';
 
 export interface ArcLiveItem {
   kind: ArcLiveItemKind;
@@ -36,6 +36,8 @@ export interface ArcLiveItem {
   arenaSlug?: string;
   campaignId?: string;
   campaignSlug?: string;
+  programId?: string;
+  visibility?: 'private' | 'public' | 'hybrid';
 }
 
 // =============================================================================
@@ -59,10 +61,11 @@ export async function getArcLiveItems(
   const upcoming: ArcLiveItem[] = [];
 
   // Fetch all items in parallel
-  const [arenasResult, campaignsResult, questsResult] = await Promise.all([
+  const [arenasResult, campaignsResult, questsResult, programsResult] = await Promise.all([
     fetchArenas(supabase),
     fetchCampaigns(supabase),
     fetchQuests(supabase),
+    fetchCreatorManagerPrograms(supabase),
   ]);
 
   // Process arenas (Option 2)
@@ -179,6 +182,27 @@ export async function getArcLiveItems(
     const item = createQuestItem(quest);
     const itemStatus = determineStatus(item.startsAt, item.endsAt, now);
     
+    if (itemStatus === 'live') {
+      live.push(item);
+    } else if (itemStatus === 'upcoming') {
+      upcoming.push(item);
+    }
+  }
+
+  // Process creator manager programs (CRM)
+  for (const program of programsResult) {
+    // Check if project has Option 1 (CRM) unlocked (unless bypassed for superadmin)
+    if (!bypassAccessCheck) {
+      const accessCheck = await requireArcAccess(supabase, program.projectId, 1);
+      if (!accessCheck.ok) {
+        continue;
+      }
+    }
+
+    const item = createProgramItem(program);
+    const itemStatus = determineStatus(item.startsAt, item.endsAt, now);
+    
+    // Include private programs too (they'll be shown but not clickable for non-admins)
     if (itemStatus === 'live') {
       live.push(item);
     } else if (itemStatus === 'upcoming') {
@@ -691,3 +715,89 @@ function createQuestItem(quest: any): ArcLiveItem {
   };
 }
 
+/**
+ * Fetch active/scheduled creator manager programs
+ */
+async function fetchCreatorManagerPrograms(supabase: SupabaseClient) {
+  const now = new Date();
+  const { data: programs, error } = await supabase
+    .from('creator_manager_programs')
+    .select(`
+      id,
+      title,
+      project_id,
+      start_at,
+      end_at,
+      status,
+      visibility,
+      projects:project_id (
+        id,
+        name,
+        slug,
+        x_handle,
+        arc_access_level
+      )
+    `)
+    .in('status', ['active', 'paused'])
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getArcLiveItems] Error fetching creator manager programs:', error);
+    return [];
+  }
+
+  if (!programs) return [];
+
+  // Get creator counts (approved creators only)
+  const programIds = programs.map(p => p.id);
+  const countsMap = new Map<string, number>();
+
+  if (programIds.length > 0) {
+    const { data: creators } = await supabase
+      .from('creator_manager_creators')
+      .select('program_id')
+      .in('program_id', programIds)
+      .eq('status', 'approved');
+
+    if (creators) {
+      creators.forEach((c: any) => {
+        countsMap.set(c.program_id, (countsMap.get(c.program_id) || 0) + 1);
+      });
+    }
+  }
+
+  return programs.map((program: any) => ({
+    id: program.id,
+    title: program.title,
+    projectId: program.project_id,
+    startsAt: program.start_at,
+    endsAt: program.end_at,
+    status: program.status,
+    visibility: program.visibility,
+    project: program.projects,
+    creatorCount: countsMap.get(program.id) || 0,
+  }));
+}
+
+/**
+ * Create ArcLiveItem from creator manager program data
+ */
+function createProgramItem(program: any): ArcLiveItem {
+  return {
+    kind: 'crm',
+    id: program.id,
+    projectId: program.projectId,
+    projectName: program.project?.name || 'Unknown',
+    projectSlug: program.project?.slug || null,
+    projectAccessLevel: program.project?.arc_access_level || null,
+    title: program.title,
+    slug: null, // Programs don't have slugs
+    xHandle: program.project?.x_handle || null,
+    startsAt: program.startsAt,
+    endsAt: program.endsAt,
+    status: 'live', // Will be updated by caller
+    creatorCount: program.creatorCount || 0,
+    programId: program.id,
+    visibility: program.visibility,
+  };
+}

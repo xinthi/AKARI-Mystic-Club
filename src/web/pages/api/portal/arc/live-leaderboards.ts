@@ -53,8 +53,10 @@ interface LiveLeaderboard {
   startAt: string | null;
   endAt: string | null;
   title: string;
-  kind: 'arena' | 'campaign' | 'gamified';
+  kind: 'arena' | 'campaign' | 'gamified' | 'crm';
   status?: 'live' | 'upcoming' | 'paused' | 'ended';
+  programId?: string;
+  visibility?: 'private' | 'public' | 'hybrid';
 }
 
 type LiveLeaderboardsResponse =
@@ -166,6 +168,8 @@ export default async function handler(
         result.arenaSlug = item.arenaSlug || item.slug || undefined;
       } else if (item.kind === 'campaign') {
         result.campaignId = item.campaignId || item.id;
+      } else if (item.kind === 'crm') {
+        result.programId = item.programId || item.id;
       }
 
       // Add project access level for routing
@@ -173,6 +177,11 @@ export default async function handler(
       
       // Add status for UI display
       result.status = item.status || 'live';
+      
+      // Add visibility for CRM programs
+      if (item.visibility) {
+        result.visibility = item.visibility;
+      }
 
       return result;
     };

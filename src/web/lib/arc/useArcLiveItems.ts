@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 export interface LiveItem {
   id: string;
-  kind: 'arena' | 'campaign' | 'gamified';
+  kind: 'arena' | 'campaign' | 'gamified' | 'crm';
   title: string;
   project: {
     id: string;
@@ -52,7 +52,7 @@ export function useArcLiveItems(): ArcLiveItemsData {
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   const normalizeItem = useCallback((item: any): LiveItem => {
-    const id = item.arenaId || item.campaignId || item.projectId;
+    const id = item.arenaId || item.campaignId || item.programId || item.projectId;
     const now = Date.now();
     const startAt = item.startAt ? new Date(item.startAt).getTime() : null;
     const endAt = item.endAt ? new Date(item.endAt).getTime() : null;
@@ -96,6 +96,8 @@ export function useArcLiveItems(): ArcLiveItemsData {
       arenaId: item.arenaId,
       arenaSlug: item.arenaSlug,
       campaignId: item.campaignId,
+      programId: item.programId,
+      visibility: item.visibility,
     };
   }, []);
 

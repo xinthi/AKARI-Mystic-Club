@@ -40,9 +40,11 @@ export default async function handler(
     }
     const supabase = getSupabaseAdmin();
 
-    const { projectId } = req.query;
+    // Handle both query string and body (for flexibility)
+    const projectId = (req.query.projectId || req.body?.projectId) as string | undefined;
 
     if (!projectId || typeof projectId !== 'string') {
+      console.error('[Lists API] Missing projectId. Query:', req.query, 'Body:', req.body);
       return res.status(400).json({ ok: false, error: 'projectId is required' });
     }
 
