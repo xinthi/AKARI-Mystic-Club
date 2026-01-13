@@ -29,6 +29,8 @@ export interface LiveItem {
   arenaId?: string;
   arenaSlug?: string;
   campaignId?: string;
+  programId?: string;
+  visibility?: 'private' | 'public' | 'hybrid';
 }
 
 export interface ArcLiveItemsData {
