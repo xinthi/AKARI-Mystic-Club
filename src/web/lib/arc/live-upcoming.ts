@@ -748,7 +748,7 @@ async function fetchCreatorManagerPrograms(supabase: SupabaseClient) {
 
   if (!programs) return [];
 
-  // Get creator counts (approved creators only)
+  // Get creator counts (invited or approved creators)
   const programIds = programs.map(p => p.id);
   const countsMap = new Map<string, number>();
 
@@ -757,7 +757,7 @@ async function fetchCreatorManagerPrograms(supabase: SupabaseClient) {
       .from('creator_manager_creators')
       .select('program_id')
       .in('program_id', programIds)
-      .eq('status', 'approved');
+      .in('status', ['approved', 'pending']);
 
     if (creators) {
       creators.forEach((c: any) => {

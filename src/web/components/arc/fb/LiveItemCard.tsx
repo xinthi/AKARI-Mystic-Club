@@ -21,10 +21,18 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
   const [actionError, setActionError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const route = getLiveItemRoute(item);
-  const kindLabel = item.kind === 'arena' ? 'Arena' : item.kind === 'campaign' ? 'Campaign' : 'Gamified';
+  const kindLabel =
+    item.kind === 'crm'
+      ? 'CRM'
+      : item.kind === 'arena'
+      ? 'Leaderboard'
+      : item.kind === 'campaign'
+      ? 'Campaign'
+      : 'GameFi';
+  const isPrivateCrm = item.kind === 'crm' && item.visibility === 'private';
   
   // Determine if card should be clickable - always clickable if route exists and not ended
-  const isClickable = route && item.statusLabel !== 'Ended';
+  const isClickable = route && item.statusLabel !== 'Ended' && !isPrivateCrm;
   
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on buttons or dropdown
@@ -94,7 +102,7 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
   };
 
   return (
-    <div 
+      <div 
       onClick={handleCardClick}
       className={`rounded-lg border border-white/10 bg-black/40 p-4 transition-all ${
         isClickable 
@@ -112,6 +120,23 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
             <span className="text-[10px] font-medium px-1.5 py-0.5 bg-white/10 border border-white/20 text-white/70 rounded uppercase flex-shrink-0">
               {kindLabel}
             </span>
+            {item.kind === 'crm' && (
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
+                  item.visibility === 'private'
+                    ? 'bg-red-500/20 border border-red-500/30 text-red-300'
+                    : item.visibility === 'hybrid'
+                    ? 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-300'
+                    : 'bg-green-500/20 border border-green-500/30 text-green-300'
+                }`}
+              >
+                {item.visibility === 'private'
+                  ? 'Private'
+                  : item.visibility === 'hybrid'
+                  ? 'Invite + Apply'
+                  : 'Open Apply'}
+              </span>
+            )}
             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded uppercase flex-shrink-0 ${
               item.statusLabel === 'Live'
                 ? 'bg-red-500/20 border border-red-500/30 text-red-400'
@@ -134,6 +159,11 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
         <span>Creators: {item.creatorCount}</span>
         <span>Posts/Views/Points: N/A</span>
       </div>
+      {item.kind === 'crm' && item.visibility !== 'private' && (
+        <div className="text-xs text-white/50 mb-3">
+          Open for applications
+        </div>
+      )}
 
       {/* Time Info */}
       {item.statusLabel === 'Live' && hoursRemaining !== null && hoursRemaining > 0 && (

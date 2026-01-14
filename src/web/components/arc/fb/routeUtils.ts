@@ -32,7 +32,11 @@ export function getLiveItemRoute(item: LiveItem): string | null {
   }
 
   if (accessLevel === 'creator_manager') {
-    // CRM (Option 1): Route to creator manager (page handles visibility checks)
+    // CRM programs should route to creator-facing program detail when possible
+    if (item.programId) {
+      return `/portal/arc/my-creator-programs/${item.programId}`;
+    }
+    // Fallback to creator manager (project-level)
     return `/portal/arc/creator-manager?projectId=${projectIdentifier}`;
   }
 
@@ -43,8 +47,11 @@ export function getLiveItemRoute(item: LiveItem): string | null {
       return `/portal/arc/${item.project.slug}`;
     }
     return `/portal/arc/project/${item.project.id}`;
-  } else if (item.kind === 'campaign') {
-    // Campaign (CRM): Route to creator manager
+  } else if (item.kind === 'campaign' || item.kind === 'crm') {
+    // CRM (campaign/program): prefer creator program detail if available
+    if (item.programId) {
+      return `/portal/arc/my-creator-programs/${item.programId}`;
+    }
     return `/portal/arc/creator-manager?projectId=${projectIdentifier}`;
   }
   
