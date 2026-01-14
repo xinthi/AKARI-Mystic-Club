@@ -50,7 +50,10 @@ function getSessionToken(req: NextApiRequest): string | null {
   return null;
 }
 
-async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ profileId: string } | null> {
+async function getCurrentUserProfile(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  sessionToken: string
+): Promise<{ profileId: string } | null> {
   const { data: session, error: sessionError } = await supabase
     .from('akari_user_sessions')
     .select('user_id, expires_at')
@@ -80,14 +83,37 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
     return null;
   }
 
-  const { data: profile } = await supabase
+  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+  let { data: profile } = await supabase
     .from('profiles')
     .select('id, real_roles')
-    .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-    .single();
+    .eq('username', cleanUsername)
+    .maybeSingle();
 
-  if (!profile || !profile.real_roles?.includes('creator')) {
-    return null;
+  if (!profile) {
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        username: cleanUsername,
+        name: cleanUsername,
+        real_roles: ['user'],
+        updated_at: new Date().toISOString(),
+      })
+      .select('id, real_roles')
+      .single();
+
+    if (createError || !newProfile) {
+      return null;
+    }
+    profile = newProfile;
+  }
+
+  if (!profile.real_roles?.includes('creator')) {
+    const nextRoles = [...(profile.real_roles || []), 'creator'];
+    await supabase
+      .from('profiles')
+      .update({ real_roles: nextRoles })
+      .eq('id', profile.id);
   }
 
   return {
@@ -117,7 +143,7 @@ export default async function handler(
 
   const currentUser = await getCurrentUserProfile(supabase, sessionToken);
   if (!currentUser) {
-    return res.status(403).json({ ok: false, error: 'You must be a creator to view mission progress' });
+    return res.status(403).json({ ok: false, error: 'You must connect your X account to view mission progress' });
   }
 
   const programId = req.query.programId as string;

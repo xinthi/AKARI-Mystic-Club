@@ -135,6 +135,19 @@ export default async function handler(
       updateData.crm_visibility = body.crm_visibility;
     }
 
+    // Ensure CRM date constraints are satisfied when enabling
+    if (typeof body.crm_enabled === 'boolean') {
+      if (body.crm_enabled) {
+        const start = new Date();
+        const end = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+        updateData.crm_start_at = updateData.crm_start_at || start.toISOString();
+        updateData.crm_end_at = updateData.crm_end_at || end.toISOString();
+      } else {
+        updateData.crm_start_at = null;
+        updateData.crm_end_at = null;
+      }
+    }
+
     // Upsert arc_project_features
     const featuresData: any = {
       project_id: projectId,

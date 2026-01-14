@@ -81,20 +81,37 @@ async function getCurrentUserProfile(
   }
 
   const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('profiles')
     .select('id, real_roles')
     .eq('username', cleanUsername)
-    .single();
+    .maybeSingle();
 
   if (!profile) {
-    return null;
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        username: cleanUsername,
+        name: cleanUsername,
+        real_roles: ['user'],
+        updated_at: new Date().toISOString(),
+      })
+      .select('id, real_roles')
+      .single();
+
+    if (createError || !newProfile) {
+      return null;
+    }
+    profile = newProfile;
   }
 
-  // Check if user has 'creator' role
-  const hasCreatorRole = profile.real_roles?.includes('creator') || false;
-  if (!hasCreatorRole) {
-    return null;
+  // Ensure creator role is present for CRM participation
+  if (!profile.real_roles?.includes('creator')) {
+    const nextRoles = [...(profile.real_roles || []), 'creator'];
+    await supabase
+      .from('profiles')
+      .update({ real_roles: nextRoles })
+      .eq('id', profile.id);
   }
 
   return {
