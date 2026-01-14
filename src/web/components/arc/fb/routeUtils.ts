@@ -16,6 +16,11 @@ import { LiveItem } from '@/lib/arc/useArcLiveItems';
  * NOTE: Arena management is at /portal/arc/admin/[projectSlug], not the public arena page
  */
 export function getLiveItemRoute(item: LiveItem): string | null {
+  // CRM programs should always route to creator-facing program detail when possible
+  if (item.kind === 'crm' && item.programId) {
+    return `/portal/arc/my-creator-programs/${item.programId}`;
+  }
+
   const accessLevel = item.project.accessLevel;
   const projectIdentifier = item.project.slug || item.project.id;
 

@@ -789,7 +789,7 @@ function createProgramItem(program: any): ArcLiveItem {
     projectId: program.projectId,
     projectName: program.project?.name || 'Unknown',
     projectSlug: program.project?.slug || null,
-    projectAccessLevel: program.project?.arc_access_level || null,
+    projectAccessLevel: 'creator_manager',
     title: program.title,
     slug: null, // Programs don't have slugs
     xHandle: program.project?.x_handle || null,
