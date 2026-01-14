@@ -18,6 +18,7 @@ import { getLevelInfo } from '@/lib/creator-gamification';
 
 interface CreatorProgram {
   id: string;
+  project_id?: string;
   title: string;
   description: string | null;
   visibility: 'private' | 'public' | 'hybrid';
@@ -82,6 +83,12 @@ export default function MyCreatorPrograms() {
       default:
         return <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-300">Available to Apply</span>;
     }
+  };
+
+  const getVisibilityLabel = (visibility: CreatorProgram['visibility']) => {
+    if (visibility === 'private') return 'Request Access';
+    if (visibility === 'hybrid') return 'Invite + Apply';
+    return 'Open Apply';
   };
 
   if (loading) {
@@ -232,7 +239,7 @@ export default function MyCreatorPrograms() {
 
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-white/60">Visibility</span>
-                    <span className="text-xs text-white capitalize">{program.visibility}</span>
+                    <span className="text-xs text-white">{getVisibilityLabel(program.visibility)}</span>
                   </div>
                 </Link>
               ))}

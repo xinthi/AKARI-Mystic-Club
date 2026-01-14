@@ -29,10 +29,8 @@ export function LiveItemCard({ item, canManageArc, onActionSuccess }: LiveItemCa
       : item.kind === 'campaign'
       ? 'Campaign'
       : 'GameFi';
-  const isPrivateCrm = item.kind === 'crm' && item.visibility === 'private';
-  
   // Determine if card should be clickable - always clickable if route exists and not ended
-  const isClickable = route && item.statusLabel !== 'Ended' && !isPrivateCrm;
+  const isClickable = route && item.statusLabel !== 'Ended';
   
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on buttons or dropdown

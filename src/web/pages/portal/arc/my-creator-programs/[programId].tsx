@@ -44,6 +44,7 @@ interface Badge {
 
 interface Program {
   id: string;
+  project_id: string;
   title: string;
   description: string | null;
   visibility: 'private' | 'public' | 'hybrid';
@@ -79,6 +80,10 @@ export default function CreatorProgramDetail() {
   const [creatorProfileId, setCreatorProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [followVerified, setFollowVerified] = useState<boolean | null>(null);
+  const [verifyingFollow, setVerifyingFollow] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState<string | null>(null);
   const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '', notes: '' });
@@ -109,6 +114,7 @@ export default function CreatorProgramDetail() {
         if (foundProgram) {
           setProgram({
             id: foundProgram.id,
+            project_id: foundProgram.project_id,
             title: foundProgram.title,
             description: foundProgram.description,
             visibility: foundProgram.visibility,
@@ -121,6 +127,20 @@ export default function CreatorProgramDetail() {
             creatorRank: foundProgram.creatorRank,
             class: foundProgram.class,
           });
+          if (!foundProgram.creatorStatus) {
+            try {
+              const followRes = await fetch(
+                `/api/portal/arc/follow-status?projectId=${encodeURIComponent(foundProgram.project_id)}`,
+                { credentials: 'include' }
+              );
+              const followData = await followRes.json();
+              if (followData.ok) {
+                setFollowVerified(!!followData.verified);
+              }
+            } catch (err) {
+              console.error('[Follow Status] Error:', err);
+            }
+          }
           // Get creator profile ID from the membership
           if (foundProgram.creatorStatus) {
             // Fetch creator profile ID from my-programs endpoint response
@@ -212,6 +232,58 @@ export default function CreatorProgramDetail() {
       setLoading(false);
     }
   }, [loadData, akariUser.isLoggedIn]);
+
+  const handleVerifyFollow = async () => {
+    if (!programId || typeof programId !== 'string') return;
+    setVerifyingFollow(true);
+    setApplyError(null);
+    try {
+      const res = await fetch(
+        `/api/portal/creator-manager/programs/${programId}/creators/verify-follow`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        setFollowVerified(true);
+      } else {
+        setApplyError(data.error || 'Failed to verify follow');
+      }
+    } catch (err: any) {
+      setApplyError(err.message || 'Failed to verify follow');
+    } finally {
+      setVerifyingFollow(false);
+    }
+  };
+
+  const handleApply = async () => {
+    if (!programId || typeof programId !== 'string') return;
+    setApplying(true);
+    setApplyError(null);
+    try {
+      const res = await fetch(
+        `/api/portal/creator-manager/programs/${programId}/creators/apply`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      const data = await res.json();
+      if (data.ok) {
+        await loadData();
+      } else {
+        setApplyError(data.error || 'Failed to apply');
+      }
+    } catch (err: any) {
+      setApplyError(err.message || 'Failed to apply');
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const handleSubmit = async (missionId: string) => {
     if (!submitForm.postUrl && !submitForm.postTweetId) {
@@ -514,15 +586,46 @@ export default function CreatorProgramDetail() {
               </button>
             </div>
           )}
-          {!program.creatorStatus && program.visibility !== 'private' && (
+          {!program.creatorStatus && (
             <div className="text-center">
-              <p className="text-akari-muted mb-4">This program is open for applications</p>
-              <Link
-                href={`/api/portal/creator-manager/programs/${programId}/creators/apply`}
-                className="inline-block px-6 py-3 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors font-medium"
-              >
-                Apply to Program
-              </Link>
+              <p className="text-akari-muted mb-4">
+                {program.visibility === 'private'
+                  ? 'This is a private program. You can request access to join.'
+                  : program.visibility === 'hybrid'
+                  ? 'Invited creators are auto-approved. Others can apply to join.'
+                  : 'This program is open for applications.'}
+              </p>
+              {followVerified === false && (
+                <div className="mb-4 text-sm text-akari-muted">
+                  Please verify that you follow the project on X before applying.
+                </div>
+              )}
+              {followVerified === null && (
+                <div className="mb-4 text-sm text-akari-muted">
+                  Checking follow status...
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                {followVerified === false && (
+                  <button
+                    onClick={handleVerifyFollow}
+                    disabled={verifyingFollow}
+                    className="px-5 py-2.5 bg-white/10 text-white rounded-lg hover:bg-white/15 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {verifyingFollow ? 'Verifying...' : 'Verify Follow'}
+                  </button>
+                )}
+                <button
+                  onClick={handleApply}
+                  disabled={applying || followVerified === false || followVerified === null}
+                  className="px-6 py-3 bg-akari-primary text-akari-bg rounded-lg hover:bg-akari-neon-teal transition-colors font-medium disabled:opacity-50"
+                >
+                  {applying ? 'Applying...' : program.visibility === 'private' ? 'Request Access' : 'Apply to Program'}
+                </button>
+              </div>
+              {applyError && (
+                <div className="mt-3 text-sm text-red-400">{applyError}</div>
+              )}
             </div>
           )}
         </div>

@@ -12,6 +12,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { checkArcProjectApproval } from '@/lib/arc-permissions';
 
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -45,7 +47,10 @@ function getSessionToken(req: NextApiRequest): string | null {
   return null;
 }
 
-async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmin>, sessionToken: string): Promise<{ profileId: string } | null> {
+async function getCurrentUserProfile(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  sessionToken: string
+): Promise<{ profileId: string; twitterUsername: string } | null> {
   const { data: session, error: sessionError } = await supabase
     .from('akari_user_sessions')
     .select('user_id, expires_at')
@@ -75,10 +80,11 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
     return null;
   }
 
+  const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
   const { data: profile } = await supabase
     .from('profiles')
     .select('id, real_roles')
-    .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
+    .eq('username', cleanUsername)
     .single();
 
   if (!profile) {
@@ -93,6 +99,7 @@ async function getCurrentUserProfile(supabase: ReturnType<typeof getSupabaseAdmi
 
   return {
     profileId: profile.id,
+    twitterUsername: cleanUsername,
   };
 }
 
@@ -156,9 +163,21 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'Program is not accepting applications' });
     }
 
-    // Check if program is public or hybrid
-    if (program.visibility !== 'public' && program.visibility !== 'hybrid') {
-      return res.status(403).json({ ok: false, error: 'This program is not open for applications' });
+    // Verify follow before allowing application (skip in dev)
+    if (!DEV_MODE) {
+      const { data: verification } = await supabase
+        .from('arc_project_follows')
+        .select('id')
+        .eq('project_id', program.project_id)
+        .or(`profile_id.eq.${currentUser.profileId},twitter_username.eq.${currentUser.twitterUsername}`)
+        .maybeSingle();
+
+      if (!verification) {
+        return res.status(403).json({
+          ok: false,
+          error: 'Please verify you follow the project on X before applying',
+        });
+      }
     }
 
     // Check if creator is already in the program

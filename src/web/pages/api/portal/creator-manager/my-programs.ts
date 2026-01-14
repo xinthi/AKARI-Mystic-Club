@@ -182,7 +182,7 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: 'Failed to fetch programs' });
     }
 
-    // Get public/hybrid programs where creator is NOT a member
+    // Get programs where creator is NOT a member (public/hybrid/private)
     const programIds = (creatorMemberships || []).map((m: any) => {
       const program = Array.isArray(m.creator_manager_programs)
         ? m.creator_manager_programs[0]
@@ -192,7 +192,6 @@ export default async function handler(
     const { data: publicPrograms, error: publicError } = await supabase
       .from('creator_manager_programs')
       .select('*')
-      .in('visibility', ['public', 'hybrid'])
       .eq('status', 'active');
 
     if (publicError) {
@@ -279,7 +278,7 @@ export default async function handler(
       }
     }
 
-    // Add public/hybrid programs where creator is not a member
+    // Add programs where creator is not a member
     if (publicPrograms) {
       for (const program of publicPrograms) {
         // Skip if already in list
