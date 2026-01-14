@@ -141,7 +141,10 @@ export default async function handler(
       ...updateData,
     };
 
-    const { data: updatedFeatures, error: featuresError } = await supabase
+    let updatedFeatures: any = null;
+    let featuresError: any = null;
+
+    const upsertResult = await supabase
       .from('arc_project_features')
       .upsert(featuresData, {
         onConflict: 'project_id',
@@ -149,7 +152,35 @@ export default async function handler(
       .select('crm_enabled, crm_visibility, crm_start_at, crm_end_at')
       .single();
 
-    if (featuresError) {
+    updatedFeatures = upsertResult.data;
+    featuresError = upsertResult.error;
+
+    // Fallback if the unique constraint is missing in some environments
+    if (featuresError && (featuresError.code === '42P10' || /no unique|exclusion constraint/i.test(featuresError.message || ''))) {
+      const { data: existingRow } = await supabase
+        .from('arc_project_features')
+        .select('project_id')
+        .eq('project_id', projectId)
+        .maybeSingle();
+
+      const fallbackResult = existingRow
+        ? await supabase
+            .from('arc_project_features')
+            .update(updateData)
+            .eq('project_id', projectId)
+            .select('crm_enabled, crm_visibility, crm_start_at, crm_end_at')
+            .single()
+        : await supabase
+            .from('arc_project_features')
+            .insert(featuresData)
+            .select('crm_enabled, crm_visibility, crm_start_at, crm_end_at')
+            .single();
+
+      updatedFeatures = fallbackResult.data;
+      featuresError = fallbackResult.error;
+    }
+
+    if (featuresError || !updatedFeatures) {
       console.error('[Update Features API] Error upserting arc_project_features:', featuresError);
       const auditRequestId = getRequestId(req);
       await writeArcAudit(supabase, {
@@ -161,11 +192,11 @@ export default async function handler(
         success: false,
         message: 'Failed to update project features',
         requestId: auditRequestId,
-        metadata: { error: featuresError.message || 'Database error', patch: body, before: beforeFeatures || null },
+        metadata: { error: featuresError?.message || 'Database error', patch: body, before: beforeFeatures || null },
       });
       return res.status(500).json({
         ok: false,
-        error: 'Failed to update project features',
+        error: featuresError?.message || 'Failed to update project features',
       });
     }
 
