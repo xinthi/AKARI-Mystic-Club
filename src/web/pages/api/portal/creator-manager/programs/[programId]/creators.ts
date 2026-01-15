@@ -89,20 +89,41 @@ async function getCurrentUser(supabase: ReturnType<typeof getSupabaseAdmin>, ses
     return null;
   }
 
-  const { data: xIdentity } = await supabase
+  let { data: xIdentity } = await supabase
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
+    .in('provider', ['x', 'twitter'])
+    .maybeSingle();
+
+  if (!xIdentity?.username) {
+    const { data: fallbackIdentity } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', session.user_id)
+      .not('username', 'is', null)
+      .maybeSingle();
+    xIdentity = fallbackIdentity || xIdentity;
+  }
 
   let profileId: string | null = null;
   if (xIdentity?.username) {
-    const { data: profile } = await supabase
+    const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+    let { data: profile } = await supabase
       .from('profiles')
       .select('id')
-      .eq('username', xIdentity.username.toLowerCase().replace('@', ''))
-      .single();
+      .eq('username', cleanUsername)
+      .maybeSingle();
+
+    if (!profile) {
+      const { data: profileFallback } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', cleanUsername)
+        .maybeSingle();
+      profile = profileFallback || profile;
+    }
+
     profileId = profile?.id || null;
   }
 
