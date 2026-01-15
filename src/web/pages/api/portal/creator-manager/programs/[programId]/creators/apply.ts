@@ -50,7 +50,7 @@ function getSessionToken(req: NextApiRequest): string | null {
 async function getCurrentUserProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   sessionToken: string
-): Promise<{ profileId: string; twitterUsername: string } | null> {
+): Promise<{ profileId: string | null; twitterUsername: string } | null> {
   const { data: session, error: sessionError } = await supabase
     .from('akari_user_sessions')
     .select('user_id, expires_at')
@@ -91,11 +91,23 @@ async function getCurrentUserProfile(
   }
 
   const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+  if (!cleanUsername) {
+    return null;
+  }
   let { data: profile } = await supabase
     .from('profiles')
     .select('id, real_roles')
     .eq('username', cleanUsername)
     .maybeSingle();
+
+  if (!profile) {
+    const { data: existingCaseInsensitive } = await supabase
+      .from('profiles')
+      .select('id, real_roles')
+      .ilike('username', cleanUsername)
+      .maybeSingle();
+    profile = existingCaseInsensitive || profile;
+  }
 
   if (!profile) {
     const { data: newProfile, error: createError } = await supabase
@@ -110,13 +122,19 @@ async function getCurrentUserProfile(
       .single();
 
     if (createError || !newProfile) {
-      return null;
+      const { data: retryProfile } = await supabase
+        .from('profiles')
+        .select('id, real_roles')
+        .ilike('username', cleanUsername)
+        .maybeSingle();
+      profile = retryProfile || null;
+    } else {
+      profile = newProfile;
     }
-    profile = newProfile;
   }
 
   // Ensure creator role is present for CRM participation
-  if (!profile.real_roles?.includes('creator')) {
+  if (profile && !profile.real_roles?.includes('creator')) {
     const nextRoles = [...(profile.real_roles || []), 'creator'];
     await supabase
       .from('profiles')
@@ -125,7 +143,7 @@ async function getCurrentUserProfile(
   }
 
   return {
-    profileId: profile.id,
+    profileId: profile?.id || null,
     twitterUsername: cleanUsername,
   };
 }
