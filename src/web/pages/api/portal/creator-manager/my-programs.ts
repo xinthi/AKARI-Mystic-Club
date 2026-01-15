@@ -168,6 +168,14 @@ export default async function handler(
 
   // Avoid cached stale responses for auth-sensitive data
   res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
+  if ('removeHeader' in res) {
+    res.removeHeader('ETag');
+  }
 
   const supabase = getSupabaseAdmin();
 
