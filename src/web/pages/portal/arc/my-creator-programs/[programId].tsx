@@ -109,87 +109,90 @@ export default function CreatorProgramDetail() {
       const programsRes = await fetch('/api/portal/creator-manager/my-programs', { credentials: 'include' });
       const programsData = await programsRes.json();
 
-      if (programsData.ok) {
-        const foundProgram = programsData.programs.find((p: any) => p.id === programId);
-        if (foundProgram) {
-          setProgram({
-            id: foundProgram.id,
-            project_id: foundProgram.project_id,
-            title: foundProgram.title,
-            description: foundProgram.description,
-            visibility: foundProgram.visibility,
-            status: foundProgram.status,
-            project: foundProgram.project,
-            creatorStatus: foundProgram.creatorStatus,
-            arcPoints: foundProgram.arcPoints,
-            xp: foundProgram.xp,
-            creatorLevel: foundProgram.creatorLevel,
-            creatorRank: foundProgram.creatorRank,
-            class: foundProgram.class,
-          });
-          if (!foundProgram.creatorStatus) {
-            try {
-              const followRes = await fetch(
-                `/api/portal/arc/follow-status?projectId=${encodeURIComponent(foundProgram.project_id)}`,
-                { credentials: 'include' }
-              );
-              const followData = await followRes.json();
-              if (followData.ok) {
-                setFollowVerified(!!followData.verified);
-              }
-            } catch (err) {
-              console.error('[Follow Status] Error:', err);
+      if (!programsRes.ok || !programsData.ok) {
+        setError(programsData.error || 'Failed to load program');
+        return;
+      }
+
+      const foundProgram = programsData.programs.find((p: any) => p.id === programId);
+      if (!foundProgram) {
+        setError('Program not found');
+        return;
+      }
+
+      setProgram({
+        id: foundProgram.id,
+        project_id: foundProgram.project_id,
+        title: foundProgram.title,
+        description: foundProgram.description,
+        visibility: foundProgram.visibility,
+        status: foundProgram.status,
+        project: foundProgram.project,
+        creatorStatus: foundProgram.creatorStatus,
+        arcPoints: foundProgram.arcPoints,
+        xp: foundProgram.xp,
+        creatorLevel: foundProgram.creatorLevel,
+        creatorRank: foundProgram.creatorRank,
+        class: foundProgram.class,
+      });
+      if (!foundProgram.creatorStatus) {
+        try {
+          const followRes = await fetch(
+            `/api/portal/arc/follow-status?projectId=${encodeURIComponent(foundProgram.project_id)}`,
+            { credentials: 'include' }
+          );
+          const followData = await followRes.json();
+          if (followData.ok) {
+            setFollowVerified(!!followData.verified);
+          }
+        } catch (err) {
+          console.error('[Follow Status] Error:', err);
+        }
+      }
+      // Get creator profile ID from the membership
+      if (foundProgram.creatorStatus) {
+        // Fetch creator profile ID from my-programs endpoint response
+        // We'll get it from the creators list
+        try {
+          const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
+          const creatorsData = await creatorsRes.json();
+          if (creatorsData.ok) {
+            // Find current user's creator record
+            const currentCreator = creatorsData.creators.find((c: any) => {
+              const creatorUsername = (c.profile?.username ?? c.profile?.twitter_username ?? '').replace('@', '').toLowerCase();
+              return creatorUsername === myUsername;
+            });
+            if (currentCreator) {
+              setCreatorProfileId(currentCreator.creator_profile_id);
             }
           }
-          // Get creator profile ID from the membership
-          if (foundProgram.creatorStatus) {
-            // Fetch creator profile ID from my-programs endpoint response
-            // We'll get it from the creators list
-            try {
-              const creatorsRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
-              const creatorsData = await creatorsRes.json();
-              if (creatorsData.ok) {
-                // Find current user's creator record
-                const currentCreator = creatorsData.creators.find((c: any) => {
-                  const creatorUsername = (c.profile?.username ?? c.profile?.twitter_username ?? '').replace('@', '').toLowerCase();
-                  return creatorUsername === myUsername;
-                });
-                if (currentCreator) {
-                  setCreatorProfileId(currentCreator.creator_profile_id);
-                }
-              }
-            } catch (err) {
-              console.error('[Get Creator Profile ID] Error:', err);
-            }
-          }
+        } catch (err) {
+          console.error('[Get Creator Profile ID] Error:', err);
         }
       }
 
       // Get leaderboard (top 10) for approved creators
-      if (programsData.ok) {
-        const foundProgram = programsData.programs.find((p: any) => p.id === programId);
-        if (foundProgram && foundProgram.creatorStatus === 'approved') {
-          try {
-            const leaderboardRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
-            const leaderboardData = await leaderboardRes.json();
-            if (leaderboardData.ok) {
-              const approvedCreators = leaderboardData.creators
-                .filter((c: any) => c.status === 'approved')
-                .slice(0, 10);
-              setLeaderboard(approvedCreators.map((c: any) => ({
-                rank: c.rank || 0,
-                username: c.profile?.username || 'unknown',
-                arc_points: c.arc_points || 0,
-                xp: c.xp || 0,
-                level: c.creatorLevel || 1,
-              })));
-              // Get total count of approved creators
-              const allApproved = leaderboardData.creators.filter((c: any) => c.status === 'approved');
-              setTotalCreators(allApproved.length);
-            }
-          } catch (err) {
-            console.error('[Leaderboard] Error:', err);
+      if (foundProgram.creatorStatus === 'approved') {
+        try {
+          const leaderboardRes = await fetch(`/api/portal/creator-manager/programs/${programId}/creators`, { credentials: 'include' });
+          const leaderboardData = await leaderboardRes.json();
+          if (leaderboardData.ok) {
+            const approvedCreators = leaderboardData.creators
+              .filter((c: any) => c.status === 'approved')
+              .slice(0, 10);
+            setLeaderboard(approvedCreators.map((c: any) => ({
+              rank: c.rank || 0,
+              username: c.profile?.username || 'unknown',
+              arc_points: c.arc_points || 0,
+              xp: c.xp || 0,
+              level: c.creatorLevel || 1,
+            })));
+            // Get total count of approved creators
+            const allApproved = leaderboardData.creators.filter((c: any) => c.status === 'approved');
+            setTotalCreators(allApproved.length);
           }
+        } catch (err) {
+          console.error('[Leaderboard] Error:', err);
         }
       }
 
