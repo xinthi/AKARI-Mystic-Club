@@ -76,8 +76,8 @@ async function getCurrentUserProfile(
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', session.user_id)
-    .eq('provider', 'x')
-    .single();
+    .in('provider', ['x', 'twitter'])
+    .maybeSingle();
 
   if (!xIdentity?.username) {
     return null;

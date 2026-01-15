@@ -215,13 +215,14 @@ function AvatarWithFallback({ url, name, size = 'md' }: { url: string | null; na
   const colorIndex = name.charCodeAt(0) % colors.length;
   const colorClass = colors[colorIndex];
 
-  const showFallback = !url || imgError;
+  const normalizedUrl = url ? url.replace('_normal', '_400x400') : null;
+  const showFallback = !normalizedUrl || imgError;
 
   return (
     <div className="relative flex-shrink-0 transition-all duration-300 hover:drop-shadow-[0_0_12px_rgba(0,246,162,0.5)]">
       {!showFallback ? (
         <img
-          src={url}
+          src={normalizedUrl || undefined}
           alt={name}
           className={`${sizeClasses[size]} rounded-full object-cover bg-akari-cardSoft border border-akari-neon-teal/30 transition-all duration-300`}
           onError={() => setImgError(true)}

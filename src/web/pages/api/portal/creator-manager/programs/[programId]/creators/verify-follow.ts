@@ -45,7 +45,7 @@ export default async function handler(
       .from('akari_user_identities')
       .select('username')
       .eq('user_id', portalUser.userId)
-      .eq('provider', 'x')
+      .in('provider', ['x', 'twitter'])
       .maybeSingle();
 
     if (!xIdentity?.username) {

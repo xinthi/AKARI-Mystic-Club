@@ -239,11 +239,11 @@ export async function requirePortalUser(
       // JWT validated successfully, get profile (optional)
       let profileId: string | null = null;
       try {
-        const { data: xIdentity } = await supabase
+      const { data: xIdentity } = await supabase
           .from('akari_user_identities')
           .select('username')
           .eq('user_id', jwtUserId)
-          .eq('provider', 'x')
+        .in('provider', ['x', 'twitter'])
           .maybeSingle();
 
         if (xIdentity?.username) {
@@ -343,7 +343,7 @@ export async function requirePortalUser(
         .from('akari_user_identities')
         .select('username')
         .eq('user_id', sessionUserId)
-        .eq('provider', 'x')
+        .in('provider', ['x', 'twitter'])
         .maybeSingle();
 
       if (!xIdentityError && xIdentity?.username) {
