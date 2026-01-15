@@ -984,6 +984,57 @@ export default function CreatorManagerProgramDetail() {
                 Invite Creators
               </button>
             </div>
+            {creators.filter(c => c.status === 'pending').length > 0 && (
+              <div className="p-4 border-b border-akari-border bg-yellow-500/10">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm font-medium text-yellow-300">
+                    Pending Requests ({creators.filter(c => c.status === 'pending').length})
+                  </div>
+                  <div className="text-xs text-yellow-200/80">
+                    Approve or reject to manage access
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {creators
+                    .filter(c => c.status === 'pending')
+                    .map((creator) => (
+                      <div
+                        key={`pending-${creator.id}`}
+                        className="flex items-center justify-between p-3 rounded-lg border border-yellow-500/30 bg-black/40"
+                      >
+                        <div className="flex items-center gap-3">
+                          {creator.profile?.profile_image_url && (
+                            <img
+                              src={creator.profile.profile_image_url}
+                              alt={creator.profile.username}
+                              className="w-8 h-8 rounded-full"
+                            />
+                          )}
+                          <div className="text-sm text-akari-text">
+                            @{((creator.profile?.username || 'unknown') as string).replace(/^@+/, '')}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleUpdateStatus(creator.creator_profile_id, 'approved')}
+                            disabled={updatingStatus === creator.id}
+                            className="px-3 py-1.5 text-xs font-medium bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleUpdateStatus(creator.creator_profile_id, 'rejected')}
+                            disabled={updatingStatus === creator.id}
+                            className="px-3 py-1.5 text-xs font-medium bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             {creators.length === 0 ? (
               <div className="p-8 text-center text-akari-muted">
                 <p>No creators yet</p>
