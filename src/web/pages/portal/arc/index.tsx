@@ -20,6 +20,7 @@ import { DesktopArcShell } from '@/components/arc/fb/DesktopArcShell';
 import { MobileLayout } from '@/components/arc/fb/mobile/MobileLayout';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
+import { createPortalClient } from '@/lib/portal/supabase';
 
 // =============================================================================
 // TYPES
@@ -41,6 +42,8 @@ interface TopProjectItem {
 interface ArcHomeProps {
   canViewArc: boolean;
   canManageArc: boolean;
+  initialTopProjects?: TopProjectItem[];
+  initialTopProjectsLastUpdated?: string | null;
 }
 
 
@@ -87,9 +90,10 @@ interface TreemapWrapperProps {
   timeframe: '24h' | '7d' | '30d' | '90d';
   onProjectClick: (item: TopProjectItem) => void;
   onError: () => void;
+  lastUpdated?: string | null;
 }
 
-function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: TreemapWrapperProps) {
+function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError, lastUpdated }: TreemapWrapperProps) {
   const showDebug = process.env.NODE_ENV !== 'production';
 
   // Debug: log when switching to treemap (must be before early returns)
@@ -170,6 +174,7 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
               items={treemapItems}
               mode={mode}
               timeframe={timeframe}
+              lastUpdated={lastUpdated || undefined}
               onProjectClick={(project) => {
                 const item = items.find(
                   i => (i.projectId || i.id) === project.projectId
@@ -190,7 +195,12 @@ function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError }: Tre
 // COMPONENT
 // =============================================================================
 
-export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc }: ArcHomeProps) {
+export default function ArcHome({
+  canViewArc,
+  canManageArc: initialCanManageArc,
+  initialTopProjects = [],
+  initialTopProjectsLastUpdated = null,
+}: ArcHomeProps) {
   const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
@@ -205,11 +215,13 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
   // State for top projects
   const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
   const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
-  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>([]);
+  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>(initialTopProjects);
   const [topProjectsLoading, setTopProjectsLoading] = useState(false);
   const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
+  const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<string | null>(initialTopProjectsLastUpdated);
+  const [topProjectsUpdating, setTopProjectsUpdating] = useState(false);
+  const refreshTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // State for ARC projects with features (for product cards)
   interface ArcProjectWithFeatures {
@@ -242,9 +254,12 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
   }, [topProjectsDisplayMode, topProjectsData.length, topProjectsLoading]);
 
   // Fetch top projects (when user can view ARC)
-  const loadTopProjects = useCallback(async () => {
+  const loadTopProjects = useCallback(async (options?: { silent?: boolean; source?: 'initial' | 'manual' | 'live' | 'poll' | 'focus' }) => {
     try {
-      setTopProjectsLoading(true);
+      const silent = options?.silent ?? false;
+      if (!silent) {
+        setTopProjectsLoading(true);
+      }
       setTopProjectsError(null);
       
       // Add cache-busting timestamp to ensure fresh data on timeframe change
@@ -308,12 +323,14 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       });
 
       setTopProjectsData(normalizedItems);
+      setTopProjectsLastUpdated(data.lastUpdated || new Date().toISOString());
     } catch (err: any) {
       console.error('[ARC] Top projects fetch error:', err);
       setTopProjectsError(err.message || 'Failed to load top projects');
       setTopProjectsData([]);
     } finally {
       setTopProjectsLoading(false);
+      setTopProjectsUpdating(false);
     }
   }, [topProjectsView, topProjectsTimeframe]);
 
@@ -322,8 +339,79 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
       return;
     }
 
-    loadTopProjects();
-  }, [canViewArc, loadTopProjects, refreshNonce]);
+    loadTopProjects({ silent: topProjectsData.length > 0, source: 'initial' });
+  }, [canViewArc, loadTopProjects]);
+
+  const scheduleTopProjectsRefresh = useCallback((source: 'live' | 'poll' | 'focus') => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    setTopProjectsUpdating(true);
+    refreshTimeoutRef.current = setTimeout(() => {
+      loadTopProjects({ silent: true, source });
+    }, 1000);
+  }, [loadTopProjects]);
+
+  useEffect(() => {
+    if (!canViewArc) {
+      return;
+    }
+
+    const supabase = createPortalClient();
+    const channel = supabase
+      .channel('arc-top-projects')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'project_mindshare_snapshots' },
+        () => scheduleTopProjectsRefresh('live')
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'metrics_daily' },
+        () => scheduleTopProjectsRefresh('live')
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'arc_mindshare_events' },
+        () => scheduleTopProjectsRefresh('live')
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [canViewArc, scheduleTopProjectsRefresh]);
+
+  useEffect(() => {
+    if (!canViewArc) {
+      return;
+    }
+
+    const handleFocus = () => scheduleTopProjectsRefresh('focus');
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        scheduleTopProjectsRefresh('focus');
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        scheduleTopProjectsRefresh('poll');
+      }
+    }, 60000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearInterval(interval);
+    };
+  }, [canViewArc, scheduleTopProjectsRefresh]);
 
   // Fetch ARC projects with features for product cards
   useEffect(() => {
@@ -392,7 +480,7 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
 
   // Handle refresh button
   const handleRefresh = () => {
-    setRefreshNonce(prev => prev + 1);
+    loadTopProjects({ silent: false, source: 'manual' });
   };
 
   // Handle top project click navigation
@@ -644,6 +732,9 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
               </>
             )}
           </button>
+          {topProjectsUpdating && (
+            <span className="text-xs text-white/40">Updating...</span>
+          )}
         </div>
       </div>
 
@@ -682,7 +773,8 @@ export default function ArcHome({ canViewArc, canManageArc: initialCanManageArc 
                   mode={topProjectsView}
                   timeframe={topProjectsTimeframe}
                   onProjectClick={handleTopProjectClick}
-                  onError={() => {}}
+                  onError={() => setTopProjectsDisplayMode('cards')}
+                  lastUpdated={topProjectsLastUpdated}
                 />
               </div>
             )}
@@ -773,10 +865,55 @@ export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (conte
     canManageArc = false;
   }
   
+  let initialTopProjects: TopProjectItem[] = [];
+  let initialTopProjectsLastUpdated: string | null = null;
+
+  try {
+    const host = context.req.headers.host;
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    const res = await fetch(
+      `${baseUrl}/api/portal/arc/top-projects?mode=gainers&timeframe=7d&limit=30`,
+      {
+        headers: {
+          cookie: context.req.headers.cookie || '',
+        },
+      }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.ok && Array.isArray(data.items)) {
+        initialTopProjects = (data.items || []).map((p: any) => {
+          const projectId = String(p.projectId ?? p.projectid ?? p.project_id ?? p.id ?? '');
+          const name = p.display_name || p.name || 'Unknown';
+          const twitterUsername = String(p.twitter_username || '');
+          return {
+            ...p,
+            id: projectId,
+            projectId,
+            name,
+            display_name: name,
+            twitter_username: twitterUsername,
+            growth_pct: Number(p.growth_pct ?? 0),
+            slug: p.slug || null,
+            arc_access_level: p.arc_access_level || 'none',
+            arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
+            value: Math.max(1, Math.abs(Number(p.growth_pct ?? 0)) || 1),
+          };
+        });
+        initialTopProjectsLastUpdated = data.lastUpdated || null;
+      }
+    }
+  } catch (err) {
+    console.warn('[ARC Home] Failed to preload top projects:', err);
+  }
+
   return {
     props: {
       canViewArc,
       canManageArc,
+      initialTopProjects,
+      initialTopProjectsLastUpdated,
     },
   };
 };

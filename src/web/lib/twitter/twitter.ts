@@ -21,9 +21,15 @@ import axios from 'axios';
 const TAIO_BASE_URL = process.env.TWITTERAPIIO_BASE_URL ?? 'https://api.twitterapi.io';
 const TAIO_API_KEY = process.env.TWITTERAPIIO_API_KEY;
 
+// Official X API v2 config
+const X_API_BASE_URL = process.env.X_API_BASE_URL ?? 'https://api.twitter.com/2';
+const X_API_BEARER_TOKEN = process.env.X_API_BEARER_TOKEN;
+const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? (X_API_BEARER_TOKEN ? 'x' : 'twitterapiio');
+
 // Log configuration on first import (server-side only)
 if (typeof window === 'undefined') {
-  console.log(`[TwitterClient/Web] Provider: twitterapiio (exclusive)`);
+  console.log(`[TwitterClient/Web] Provider: ${PRIMARY_PROVIDER}`);
+  console.log(`[TwitterClient/Web] X_API_BEARER_TOKEN: ${X_API_BEARER_TOKEN ? 'SET' : 'NOT SET'}`);
   console.log(`[TwitterClient/Web] TWITTERAPIIO_API_KEY: ${TAIO_API_KEY ? 'SET' : 'NOT SET'}`);
 }
 
@@ -121,6 +127,150 @@ async function taioGet<T>(
   });
 
   return response.data;
+}
+
+/**
+ * Make a GET request to X API v2
+ */
+async function xApiGet<T>(
+  path: string,
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<T> {
+  if (!X_API_BEARER_TOKEN) {
+    throw new Error('[X API] X_API_BEARER_TOKEN is not set');
+  }
+
+  const url = `${X_API_BASE_URL}${path}${buildQueryString(params)}`;
+  const response = await axios.get<T>(url, {
+    headers: {
+      Authorization: `Bearer ${X_API_BEARER_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    timeout: 30000,
+  });
+
+  return response.data;
+}
+
+/**
+ * Get user info via X API v2
+ */
+async function xGetUserInfo(userName: string): Promise<TwitterUserProfile | null> {
+  const cleanHandle = userName.replace('@', '');
+  const data = await xApiGet<any>(`/users/by/username/${encodeURIComponent(cleanHandle)}`, {
+    'user.fields': 'public_metrics,profile_image_url,created_at,verified,description',
+  });
+
+  if (!data?.data) {
+    return null;
+  }
+
+  const user = data.data;
+  return {
+    handle: user.username,
+    userId: user.id,
+    name: user.name,
+    bio: user.description ?? null,
+    avatarUrl: user.profile_image_url ?? null,
+    profileImageUrl: user.profile_image_url ?? null,
+    followersCount: user.public_metrics?.followers_count ?? 0,
+    followingCount: user.public_metrics?.following_count ?? 0,
+    tweetCount: user.public_metrics?.tweet_count ?? 0,
+    createdAt: user.created_at ?? null,
+    verified: Boolean(user.verified ?? false),
+  };
+}
+
+/**
+ * Get user tweets via X API v2
+ */
+async function xGetUserTweets(userName: string, limit: number): Promise<TwitterTweet[]> {
+  const profile = await xGetUserInfo(userName);
+  if (!profile?.userId) {
+    return [];
+  }
+
+  const data = await xApiGet<any>(`/users/${profile.userId}/tweets`, {
+    max_results: Math.min(Math.max(limit, 5), 100),
+    'tweet.fields': 'public_metrics,created_at',
+  });
+
+  const tweets = data?.data ?? [];
+  return tweets.map((t: any) => ({
+    id: String(t.id),
+    text: t.text ?? '',
+    authorHandle: profile.handle,
+    createdAt: t.created_at ?? new Date().toISOString(),
+    likeCount: t.public_metrics?.like_count ?? 0,
+    replyCount: t.public_metrics?.reply_count ?? 0,
+    retweetCount: t.public_metrics?.retweet_count ?? 0,
+    quoteCount: t.public_metrics?.quote_count ?? 0,
+  }));
+}
+
+/**
+ * Get user followers via X API v2
+ */
+async function xGetUserFollowers(userName: string, limit: number): Promise<TwitterFollower[]> {
+  const profile = await xGetUserInfo(userName);
+  if (!profile?.userId) {
+    return [];
+  }
+
+  const data = await xApiGet<any>(`/users/${profile.userId}/followers`, {
+    max_results: Math.min(Math.max(limit, 5), 1000),
+    'user.fields': 'public_metrics,profile_image_url,description,verified',
+  });
+
+  const users = data?.data ?? [];
+  return users.map((u: any) => ({
+    id: String(u.id),
+    username: u.username ?? '',
+    name: u.name ?? '',
+    profileImageUrl: (u.profile_image_url ?? '').replace('_normal', '_400x400') || null,
+    bio: u.description ?? null,
+    followers: u.public_metrics?.followers_count ?? 0,
+    following: u.public_metrics?.following_count ?? 0,
+    tweetCount: u.public_metrics?.tweet_count ?? 0,
+    verified: Boolean(u.verified ?? false),
+  }));
+}
+
+/**
+ * Get mentions of a user via X API v2 (recent search)
+ */
+async function xGetUserMentions(userName: string, limit: number): Promise<TwitterMention[]> {
+  const cleanHandle = userName.replace('@', '');
+  const data = await xApiGet<any>('/tweets/search/recent', {
+    query: `@${cleanHandle} -is:retweet`,
+    max_results: Math.min(Math.max(limit, 10), 100),
+    'tweet.fields': 'public_metrics,created_at,author_id',
+    expansions: 'author_id',
+    'user.fields': 'profile_image_url,name,username',
+  });
+
+  const tweets = data?.data ?? [];
+  const users = (data?.includes?.users ?? []).reduce((acc: Record<string, any>, u: any) => {
+    acc[u.id] = u;
+    return acc;
+  }, {});
+
+  return tweets.map((t: any) => {
+    const author = users[t.author_id] || {};
+    const handle = author.username ?? 'unknown';
+    return {
+      id: String(t.id),
+      text: t.text ?? '',
+      author: handle,
+      authorName: author.name ?? handle,
+      authorProfileImageUrl: (author.profile_image_url ?? '').replace('_normal', '_400x400') || null,
+      createdAt: t.created_at ?? new Date().toISOString(),
+      likes: t.public_metrics?.like_count ?? 0,
+      retweets: t.public_metrics?.retweet_count ?? 0,
+      replies: t.public_metrics?.reply_count ?? 0,
+      url: `https://x.com/${handle}/status/${t.id}`,
+    };
+  });
 }
 
 /**
@@ -339,9 +489,14 @@ export async function getUserProfile(
   userName: string
 ): Promise<TwitterUserProfile | null> {
   const cleanHandle = userName.replace('@', '');
-  
+
   return safeExecute(
-    () => taioGetUserInfo(cleanHandle),
+    () => {
+      if (PRIMARY_PROVIDER === 'x' && X_API_BEARER_TOKEN) {
+        return xGetUserInfo(cleanHandle);
+      }
+      return taioGetUserInfo(cleanHandle);
+    },
     `getUserProfile("${cleanHandle}")`,
     null
   );
@@ -358,7 +513,12 @@ export async function getUserTweets(
   const cleanHandle = userName.replace('@', '');
 
   return safeExecute(
-    () => taioGetUserTweets(cleanHandle, limit),
+    () => {
+      if (PRIMARY_PROVIDER === 'x' && X_API_BEARER_TOKEN) {
+        return xGetUserTweets(cleanHandle, limit);
+      }
+      return taioGetUserTweets(cleanHandle, limit);
+    },
     `getUserTweets("${cleanHandle}")`,
     []
   );
@@ -391,6 +551,9 @@ export async function getUserFollowers(
 
   return safeExecute(
     async () => {
+      if (PRIMARY_PROVIDER === 'x' && X_API_BEARER_TOKEN) {
+        return xGetUserFollowers(cleanHandle, limit);
+      }
       const url = `${TAIO_BASE_URL}/twitter/user/followers`;
       const params = new URLSearchParams({
         userName: cleanHandle,
@@ -465,6 +628,9 @@ export async function getUserMentions(
 
   return safeExecute(
     async () => {
+      if (PRIMARY_PROVIDER === 'x' && X_API_BEARER_TOKEN) {
+        return xGetUserMentions(cleanHandle, limit);
+      }
       const url = `${TAIO_BASE_URL}/twitter/user/mentions`;
       const params = new URLSearchParams({
         userName: cleanHandle,

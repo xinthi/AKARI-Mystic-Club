@@ -132,6 +132,23 @@ export default function ArcProjectHub() {
   }>>([]);
   const [topTweetsLoading, setTopTweetsLoading] = useState(false);
 
+  // Private boards (KOL leaderboards)
+  const [privateBoards, setPrivateBoards] = useState<Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    base_url: string | null;
+    status: 'active' | 'paused' | 'ended';
+    visibility: 'private' | 'invite' | 'approved';
+    kol_count?: number;
+  }>>([]);
+  const [privateBoardsLoading, setPrivateBoardsLoading] = useState(false);
+  const [privateBoardsError, setPrivateBoardsError] = useState<string | null>(null);
+  const [showCreateBoard, setShowCreateBoard] = useState(false);
+  const [newBoardTitle, setNewBoardTitle] = useState('');
+  const [newBoardDescription, setNewBoardDescription] = useState('');
+  const [newBoardBaseUrl, setNewBoardBaseUrl] = useState('');
+
   // Reset to page 1 when leaderboard data changes
   useEffect(() => {
     setCurrentPage(1);
@@ -414,6 +431,67 @@ export default function ArcProjectHub() {
 
     fetchTopTweets();
   }, [projectId, msEnabled, timePeriod]);
+
+  const loadPrivateBoards = async () => {
+    if (!projectId) return;
+    setPrivateBoardsLoading(true);
+    setPrivateBoardsError(null);
+    try {
+      const res = await fetch(`/api/portal/arc/private-boards?projectId=${encodeURIComponent(projectId)}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load private boards');
+      }
+      setPrivateBoards(data.boards || []);
+    } catch (err: any) {
+      console.error('[ArcProjectHub] Private boards fetch error:', err);
+      setPrivateBoardsError(err.message || 'Failed to load private boards');
+      setPrivateBoards([]);
+    } finally {
+      setPrivateBoardsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!projectId) return;
+    loadPrivateBoards();
+  }, [projectId]);
+
+  const handleCreateBoard = async () => {
+    if (!projectId) return;
+    if (!newBoardTitle.trim()) return;
+    setPrivateBoardsLoading(true);
+    setPrivateBoardsError(null);
+    try {
+      const res = await fetch('/api/portal/arc/private-boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          projectId,
+          title: newBoardTitle.trim(),
+          description: newBoardDescription.trim() || null,
+          baseUrl: newBoardBaseUrl.trim() || null,
+          visibility: 'private',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to create board');
+      }
+      setShowCreateBoard(false);
+      setNewBoardTitle('');
+      setNewBoardDescription('');
+      setNewBoardBaseUrl('');
+      await loadPrivateBoards();
+    } catch (err: any) {
+      setPrivateBoardsError(err.message || 'Failed to create board');
+    } finally {
+      setPrivateBoardsLoading(false);
+    }
+  };
 
   // Canonicalize projectSlug: redirect if normalized differs from original
   useEffect(() => {
@@ -1171,6 +1249,107 @@ export default function ArcProjectHub() {
               >
                 Manage Campaigns
               </Link>
+            )}
+          </div>
+        )}
+
+        {/* Private Leaderboards (KOL Boards) */}
+        {(canManageProject || privateBoards.length > 0) && (
+          <div className="rounded-lg border border-white/10 bg-black/40 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Private Leaderboards</h2>
+              {canManageProject && (
+                <button
+                  onClick={() => setShowCreateBoard((prev) => !prev)}
+                  className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  {showCreateBoard ? 'Close' : 'Create Board'}
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-white/50 mb-4">
+              Analytics-only rankings (no post-to-earn incentives).
+            </p>
+
+            {canManageProject && showCreateBoard && (
+              <div className="mb-4 rounded-lg border border-white/10 bg-black/30 p-4 space-y-3">
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Title</label>
+                  <input
+                    value={newBoardTitle}
+                    onChange={(e) => setNewBoardTitle(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                    placeholder="KOL Private Board"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Base URL (for UTM links)</label>
+                  <input
+                    value={newBoardBaseUrl}
+                    onChange={(e) => setNewBoardBaseUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                    placeholder="https://project.com/signup"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Description</label>
+                  <textarea
+                    value={newBoardDescription}
+                    onChange={(e) => setNewBoardDescription(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                    rows={3}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleCreateBoard}
+                    disabled={!newBoardTitle.trim() || privateBoardsLoading}
+                    className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {privateBoardsLoading ? 'Creating...' : 'Create Board'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {privateBoardsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-teal-400 border-t-transparent" />
+                <span className="ml-3 text-sm text-white/60">Loading boards...</span>
+              </div>
+            ) : privateBoardsError ? (
+              <ErrorState
+                message={privateBoardsError}
+                onRetry={loadPrivateBoards}
+              />
+            ) : privateBoards.length === 0 ? (
+              <EmptyState
+                icon="🧩"
+                title="No private boards yet"
+                description={canManageProject ? 'Create a private board to invite KOLs.' : 'You have no private board invites yet.'}
+              />
+            ) : (
+              <div className="space-y-3">
+                {privateBoards.map((board) => (
+                  <div
+                    key={board.id}
+                    className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 p-4"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-white">{board.title}</div>
+                      <div className="text-xs text-white/50">
+                        {board.kol_count ?? 0} KOL{(board.kol_count ?? 0) === 1 ? '' : 's'} • {board.status}
+                      </div>
+                    </div>
+                    <Link
+                      href={`/portal/arc/private-boards/${board.id}`}
+                      className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                    >
+                      Open
+                    </Link>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

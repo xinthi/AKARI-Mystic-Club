@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? 'twitterapiio';
+const PRIMARY_PROVIDER = process.env.TWITTER_PRIMARY_PROVIDER ?? (process.env.X_API_BEARER_TOKEN ? 'x' : 'twitterapiio');
 
 // Rate limiting settings
 const DELAY_BETWEEN_PROJECTS_MS = 2000;
@@ -51,13 +51,13 @@ export async function runSentimentUpdate(): Promise<{ successCount: number; fail
     throw new Error('Missing required Supabase environment variables');
   }
 
-  // Check for Twitter API key
   const hasTwitterApiIo = Boolean(process.env.TWITTERAPIIO_API_KEY);
-  if (!hasTwitterApiIo) {
-    throw new Error('Missing TWITTERAPIIO_API_KEY');
+  const hasXApi = Boolean(process.env.X_API_BEARER_TOKEN);
+  if (!hasTwitterApiIo && !hasXApi) {
+    throw new Error('Missing X_API_BEARER_TOKEN and TWITTERAPIIO_API_KEY');
   }
 
-  console.log('API credentials: TwitterAPI.io ✓');
+  console.log(`API credentials: ${hasXApi ? 'X API ✓' : ''}${hasTwitterApiIo ? ' TwitterAPI.io ✓' : ''}`);
 
   // Create Supabase client
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
