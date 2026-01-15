@@ -152,7 +152,7 @@ export default async function handler(
 
   const currentUser = await getCurrentUserProfile(supabase, sessionToken);
   if (!currentUser) {
-    return res.status(403).json({ ok: false, error: 'You must be a creator to apply to programs' });
+    return res.status(403).json({ ok: false, error: 'Please connect your X account to apply to programs' });
   }
 
   const programId = req.query.programId as string;
