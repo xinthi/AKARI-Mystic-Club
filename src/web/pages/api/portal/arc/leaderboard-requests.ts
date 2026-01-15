@@ -86,30 +86,45 @@ async function getUserIdFromSession(sessionToken: string): Promise<string | null
  */
 async function getProfileIdFromUserId(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<string | null> {
   try {
-    const { data: xIdentity, error: identityError } = await supabase
+    let { data: xIdentity } = await supabase
       .from('akari_user_identities')
       .select('username')
       .eq('user_id', userId)
-      .eq('provider', 'x')
-      .single();
+      .in('provider', ['x', 'twitter'])
+      .maybeSingle();
 
-    if (identityError || !xIdentity?.username) {
+    if (!xIdentity?.username) {
+      const { data: fallbackIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', userId)
+        .not('username', 'is', null)
+        .maybeSingle();
+      xIdentity = fallbackIdentity || xIdentity;
+    }
+
+    if (!xIdentity?.username) {
       return null;
     }
 
     const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-    
-    const { data: profile, error: profileError } = await supabase
+
+    let { data: profile } = await supabase
       .from('profiles')
       .select('id')
       .eq('username', cleanUsername)
       .maybeSingle();
 
-    if (profileError || !profile) {
-      return null;
+    if (!profile) {
+      const { data: profileFallback } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', cleanUsername)
+        .maybeSingle();
+      profile = profileFallback || profile;
     }
 
-    return profile.id;
+    return profile?.id || null;
   } catch (err) {
     return null;
   }
