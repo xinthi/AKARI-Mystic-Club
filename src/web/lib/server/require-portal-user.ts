@@ -239,12 +239,22 @@ export async function requirePortalUser(
       // JWT validated successfully, get profile (optional)
       let profileId: string | null = null;
       try {
-      const { data: xIdentity } = await supabase
+      let { data: xIdentity } = await supabase
           .from('akari_user_identities')
           .select('username')
           .eq('user_id', jwtUserId)
         .in('provider', ['x', 'twitter'])
           .maybeSingle();
+
+        if (!xIdentity?.username) {
+          const fallbackIdentity = await supabase
+            .from('akari_user_identities')
+            .select('username')
+            .eq('user_id', jwtUserId)
+            .not('username', 'is', null)
+            .maybeSingle();
+          xIdentity = fallbackIdentity.data || xIdentity;
+        }
 
         if (xIdentity?.username) {
           profileId = await ensureProfileForUsername(supabase, xIdentity.username);
@@ -339,16 +349,27 @@ export async function requirePortalUser(
     // Get profile (optional - don't fail if missing)
     let profileId: string | null = null;
     try {
-      const { data: xIdentity, error: xIdentityError } = await supabase
+      let { data: xIdentity, error: xIdentityError } = await supabase
         .from('akari_user_identities')
         .select('username')
         .eq('user_id', sessionUserId)
         .in('provider', ['x', 'twitter'])
         .maybeSingle();
 
-      if (!xIdentityError && xIdentity?.username) {
-        profileId = await ensureProfileForUsername(supabase, xIdentity.username);
-      }
+        if (!xIdentity?.username) {
+          const fallbackIdentity = await supabase
+            .from('akari_user_identities')
+            .select('username')
+            .eq('user_id', sessionUserId)
+            .not('username', 'is', null)
+            .maybeSingle();
+          xIdentity = fallbackIdentity.data || xIdentity;
+          xIdentityError = xIdentityError || fallbackIdentity.error || null;
+        }
+
+        if (!xIdentityError && xIdentity?.username) {
+          profileId = await ensureProfileForUsername(supabase, xIdentity.username);
+        }
     } catch (error) {
       // Profile lookup failed - non-fatal, continue with userId only
     }

@@ -69,12 +69,22 @@ async function getCurrentUserProfile(
     return null;
   }
 
-  const { data: xIdentity } = await supabase
+  let { data: xIdentity } = await supabase
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', session.user_id)
     .in('provider', ['x', 'twitter'])
     .maybeSingle();
+
+  if (!xIdentity?.username) {
+    const { data: fallbackIdentity } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', session.user_id)
+      .not('username', 'is', null)
+      .maybeSingle();
+    xIdentity = fallbackIdentity || xIdentity;
+  }
 
   if (!xIdentity?.username) {
     return null;

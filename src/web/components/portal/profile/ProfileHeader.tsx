@@ -128,6 +128,8 @@ export function ProfileHeader({
     }
   };
   
+  const normalizedAvatarUrl = avatarUrl ? avatarUrl.replace('_normal', '_400x400') : null;
+
   return (
     <section className="neon-card neon-hover p-6 md:p-8">
       <div className="flex flex-col lg:flex-row lg:items-center gap-6">
@@ -135,9 +137,9 @@ export function ProfileHeader({
         <div className="flex items-start gap-5 flex-1">
           {/* Avatar with claim tick */}
           <div className="relative flex-shrink-0">
-            {avatarUrl ? (
+            {normalizedAvatarUrl ? (
               <Image
-                src={avatarUrl}
+                src={normalizedAvatarUrl}
                 alt={displayName}
                 width={80}
                 height={80}

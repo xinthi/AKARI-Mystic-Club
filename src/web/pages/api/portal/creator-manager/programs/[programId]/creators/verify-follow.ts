@@ -41,12 +41,22 @@ export default async function handler(
     }
 
     // Get X identity
-    const { data: xIdentity } = await supabase
+    let { data: xIdentity } = await supabase
       .from('akari_user_identities')
       .select('username')
       .eq('user_id', portalUser.userId)
       .in('provider', ['x', 'twitter'])
       .maybeSingle();
+
+    if (!xIdentity?.username) {
+      const { data: fallbackIdentity } = await supabase
+        .from('akari_user_identities')
+        .select('username')
+        .eq('user_id', portalUser.userId)
+        .not('username', 'is', null)
+        .maybeSingle();
+      xIdentity = fallbackIdentity || xIdentity;
+    }
 
     if (!xIdentity?.username) {
       return res.status(400).json({ ok: false, error: 'X identity not found' });
