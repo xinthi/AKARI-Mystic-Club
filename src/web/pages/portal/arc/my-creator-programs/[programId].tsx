@@ -85,6 +85,7 @@ export default function CreatorProgramDetail() {
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [requiresX, setRequiresX] = useState(false);
+  const [canManageProject, setCanManageProject] = useState(false);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState<string | null>(null);
   const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '', notes: '' });
@@ -139,6 +140,20 @@ export default function CreatorProgramDetail() {
         creatorRank: foundProgram.creatorRank,
         class: foundProgram.class,
       });
+      try {
+        const permRes = await fetch(
+          `/api/portal/arc/permissions?projectId=${encodeURIComponent(foundProgram.project_id)}`,
+          { credentials: 'include' }
+        );
+        const permData = await permRes.json();
+        if (permData.ok?.permissions) {
+          setCanManageProject(!!permData.permissions.canManage);
+        } else if (permData.ok && permData.permissions) {
+          setCanManageProject(!!permData.permissions.canManage);
+        }
+      } catch (err) {
+        console.error('[Permissions] Error fetching project permissions:', err);
+      }
       if (!foundProgram.creatorStatus) {
         try {
           const followRes = await fetch(
@@ -385,6 +400,19 @@ export default function CreatorProgramDetail() {
             <p className="text-sm text-yellow-300">
               You can browse this program, but follow verification is required before applying.
             </p>
+          </div>
+        )}
+        {canManageProject && (
+          <div className="rounded-lg border border-teal-500/40 bg-teal-500/10 p-4 text-center">
+            <p className="text-sm text-teal-200 mb-2">
+              You have project access. Review join requests in the admin view.
+            </p>
+            <Link
+              href={`/portal/arc/creator-manager/${programId}`}
+              className="inline-block text-sm text-teal-300 hover:text-teal-200 transition-colors"
+            >
+              Open Program Admin
+            </Link>
           </div>
         )}
         {/* Breadcrumb */}
