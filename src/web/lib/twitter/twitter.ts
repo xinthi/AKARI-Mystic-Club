@@ -5,28 +5,25 @@
  * Uses ONLY TwitterAPI.io as the data source (no RapidAPI).
  * 
  * Environment variables:
- * - TWITTERAPIIO_API_KEY: API key for TwitterAPI.io
- * - TWITTERAPIIO_BASE_URL: Base URL for TwitterAPI.io (default: https://api.twitterapi.io)
+ * - TWITTERAPI_IO_KEY: API key for TwitterAPI.io
+ * - TWITTERAPI_IO_BASE_URL: Base URL for TwitterAPI.io (default: https://api.twitterapi.io)
  * 
  * ⚠️ SERVER-SIDE ONLY - This file should only be imported in API routes!
  */
 
-import axios from 'axios';
+import { twitterApiGet } from '@/lib/twitterapi';
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
-
-// TwitterAPI.io config
-const TAIO_BASE_URL = process.env.TWITTERAPIIO_BASE_URL ?? 'https://api.twitterapi.io';
-const TAIO_API_KEY = process.env.TWITTERAPIIO_API_KEY;
 
 const PRIMARY_PROVIDER = 'twitterapiio';
 
 // Log configuration on first import (server-side only)
 if (typeof window === 'undefined') {
   console.log(`[TwitterClient/Web] Provider: ${PRIMARY_PROVIDER}`);
-  console.log(`[TwitterClient/Web] TWITTERAPIIO_API_KEY: ${TAIO_API_KEY ? 'SET' : 'NOT SET'}`);
+  const hasKey = Boolean(process.env.TWITTERAPI_IO_KEY || process.env.TWITTERAPIIO_API_KEY);
+  console.log(`[TwitterClient/Web] TWITTERAPI_IO_KEY: ${hasKey ? 'SET' : 'NOT SET'}`);
 }
 
 // =============================================================================
@@ -91,38 +88,13 @@ async function safeExecute<T>(
 // =============================================================================
 
 /**
- * Build query string from params object
- */
-function buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
-  const entries = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-  
-  return entries.length > 0 ? `?${entries.join('&')}` : '';
-}
-
-/**
  * Make a GET request to TwitterAPI.io
  */
 async function taioGet<T>(
   path: string,
   params: Record<string, string | number | boolean | undefined> = {}
 ): Promise<T> {
-  if (!TAIO_API_KEY) {
-    throw new Error('[TwitterAPI.io] TWITTERAPIIO_API_KEY is not set');
-  }
-
-  const url = `${TAIO_BASE_URL}${path}${buildQueryString(params)}`;
-
-  const response = await axios.get<T>(url, {
-    headers: {
-      'X-API-Key': TAIO_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    timeout: 30000,
-  });
-
-  return response.data;
+  return twitterApiGet<T>(path, params);
 }
 
 
@@ -394,20 +366,10 @@ export async function getUserFollowers(
 
   return safeExecute(
     async () => {
-      const url = `${TAIO_BASE_URL}/twitter/user/followers`;
-      const params = new URLSearchParams({
+      const data = await taioGet<any>('/twitter/user/followers', {
         userName: cleanHandle,
-        pageSize: String(Math.min(limit, 200)),
+        pageSize: Math.min(limit, 200),
       });
-
-      const res = await axios.get(`${url}?${params.toString()}`, {
-        headers: {
-          'X-API-Key': TAIO_API_KEY || '',
-          'Accept': 'application/json',
-        },
-      });
-
-      const data = res.data as any;
       
       // Parse followers from response
       let rawFollowers: any[] = [];
@@ -468,20 +430,10 @@ export async function getUserMentions(
 
   return safeExecute(
     async () => {
-      const url = `${TAIO_BASE_URL}/twitter/user/mentions`;
-      const params = new URLSearchParams({
+      const data = await taioGet<any>('/twitter/user/mentions', {
         userName: cleanHandle,
-        count: String(Math.min(limit, 100)),
+        count: Math.min(limit, 100),
       });
-
-      const res = await axios.get(`${url}?${params.toString()}`, {
-        headers: {
-          'X-API-Key': TAIO_API_KEY || '',
-          'Accept': 'application/json',
-        },
-      });
-
-      const data = res.data as any;
       console.log(`[TwitterClient/Web] Mentions response keys:`, Object.keys(data || {}));
       
       // Parse mentions from response - could be in different fields

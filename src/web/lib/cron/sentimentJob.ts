@@ -51,9 +51,9 @@ export async function runSentimentUpdate(): Promise<{ successCount: number; fail
     throw new Error('Missing required Supabase environment variables');
   }
 
-  const hasTwitterApiIo = Boolean(process.env.TWITTERAPIIO_API_KEY);
+  const hasTwitterApiIo = Boolean(process.env.TWITTERAPI_IO_KEY || process.env.TWITTERAPIIO_API_KEY);
   if (!hasTwitterApiIo) {
-    throw new Error('Missing TWITTERAPIIO_API_KEY');
+    throw new Error('Missing TWITTERAPI_IO_KEY');
   }
 
   console.log('API credentials: TwitterAPI.io ✓');
