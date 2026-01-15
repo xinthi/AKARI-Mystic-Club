@@ -113,6 +113,10 @@ export default function CreatorProgramDetail() {
         setError(programsData.error || 'Failed to load program');
         return;
       }
+      if (programsData.requiresX) {
+        setError('You must connect your X account to view Creator Manager programs');
+        return;
+      }
 
       const foundProgram = programsData.programs.find((p: any) => p.id === programId);
       if (!foundProgram) {
@@ -349,10 +353,19 @@ export default function CreatorProgramDetail() {
   }
 
   if (error || !program) {
+    const needsX = !!error && error.toLowerCase().includes('connect your x account');
     return (
       <ArcPageShell>
         <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
           <p className="text-sm text-red-400">{error || 'Program not found'}</p>
+          {needsX && (
+            <Link
+              href="/portal/me"
+              className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
+            >
+              Connect X account
+            </Link>
+          )}
           <Link
             href="/portal/arc/my-creator-programs"
             className="mt-4 inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"

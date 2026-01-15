@@ -58,7 +58,13 @@ export default async function handler(
     }
     const profileId = user.profileId;
     if (!profileId) {
-      return res.status(403).json({ ok: false, error: 'Profile not found' });
+      return res.status(200).json({
+        ok: true,
+        circles: [],
+        acceptedCount: 0,
+        pendingSentCount: 0,
+        pendingReceivedCount: 0,
+      });
     }
     const supabase = createPortalClient();
 

@@ -43,6 +43,7 @@ export default function MyCreatorPrograms() {
   const [programs, setPrograms] = useState<CreatorProgram[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requiresX, setRequiresX] = useState(false);
 
   useEffect(() => {
     async function loadPrograms() {
@@ -52,6 +53,7 @@ export default function MyCreatorPrograms() {
 
         if (data.ok) {
           setPrograms(data.programs || []);
+          setRequiresX(!!data.requiresX);
         } else {
           setError(data.error || 'Failed to load programs');
         }
@@ -106,6 +108,24 @@ export default function MyCreatorPrograms() {
       <ArcPageShell>
         <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
           <p className="text-sm text-red-400">{error}</p>
+        </div>
+      </ArcPageShell>
+    );
+  }
+
+  if (requiresX) {
+    return (
+      <ArcPageShell>
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
+          <p className="text-sm text-red-400 mb-4">
+            You must connect your X account to view Creator Manager programs.
+          </p>
+          <Link
+            href="/portal/me"
+            className="inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
+          >
+            Connect X account
+          </Link>
         </div>
       </ArcPageShell>
     );

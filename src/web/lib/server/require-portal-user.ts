@@ -101,6 +101,42 @@ function looksLikeJwt(token: string): boolean {
 }
 
 /**
+ * Ensure a profile row exists for a given X username and return the profile ID.
+ */
+async function ensureProfileForUsername(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  username: string
+): Promise<string | null> {
+  const cleanUsername = username.toLowerCase().replace('@', '').trim();
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', cleanUsername)
+    .maybeSingle();
+
+  if (existingProfile?.id) {
+    return existingProfile.id;
+  }
+
+  const { data: newProfile, error: createError } = await supabase
+    .from('profiles')
+    .insert({
+      username: cleanUsername,
+      name: cleanUsername,
+      real_roles: ['user'],
+      updated_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (createError || !newProfile) {
+    return null;
+  }
+
+  return newProfile.id;
+}
+
+/**
  * Try to validate JWT token using Supabase Auth
  * Returns userId if valid, null if invalid (but does not throw)
  */
@@ -211,14 +247,7 @@ export async function requirePortalUser(
           .maybeSingle();
 
         if (xIdentity?.username) {
-          const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('username', cleanUsername)
-            .maybeSingle();
-          
-          profileId = profile?.id || null;
+          profileId = await ensureProfileForUsername(supabase, xIdentity.username);
         }
       } catch (error) {
         // Profile lookup failed - non-fatal, continue with userId only
@@ -318,16 +347,7 @@ export async function requirePortalUser(
         .maybeSingle();
 
       if (!xIdentityError && xIdentity?.username) {
-        const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('username', cleanUsername)
-          .maybeSingle();
-        
-        if (!profileError && profile) {
-          profileId = profile.id;
-        }
+        profileId = await ensureProfileForUsername(supabase, xIdentity.username);
       }
     } catch (error) {
       // Profile lookup failed - non-fatal, continue with userId only

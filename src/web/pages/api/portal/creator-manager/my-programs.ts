@@ -43,7 +43,7 @@ interface CreatorProgram {
 }
 
 type MyProgramsResponse =
-  | { ok: true; programs: CreatorProgram[] }
+  | { ok: true; programs: CreatorProgram[]; requiresX?: boolean }
   | { ok: false; error: string };
 
 // =============================================================================
@@ -166,7 +166,11 @@ export default async function handler(
 
   const currentUser = await getCurrentUserProfile(supabase, sessionToken);
   if (!currentUser) {
-    return res.status(403).json({ ok: false, error: 'You must connect your X account to view Creator Manager programs' });
+    return res.status(200).json({
+      ok: true,
+      programs: [],
+      requiresX: true,
+    });
   }
 
   try {
