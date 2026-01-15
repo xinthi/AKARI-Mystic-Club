@@ -84,6 +84,7 @@ export default function CreatorProgramDetail() {
   const [verifyingFollow, setVerifyingFollow] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [requiresX, setRequiresX] = useState(false);
   const [submittingMission, setSubmittingMission] = useState<string | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState<string | null>(null);
   const [submitForm, setSubmitForm] = useState({ postUrl: '', postTweetId: '', notes: '' });
@@ -114,8 +115,7 @@ export default function CreatorProgramDetail() {
         return;
       }
       if (programsData.requiresX) {
-        setError('You must connect your X account to view Creator Manager programs');
-        return;
+        setRequiresX(true);
       }
 
       const foundProgram = programsData.programs.find((p: any) => p.id === programId);
@@ -380,6 +380,19 @@ export default function CreatorProgramDetail() {
   return (
     <ArcPageShell>
       <div className="space-y-6">
+        {requiresX && (
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-center">
+            <p className="text-sm text-red-400 mb-2">
+              You can browse this program, but you must connect your X account to apply or track progress.
+            </p>
+            <Link
+              href="/portal/me"
+              className="inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
+            >
+              Connect X account
+            </Link>
+          </div>
+        )}
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-white/60">
           <Link href="/portal/arc" className="hover:text-akari-primary transition-colors">

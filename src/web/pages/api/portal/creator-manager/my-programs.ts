@@ -187,9 +187,47 @@ export default async function handler(
 
   const currentUser = await getCurrentUserProfile(supabase, sessionToken);
   if (!currentUser) {
+    // Allow browsing programs even without X connected
+    const { data: publicPrograms } = await supabase
+      .from('creator_manager_programs')
+      .select('*')
+      .eq('status', 'active');
+
+    const programs: CreatorProgram[] = [];
+
+    if (publicPrograms) {
+      for (const program of publicPrograms) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id, name, slug, avatar_url, twitter_username')
+          .eq('id', program.project_id)
+          .single();
+
+        programs.push({
+          id: program.id,
+          project_id: program.project_id,
+          title: program.title,
+          description: program.description,
+          visibility: program.visibility,
+          status: program.status,
+          start_at: program.start_at,
+          end_at: program.end_at,
+          created_at: program.created_at,
+          project: project ? {
+            id: project.id,
+            name: project.name,
+            slug: project.slug,
+            avatar_url: project.avatar_url,
+            twitter_username: project.twitter_username,
+          } : undefined,
+          creatorStatus: null,
+        });
+      }
+    }
+
     return res.status(200).json({
       ok: true,
-      programs: [],
+      programs,
       requiresX: true,
     });
   }

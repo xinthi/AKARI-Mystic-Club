@@ -113,24 +113,6 @@ export default function MyCreatorPrograms() {
     );
   }
 
-  if (requiresX) {
-    return (
-      <ArcPageShell>
-        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-8 text-center">
-          <p className="text-sm text-red-400 mb-4">
-            You must connect your X account to view Creator Manager programs.
-          </p>
-          <Link
-            href="/portal/me"
-            className="inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
-          >
-            Connect X account
-          </Link>
-        </div>
-      </ArcPageShell>
-    );
-  }
-
   // Separate programs by status
   const myPrograms = programs.filter(p => p.creatorStatus);
   const availablePrograms = programs.filter(p => !p.creatorStatus);
@@ -138,6 +120,19 @@ export default function MyCreatorPrograms() {
   return (
     <ArcPageShell>
       <div className="space-y-6">
+        {requiresX && (
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-center">
+            <p className="text-sm text-red-400 mb-2">
+              You can browse programs, but you must connect your X account to apply or track progress.
+            </p>
+            <Link
+              href="/portal/me"
+              className="inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
+            >
+              Connect X account
+            </Link>
+          </div>
+        )}
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">My Creator Programs</h1>
