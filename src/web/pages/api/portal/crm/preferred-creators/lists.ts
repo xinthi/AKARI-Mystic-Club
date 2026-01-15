@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { checkProjectPermissions } from '@/lib/project-permissions';
 
 interface ListInfo {
   listName: string;
@@ -34,10 +35,6 @@ export default async function handler(
     if (!user) {
       return; // requirePortalUser already sent 401 response
     }
-    const profileId = user.profileId;
-    if (!profileId) {
-      return res.status(403).json({ ok: false, error: 'Profile not found' });
-    }
     const supabase = getSupabaseAdmin();
 
     // Handle both query string and body (for flexibility)
@@ -48,16 +45,9 @@ export default async function handler(
       return res.status(400).json({ ok: false, error: 'projectId is required' });
     }
 
-    // Verify user has permission
-    const { data: teamMember, error: teamError } = await supabase
-      .from('project_team_members')
-      .select('role')
-      .eq('project_id', projectId)
-      .eq('profile_id', profileId)
-      .in('role', ['admin', 'moderator', 'owner'])
-      .single();
-
-    if (teamError || !teamMember) {
+    // Verify user has permission (owner/admin/moderator on the project)
+    const permissions = await checkProjectPermissions(supabase, user.userId, projectId);
+    if (!permissions.isOwner && !permissions.isAdmin && !permissions.isModerator) {
       return res.status(403).json({
         ok: false,
         error: 'Not authorized to view lists for this project',
