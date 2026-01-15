@@ -166,6 +166,9 @@ export default async function handler(
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
+  // Avoid cached stale responses for auth-sensitive data
+  res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
+
   const supabase = getSupabaseAdmin();
 
   // Get current user
