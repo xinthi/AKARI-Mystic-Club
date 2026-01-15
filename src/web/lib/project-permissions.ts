@@ -39,12 +39,22 @@ async function getUserTwitterUsername(
   supabase: SupabaseClient,
   userId: string
 ): Promise<string | null> {
-  const { data: xIdentity } = await supabase
+  let { data: xIdentity } = await supabase
     .from('akari_user_identities')
     .select('username')
     .eq('user_id', userId)
-    .eq('provider', 'x')
-    .single();
+    .in('provider', ['x', 'twitter'])
+    .maybeSingle();
+
+  if (!xIdentity?.username) {
+    const { data: fallbackIdentity } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .not('username', 'is', null)
+      .maybeSingle();
+    xIdentity = fallbackIdentity || xIdentity;
+  }
 
   return xIdentity?.username ? xIdentity.username.toLowerCase().replace('@', '').trim() : null;
 }
@@ -56,11 +66,20 @@ async function getProfileIdFromUsername(
   supabase: SupabaseClient,
   username: string
 ): Promise<string | null> {
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('profiles')
     .select('id')
     .eq('username', username.toLowerCase().replace('@', '').trim())
-    .single();
+    .maybeSingle();
+
+  if (!profile) {
+    const { data: profileFallback } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', username.toLowerCase().replace('@', '').trim())
+      .maybeSingle();
+    profile = profileFallback || profile;
+  }
 
   return profile?.id || null;
 }
