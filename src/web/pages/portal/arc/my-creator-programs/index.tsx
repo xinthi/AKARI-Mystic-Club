@@ -121,16 +121,10 @@ export default function MyCreatorPrograms() {
     <ArcPageShell>
       <div className="space-y-6">
         {requiresX && (
-          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-center">
-            <p className="text-sm text-red-400 mb-2">
-              You can browse programs, but you must connect your X account to apply or track progress.
+          <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4 text-center">
+            <p className="text-sm text-yellow-300">
+              You can browse programs, but follow verification is required before applying.
             </p>
-            <Link
-              href="/portal/me"
-              className="inline-block text-sm text-teal-400 hover:text-teal-300 transition-colors"
-            >
-              Connect X account
-            </Link>
           </div>
         )}
         {/* Header */}

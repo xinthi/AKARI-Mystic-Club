@@ -63,15 +63,27 @@ export default async function handler(
     }
 
     const cleanUsername = xIdentity.username.toLowerCase().replace('@', '').trim();
+    if (!cleanUsername) {
+      return res.status(400).json({ ok: false, error: 'X username is empty' });
+    }
 
     // Resolve or create profile
     let profileId = portalUser.profileId;
     if (!profileId) {
-      const { data: existingProfile } = await supabase
+      let { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('username', cleanUsername)
         .maybeSingle();
+
+      if (!existingProfile) {
+        const { data: existingCaseInsensitive } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('username', cleanUsername)
+          .maybeSingle();
+        existingProfile = existingCaseInsensitive || existingProfile;
+      }
 
       if (existingProfile?.id) {
         profileId = existingProfile.id;
@@ -87,9 +99,24 @@ export default async function handler(
           .single();
 
         if (createError || !newProfile) {
-          return res.status(500).json({ ok: false, error: 'Failed to create profile' });
+          // Retry select in case of unique conflicts/race
+          const { data: retryProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .ilike('username', cleanUsername)
+            .maybeSingle();
+
+          if (retryProfile?.id) {
+            profileId = retryProfile.id;
+          } else {
+            return res.status(500).json({
+              ok: false,
+              error: createError?.message || 'Failed to create profile',
+            });
+          }
+        } else {
+          profileId = newProfile.id;
         }
-        profileId = newProfile.id;
       }
     }
 
