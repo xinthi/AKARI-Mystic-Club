@@ -63,7 +63,7 @@ export default function BrandsHome() {
   }, [router.query.create]);
 
   const handleCreate = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.xHandle.trim()) return;
     try {
       const res = await fetch('/api/portal/brands', {
         method: 'POST',
@@ -115,7 +115,7 @@ export default function BrandsHome() {
             <input
               value={form.xHandle}
               onChange={(e) => setForm({ ...form, xHandle: e.target.value })}
-              placeholder="X handle (optional)"
+              placeholder="X handle (required)"
               className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
             />
             <input
@@ -140,7 +140,7 @@ export default function BrandsHome() {
             <div className="flex justify-end">
               <button
                 onClick={handleCreate}
-                disabled={!form.name.trim()}
+                disabled={!form.name.trim() || !form.xHandle.trim()}
                 className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Brand
@@ -168,7 +168,9 @@ export default function BrandsHome() {
                 className="rounded-lg border border-white/10 bg-black/40 p-4 hover:border-white/20 transition-colors"
               >
                 <div className="text-white font-medium">{brand.name}</div>
-                {brand.x_handle && <div className="text-xs text-white/60">@{brand.x_handle}</div>}
+                {brand.x_handle && (
+                  <div className="text-xs text-white/60">@{brand.x_handle.replace(/^@+/, '')}</div>
+                )}
                 {brand.brief_text && (
                   <div className="text-xs text-white/50 mt-2 line-clamp-2">{brand.brief_text}</div>
                 )}

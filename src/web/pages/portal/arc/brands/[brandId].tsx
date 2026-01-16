@@ -149,7 +149,9 @@ export default function BrandDetail() {
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-white">{brand.name}</h1>
-              {brand.x_handle && <div className="text-sm text-white/60">@{brand.x_handle}</div>}
+              {brand.x_handle && (
+                <div className="text-sm text-white/60">@{brand.x_handle.replace(/^@+/, '')}</div>
+              )}
               {brand.brief_text && <p className="text-sm text-white/60 mt-2">{brand.brief_text}</p>}
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/50">
                 {brand.website && <span>Website: {brand.website}</span>}
