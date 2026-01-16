@@ -253,7 +253,7 @@ export default function CreatorQuestsHome() {
                   </div>
                   {campaign.brand?.logo_url || campaign.brand?.x_profile_image_url ? (
                     <img
-                      src={campaign.brand.logo_url || campaign.brand.x_profile_image_url}
+                      src={campaign.brand.logo_url || campaign.brand.x_profile_image_url || ''}
                       alt={campaign.brand.name}
                       className="w-11 h-11 rounded-full border border-white/10"
                     />
