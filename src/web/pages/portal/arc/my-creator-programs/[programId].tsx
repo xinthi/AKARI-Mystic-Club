@@ -408,7 +408,7 @@ export default function CreatorProgramDetail() {
               You have project access. Review join requests in the admin view.
             </p>
             <Link
-              href={`/portal/arc/creator-manager/${programId}`}
+              href={`/portal/arc/creator-manager/${programId}?tab=creators`}
               className="inline-block text-sm text-teal-300 hover:text-teal-200 transition-colors"
             >
               Open Program Admin

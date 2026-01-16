@@ -333,6 +333,14 @@ export default function CreatorManagerProgramDetail() {
     }
   }, [loadProgram, akariUser.isLoggedIn]);
 
+  useEffect(() => {
+    if (!router.isReady) return;
+    const tab = router.query.tab;
+    if (tab === 'creators' || tab === 'overview' || tab === 'deals' || tab === 'missions' || tab === 'links') {
+      setActiveTab(tab);
+    }
+  }, [router.isReady, router.query.tab]);
+
   // Handlers
   const handleInvite = async () => {
     if (!inviteUsernames.trim()) return;
