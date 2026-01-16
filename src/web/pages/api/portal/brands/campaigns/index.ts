@@ -79,8 +79,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const handleSet = new Set<string>();
   for (const campaign of campaigns || []) {
-    const handle = campaign.brand_profiles?.x_handle?.replace('@', '').trim();
-    if (!campaign.brand_profiles?.logo_url && handle) {
+    const brandProfile = Array.isArray(campaign.brand_profiles)
+      ? campaign.brand_profiles[0]
+      : campaign.brand_profiles;
+    const handle = brandProfile?.x_handle?.replace('@', '').trim();
+    if (!brandProfile?.logo_url && handle) {
       handleSet.add(handle);
     }
   }
@@ -155,17 +158,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     languages: c.languages || [],
     start_at: c.start_at,
     end_at: c.end_at,
-    brand: c.brand_profiles
-      ? {
-          id: c.brand_profiles.id,
-          name: c.brand_profiles.name,
-          logo_url: c.brand_profiles.logo_url,
-          x_handle: c.brand_profiles.x_handle,
-          x_profile_image_url:
-            !c.brand_profiles.logo_url && c.brand_profiles.x_handle
-              ? handleToImage[c.brand_profiles.x_handle.replace('@', '').trim()] || null
-              : null,
-        }
+    brand: (Array.isArray(c.brand_profiles) ? c.brand_profiles[0] : c.brand_profiles)
+      ? (() => {
+          const brandProfile = Array.isArray(c.brand_profiles)
+            ? c.brand_profiles[0]
+            : c.brand_profiles;
+          return {
+            id: brandProfile.id,
+            name: brandProfile.name,
+            logo_url: brandProfile.logo_url,
+            x_handle: brandProfile.x_handle,
+            x_profile_image_url:
+              !brandProfile.logo_url && brandProfile.x_handle
+                ? handleToImage[brandProfile.x_handle.replace('@', '').trim()] || null
+                : null,
+          };
+        })()
       : null,
     creatorStatus: creatorMap[c.id]?.status || null,
     isMember: memberSet.has(c.brand_id),
