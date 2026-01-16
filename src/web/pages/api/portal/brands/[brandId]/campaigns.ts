@@ -48,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return res.status(403).json({ ok: false, error: 'Not authorized' });
     }
 
-    const { name, pitch, objectives, campaignType, languages, links } = req.body || {};
+    const { name, pitch, objectives, campaignType, languages, links, startAt, endAt } = req.body || {};
     if (!name) {
       return res.status(400).json({ ok: false, error: 'Campaign name is required' });
     }
@@ -62,6 +62,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         objectives: objectives ? String(objectives).trim() : null,
         campaign_type: campaignType || 'public',
         languages: Array.isArray(languages) ? languages : null,
+        start_at: startAt ? new Date(startAt).toISOString() : null,
+        end_at: endAt ? new Date(endAt).toISOString() : null,
       })
       .select('id, name, pitch, objectives, campaign_type, status, languages, created_at')
       .single();

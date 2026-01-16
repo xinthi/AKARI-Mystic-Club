@@ -24,6 +24,8 @@ export default function BrandDetail() {
     objectives: '',
     campaignType: 'public',
     languages: '',
+    startAt: '',
+    endAt: '',
     links: [{ label: '', url: '' }],
   });
 
@@ -70,6 +72,8 @@ export default function BrandDetail() {
         objectives: campaignForm.objectives.trim(),
         campaignType: campaignForm.campaignType,
         languages,
+        startAt: campaignForm.startAt || null,
+        endAt: campaignForm.endAt || null,
         links,
       }),
     });
@@ -86,6 +90,8 @@ export default function BrandDetail() {
       objectives: '',
       campaignType: 'public',
       languages: '',
+      startAt: '',
+      endAt: '',
       links: [{ label: '', url: '' }],
     });
     loadBrand();
@@ -175,6 +181,20 @@ export default function BrandDetail() {
                   placeholder="Languages (comma-separated)"
                   className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
                 />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={campaignForm.startAt}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, startAt: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                  <input
+                    type="date"
+                    value={campaignForm.endAt}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, endAt: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
                 <div className="grid gap-2">
                   {campaignForm.links.map((link, idx) => (
                     <div key={idx} className="flex gap-2">
@@ -223,13 +243,17 @@ export default function BrandDetail() {
           ) : (
             <div className="space-y-3">
               {campaigns.map((campaign) => (
-                <div key={campaign.id} className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <Link
+                  key={campaign.id}
+                  href={`/portal/arc/campaigns/${campaign.id}`}
+                  className="block rounded-lg border border-white/10 bg-black/30 p-4 hover:border-white/20 transition-colors"
+                >
                   <div className="text-sm font-medium text-white">{campaign.name}</div>
                   {campaign.pitch && <div className="text-xs text-white/60 mt-1">{campaign.pitch}</div>}
                   <div className="text-xs text-white/50 mt-2">
                     Type: {campaign.campaign_type} • Status: {campaign.status}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

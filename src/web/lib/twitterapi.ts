@@ -63,3 +63,12 @@ export async function twitterApiGet<T>(
 
   return res.json() as Promise<T>;
 }
+
+export async function twitterApiGetTweetById(tweetId: string): Promise<any | null> {
+  try {
+    const data = await twitterApiGet<any>('/twitter/tweet/info', { tweetId });
+    return data || null;
+  } catch (err) {
+    return null;
+  }
+}

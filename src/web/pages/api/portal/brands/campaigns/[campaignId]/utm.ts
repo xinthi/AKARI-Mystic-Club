@@ -72,17 +72,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     };
   });
 
-  const toInsert = result
-    .filter((r) => !existingMap[r.utmUrl] && r.utmUrl.includes('/api/portal/utm/redirect'))
-    .map((r) => ({
+  const toInsert = linkRows
+    .filter((link) => !existingMap[link.id])
+    .map((link) => ({
       campaign_id: campaignId,
       creator_profile_id: user.profileId,
-      base_url: r.url,
+      base_url: link.url,
       utm_source: 'akari',
       utm_medium: 'creator',
       utm_campaign: campaignId,
-      utm_content: linkRows.find((l) => l.url === r.url)?.id || r.url,
-      generated_url: r.utmUrl,
+      utm_content: link.id,
+      generated_url: `/api/portal/utm/redirect?campaignId=${campaignId}&creatorProfileId=${user.profileId}&linkId=${link.id}`,
     }));
 
   if (toInsert.length > 0) {
