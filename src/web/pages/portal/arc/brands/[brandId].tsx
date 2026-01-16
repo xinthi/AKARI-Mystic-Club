@@ -2,7 +2,7 @@
  * Brand Detail Page
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
@@ -32,7 +32,7 @@ export default function BrandDetail() {
     links: [{ label: '', url: '' }],
   });
 
-  const loadBrand = async () => {
+  const loadBrand = useCallback(async () => {
     if (!brandId || typeof brandId !== 'string') return;
     setLoading(true);
     setError(null);
@@ -52,11 +52,11 @@ export default function BrandDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [brandId]);
 
   useEffect(() => {
     loadBrand();
-  }, [brandId]);
+  }, [loadBrand]);
 
   useEffect(() => {
     if (router.query.create === '1') {

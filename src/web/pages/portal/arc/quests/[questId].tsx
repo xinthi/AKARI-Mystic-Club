@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
@@ -38,7 +38,7 @@ export default function QuestDetail() {
   const [postUrl, setPostUrl] = useState('');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
-  const loadQuest = async () => {
+  const loadQuest = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
     setLoading(true);
     setError(null);
@@ -60,38 +60,38 @@ export default function QuestDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [questId]);
 
-  const loadUtmLinks = async () => {
+  const loadUtmLinks = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
     const res = await fetch(`/api/portal/brands/quests/${questId}/utm`, { credentials: 'include' });
     const data = await res.json();
     if (res.ok && data.ok) {
       setUtmLinks(data.links || []);
     }
-  };
+  }, [questId]);
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
     const res = await fetch(`/api/portal/brands/quests/${questId}/leaderboard`, { credentials: 'include' });
     const data = await res.json();
     if (res.ok && data.ok) {
       setLeaderboard(data.rows || []);
     }
-  };
+  }, [questId]);
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     if (!questId || typeof questId !== 'string' || !isOwner) return;
     const res = await fetch(`/api/portal/brands/quests/${questId}/requests`, { credentials: 'include' });
     const data = await res.json();
     if (res.ok && data.ok) {
       setRequests(data.requests || []);
     }
-  };
+  }, [questId, isOwner]);
 
   useEffect(() => {
     loadQuest();
-  }, [questId]);
+  }, [loadQuest]);
 
   useEffect(() => {
     if (questId) {
@@ -99,7 +99,7 @@ export default function QuestDetail() {
       loadLeaderboard();
       loadRequests();
     }
-  }, [questId, isOwner]);
+  }, [questId, loadUtmLinks, loadLeaderboard, loadRequests]);
 
   useEffect(() => {
     if (!questId || typeof questId !== 'string') return;
@@ -121,7 +121,7 @@ export default function QuestDetail() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [questId, isOwner]);
+  }, [questId, loadQuest, loadLeaderboard, loadRequests]);
 
   const handleJoinBrand = async () => {
     if (!brand?.id) return;

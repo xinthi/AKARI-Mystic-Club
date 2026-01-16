@@ -93,6 +93,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('brand_members')
     .select('brand_id, profile_id, username')
     .in('brand_id', brandIds.length ? brandIds : ['00000000-0000-0000-0000-000000000000'])
+    .or(
+      [
+        user.profileId ? `profile_id.eq.${user.profileId}` : null,
+        twitterUsername ? `username.eq.${twitterUsername}` : null,
+      ]
+        .filter(Boolean)
+        .join(',')
+    );
+
   const { data: approvedRows } = await supabase
     .from('brand_campaign_creators')
     .select('campaign_id, status')
@@ -103,14 +112,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     acc[row.campaign_id] = (acc[row.campaign_id] || 0) + 1;
     return acc;
   }, {});
-    .or(
-      [
-        user.profileId ? `profile_id.eq.${user.profileId}` : null,
-        twitterUsername ? `username.eq.${twitterUsername}` : null,
-      ]
-        .filter(Boolean)
-        .join(',')
-    );
 
   const creatorMap = (creatorRows || []).reduce<Record<string, any>>((acc, row: any) => {
     acc[row.campaign_id] = row;
