@@ -345,10 +345,13 @@ export default function QuestDetail() {
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as any)}
-              className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+              className="px-3 py-2 text-sm rounded-lg bg-black/80 border border-white/10 text-white"
+              style={{ backgroundColor: '#0b0b0b' }}
             >
               {PLATFORMS.map((p) => (
-                <option key={p} value={p}>{`${PLATFORM_ICONS[p] || ''} ${p.toUpperCase()}`}</option>
+                <option key={p} value={p} className="bg-black text-white">
+                  {`${PLATFORM_ICONS[p] || ''} ${p.toUpperCase()}`}
+                </option>
               ))}
             </select>
             <input
