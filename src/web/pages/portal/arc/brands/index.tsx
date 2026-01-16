@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
@@ -18,6 +19,7 @@ interface Brand {
 }
 
 export default function BrandsHome() {
+  const router = useRouter();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,12 @@ export default function BrandsHome() {
   useEffect(() => {
     loadBrands();
   }, []);
+
+  useEffect(() => {
+    if (router.query.create === '1') {
+      setShowCreate(true);
+    }
+  }, [router.query.create]);
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;

@@ -7,7 +7,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ArcNav } from '@/components/arc/ArcNav';
 import { useArcMode } from '@/lib/arc/useArcMode';
 
 interface LeftRailProps {
@@ -19,29 +18,9 @@ interface LeftRailProps {
   isSuperAdmin?: boolean;
 }
 
-export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
+export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
   const router = useRouter();
   const { mode } = useArcMode();
-
-  const scrollToSection = (id: string) => {
-    // If not on ARC home page, navigate there first
-    if (router.pathname !== '/portal/arc') {
-      router.push('/portal/arc').then(() => {
-        // Wait for navigation and then scroll
-        setTimeout(() => {
-          const element = document.getElementById(id);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 100);
-      });
-    } else {
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
-  };
 
   const navItems = mode === 'crm'
     ? [
@@ -56,6 +35,16 @@ export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange,
         active: router.pathname.startsWith('/portal/arc/brands'),
       },
       {
+        label: 'Create Brand',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        ),
+        href: '/portal/arc/brands?create=1',
+        active: router.asPath.includes('create=1'),
+      },
+      {
         label: 'Campaigns',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,16 +56,6 @@ export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange,
       },
     ]
     : [
-    {
-      label: 'ARC Home',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      href: '/portal/arc',
-      active: router.pathname === '/portal/arc',
-    },
       {
         label: 'Campaigns',
         icon: (
@@ -87,134 +66,44 @@ export function LeftRail({ canManageArc, onKindFilterChange, onTimeFilterChange,
         href: '/portal/arc/my-creator-programs',
         active: router.pathname.startsWith('/portal/arc/my-creator-programs') || router.pathname.startsWith('/portal/arc/campaigns'),
       },
-    {
-      label: 'Live',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      ),
-      onClick: () => {
-        if (router.pathname !== '/portal/arc') {
-          router.push('/portal/arc');
-        } else {
-          scrollToSection('live-section');
-          if (onTimeFilterChange) {
-            onTimeFilterChange('live');
-          }
-        }
+      {
+        label: 'Brands',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10M7 17h6" />
+          </svg>
+        ),
+        href: '/portal/arc/brands',
+        active: router.pathname.startsWith('/portal/arc/brands'),
       },
-      active: false,
-    },
-    {
-      label: 'Upcoming',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      onClick: () => {
-        if (router.pathname !== '/portal/arc') {
-          router.push('/portal/arc');
-        } else {
-          scrollToSection('upcoming-section');
-          if (onTimeFilterChange) {
-            onTimeFilterChange('upcoming');
-          }
-        }
+      {
+        label: 'My Submissions',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-8 4h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        ),
+        href: '/portal/arc/my-creator-programs',
+        active: router.pathname.startsWith('/portal/arc/my-creator-programs'),
       },
-      active: false,
-    },
-    {
-      label: 'Gamified',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-        </svg>
-      ),
-      onClick: () => {
-        if (router.pathname !== '/portal/arc') {
-          router.push('/portal/arc').then(() => {
-            if (onKindFilterChange) {
-              onKindFilterChange('gamified');
-            }
-          });
-        } else {
-          scrollToSection('live-section');
-          if (onKindFilterChange) {
-            onKindFilterChange('gamified');
-          }
-        }
+      {
+        label: 'Profile',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2a5 5 0 100 10 5 5 0 000-10zm0 12c-4.418 0-8 2.239-8 5v3h16v-3c0-2.761-3.582-5-8-5z" />
+          </svg>
+        ),
+        href: '/portal/me',
+        active: router.pathname.startsWith('/portal/me'),
       },
-      active: false,
-    },
-    {
-      label: 'Requests',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      href: '/portal/arc/requests',
-      active: router.pathname === '/portal/arc/requests',
-    },
-    {
-      label: 'Reports',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      href: '/portal/admin/arc/reports',
-      active: router.pathname.startsWith('/portal/admin/arc/reports'),
-    },
     ];
 
-  const adminItems = canManageArc ? [
-    {
-      label: 'Creator Manager',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-      href: '/portal/arc/creator-manager',
-      active: router.pathname.startsWith('/portal/arc/creator-manager'),
-    },
-    {
-      label: 'Backfill',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      ),
-      href: '/portal/admin/arc/leaderboard-requests',
-      active: router.pathname === '/portal/admin/arc/leaderboard-requests',
-    },
-    {
-      label: 'Settings',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      href: '/portal/admin/arc',
-      active: router.pathname.startsWith('/portal/arc/admin'),
-    },
-  ] : [];
+  const adminItems = [] as Array<any>;
 
   return (
     <div className="w-60 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
       <nav className="space-y-1 p-4">
-        {/* ARC Navigation */}
-        <ArcNav 
-          projectSlug={projectSlug}
-          canManageProject={canManageProject}
-          isSuperAdmin={isSuperAdmin}
-        />
-        
-        <div className="pt-4 border-t border-white/10">
+        <div className="pt-2">
           {navItems.map((item) => {
             const content = (
               <div

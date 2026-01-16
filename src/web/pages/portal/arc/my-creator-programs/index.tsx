@@ -69,14 +69,56 @@ export default function CreatorCampaignsHome() {
     return campaigns.filter((c) => c.campaign_type === activeTab);
   }, [campaigns, activeTab]);
 
-  const getStatusBadge = (status: Campaign['creatorStatus']) => {
-    if (!status) {
-      return <span className="px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-300">Available</span>;
+  const getTypeBadge = (type: Campaign['campaign_type']) => {
+    const styles: Record<string, string> = {
+      exclusive: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+      invite: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      public: 'bg-green-500/20 text-green-300 border-green-500/40',
+      monad: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+    };
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-[11px] border ${styles[type] || styles.public}`}>
+        {type === 'invite' ? 'Invite Only' : type.charAt(0).toUpperCase() + type.slice(1)}
+      </span>
+    );
+  };
+
+  const getStatusBadge = (campaign: Campaign) => {
+    if (!campaign.isMember) {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-white/5 text-white/50 border border-white/10">Join Brand First</span>;
     }
-    if (status === 'approved') return <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-300">Approved</span>;
-    if (status === 'pending') return <span className="px-2 py-1 rounded text-xs bg-yellow-500/20 text-yellow-300">Pending</span>;
-    if (status === 'invited') return <span className="px-2 py-1 rounded text-xs bg-purple-500/20 text-purple-300">Invited</span>;
-    return <span className="px-2 py-1 rounded text-xs bg-red-500/20 text-red-300">Rejected</span>;
+    if (!campaign.creatorStatus) {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-blue-500/20 text-blue-300 border border-blue-500/40">Open to Join</span>;
+    }
+    if (campaign.creatorStatus === 'approved') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-green-500/20 text-green-300 border border-green-500/40">Joined</span>;
+    }
+    if (campaign.creatorStatus === 'pending') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">Request Sent</span>;
+    }
+    if (campaign.creatorStatus === 'invited') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-purple-500/20 text-purple-300 border border-purple-500/40">Invited</span>;
+    }
+    return <span className="px-2.5 py-1 rounded-full text-[11px] bg-red-500/20 text-red-300 border border-red-500/40">Rejected</span>;
+  };
+
+  const getTimeLabel = (campaign: Campaign) => {
+    if (!campaign.end_at && !campaign.start_at) return 'Live';
+    const now = Date.now();
+    if (campaign.start_at) {
+      const start = new Date(campaign.start_at).getTime();
+      if (start > now) {
+        const days = Math.ceil((start - now) / (1000 * 60 * 60 * 24));
+        return `Starts in ${days}d`;
+      }
+    }
+    if (campaign.end_at) {
+      const end = new Date(campaign.end_at).getTime();
+      if (end <= now) return 'Ended';
+      const days = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+      return `Ends in ${days}d`;
+    }
+    return 'Live';
   };
 
   return (
@@ -109,7 +151,16 @@ export default function CreatorCampaignsHome() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-white/60">Loading campaigns...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
+                <div className="h-4 w-24 bg-white/10 rounded mb-4" />
+                <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
+                <div className="h-3 w-full bg-white/10 rounded mb-2" />
+                <div className="h-3 w-2/3 bg-white/10 rounded" />
+              </div>
+            ))}
+          </div>
         ) : error ? (
           <ErrorState message={error} onRetry={() => window.location.reload()} />
         ) : filtered.length === 0 ? (
@@ -119,41 +170,44 @@ export default function CreatorCampaignsHome() {
             description="Public and invited campaigns will appear here."
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((campaign) => (
               <Link
                 key={campaign.id}
                 href={`/portal/arc/campaigns/${campaign.id}`}
-                className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 transition-all"
+                className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
+                    <div className="text-xs uppercase tracking-wider text-white/40 mb-2">
+                      {campaign.brand?.name || 'Brand'}
+                    </div>
                     <h3 className="text-lg font-semibold text-white mb-1">{campaign.name}</h3>
                     {campaign.brand && (
-                      <p className="text-sm text-white/60">{campaign.brand.name}</p>
+                      <p className="text-xs text-white/50">@{campaign.brand.x_handle || campaign.brand.name}</p>
                     )}
                   </div>
                   {campaign.brand?.logo_url && (
                     <img
                       src={campaign.brand.logo_url}
                       alt={campaign.brand.name}
-                      className="w-10 h-10 rounded-full"
+                      className="w-11 h-11 rounded-full border border-white/10"
                     />
                   )}
                 </div>
 
                 {campaign.pitch && (
-                  <p className="text-sm text-white/60 mb-4 line-clamp-2">{campaign.pitch}</p>
+                  <p className="text-sm text-white/70 mb-4 line-clamp-2">{campaign.pitch}</p>
                 )}
 
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-white/60">Type</span>
-                  <span className="text-xs text-white">{campaign.campaign_type}</span>
+                <div className="flex items-center gap-2 mb-4">
+                  {getTypeBadge(campaign.campaign_type)}
+                  {getStatusBadge(campaign)}
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-white/60">Status</span>
-                  {getStatusBadge(campaign.creatorStatus)}
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>Participants: N/A</span>
+                  <span>{getTimeLabel(campaign)}</span>
                 </div>
               </Link>
             ))}

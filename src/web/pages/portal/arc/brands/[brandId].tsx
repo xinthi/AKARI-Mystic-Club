@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { ErrorState } from '@/components/arc/ErrorState';
@@ -14,6 +15,8 @@ export default function BrandDetail() {
 
   const [brand, setBrand] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [membersCount, setMembersCount] = useState(0);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -42,6 +45,8 @@ export default function BrandDetail() {
       setBrand(data.brand);
       setCampaigns(data.campaigns || []);
       setIsOwner(!!data.isOwner);
+      setMembersCount(Number(data.membersCount || 0));
+      setPendingRequests(data.pendingRequests || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load brand');
     } finally {
@@ -105,6 +110,16 @@ export default function BrandDetail() {
     });
   };
 
+  const handleRequestUpdate = async (creatorId: string, status: string, campaignId: string) => {
+    await fetch(`/api/portal/brands/campaigns/${campaignId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ creatorId, status }),
+    });
+    loadBrand();
+  };
+
   if (loading) {
     return (
       <ArcPageShell>
@@ -124,8 +139,8 @@ export default function BrandDetail() {
   return (
     <ArcPageShell>
       <div className="space-y-6">
-        <div className="rounded-lg border border-white/10 bg-black/40 p-6">
-          <div className="flex items-start justify-between">
+        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-white">{brand.name}</h1>
               {brand.x_handle && <div className="text-sm text-white/60">@{brand.x_handle}</div>}
@@ -135,6 +150,7 @@ export default function BrandDetail() {
                 {brand.tg_community && <span>Community: {brand.tg_community}</span>}
                 {brand.tg_channel && <span>Channel: {brand.tg_channel}</span>}
               </div>
+              <div className="mt-3 text-xs text-white/40">Members: {membersCount}</div>
             </div>
             <button
               onClick={handleJoinBrand}
@@ -146,7 +162,7 @@ export default function BrandDetail() {
         </div>
 
         {isOwner && (
-          <div className="rounded-lg border border-white/10 bg-black/40 p-4">
+          <div className="rounded-xl border border-white/10 bg-black/40 p-4">
             <button
               onClick={() => setShowCreate((prev) => !prev)}
               className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
@@ -232,7 +248,7 @@ export default function BrandDetail() {
           </div>
         )}
 
-        <div className="rounded-lg border border-white/10 bg-black/40 p-6">
+        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Campaigns</h2>
           {campaigns.length === 0 ? (
             <EmptyState
@@ -241,16 +257,17 @@ export default function BrandDetail() {
               description="Campaigns will appear here when available."
             />
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {campaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
                   href={`/portal/arc/campaigns/${campaign.id}`}
-                  className="block rounded-lg border border-white/10 bg-black/30 p-4 hover:border-white/20 transition-colors"
+                  className="block rounded-xl border border-white/10 bg-black/30 p-5 hover:border-teal-400/40 hover:shadow-[0_0_20px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
                 >
-                  <div className="text-sm font-medium text-white">{campaign.name}</div>
-                  {campaign.pitch && <div className="text-xs text-white/60 mt-1">{campaign.pitch}</div>}
-                  <div className="text-xs text-white/50 mt-2">
+                  <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Campaign</div>
+                  <div className="text-base font-semibold text-white">{campaign.name}</div>
+                  {campaign.pitch && <div className="text-xs text-white/60 mt-2 line-clamp-2">{campaign.pitch}</div>}
+                  <div className="text-xs text-white/50 mt-3">
                     Type: {campaign.campaign_type} • Status: {campaign.status}
                   </div>
                 </Link>
@@ -258,6 +275,39 @@ export default function BrandDetail() {
             </div>
           )}
         </div>
+
+        {isOwner && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Pending Requests</h2>
+            {pendingRequests.length === 0 ? (
+              <p className="text-sm text-white/60">No pending requests.</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingRequests.map((req) => (
+                  <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                    <div className="text-sm text-white">
+                      @{req.username || 'unknown'} • <span className="text-white/60">{req.campaign_name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRequestUpdate(req.id, 'approved', req.campaign_id)}
+                        className="px-2 py-1 text-xs bg-green-500/20 text-green-300 rounded-lg"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleRequestUpdate(req.id, 'rejected', req.campaign_id)}
+                        className="px-2 py-1 text-xs bg-red-500/20 text-red-300 rounded-lg"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </ArcPageShell>
   );

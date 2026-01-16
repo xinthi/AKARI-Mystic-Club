@@ -9,7 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 type Response =
-  | { ok: true; brand: any; campaigns: any[]; isOwner: boolean }
+  | { ok: true; brand: any; campaigns: any[]; isOwner: boolean; membersCount: number; pendingRequests: any[] }
   | { ok: false; error: string };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Response>) {
@@ -42,10 +42,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('brand_id', brandId)
     .order('created_at', { ascending: false });
 
+  const { count } = await supabase
+    .from('brand_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('brand_id', brandId);
+
+  const isOwner = brand.owner_user_id === user.userId;
+  let pendingRequests: any[] = [];
+
+  if (isOwner) {
+    const campaignIds = (campaigns || []).map((c: any) => c.id);
+    if (campaignIds.length > 0) {
+      const { data: pending } = await supabase
+        .from('brand_campaign_creators')
+        .select('id, username, status, campaign_id')
+        .in('campaign_id', campaignIds)
+        .eq('status', 'pending')
+        .order('joined_at', { ascending: true });
+
+      const campaignNameMap = (campaigns || []).reduce<Record<string, string>>((acc, c: any) => {
+        acc[c.id] = c.name;
+        return acc;
+      }, {});
+
+      pendingRequests = (pending || []).map((row: any) => ({
+        id: row.id,
+        username: row.username,
+        campaign_id: row.campaign_id,
+        campaign_name: campaignNameMap[row.campaign_id] || 'Campaign',
+      }));
+    }
+  }
+
   return res.status(200).json({
     ok: true,
     brand,
     campaigns: campaigns || [],
-    isOwner: brand.owner_user_id === user.userId,
+    isOwner,
+    membersCount: count || 0,
+    pendingRequests,
   });
 }

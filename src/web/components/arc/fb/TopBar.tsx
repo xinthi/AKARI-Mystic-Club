@@ -96,24 +96,28 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
         {/* Right: Actions */}
         <div className="flex items-center gap-3">
           {/* Create Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowCreateMenu(!showCreateMenu)}
-              className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
-            >
-              Create
-            </button>
-            {showCreateMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-black/90 border border-white/20 rounded-lg shadow-lg z-10">
-                <div className="py-1">
-                  <Link href="/portal/arc/creator-manager/create" className="block w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">
-                    New Program
-                  </Link>
-                  {/* Add more create links as needed */}
+          {mode === 'crm' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowCreateMenu(!showCreateMenu)}
+                className="px-4 py-2 text-sm font-medium bg-akari-primary text-white rounded-lg hover:bg-akari-primary/80 transition-colors"
+              >
+                Create
+              </button>
+              {showCreateMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-black/90 border border-white/20 rounded-lg shadow-lg z-10">
+                  <div className="py-1">
+                    <Link href="/portal/arc/brands?create=1" className="block w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">
+                      New Brand
+                    </Link>
+                    <Link href="/portal/arc/brands" className="block w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">
+                      New Campaign
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Notifications */}
           <Link
