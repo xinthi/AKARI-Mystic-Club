@@ -220,7 +220,7 @@ export default function QuestDetail() {
   }
 
   return (
-    <ArcPageShell>
+    <ArcPageShell hideRightRail>
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-sm text-white/60">
           <Link href="/portal/arc" className="hover:text-white transition-colors">

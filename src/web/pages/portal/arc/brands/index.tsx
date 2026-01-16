@@ -31,8 +31,9 @@ export default function BrandsHome() {
     tgCommunity: '',
     tgChannel: '',
     briefText: '',
-    logoUrl: '',
   });
+  const [logoImage, setLogoImage] = useState<string | null>(null);
+  const [bannerImage, setBannerImage] = useState<string | null>(null);
 
   const loadBrands = async () => {
     setLoading(true);
@@ -69,7 +70,11 @@ export default function BrandsHome() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          logoImage,
+          bannerImage,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -83,12 +88,23 @@ export default function BrandsHome() {
         tgCommunity: '',
         tgChannel: '',
         briefText: '',
-        logoUrl: '',
       });
+      setLogoImage(null);
+      setBannerImage(null);
       loadBrands();
     } catch (err: any) {
       setError(err.message || 'Failed to create brand');
     }
+  };
+
+  const readImage = (file: File, onLoad: (result: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        onLoad(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -124,12 +140,36 @@ export default function BrandsHome() {
               placeholder="Website (optional)"
               className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
             />
-            <input
-              value={form.logoUrl}
-              onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-              placeholder="Logo URL (optional)"
-              className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-xs text-white/60">
+                Logo Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="mt-2 w-full text-xs text-white/70"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      readImage(file, setLogoImage);
+                    }
+                  }}
+                />
+              </label>
+              <label className="text-xs text-white/60">
+                Banner Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="mt-2 w-full text-xs text-white/70"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      readImage(file, setBannerImage);
+                    }
+                  }}
+                />
+              </label>
+            </div>
             <textarea
               value={form.briefText}
               onChange={(e) => setForm({ ...form, briefText: e.target.value })}
