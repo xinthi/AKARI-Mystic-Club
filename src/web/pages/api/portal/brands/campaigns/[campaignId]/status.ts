@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const user = await requirePortalUser(req, res);
   if (!user) return;
 
-  const campaignId = req.query.campaignId as string | undefined;
+  const campaignId = (req.query.campaignId ?? req.query.questId) as string | undefined;
   const { creatorId, status } = req.body || {};
 
   if (!campaignId || !creatorId || !status) {
