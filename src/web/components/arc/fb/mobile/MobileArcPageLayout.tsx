@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAkariUser } from '@/lib/akari-auth';
+import { useArcMode } from '@/lib/arc/useArcMode';
 import { Logo } from '@/components/Logo';
 
 function getUserInitials(name: string): string {
@@ -35,6 +36,7 @@ export function MobileArcPageLayout({
   canManageArc = false,
 }: MobileArcPageLayoutProps) {
   const akariUser = useAkariUser();
+  const { mode, setMode } = useArcMode();
   const [showSearch, setShowSearch] = useState(false);
 
   const userDisplayName = akariUser.user?.displayName || 'User';
@@ -72,6 +74,12 @@ export function MobileArcPageLayout({
             </Link>
 
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMode(mode === 'creator' ? 'crm' : 'creator')}
+                className="px-2 py-1 text-[10px] font-medium rounded-md border border-white/10 bg-white/5 text-white/70"
+              >
+                {mode === 'creator' ? 'Creator' : 'CRM'}
+              </button>
               <button
                 onClick={() => setShowSearch(!showSearch)}
                 className="p-2 text-white/80 hover:text-white"

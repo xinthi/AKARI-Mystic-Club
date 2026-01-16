@@ -21,6 +21,7 @@ import { MobileLayout } from '@/components/arc/fb/mobile/MobileLayout';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { useArcMode } from '@/lib/arc/useArcMode';
 
 // =============================================================================
 // TYPES
@@ -204,6 +205,7 @@ export default function ArcHome({
   const router = useRouter();
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+  const { mode } = useArcMode();
   
   const isDevMode = process.env.NODE_ENV === 'development';
   const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
@@ -629,6 +631,14 @@ export default function ArcHome({
   // Render treemap section (preserved exactly as before)
   const treemapRender = canViewArc ? (
     <section className="mb-6">
+      {mode === 'crm' && (
+        <div className="mb-4 rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-center text-sm text-teal-200">
+          CRM mode is active. Manage brands and campaigns in the CRM view.
+          <Link href="/portal/arc/brands" className="ml-2 text-teal-300 underline">
+            Open CRM
+          </Link>
+        </div>
+      )}
       {/* Control Strip */}
       <div className="mb-4">
         <div className="flex flex-wrap items-center gap-2.5 overflow-x-auto pb-2 -mx-1 px-1">

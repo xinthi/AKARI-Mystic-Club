@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAkariUser } from '@/lib/akari-auth';
+import { useArcMode } from '@/lib/arc/useArcMode';
 import { Logo } from '@/components/Logo';
 
 interface TopBarProps {
@@ -27,6 +28,7 @@ function getUserInitials(displayName: string | null | undefined): string {
 
 export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps) {
   const akariUser = useAkariUser();
+  const { mode, setMode } = useArcMode();
   const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   const userDisplayName = akariUser.user?.displayName || 'User';
@@ -48,6 +50,13 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
       <div className="flex items-center justify-between h-16 px-4">
         {/* Left: Logo + brand */}
         <div className="flex items-center gap-3">
+          {/* Creator/CRM Toggle */}
+          <button
+            onClick={() => setMode(mode === 'creator' ? 'crm' : 'creator')}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/10 bg-white/5 text-white/70 hover:text-white transition-colors"
+          >
+            {mode === 'creator' ? 'Creator View' : 'CRM View'}
+          </button>
           <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105 flex-shrink-0">
             <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)] flex-shrink-0">
               <Logo size={28} />
