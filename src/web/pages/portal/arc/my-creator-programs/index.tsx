@@ -26,6 +26,7 @@ interface Campaign {
   } | null;
   creatorStatus: 'pending' | 'approved' | 'rejected' | 'invited' | null;
   isMember: boolean;
+  approvedCount: number;
 }
 
 const CAMPAIGN_TABS: Array<{ key: Campaign['campaign_type'] | 'all'; label: string }> = [
@@ -41,6 +42,9 @@ export default function CreatorCampaignsHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<typeof CAMPAIGN_TABS[number]['key']>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showLanguageFilter, setShowLanguageFilter] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadCampaigns() {
@@ -64,10 +68,25 @@ export default function CreatorCampaignsHome() {
     loadCampaigns();
   }, []);
 
+  const availableLanguages = useMemo(() => {
+    const all = new Set<string>();
+    campaigns.forEach((c) => (c.languages || []).forEach((l) => all.add(l)));
+    return Array.from(all);
+  }, [campaigns]);
+
   const filtered = useMemo(() => {
-    if (activeTab === 'all') return campaigns;
-    return campaigns.filter((c) => c.campaign_type === activeTab);
-  }, [campaigns, activeTab]);
+    let list = activeTab === 'all' ? campaigns : campaigns.filter((c) => c.campaign_type === activeTab);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter((c) =>
+        [c.name, c.pitch, c.brand?.name].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+      );
+    }
+    if (selectedLanguages.length > 0) {
+      list = list.filter((c) => (c.languages || []).some((l) => selectedLanguages.includes(l)));
+    }
+    return list;
+  }, [campaigns, activeTab, searchQuery, selectedLanguages]);
 
   const getTypeBadge = (type: Campaign['campaign_type']) => {
     const styles: Record<string, string> = {
@@ -150,6 +169,49 @@ export default function CreatorCampaignsHome() {
           ))}
         </div>
 
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search campaigns..."
+              className="w-full px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/20"
+            />
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowLanguageFilter((prev) => !prev)}
+              className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+            >
+              Languages
+            </button>
+            {showLanguageFilter && (
+              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-white/10 bg-black/90 p-2 z-10">
+                {availableLanguages.length === 0 ? (
+                  <div className="text-xs text-white/50 px-2 py-1">No languages</div>
+                ) : (
+                  availableLanguages.map((lang) => (
+                    <label key={lang} className="flex items-center gap-2 px-2 py-1 text-xs text-white/70">
+                      <input
+                        type="checkbox"
+                        checked={selectedLanguages.includes(lang)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedLanguages((prev) => [...prev, lang]);
+                          } else {
+                            setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+                          }
+                        }}
+                      />
+                      <span>{lang}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, idx) => (
@@ -187,12 +249,16 @@ export default function CreatorCampaignsHome() {
                       <p className="text-xs text-white/50">@{campaign.brand.x_handle || campaign.brand.name}</p>
                     )}
                   </div>
-                  {campaign.brand?.logo_url && (
+                  {campaign.brand?.logo_url ? (
                     <img
                       src={campaign.brand.logo_url}
                       alt={campaign.brand.name}
                       className="w-11 h-11 rounded-full border border-white/10"
                     />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                      {(campaign.brand?.name || 'B').slice(0, 1).toUpperCase()}
+                    </div>
                   )}
                 </div>
 
@@ -206,7 +272,7 @@ export default function CreatorCampaignsHome() {
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-white/50">
-                  <span>Participants: N/A</span>
+                  <span>{campaign.approvedCount} creators joined</span>
                   <span>{getTimeLabel(campaign)}</span>
                 </div>
               </Link>

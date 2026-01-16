@@ -233,9 +233,9 @@ export default function CampaignDetail() {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-gradient-to-br from-black/60 to-black/30 backdrop-blur-sm p-6">
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div className="flex-1">
-              <div className="text-xs uppercase tracking-wider text-white/40 mb-2">{brand.name}</div>
+                <div className="text-xs uppercase tracking-wider text-white/40 mb-2">{brand.name}</div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-white">{campaign.name}</h1>
               {campaign.pitch && <p className="text-sm text-white/70 mt-3">{campaign.pitch}</p>}
               {campaign.objectives && (
@@ -252,8 +252,12 @@ export default function CampaignDetail() {
               </div>
             </div>
             <div className="flex flex-col items-end gap-3">
-              {brand.logo_url && (
+              {brand.logo_url ? (
                 <img src={brand.logo_url} alt={brand.name} className="w-14 h-14 rounded-full border border-white/10" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                  {(brand.name || 'B').slice(0, 1).toUpperCase()}
+                </div>
               )}
               {!isMember && (
                 <button
@@ -361,7 +365,14 @@ export default function CampaignDetail() {
 
         {isOwner && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-            <h2 className="text-lg font-semibold text-white mb-3">Pending Requests</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white">Pending Requests</h2>
+              {requests.length > 0 && (
+                <span className="px-2 py-0.5 text-[11px] rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
+                  {requests.length} pending
+                </span>
+              )}
+            </div>
             {requests.length === 0 ? (
               <p className="text-sm text-white/60">No pending requests.</p>
             ) : (
@@ -431,6 +442,11 @@ export default function CampaignDetail() {
                               <img src={row.avatar_url} alt={row.username} className="w-6 h-6 rounded-full border border-white/10" />
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-white/10" />
+                            )}
+                            {brand.logo_url ? (
+                              <img src={brand.logo_url} alt={brand.name} className="w-5 h-5 rounded-full border border-white/10" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-white/10 border border-white/10" />
                             )}
                             <span>@{row.username}</span>
                           </div>

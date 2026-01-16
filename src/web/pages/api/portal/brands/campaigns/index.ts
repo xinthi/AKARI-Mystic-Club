@@ -93,6 +93,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('brand_members')
     .select('brand_id, profile_id, username')
     .in('brand_id', brandIds.length ? brandIds : ['00000000-0000-0000-0000-000000000000'])
+  const { data: approvedRows } = await supabase
+    .from('brand_campaign_creators')
+    .select('campaign_id, status')
+    .in('campaign_id', campaignIds.length ? campaignIds : ['00000000-0000-0000-0000-000000000000'])
+    .eq('status', 'approved');
+
+  const approvedCountMap = (approvedRows || []).reduce<Record<string, number>>((acc, row: any) => {
+    acc[row.campaign_id] = (acc[row.campaign_id] || 0) + 1;
+    return acc;
+  }, {});
     .or(
       [
         user.profileId ? `profile_id.eq.${user.profileId}` : null,
@@ -136,6 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : null,
     creatorStatus: creatorMap[c.id]?.status || null,
     isMember: memberSet.has(c.brand_id),
+    approvedCount: approvedCountMap[c.id] || 0,
   }));
 
   return res.status(200).json({ ok: true, campaigns: normalized });

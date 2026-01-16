@@ -4,7 +4,7 @@
  * Sticky top bar with AKARI badge, search, Create menu, notifications, and avatar
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAkariUser } from '@/lib/akari-auth';
@@ -30,6 +30,7 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
   const akariUser = useAkariUser();
   const { mode, setMode } = useArcMode();
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const userDisplayName = akariUser.user?.displayName || 'User';
   const userAvatarUrl = akariUser.user?.avatarUrl || null;
@@ -44,6 +45,18 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
   const profileUrl = normalizedXUsername 
     ? `/portal/arc/creator/${encodeURIComponent(normalizedXUsername)}`
     : null;
+
+  useEffect(() => {
+    if (mode !== 'crm') return;
+    const loadCount = async () => {
+      const res = await fetch('/api/portal/brands/pending-requests', { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setPendingCount(Number(data.count || 0));
+      }
+    };
+    loadCount();
+  }, [mode]);
 
   return (
     <div className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/40 backdrop-blur-sm">
@@ -104,6 +117,11 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
               >
                 Create
               </button>
+              {pendingCount > 0 && (
+                <span className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] rounded-full bg-red-500 text-white">
+                  {pendingCount}
+                </span>
+              )}
               {showCreateMenu && (
                 <div className="absolute right-0 mt-2 w-56 bg-black/90 border border-white/20 rounded-lg shadow-lg z-10">
                   <div className="py-1">

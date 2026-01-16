@@ -107,10 +107,21 @@ export default function MySubmissions() {
                       {s.status}
                     </span>
                   </div>
-                  <Link href={`/portal/arc/campaigns/${s.campaign_id}`} className="text-lg text-white font-semibold mt-2 block">
-                    {s.campaign?.name || 'Campaign'}
-                  </Link>
-                  <div className="text-xs text-white/50 mt-1">{s.campaign?.brand?.name || 'Brand'}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    {s.campaign?.brand?.logo_url ? (
+                      <img src={s.campaign.brand.logo_url} alt={s.campaign.brand.name} className="w-8 h-8 rounded-full border border-white/10" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs text-white/60">
+                        {(s.campaign?.brand?.name || 'B').slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <Link href={`/portal/arc/campaigns/${s.campaign_id}`} className="text-lg text-white font-semibold block">
+                        {s.campaign?.name || 'Campaign'}
+                      </Link>
+                      <div className="text-xs text-white/50">{s.campaign?.brand?.name || 'Brand'}</div>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-white/60 mt-3">
                     <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform?.toUpperCase()}</span>
                     <a href={s.post_url} className="text-teal-300">Open Post</a>
@@ -145,7 +156,18 @@ export default function MySubmissions() {
                           {s.campaign?.name || 'Campaign'}
                         </Link>
                       </td>
-                      <td className="py-3 text-white/60">{s.campaign?.brand?.name || 'Brand'}</td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2 text-white/60">
+                          {s.campaign?.brand?.logo_url ? (
+                            <img src={s.campaign.brand.logo_url} alt={s.campaign.brand.name} className="w-6 h-6 rounded-full border border-white/10" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[10px] text-white/60">
+                              {(s.campaign?.brand?.name || 'B').slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                          <span>{s.campaign?.brand?.name || 'Brand'}</span>
+                        </div>
+                      </td>
                       <td className="py-3">
                         <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs">
                           {PLATFORM_ICONS[s.platform] || '🔗'} {s.platform?.toUpperCase()}

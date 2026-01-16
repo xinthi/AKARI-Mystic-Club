@@ -152,12 +152,21 @@ export default function BrandDetail() {
               </div>
               <div className="mt-3 text-xs text-white/40">Members: {membersCount}</div>
             </div>
-            <button
-              onClick={handleJoinBrand}
-              className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
-            >
-              Join Brand
-            </button>
+            <div className="flex flex-col items-end gap-3">
+              {brand.logo_url ? (
+                <img src={brand.logo_url} alt={brand.name} className="w-14 h-14 rounded-full border border-white/10" />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                  {(brand.name || 'B').slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <button
+                onClick={handleJoinBrand}
+                className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                Join Brand
+              </button>
+            </div>
           </div>
         </div>
 

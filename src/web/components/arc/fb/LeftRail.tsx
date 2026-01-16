@@ -4,7 +4,7 @@
  * Fixed/sticky vertical navigation menu
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useArcMode } from '@/lib/arc/useArcMode';
@@ -21,6 +21,19 @@ interface LeftRailProps {
 export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
   const router = useRouter();
   const { mode } = useArcMode();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (mode !== 'crm') return;
+    const loadCount = async () => {
+      const res = await fetch('/api/portal/brands/pending-requests', { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setPendingCount(Number(data.count || 0));
+      }
+    };
+    loadCount();
+  }, [mode]);
 
   const navItems = mode === 'crm'
     ? [
@@ -53,6 +66,7 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
         ),
         href: '/portal/arc/brands',
         active: router.pathname.startsWith('/portal/arc/brands'),
+        badge: mode === 'crm' && pendingCount > 0 ? pendingCount : 0,
       },
     ]
     : [
@@ -115,7 +129,12 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
                 onClick={item.onClick}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.badge ? (
+                  <span className="px-2 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
+                    {item.badge}
+                  </span>
+                ) : null}
               </div>
             );
 

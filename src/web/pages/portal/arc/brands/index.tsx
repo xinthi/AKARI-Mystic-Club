@@ -124,6 +124,12 @@ export default function BrandsHome() {
               placeholder="Website (optional)"
               className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
             />
+            <input
+              value={form.logoUrl}
+              onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+              placeholder="Logo URL (optional)"
+              className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+            />
             <textarea
               value={form.briefText}
               onChange={(e) => setForm({ ...form, briefText: e.target.value })}
