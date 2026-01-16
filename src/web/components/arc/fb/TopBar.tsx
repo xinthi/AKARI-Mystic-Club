@@ -66,9 +66,13 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
           {/* Creator/CRM Toggle */}
           <button
             onClick={() => setMode(mode === 'creator' ? 'crm' : 'creator')}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/10 bg-white/5 text-white/70 hover:text-white transition-colors"
+            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+              mode === 'creator'
+                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-teal-500/30'
+                : 'bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30'
+            }`}
           >
-            {mode === 'creator' ? 'Creator View' : 'CRM View'}
+            {mode === 'creator' ? 'Creator Mode' : 'CRM Mode'}
           </button>
           <Link href="/portal" className="flex items-center gap-2 transition-all duration-300 ease-out hover:scale-105 flex-shrink-0">
             <div className="transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(0,246,162,0.6)] flex-shrink-0">
