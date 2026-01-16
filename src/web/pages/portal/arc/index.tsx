@@ -238,7 +238,11 @@ export default function ArcHome() {
                         </div>
                         <h3 className="text-lg font-semibold text-white mb-1">{quest.name}</h3>
                         {quest.brand && (
-                          <p className="text-xs text-white/50">@{quest.brand.x_handle || quest.brand.name}</p>
+                          <p className="text-xs text-white/50">
+                            {quest.brand.x_handle
+                              ? `@${quest.brand.x_handle.replace(/^@+/, '')}`
+                              : quest.brand.name}
+                          </p>
                         )}
                       </div>
                       {quest.brand?.logo_url ? (

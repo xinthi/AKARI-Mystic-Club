@@ -243,7 +243,11 @@ export default function CreatorQuestsHome() {
                     </div>
                     <h3 className="text-lg font-semibold text-white mb-1">{campaign.name}</h3>
                     {campaign.brand && (
-                      <p className="text-xs text-white/50">@{campaign.brand.x_handle || campaign.brand.name}</p>
+                      <p className="text-xs text-white/50">
+                        {campaign.brand.x_handle
+                          ? `@${campaign.brand.x_handle.replace(/^@+/, '')}`
+                          : campaign.brand.name}
+                      </p>
                     )}
                   </div>
                   {campaign.brand?.logo_url ? (
