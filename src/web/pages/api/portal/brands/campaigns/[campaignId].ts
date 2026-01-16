@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 type Response =
   | {
@@ -79,6 +80,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(404).json({ ok: false, error: 'Brand not found' });
   }
 
+  let xProfileImageUrl: string | null = null;
+  const handle = brand.x_handle?.replace('@', '').trim();
+  if (!brand.logo_url && handle) {
+    const info = await taioGetUserInfo(handle);
+    xProfileImageUrl = info?.profileImageUrl || null;
+  }
+
   const { data: links } = await supabase
     .from('brand_campaign_links')
     .select('id, label, url, display_order')
@@ -125,7 +133,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   return res.status(200).json({
     ok: true,
     campaign,
-    brand,
+    brand: {
+      ...brand,
+      x_profile_image_url: xProfileImageUrl,
+    },
     links: links || [],
     creatorStatus: creatorRow?.status || null,
     isMember: !!memberRow,

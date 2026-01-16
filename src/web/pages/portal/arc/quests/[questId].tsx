@@ -259,8 +259,12 @@ export default function QuestDetail() {
               )}
             </div>
             <div className="flex flex-col items-end gap-3">
-              {brand.logo_url ? (
-                <img src={brand.logo_url} alt={brand.name} className="w-14 h-14 rounded-full border border-white/10" />
+              {brand.logo_url || brand.x_profile_image_url ? (
+                <img
+                  src={brand.logo_url || brand.x_profile_image_url}
+                  alt={brand.name}
+                  className="w-14 h-14 rounded-full border border-white/10"
+                />
               ) : (
                 <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
                   {(brand.name || 'B').slice(0, 1).toUpperCase()}
