@@ -6,11 +6,8 @@ import { ErrorState } from '@/components/arc/ErrorState';
 import { useArcMode } from '@/lib/arc/useArcMode';
 
 const QUEST_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'exclusive', label: 'Exclusive' },
   { key: 'invite', label: 'Invite Only' },
   { key: 'public', label: 'Public' },
-  { key: 'monad', label: 'Monad' },
 ];
 
 export default function ArcHome() {
@@ -19,7 +16,7 @@ export default function ArcHome() {
   const [brands, setBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('public');
   const [searchQuery, setSearchQuery] = useState('');
   const [showLanguageFilter, setShowLanguageFilter] = useState(false);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
@@ -142,7 +139,7 @@ export default function ArcHome() {
   };
 
   return (
-    <ArcPageShell>
+    <ArcPageShell hideRightRail>
       <div className="space-y-6">
         {mode === 'creator' ? (
           <>

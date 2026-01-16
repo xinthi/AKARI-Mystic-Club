@@ -21,6 +21,10 @@ interface ArcPageShellProps {
    * If not provided, shows the default filters and widgets.
    */
   rightRailContent?: React.ReactNode;
+  /**
+   * Hide right rail entirely (used for quest/brand focused pages).
+   */
+  hideRightRail?: boolean;
   projectSlug?: string | null;
   canManageProject?: boolean;
   isSuperAdmin?: boolean;
@@ -30,6 +34,7 @@ export function ArcPageShell({
   children,
   canManageArc = false,
   rightRailContent,
+  hideRightRail = false,
   projectSlug,
   canManageProject,
   isSuperAdmin,
@@ -72,7 +77,7 @@ export function ArcPageShell({
             </div>
 
             {/* Right Rail */}
-            {rightRailContent ? (
+            {hideRightRail ? null : rightRailContent ? (
               <div className="w-64 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
                 <div className="p-4">
                   {rightRailContent}

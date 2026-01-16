@@ -9,8 +9,41 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 type Response =
-  | { ok: true; submissions: any[]; profileId: string }
+  | { ok: true; submissions: any[]; profileId: string | null }
   | { ok: false; error: string };
+
+async function resolveProfileId(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  userId: string
+): Promise<string | null> {
+  let { data: xIdentity } = await supabase
+    .from('akari_user_identities')
+    .select('username')
+    .eq('user_id', userId)
+    .in('provider', ['x', 'twitter'])
+    .maybeSingle();
+
+  if (!xIdentity?.username) {
+    const { data: fallbackIdentity } = await supabase
+      .from('akari_user_identities')
+      .select('username')
+      .eq('user_id', userId)
+      .not('username', 'is', null)
+      .maybeSingle();
+    xIdentity = fallbackIdentity || xIdentity;
+  }
+
+  const username = xIdentity?.username ? xIdentity.username.toLowerCase().replace('@', '').trim() : null;
+  if (!username) return null;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('username', username)
+    .maybeSingle();
+
+  return profile?.id || null;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Response>) {
   if (req.method !== 'GET') {
@@ -21,8 +54,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const user = await requirePortalUser(req, res);
   if (!user) return;
 
-  if (!user.profileId) {
-    return res.status(403).json({ ok: false, error: 'Profile not found' });
+  let profileId = user.profileId;
+  if (!profileId) {
+    profileId = await resolveProfileId(supabase, user.userId);
+  }
+  if (!profileId) {
+    return res.status(200).json({ ok: true, submissions: [], profileId: null });
   }
 
   const { data: submissions, error } = await supabase
@@ -45,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         )
       )
     `)
-    .eq('creator_profile_id', user.profileId)
+    .eq('creator_profile_id', profileId)
     .order('submitted_at', { ascending: false });
 
   if (error) {
@@ -56,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const { data: clicks } = await supabase
     .from('campaign_utm_events')
     .select('campaign_id, creator_profile_id, event_type')
-    .eq('creator_profile_id', user.profileId)
+    .eq('creator_profile_id', profileId)
     .in('campaign_id', campaignIds.length ? campaignIds : ['00000000-0000-0000-0000-000000000000']);
 
   const clickMap = (clicks || []).reduce<Record<string, number>>((acc, row: any) => {
@@ -88,5 +125,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     clicks: clickMap[s.campaign_id] || 0,
   }));
 
-  return res.status(200).json({ ok: true, submissions: normalized, profileId: user.profileId });
+  return res.status(200).json({ ok: true, submissions: normalized, profileId });
 }
