@@ -315,14 +315,14 @@ export default function QuestDetail() {
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">Your UTM Links</h2>
-            <span className="text-xs text-white/40">Personalized tracking links</span>
+            <h2 className="text-lg font-semibold text-white">Official Links</h2>
+            <span className="text-xs text-white/40">Use the official links below</span>
           </div>
           {copiedLink && (
             <div className="mb-3 text-xs text-teal-300">Link copied to clipboard.</div>
           )}
           {utmLinks.length === 0 ? (
-            <EmptyState icon="🔗" title="No links yet" description="Links will appear once the quest is configured." />
+            <EmptyState icon="🔗" title="No links yet" description="Official links will appear once the quest is configured." />
           ) : (
             <div className="space-y-3">
               {utmLinks.map((link: any, idx: number) => (
@@ -426,7 +426,44 @@ export default function QuestDetail() {
           <h2 className="text-lg font-semibold text-white mb-3">Quest Leaderboard</h2>
           <p className="text-xs text-white/50 mb-3">Analytics for discovery only — no rewards or incentives.</p>
           {leaderboard.length === 0 ? (
-            <EmptyState icon="📊" title="No data yet" description="Engagement data appears after submissions." />
+            <div className="space-y-3">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center text-white/60">
+                <div className="text-sm font-semibold text-white/80">Sample Leaderboard</div>
+                <div className="text-xs text-white/40">This is how it will look once creators submit content.</div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-white/60">
+                  <thead>
+                    <tr className="text-xs text-white/30 uppercase">
+                      <th className="text-left py-2">Rank</th>
+                      <th className="text-left py-2">Creator</th>
+                      {PLATFORMS.map((p) => (
+                        <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
+                      ))}
+                      <th className="text-right py-2">Clicks</th>
+                      <th className="text-right py-2">Engagement</th>
+                      <th className="text-right py-2">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {[1, 2, 3].map((rank) => (
+                      <tr key={rank} className="opacity-60">
+                        <td className="py-3">
+                          <span className="px-2 py-1 rounded-md text-xs bg-white/5 text-white/60">{rank}</span>
+                        </td>
+                        <td className="py-3">@creator_{rank}</td>
+                        {PLATFORMS.map((p) => (
+                          <td key={p} className="py-3 text-center text-xs text-white/50">—</td>
+                        ))}
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-white/70">
@@ -492,7 +529,17 @@ export default function QuestDetail() {
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Top KOLs</h2>
           {topKols.length === 0 ? (
-            <p className="text-sm text-white/60">No top creators yet.</p>
+            <div className="space-y-2">
+              <div className="text-sm text-white/60">Sample Top KOLs</div>
+              <div className="flex flex-wrap gap-3">
+                {['alpha_x', 'beta_yt', 'gamma_tk'].map((name) => (
+                  <div key={name} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-black/30 opacity-60">
+                    <div className="w-6 h-6 rounded-full bg-white/10" />
+                    <span className="text-sm text-white">@{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="flex flex-wrap gap-3">
               {topKols.map((row: any) => (
