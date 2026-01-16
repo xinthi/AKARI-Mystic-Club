@@ -206,6 +206,19 @@ export default function ArcHome({
   const akariUser = useAkariUser();
   const userIsSuperAdmin = isSuperAdmin(akariUser.user);
   const { mode } = useArcMode();
+
+  React.useEffect(() => {
+    if (mode === 'creator') {
+      router.replace('/portal/arc/my-creator-programs');
+    }
+    if (mode === 'crm') {
+      router.replace('/portal/arc/brands');
+    }
+  }, [mode, router]);
+
+  if (mode === 'creator' || mode === 'crm') {
+    return null;
+  }
   
   const isDevMode = process.env.NODE_ENV === 'development';
   const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
