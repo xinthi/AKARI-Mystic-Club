@@ -5,6 +5,7 @@ import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { createPortalClient } from '@/lib/portal/supabase';
+import { useArcMode } from '@/lib/arc/useArcMode';
 
 const PLATFORMS = ['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram'] as const;
 const PLATFORM_ICONS: Record<string, string> = {
@@ -19,6 +20,7 @@ const PLATFORM_ICONS: Record<string, string> = {
 export default function QuestDetail() {
   const router = useRouter();
   const { questId } = router.query;
+  const { mode } = useArcMode();
 
   const [quest, setQuest] = useState<any>(null);
   const [brand, setBrand] = useState<any>(null);
@@ -343,46 +345,66 @@ export default function QuestDetail() {
           )}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h2 className="text-lg font-semibold text-white mb-3">Submit Content</h2>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value as any)}
-              className="px-3 py-2 text-sm rounded-lg bg-black/80 border border-white/10 text-white"
-              style={{ backgroundColor: '#0b0b0b' }}
-            >
-              {PLATFORMS.map((p) => (
-                <option key={p} value={p} className="bg-black text-white">
-                  {`${PLATFORM_ICONS[p] || ''} ${p.toUpperCase()}`}
-                </option>
-              ))}
-            </select>
-            <input
-              value={postUrl}
-              onChange={(e) => setPostUrl(e.target.value)}
-              placeholder="Post URL"
-              className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !postUrl.trim()}
-              className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 disabled:opacity-50"
-            >
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
-          </div>
-          {submissions.length > 0 && (
-            <div className="mt-4 space-y-2 text-xs text-white/60">
-              {submissions.map((s: any) => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
-                  <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform.toUpperCase()} • {s.status}</span>
-                  <a href={s.post_url} className="text-teal-300">View</a>
-                </div>
-              ))}
+        {mode === 'creator' ? (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-3">Submit Content</h2>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value as any)}
+                className="px-3 py-2 text-sm rounded-lg bg-black/80 border border-white/10 text-white"
+                style={{ backgroundColor: '#0b0b0b' }}
+              >
+                {PLATFORMS.map((p) => (
+                  <option key={p} value={p} className="bg-black text-white">
+                    {`${PLATFORM_ICONS[p] || ''} ${p.toUpperCase()}`}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={postUrl}
+                onChange={(e) => setPostUrl(e.target.value)}
+                placeholder="Post URL"
+                className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || !postUrl.trim()}
+                className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 disabled:opacity-50"
+              >
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
             </div>
-          )}
-        </div>
+            {submissions.length > 0 && (
+              <div className="mt-4 space-y-2 text-xs text-white/60">
+                {submissions.map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                    <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform.toUpperCase()} • {s.status}</span>
+                    <a href={s.post_url} className="text-teal-300">View</a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-3">Live Analytics</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Total Clicks</div>
+                <div className="text-2xl font-semibold text-white">{totals.totalClicks}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Total Engagement</div>
+                <div className="text-2xl font-semibold text-white">{totals.totalEngagement}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Engagement Rate</div>
+                <div className="text-2xl font-semibold text-white">{totals.engagementRate.toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isOwner && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
