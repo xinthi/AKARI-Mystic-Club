@@ -83,8 +83,8 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-8 4h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         ),
-        href: '/portal/arc/my-creator-programs',
-        active: router.pathname.startsWith('/portal/arc/my-creator-programs'),
+        href: '/portal/arc/my-submissions',
+        active: router.pathname.startsWith('/portal/arc/my-submissions'),
       },
       {
         label: 'Profile',
