@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 type Response =
   | { ok: true; brands: any[] }
@@ -23,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: brands, error } = await supabase
     .from('brand_profiles')
-    .select('id, name, logo_url')
+    .select('id, name, logo_url, x_handle')
     .eq('owner_user_id', user.userId)
     .order('created_at', { ascending: false });
 
@@ -53,11 +54,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return acc;
   }, {});
 
-  const normalized = (brands || []).map((b: any) => ({
-    ...b,
-    membersCount: memberCountMap[b.id] || 0,
-    questsCount: campaignCountMap[b.id] || 0,
-  }));
+  const handleSet = new Set<string>();
+  const handleToImage: Record<string, string> = {};
+  for (const brand of brands || []) {
+    const handle = brand.x_handle?.replace('@', '').trim();
+    if (!brand.logo_url && handle && !handleSet.has(handle)) {
+      handleSet.add(handle);
+    }
+  }
+
+  const handles = Array.from(handleSet).slice(0, 15);
+  for (const handle of handles) {
+    const userInfo = await taioGetUserInfo(handle);
+    if (userInfo?.profileImageUrl) {
+      handleToImage[handle] = userInfo.profileImageUrl;
+    }
+  }
+
+  const normalized = (brands || []).map((b: any) => {
+    const handle = b.x_handle?.replace('@', '').trim();
+    return {
+      ...b,
+      membersCount: memberCountMap[b.id] || 0,
+      questsCount: campaignCountMap[b.id] || 0,
+      x_profile_image_url: !b.logo_url && handle ? handleToImage[handle] || null : null,
+    };
+  });
 
   return res.status(200).json({ ok: true, brands: normalized });
 }

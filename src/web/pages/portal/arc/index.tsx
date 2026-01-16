@@ -308,8 +308,8 @@ export default function ArcHome() {
                         <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Brand</div>
                         <h3 className="text-lg font-semibold text-white">{brand.name}</h3>
                       </div>
-                      {brand.logo_url ? (
-                        <img src={brand.logo_url} alt={brand.name} className="w-11 h-11 rounded-full border border-white/10" />
+                      {brand.logo_url || brand.x_profile_image_url ? (
+                        <img src={brand.logo_url || brand.x_profile_image_url} alt={brand.name} className="w-11 h-11 rounded-full border border-white/10" />
                       ) : (
                         <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
                           {(brand.name || 'B').slice(0, 1).toUpperCase()}
