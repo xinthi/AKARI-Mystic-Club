@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 type Brand = {
   id: string;
@@ -46,13 +47,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ ok: false, error: 'Brand name is required' });
     }
+    if (!xHandle || typeof xHandle !== 'string') {
+      return res.status(400).json({ ok: false, error: 'X handle is required' });
+    }
+
+    const cleanHandle = xHandle.replace(/^@+/, '').trim().toLowerCase();
+    if (!cleanHandle) {
+      return res.status(400).json({ ok: false, error: 'X handle is required' });
+    }
+
+    const xProfile = await taioGetUserInfo(cleanHandle);
+    if (!xProfile) {
+      return res.status(400).json({ ok: false, error: 'X handle not found' });
+    }
 
     const { data, error } = await supabase
       .from('brand_profiles')
       .insert({
         owner_user_id: user.userId,
         name: name.trim(),
-        x_handle: xHandle ? String(xHandle).trim() : null,
+        x_handle: cleanHandle,
         website: website ? String(website).trim() : null,
         tg_community: tgCommunity ? String(tgCommunity).trim() : null,
         tg_channel: tgChannel ? String(tgChannel).trim() : null,
