@@ -23,6 +23,7 @@ interface Campaign {
     name: string;
     logo_url: string | null;
     x_handle: string | null;
+    x_profile_image_url?: string | null;
   } | null;
   creatorStatus: 'pending' | 'approved' | 'rejected' | 'invited' | null;
   isMember: boolean;
