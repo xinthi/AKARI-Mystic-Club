@@ -18,6 +18,14 @@ interface LeftRailProps {
   isSuperAdmin?: boolean;
 }
 
+interface NavItem {
+  label: string;
+  icon: React.ReactNode;
+  href: string;
+  active: boolean;
+  badge?: number;
+}
+
 export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
   const router = useRouter();
   const { mode } = useArcMode();
@@ -35,7 +43,7 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
     loadCount();
   }, [mode]);
 
-  const navItems = mode === 'crm'
+  const navItems: NavItem[] = mode === 'crm'
     ? [
       {
         label: 'Brands',
@@ -125,8 +133,7 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
                   item.active
                     ? 'bg-white/10 text-white'
                     : 'text-white/60 hover:bg-white/5 hover:text-white'
-                } ${item.onClick ? 'cursor-pointer' : ''}`}
-                onClick={item.onClick}
+                }`}
               >
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
