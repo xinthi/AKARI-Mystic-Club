@@ -58,6 +58,12 @@ export default function BrandDetail() {
     loadBrand();
   }, [brandId]);
 
+  useEffect(() => {
+    if (router.query.create === '1') {
+      setShowCreate(true);
+    }
+  }, [router.query.create]);
+
   const handleCreateCampaign = async () => {
     if (!brandId || typeof brandId !== 'string') return;
     if (!campaignForm.name.trim()) return;
@@ -67,7 +73,7 @@ export default function BrandDetail() {
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const res = await fetch(`/api/portal/brands/${brandId}/campaigns`, {
+    const res = await fetch(`/api/portal/brands/${brandId}/quests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -111,7 +117,7 @@ export default function BrandDetail() {
   };
 
   const handleRequestUpdate = async (creatorId: string, status: string, campaignId: string) => {
-    await fetch(`/api/portal/brands/campaigns/${campaignId}/status`, {
+    await fetch(`/api/portal/brands/quests/${campaignId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -176,14 +182,14 @@ export default function BrandDetail() {
               onClick={() => setShowCreate((prev) => !prev)}
               className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
             >
-              {showCreate ? 'Close' : 'Create Campaign'}
+              {showCreate ? 'Close' : 'Launch Quest'}
             </button>
             {showCreate && (
               <div className="mt-4 space-y-3">
                 <input
                   value={campaignForm.name}
                   onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
-                  placeholder="Campaign name"
+                  placeholder="Quest name"
                   className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
                 />
                 <textarea
@@ -250,7 +256,7 @@ export default function BrandDetail() {
                   onClick={handleCreateCampaign}
                   className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 transition-colors"
                 >
-                  Create Campaign
+                  Launch Quest
                 </button>
               </div>
             )}
@@ -258,19 +264,19 @@ export default function BrandDetail() {
         )}
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Campaigns</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">Quests</h2>
           {campaigns.length === 0 ? (
             <EmptyState
               icon="🚀"
-              title="No campaigns yet"
-              description="Campaigns will appear here when available."
+              title="No quests yet"
+              description="Quests will appear here when available."
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {campaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
-                  href={`/portal/arc/campaigns/${campaign.id}`}
+                  href={`/portal/arc/quests/${campaign.id}`}
                   className="block rounded-xl border border-white/10 bg-black/30 p-5 hover:border-teal-400/40 hover:shadow-[0_0_20px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
                 >
                   <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Campaign</div>

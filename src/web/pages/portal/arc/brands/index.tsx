@@ -157,7 +157,7 @@ export default function BrandsHome() {
           <EmptyState
             icon="🏷️"
             title="No brands yet"
-            description="Create a brand profile to launch campaigns."
+            description="Create a brand profile to launch quests."
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

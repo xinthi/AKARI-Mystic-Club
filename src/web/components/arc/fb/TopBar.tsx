@@ -133,7 +133,7 @@ export function TopBar({ searchQuery, onSearchChange, unreadCount }: TopBarProps
                       New Brand
                     </Link>
                     <Link href="/portal/arc/brands" className="block w-full text-left px-4 py-2 text-sm text-white/80 hover:bg-white/10">
-                      New Campaign
+                      New Quest
                     </Link>
                   </div>
                 </div>

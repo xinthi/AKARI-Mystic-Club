@@ -1,942 +1,346 @@
-/**
- * ARC Home Page - Minimal Stable Version
- * 
- * Fetches ARC projects and top projects, displays them in a simple list format.
- * Always shows content - never blank.
- */
-
-import React, { useEffect, useState, useMemo, useCallback, Component, ReactNode } from 'react';
-import { GetServerSideProps } from 'next';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { useAkariUser } from '@/lib/akari-auth';
-import { isSuperAdmin } from '@/lib/permissions';
-import { ArcTopProjectsCards } from '@/components/arc/ArcTopProjectsCards';
-import { ArcTopProjectsTreemap } from '@/components/arc/ArcTopProjectsTreemap';
-import { requireArcAccessRoute } from '@/lib/server/require-arc-access';
-import { useArcLiveItems } from '@/lib/arc/useArcLiveItems';
-import { useArcNotifications } from '@/lib/arc/useArcNotifications';
-import { DesktopArcShell } from '@/components/arc/fb/DesktopArcShell';
-import { MobileLayout } from '@/components/arc/fb/mobile/MobileLayout';
+import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
-import { createPortalClient } from '@/lib/portal/supabase';
 import { useArcMode } from '@/lib/arc/useArcMode';
 
-// =============================================================================
-// TYPES
-// =============================================================================
+const QUEST_TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'exclusive', label: 'Exclusive' },
+  { key: 'invite', label: 'Invite Only' },
+  { key: 'public', label: 'Public' },
+  { key: 'monad', label: 'Monad' },
+];
 
-interface TopProjectItem {
-  id: string;
-  name: string;
-  display_name?: string;
-  twitter_username?: string;
-  growth_pct: number;
-  slug?: string | null;
-  projectId: string; // Required - normalized from various sources
-  arc_access_level?: 'none' | 'creator_manager' | 'leaderboard' | 'gamified';
-  arc_active?: boolean;
-  value?: number; // Optional - for treemap sizing
-}
-
-interface ArcHomeProps {
-  canViewArc: boolean;
-  canManageArc: boolean;
-  initialTopProjects?: TopProjectItem[];
-  initialTopProjectsLastUpdated?: string | null;
-}
-
-
-// =============================================================================
-// ERROR BOUNDARY FOR TREEMAP
-// =============================================================================
-
-interface TreemapErrorBoundaryProps {
-  children: ReactNode;
-  onError: () => void;
-  fallback: ReactNode;
-}
-
-class TreemapErrorBoundary extends Component<TreemapErrorBoundaryProps, { hasError: boolean }> {
-  constructor(props: TreemapErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[ARC] Treemap error boundary caught:', error, errorInfo);
-    this.props.onError();
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-    return this.props.children;
-  }
-}
-
-// =============================================================================
-// TREEMAP WRAPPER COMPONENT
-// =============================================================================
-
-interface TreemapWrapperProps {
-  items: TopProjectItem[];
-  mode: 'gainers' | 'losers';
-  timeframe: '24h' | '7d' | '30d' | '90d';
-  onProjectClick: (item: TopProjectItem) => void;
-  onError: () => void;
-  lastUpdated?: string | null;
-}
-
-function TreemapWrapper({ items, mode, timeframe, onProjectClick, onError, lastUpdated }: TreemapWrapperProps) {
-  const showDebug = process.env.NODE_ENV !== 'production';
-
-  // Debug: log when switching to treemap (must be before early returns)
-  React.useEffect(() => {
-    if (showDebug) {
-      console.log('[ARC] treemap toggle', { count: items?.length, first: items?.[0] });
-    }
-  }, [showDebug, items]);
-
-  const fallback = (
-    <>
-      <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
-        <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
-      </div>
-      <ArcTopProjectsCards 
-        items={items as any} 
-        onClickItem={onProjectClick as any} 
-      />
-    </>
-  );
-
-  // Check if items array is empty
-  if (!items || items.length === 0) {
-    return (
-      <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-center">
-        <p className="text-sm text-yellow-400">Treemap unavailable, showing cards.</p>
-      </div>
-    );
-  }
-
-  // Items are already normalized with projectId and value, so use them directly
-  // Cast to match treemap component's expected interface (it requires non-optional fields)
-  const treemapItems = items as any;
-
-  return (
-    <TreemapErrorBoundary onError={onError} fallback={fallback}>
-      <style jsx global>{`
-        .treemap-responsive-wrapper {
-          transform: scale(0.52);
-          transform-origin: top left;
-          width: 192.3%;
-          height: 192.3%;
-        }
-        @media (min-width: 640px) {
-          .treemap-responsive-wrapper {
-            transform: scale(0.67);
-            width: 149.25%;
-            height: 149.25%;
-          }
-        }
-        @media (min-width: 768px) {
-          .treemap-responsive-wrapper {
-            transform: scale(0.78);
-            width: 128.2%;
-            height: 128.2%;
-          }
-        }
-        @media (min-width: 1024px) {
-          .treemap-responsive-wrapper {
-            transform: scale(0.93);
-            width: 107.5%;
-            height: 107.5%;
-          }
-        }
-        @media (min-width: 1280px) {
-          .treemap-responsive-wrapper {
-            transform: scale(1);
-            width: 100%;
-            height: 100%;
-          }
-        }
-      `}</style>
-      <div className="w-full overflow-hidden rounded-lg">
-        <div className="w-full h-[280px] sm:h-[360px] md:h-[420px] lg:h-[500px] xl:h-[540px] 2xl:h-[600px] relative">
-          <div className="absolute treemap-responsive-wrapper">
-            <ArcTopProjectsTreemap
-              key={`${mode}-${timeframe}-${items.length}`}
-              items={treemapItems}
-              mode={mode}
-              timeframe={timeframe}
-              lastUpdated={lastUpdated || undefined}
-              onProjectClick={(project) => {
-                const item = items.find(
-                  i => (i.projectId || i.id) === project.projectId
-                );
-                if (item) {
-                  onProjectClick(item);
-                }
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    </TreemapErrorBoundary>
-  );
-}
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
-
-export default function ArcHome({
-  canViewArc,
-  canManageArc: initialCanManageArc,
-  initialTopProjects = [],
-  initialTopProjectsLastUpdated = null,
-}: ArcHomeProps) {
-  const router = useRouter();
-  const akariUser = useAkariUser();
-  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
+export default function ArcHome() {
   const { mode } = useArcMode();
+  const [quests, setQuests] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showLanguageFilter, setShowLanguageFilter] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
-  React.useEffect(() => {
+  const loadCreatorQuests = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/portal/brands/quests', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load quests');
+      }
+      setQuests(data.quests || data.campaigns || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load quests');
+      setQuests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCrmBrands = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/portal/brands/overview', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load brands');
+      }
+      setBrands(data.brands || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load brands');
+      setBrands([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (mode === 'creator') {
-      router.replace('/portal/arc/my-creator-programs');
+      loadCreatorQuests();
     }
     if (mode === 'crm') {
-      router.replace('/portal/arc/brands');
+      loadCrmBrands();
     }
-  }, [mode, router]);
+  }, [mode]);
 
-  if (mode === 'creator' || mode === 'crm') {
-    return null;
-  }
-  
-  const isDevMode = process.env.NODE_ENV === 'development';
-  const canManageArc = isDevMode || userIsSuperAdmin || initialCanManageArc;
+  const availableLanguages = useMemo(() => {
+    const all = new Set<string>();
+    quests.forEach((q) => (q.languages || []).forEach((l: string) => all.add(l)));
+    return Array.from(all);
+  }, [quests]);
 
-  // Use new data hooks
-  const { liveItems, upcomingItems, allItems, loading: liveItemsLoading, error: liveItemsError, refetch: refetchLiveItems } = useArcLiveItems();
-  const { activities, unreadCount, loading: notificationsLoading } = useArcNotifications();
-
-  // State for top projects
-  const [topProjectsView, setTopProjectsView] = useState<'gainers' | 'losers'>('gainers');
-  const [topProjectsTimeframe, setTopProjectsTimeframe] = useState<'24h' | '7d' | '30d' | '90d'>('7d');
-  const [topProjectsData, setTopProjectsData] = useState<TopProjectItem[]>(initialTopProjects);
-  const [topProjectsLoading, setTopProjectsLoading] = useState(false);
-  const [topProjectsError, setTopProjectsError] = useState<string | null>(null);
-  const [topProjectsDisplayMode, setTopProjectsDisplayMode] = useState<'cards' | 'treemap'>('cards');
-  const [topProjectsLastUpdated, setTopProjectsLastUpdated] = useState<string | null>(initialTopProjectsLastUpdated);
-  const [topProjectsUpdating, setTopProjectsUpdating] = useState(false);
-  const refreshTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // State for ARC projects with features (for product cards)
-  interface ArcProjectWithFeatures {
-    project_id: string;
-    slug: string | null;
-    name: string | null;
-    twitter_username: string | null;
-    features: {
-      leaderboard_enabled: boolean;
-      gamefi_enabled: boolean;
-      crm_enabled: boolean;
-      crm_visibility: 'private' | 'public' | 'hybrid' | null;
-    } | null;
-    hasActiveArena?: boolean; // Track if project has active MS arena
-  }
-  const [arcProjects, setArcProjects] = useState<ArcProjectWithFeatures[]>([]);
-  const [arcProjectsLoading, setArcProjectsLoading] = useState(false);
-  const [arcProjectsError, setArcProjectsError] = useState<string | null>(null);
-
-  // Filter states
-  const [kindFilter, setKindFilter] = useState<'all' | 'arena' | 'campaign' | 'gamified'>('all');
-  const [timeFilter, setTimeFilter] = useState<'all' | 'live' | 'upcoming'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Auto-switch to cards if data is empty and treemap is selected
-  useEffect(() => {
-    if (topProjectsDisplayMode === 'treemap' && topProjectsData.length === 0 && !topProjectsLoading) {
-      setTopProjectsDisplayMode('cards');
+  const filteredQuests = useMemo(() => {
+    let list = activeTab === 'all' ? quests : quests.filter((q) => q.campaign_type === activeTab);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter((item) =>
+        [item.name, item.pitch, item.brand?.name].filter(Boolean).some((v: string) => String(v).toLowerCase().includes(q))
+      );
     }
-  }, [topProjectsDisplayMode, topProjectsData.length, topProjectsLoading]);
-
-  // Fetch top projects (when user can view ARC)
-  const loadTopProjects = useCallback(async (options?: { silent?: boolean; source?: 'initial' | 'manual' | 'live' | 'poll' | 'focus' }) => {
-    try {
-      const silent = options?.silent ?? false;
-      if (!silent) {
-        setTopProjectsLoading(true);
-      }
-      setTopProjectsError(null);
-      
-      // Add cache-busting timestamp to ensure fresh data on timeframe change
-      const timestamp = Date.now();
-      const url = `/api/portal/arc/top-projects?mode=${topProjectsView}&timeframe=${topProjectsTimeframe}&limit=30&_t=${timestamp}`;
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[ARC Home] Fetching top projects:', { mode: topProjectsView, timeframe: topProjectsTimeframe, url });
-      }
-      
-      const res = await fetch(url, { 
-        credentials: 'include',
-        cache: 'no-store', // Prevent browser caching
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      
-      if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({ error: 'Unknown error' }));
-        setTopProjectsError(errorBody.error || `Failed to load top projects (${res.status})`);
-        setTopProjectsData([]);
-        return;
-      }
-
-      const data = await res.json().catch(() => null);
-
-      if (!data || !data.ok) {
-        setTopProjectsError(data?.error || 'Failed to load top projects');
-        setTopProjectsData([]);
-        return;
-      }
-
-      const items = data.items || data.projects || [];
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[ARC Home] Received top projects:', { count: items.length, timeframe: topProjectsTimeframe, mode: topProjectsView });
-      }
-      
-      // Normalize items to match TopProjectItem format, handling projectId variations
-      const normalizedItems: TopProjectItem[] = (items ?? []).map((p: any) => {
-        // Ensure projectId is always a string (handle various case variations)
-        const projectId = String(p.projectId ?? p.projectid ?? p.project_id ?? p.id ?? '');
-        const name = p.display_name || p.name || 'Unknown';
-        const twitterUsername = String(p.twitter_username || '');
-        
-        return {
-          ...p,
-          id: projectId,
-          projectId: projectId,
-          name: name,
-          display_name: name,
-          twitter_username: twitterUsername,
-          growth_pct: Number(p.growth_pct ?? 0),
-          slug: p.slug || null,
-          arc_access_level: p.arc_access_level || 'none',
-          arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
-          // Ensure value exists for treemap sizing (always positive)
-          value: Math.max(1, Math.abs(Number(p.growth_pct ?? 0)) || 1),
-        };
-      });
-
-      setTopProjectsData(normalizedItems);
-      setTopProjectsLastUpdated(data.lastUpdated || new Date().toISOString());
-    } catch (err: any) {
-      console.error('[ARC] Top projects fetch error:', err);
-      setTopProjectsError(err.message || 'Failed to load top projects');
-      setTopProjectsData([]);
-    } finally {
-      setTopProjectsLoading(false);
-      setTopProjectsUpdating(false);
+    if (selectedLanguages.length > 0) {
+      list = list.filter((q) => (q.languages || []).some((l: string) => selectedLanguages.includes(l)));
     }
-  }, [topProjectsView, topProjectsTimeframe]);
+    return list;
+  }, [quests, activeTab, searchQuery, selectedLanguages]);
 
-  useEffect(() => {
-    if (!canViewArc) {
-      return;
-    }
-
-    loadTopProjects({ silent: topProjectsData.length > 0, source: 'initial' });
-  }, [canViewArc, loadTopProjects]);
-
-  const scheduleTopProjectsRefresh = useCallback((source: 'live' | 'poll' | 'focus') => {
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-    }
-    setTopProjectsUpdating(true);
-    refreshTimeoutRef.current = setTimeout(() => {
-      loadTopProjects({ silent: true, source });
-    }, 1000);
-  }, [loadTopProjects]);
-
-  useEffect(() => {
-    if (!canViewArc) {
-      return;
-    }
-
-    const supabase = createPortalClient();
-    const channel = supabase
-      .channel('arc-top-projects')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'project_mindshare_snapshots' },
-        () => scheduleTopProjectsRefresh('live')
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'metrics_daily' },
-        () => scheduleTopProjectsRefresh('live')
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'arc_mindshare_events' },
-        () => scheduleTopProjectsRefresh('live')
-      )
-      .subscribe();
-
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-      supabase.removeChannel(channel);
+  const getTypeBadge = (type: string) => {
+    const styles: Record<string, string> = {
+      exclusive: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+      invite: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+      public: 'bg-green-500/20 text-green-300 border-green-500/40',
+      monad: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
     };
-  }, [canViewArc, scheduleTopProjectsRefresh]);
-
-  useEffect(() => {
-    if (!canViewArc) {
-      return;
-    }
-
-    const handleFocus = () => scheduleTopProjectsRefresh('focus');
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        scheduleTopProjectsRefresh('focus');
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        scheduleTopProjectsRefresh('poll');
-      }
-    }, 60000);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.clearInterval(interval);
-    };
-  }, [canViewArc, scheduleTopProjectsRefresh]);
-
-  // Fetch ARC projects with features for product cards
-  useEffect(() => {
-    async function loadArcProjects() {
-      if (!canViewArc) {
-        return;
-      }
-
-      setArcProjectsLoading(true);
-      setArcProjectsError(null);
-
-      try {
-        const res = await fetch('/api/portal/arc/projects', {
-          credentials: 'include',
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.ok) {
-          throw new Error(data.error || 'Failed to load ARC projects');
-        }
-
-        const projects: ArcProjectWithFeatures[] = (data.projects || []).map((p: any) => ({
-          project_id: p.project_id,
-          slug: p.slug,
-          name: p.name,
-          twitter_username: p.twitter_username,
-          features: p.features || null,
-          hasActiveArena: false, // Will be checked separately if needed
-        }));
-        
-        // Log for debugging
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[ARC Home] Loaded projects:', {
-            count: projects.length,
-            projects: projects.map(p => ({
-              name: p.name,
-              slug: p.slug,
-              hasFeatures: !!p.features,
-              leaderboard_enabled: p.features?.leaderboard_enabled || false,
-            })),
-          });
-        }
-
-        setArcProjects(projects);
-      } catch (err: any) {
-        console.error('[ARC Home] Error loading ARC projects:', err);
-        setArcProjectsError(err.message || 'Failed to load ARC projects');
-        setArcProjects([]);
-      } finally {
-        setArcProjectsLoading(false);
-      }
-    }
-
-    loadArcProjects();
-
-    // Listen for reload event
-    const handleReload = () => {
-      loadArcProjects();
-    };
-    window.addEventListener('arc-projects-reload', handleReload);
-    return () => {
-      window.removeEventListener('arc-projects-reload', handleReload);
-    };
-  }, [canViewArc]);
-
-
-  // Handle refresh button
-  const handleRefresh = () => {
-    loadTopProjects({ silent: false, source: 'manual' });
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-[11px] border ${styles[type] || styles.public}`}>
+        {type === 'invite' ? 'Invite Only' : type.charAt(0).toUpperCase() + type.slice(1)}
+      </span>
+    );
   };
 
-  // Handle top project click navigation
-  const handleTopProjectClick = (item: TopProjectItem) => {
-    const isClickable = (item.arc_active === true) && (item.arc_access_level !== 'none' && item.arc_access_level !== undefined);
-    if (!isClickable) return;
-
-    const arcAccessLevel = item.arc_access_level || 'none';
-    const projectSlug = item.slug;
-    const projectId = item.projectId || item.id;
-    
-    if (arcAccessLevel === 'creator_manager') {
-      router.push(`/portal/arc/creator-manager?projectId=${projectSlug || projectId}`);
-    } else if (arcAccessLevel === 'leaderboard' || arcAccessLevel === 'gamified') {
-      // Use canonical route with slug if available, fallback to project ID route
-      if (projectSlug) {
-        router.push(`/portal/arc/${projectSlug}`);
-      } else {
-        router.push(`/portal/arc/project/${projectId}`);
-      }
+  const getStatusBadge = (quest: any) => {
+    if (!quest.isMember) {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-white/5 text-white/50 border border-white/10">Join Brand First</span>;
     }
+    if (!quest.creatorStatus) {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-blue-500/20 text-blue-300 border border-blue-500/40">Open to Join</span>;
+    }
+    if (quest.creatorStatus === 'approved') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-green-500/20 text-green-300 border border-green-500/40">Joined</span>;
+    }
+    if (quest.creatorStatus === 'pending') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/40">Request Sent</span>;
+    }
+    if (quest.creatorStatus === 'invited') {
+      return <span className="px-2.5 py-1 rounded-full text-[11px] bg-purple-500/20 text-purple-300 border border-purple-500/40">Invited</span>;
+    }
+    return <span className="px-2.5 py-1 rounded-full text-[11px] bg-red-500/20 text-red-300 border border-red-500/40">Rejected</span>;
   };
 
-
-  // Generate product cards from projects with enabled features
-  const productCards = useMemo(() => {
-    const cards: Array<{
-      projectId: string;
-      projectSlug: string | null;
-      projectName: string | null;
-      productType: 'ms' | 'gamefi' | 'crm';
-    }> = [];
-
-    arcProjects.forEach((project) => {
-      if (!project.slug) return; // Skip projects without slug
-
-      const features = project.features;
-      if (!features) return; // Skip projects without features
-      
-      // MS card: Show if leaderboard_enabled === true
-      // Note: If project appears in /api/portal/arc/projects, it means it has:
-      // - leaderboard_enabled = true, OR
-      // - active MS arena, OR
-      // - approved leaderboard request
-      // The API already filters, so if a project is returned, it's eligible
-      // We show MS card if leaderboard_enabled is true (features object will always exist from API)
-      if (features.leaderboard_enabled === true) {
-        cards.push({
-          projectId: project.project_id,
-          projectSlug: project.slug,
-          projectName: project.name,
-          productType: 'ms',
-        });
+  const getTimeLabel = (quest: any) => {
+    if (!quest.end_at && !quest.start_at) return 'Live';
+    const now = Date.now();
+    if (quest.start_at) {
+      const start = new Date(quest.start_at).getTime();
+      if (start > now) {
+        const days = Math.ceil((start - now) / (1000 * 60 * 60 * 24));
+        return `Starts in ${days}d`;
       }
+    }
+    if (quest.end_at) {
+      const end = new Date(quest.end_at).getTime();
+      if (end <= now) return 'Ended';
+      const days = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+      return `Ends in ${days}d`;
+    }
+    return 'Live';
+  };
 
-      // GameFi card: gamefi_enabled === true
-      if (features.gamefi_enabled === true) {
-        cards.push({
-          projectId: project.project_id,
-          projectSlug: project.slug,
-          projectName: project.name,
-          productType: 'gamefi',
-        });
-      }
-
-      // CRM card: crm_enabled === true AND crm_visibility === 'public'
-      if (features.crm_enabled === true && features.crm_visibility === 'public') {
-        cards.push({
-          projectId: project.project_id,
-          projectSlug: project.slug,
-          projectName: project.name,
-          productType: 'crm',
-        });
-      }
-    });
-
-    return cards;
-  }, [arcProjects]);
-
-  // Render product cards section
-  const productCardsRender = canViewArc ? (
-    <section className="mb-6">
-      <h2 className="text-lg font-semibold text-white mb-4">ARC Products</h2>
-      
-      {arcProjectsLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-          <span className="ml-3 text-white/60 text-sm">Loading products...</span>
-        </div>
-      ) : arcProjectsError ? (
-        <ErrorState
-          message={arcProjectsError}
-          onRetry={() => {
-            window.dispatchEvent(new Event('arc-projects-reload'));
-          }}
-        />
-      ) : productCards.length === 0 ? (
-        <EmptyState
-          title="No active ARC projects yet"
-          description="Projects with enabled features will appear here"
-          icon="📭"
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {productCards.map((card, index) => {
-            const productLabels = {
-              ms: 'Mindshare',
-              gamefi: 'GameFi',
-              crm: 'CRM',
-            };
-            const productColors = {
-              ms: 'from-teal-400 to-cyan-400',
-              gamefi: 'from-purple-400 to-pink-400',
-              crm: 'from-orange-400 to-red-400',
-            };
-
-            return (
-              <Link
-                key={`${card.projectId}-${card.productType}-${index}`}
-                href={`/portal/arc/${encodeURIComponent(card.projectSlug || card.projectId)}`}
-                className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm p-4 hover:bg-white/5 hover:border-white/20 transition-all cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-white truncate mb-1">
-                      {card.projectName || 'Unknown Project'}
-                    </h3>
-                    <p className="text-xs text-white/60 truncate">
-                      {productLabels[card.productType]}
-                    </p>
-                  </div>
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${productColors[card.productType]} flex items-center justify-center flex-shrink-0 ml-3`}>
-                    <span className="text-white text-xs font-bold">
-                      {card.productType === 'ms' ? 'MS' : card.productType === 'gamefi' ? 'GF' : 'CRM'}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  ) : null;
-
-  // Render treemap section (preserved exactly as before)
-  const treemapRender = canViewArc ? (
-    <section className="mb-6">
-      {mode === 'crm' && (
-        <div className="mb-4 rounded-lg border border-teal-500/30 bg-teal-500/10 p-3 text-center text-sm text-teal-200">
-          CRM mode is active. Manage brands and campaigns in the CRM view.
-          <Link href="/portal/arc/brands" className="ml-2 text-teal-300 underline">
-            Open CRM
-          </Link>
-        </div>
-      )}
-      {/* Control Strip */}
-      <div className="mb-4">
-        <div className="flex flex-wrap items-center gap-2.5 overflow-x-auto pb-2 -mx-1 px-1">
-          {/* View Toggle: Cards / Treemap */}
-          <div className="flex gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
-            <button
-              onClick={() => setTopProjectsDisplayMode('cards')}
-              className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
-                topProjectsDisplayMode === 'cards'
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:text-white'
-              }`}
-              aria-label="View as cards"
-            >
-              Cards
-            </button>
-            <button
-              onClick={() => setTopProjectsDisplayMode('treemap')}
-              className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-md transition-colors ${
-                topProjectsDisplayMode === 'treemap'
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/60 hover:text-white'
-              }`}
-              aria-label="View as treemap"
-            >
-              Treemap
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/10" />
-
-          {/* Mode Toggle: Gainers / Losers */}
-          <div className="flex gap-1">
-            <button
-              onClick={() => setTopProjectsView('gainers')}
-              className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
-                topProjectsView === 'gainers'
-                  ? 'bg-akari-primary text-white'
-                  : 'bg-white/5 text-white/60 hover:bg-white/10'
-              }`}
-              aria-label="Top gainers"
-            >
-              Top Gainers
-            </button>
-            <button
-              onClick={() => setTopProjectsView('losers')}
-              className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
-                topProjectsView === 'losers'
-                  ? 'bg-akari-primary text-white'
-                  : 'bg-white/5 text-white/60 hover:bg-white/10'
-              }`}
-              aria-label="Top losers"
-            >
-              Top Losers
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/10" />
-
-          {/* Timeframe Pills */}
-          <div className="flex gap-1">
-            {(['24h', '7d', '30d', '90d'] as const).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTopProjectsTimeframe(tf)}
-                className={`inline-flex items-center justify-center px-3 h-8 text-xs font-medium rounded-lg transition-colors ${
-                  topProjectsTimeframe === tf
-                    ? 'bg-white/10 text-white border border-white/20'
-                    : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
-                }`}
-                aria-label={`Timeframe ${tf}`}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
-
-          {/* Divider */}
-          <div className="w-px h-6 bg-white/10" />
-
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={topProjectsLoading}
-            className="inline-flex items-center justify-center gap-1.5 px-3 h-8 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            aria-label="Refresh data"
-          >
-            {topProjectsLoading ? (
-              <>
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
-                <span className="hidden sm:inline">Refreshing...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="hidden sm:inline">Refresh</span>
-              </>
-            )}
-          </button>
-          {topProjectsUpdating && (
-            <span className="text-xs text-white/40">Updating...</span>
-          )}
-        </div>
-      </div>
-
-      {/* Hero Content Panel */}
-      <div className="rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden">
-        {topProjectsLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-akari-primary border-t-transparent" />
-            <span className="ml-3 text-white/60">Loading projects...</span>
-          </div>
-        ) : topProjectsError ? (
-          <ErrorState
-            message={topProjectsError}
-            onRetry={loadTopProjects}
-          />
-        ) : topProjectsData.length === 0 ? (
-          <EmptyState
-            title="No projects available"
-            description="Top projects will appear here when data is available"
-            icon="📊"
-          />
-        ) : (
+  return (
+    <ArcPageShell>
+      <div className="space-y-6">
+        {mode === 'creator' ? (
           <>
-            {topProjectsDisplayMode === 'cards' ? (
-              <div className="p-4 sm:p-6">
-                <ArcTopProjectsCards
-                  items={topProjectsData as any}
-                  onClickItem={handleTopProjectClick as any}
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Quest Discovery</h1>
+              <p className="text-white/60">Live and upcoming quests curated for creators.</p>
+              <p className="text-xs text-white/40 mt-2">Analytics for discovery only — no rewards.</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {QUEST_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    activeTab === tab.key
+                      ? 'bg-white/10 text-white border-white/20'
+                      : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search quests..."
+                  className="w-full px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/20"
                 />
               </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowLanguageFilter((prev) => !prev)}
+                  className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white/80 hover:bg-white/10"
+                >
+                  Languages
+                </button>
+                {showLanguageFilter && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg border border-white/10 bg-black/90 p-2 z-10">
+                    {availableLanguages.length === 0 ? (
+                      <div className="text-xs text-white/50 px-2 py-1">No languages</div>
+                    ) : (
+                      availableLanguages.map((lang) => (
+                        <label key={lang} className="flex items-center gap-2 px-2 py-1 text-xs text-white/70">
+                          <input
+                            type="checkbox"
+                            checked={selectedLanguages.includes(lang)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedLanguages((prev) => [...prev, lang]);
+                              } else {
+                                setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+                              }
+                            }}
+                          />
+                          <span>{lang}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
+                    <div className="h-4 w-24 bg-white/10 rounded mb-4" />
+                    <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
+                    <div className="h-3 w-full bg-white/10 rounded mb-2" />
+                    <div className="h-3 w-2/3 bg-white/10 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              <ErrorState message={error} onRetry={loadCreatorQuests} />
+            ) : filteredQuests.length === 0 ? (
+              <EmptyState icon="🧭" title="No quests yet" description="Public and invited quests will appear here." />
             ) : (
-              <div className="w-full overflow-hidden">
-                <TreemapWrapper
-                  key={`treemap-${topProjectsView}-${topProjectsTimeframe}-${topProjectsData.length}`}
-                  items={topProjectsData}
-                  mode={topProjectsView}
-                  timeframe={topProjectsTimeframe}
-                  onProjectClick={handleTopProjectClick}
-                  onError={() => setTopProjectsDisplayMode('cards')}
-                  lastUpdated={topProjectsLastUpdated}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredQuests.map((quest) => (
+                  <Link
+                    key={quest.id}
+                    href={`/portal/arc/quests/${quest.id}`}
+                    className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="text-xs uppercase tracking-wider text-white/40 mb-2">
+                          {quest.brand?.name || 'Brand'}
+                        </div>
+                        <h3 className="text-lg font-semibold text-white mb-1">{quest.name}</h3>
+                        {quest.brand && (
+                          <p className="text-xs text-white/50">@{quest.brand.x_handle || quest.brand.name}</p>
+                        )}
+                      </div>
+                      {quest.brand?.logo_url ? (
+                        <img src={quest.brand.logo_url} alt={quest.brand.name} className="w-11 h-11 rounded-full border border-white/10" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                          {(quest.brand?.name || 'B').slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {quest.pitch && <p className="text-sm text-white/70 mb-4 line-clamp-2">{quest.pitch}</p>}
+
+                    <div className="flex items-center gap-2 mb-4">
+                      {getTypeBadge(quest.campaign_type)}
+                      {getStatusBadge(quest)}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-white/50">
+                      <span>{quest.approvedCount} creators joined</span>
+                      <span>{getTimeLabel(quest)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">Brand Hub</h1>
+                <p className="text-white/60">Manage your brands and launch quests.</p>
+              </div>
+              <Link
+                href="/portal/arc/brands?create=1"
+                className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
+              >
+                Create Brand
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
+                    <div className="h-4 w-24 bg-white/10 rounded mb-4" />
+                    <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
+                    <div className="h-3 w-full bg-white/10 rounded mb-2" />
+                    <div className="h-3 w-2/3 bg-white/10 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              <ErrorState message={error} onRetry={loadCrmBrands} />
+            ) : brands.length === 0 ? (
+              <EmptyState icon="🏷️" title="No brands yet" description="Create a brand profile to launch quests." />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {brands.map((brand) => (
+                  <div key={brand.id} className="rounded-xl border border-white/10 bg-black/40 p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Brand</div>
+                        <h3 className="text-lg font-semibold text-white">{brand.name}</h3>
+                      </div>
+                      {brand.logo_url ? (
+                        <img src={brand.logo_url} alt={brand.name} className="w-11 h-11 rounded-full border border-white/10" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                          {(brand.name || 'B').slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-white/50">
+                      <span>{brand.membersCount} members</span>
+                      <span>{brand.questsCount} quests</span>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Link
+                        href={`/portal/arc/brands/${brand.id}`}
+                        className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10"
+                      >
+                        View
+                      </Link>
+                      <Link
+                        href={`/portal/arc/brands/${brand.id}?create=1`}
+                        className="px-3 py-1.5 text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
+                      >
+                        Launch Quest
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </>
         )}
       </div>
-    </section>
-  ) : null;
-
-  const loading = liveItemsLoading || notificationsLoading;
-  const error = liveItemsError;
-
-  return (
-    <>
-      {/* Desktop Layout (md and up) */}
-      <div className="hidden md:block w-full">
-        <DesktopArcShell
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          unreadCount={unreadCount}
-          canManageArc={canManageArc}
-          isSuperAdmin={userIsSuperAdmin}
-          treemapRender={treemapRender}
-          productCardsRender={productCardsRender}
-          liveItems={liveItems}
-          upcomingItems={upcomingItems}
-          activities={activities}
-          loading={liveItemsLoading}
-          error={liveItemsError}
-          kindFilter={kindFilter}
-          timeFilter={timeFilter}
-          onKindFilterChange={setKindFilter}
-          onTimeFilterChange={setTimeFilter}
-          onActionSuccess={refetchLiveItems}
-        />
-      </div>
-
-      {/* Mobile Layout (below md) */}
-      <div className="md:hidden w-full">
-        <MobileLayout
-          unreadCount={unreadCount}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          liveItems={liveItems}
-          upcomingItems={upcomingItems}
-          activities={activities}
-          loading={loading}
-          error={error}
-          treemapRender={treemapRender}
-          productCardsRender={productCardsRender}
-          canManageArc={canManageArc}
-        />
-      </div>
-    </>
+    </ArcPageShell>
   );
 }
-
-// =============================================================================
-// SERVER-SIDE PROPS
-// =============================================================================
-
-export const getServerSideProps: GetServerSideProps<ArcHomeProps> = async (context) => {
-  // Check ARC access: allow superadmin OR any portal user with at least one approved arc_project_access row
-  const accessCheck = await requireArcAccessRoute(context, '/portal/arc');
-  if (accessCheck) {
-    return accessCheck; // Redirect if access check fails
-  }
-  
-  // If we reach here, user has ARC access (canViewArc = true)
-  const canViewArc = true;
-  
-  // canManageArc: SuperAdmin/dev only (for admin buttons)
-  const isDevMode = process.env.NODE_ENV === 'development';
-  
-  // Get session token to check for superadmin
-  const sessionToken = context.req.headers.cookie
-    ?.split(';')
-    .map(c => c.trim())
-    .find(c => c.startsWith('akari_session='))
-    ?.split('=')[1];
-  
-  let canManageArc = false;
-  if (isDevMode) {
-    canManageArc = true;
-  } else if (sessionToken) {
-    // Check if user is superadmin (simplified check - full check happens client-side)
-    // For now, rely on client-side check via isSuperAdmin()
-    canManageArc = false;
-  }
-  
-  let initialTopProjects: TopProjectItem[] = [];
-  let initialTopProjectsLastUpdated: string | null = null;
-
-  try {
-    const host = context.req.headers.host;
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const baseUrl = `${protocol}://${host}`;
-    const res = await fetch(
-      `${baseUrl}/api/portal/arc/top-projects?mode=gainers&timeframe=7d&limit=30`,
-      {
-        headers: {
-          cookie: context.req.headers.cookie || '',
-        },
-      }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.ok && Array.isArray(data.items)) {
-        initialTopProjects = (data.items || []).map((p: any) => {
-          const projectId = String(p.projectId ?? p.projectid ?? p.project_id ?? p.id ?? '');
-          const name = p.display_name || p.name || 'Unknown';
-          const twitterUsername = String(p.twitter_username || '');
-          return {
-            ...p,
-            id: projectId,
-            projectId,
-            name,
-            display_name: name,
-            twitter_username: twitterUsername,
-            growth_pct: Number(p.growth_pct ?? 0),
-            slug: p.slug || null,
-            arc_access_level: p.arc_access_level || 'none',
-            arc_active: typeof p.arc_active === 'boolean' ? p.arc_active : false,
-            value: Math.max(1, Math.abs(Number(p.growth_pct ?? 0)) || 1),
-          };
-        });
-        initialTopProjectsLastUpdated = data.lastUpdated || null;
-      }
-    }
-  } catch (err) {
-    console.warn('[ARC Home] Failed to preload top projects:', err);
-  }
-
-  return {
-    props: {
-      canViewArc,
-      canManageArc,
-      initialTopProjects,
-      initialTopProjectsLastUpdated,
-    },
-  };
-};

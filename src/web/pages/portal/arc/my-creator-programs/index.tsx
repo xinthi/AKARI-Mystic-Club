@@ -1,5 +1,5 @@
 /**
- * Creator Campaigns - Creator View
+ * Creator Quests - Creator View
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -37,7 +37,7 @@ const CAMPAIGN_TABS: Array<{ key: Campaign['campaign_type'] | 'all'; label: stri
   { key: 'monad', label: 'Monad' },
 ];
 
-export default function CreatorCampaignsHome() {
+export default function CreatorQuestsHome() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +51,14 @@ export default function CreatorCampaignsHome() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/portal/brands/campaigns', { credentials: 'include' });
+        const res = await fetch('/api/portal/brands/quests', { credentials: 'include' });
         const data = await res.json();
         if (!res.ok || !data.ok) {
-          throw new Error(data.error || 'Failed to load campaigns');
+          throw new Error(data.error || 'Failed to load quests');
         }
-        setCampaigns(data.campaigns || []);
+        setCampaigns(data.quests || data.campaigns || []);
       } catch (err: any) {
-        setError(err.message || 'Failed to load campaigns');
+        setError(err.message || 'Failed to load quests');
         setCampaigns([]);
       } finally {
         setLoading(false);
@@ -144,9 +144,9 @@ export default function CreatorCampaignsHome() {
     <ArcPageShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Creator Campaigns</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Creator Quests</h1>
           <p className="text-white/60">
-            Join campaigns, share content across platforms, and track analytics.
+            Join quests, share content across platforms, and track analytics.
           </p>
           <p className="text-xs text-white/40 mt-2">
             Analytics for discovery only — no rewards.
@@ -174,7 +174,7 @@ export default function CreatorCampaignsHome() {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search campaigns..."
+              placeholder="Search quests..."
               className="w-full px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/20"
             />
           </div>
@@ -228,15 +228,15 @@ export default function CreatorCampaignsHome() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon="🧭"
-            title="No campaigns yet"
-            description="Public and invited campaigns will appear here."
+            title="No quests yet"
+            description="Public and invited quests will appear here."
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map((campaign) => (
               <Link
                 key={campaign.id}
-                href={`/portal/arc/campaigns/${campaign.id}`}
+                href={`/portal/arc/quests/${campaign.id}`}
                 className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between mb-4">

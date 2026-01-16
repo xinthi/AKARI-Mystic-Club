@@ -28,7 +28,7 @@ export default function MySubmissions() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/portal/brands/campaigns/my-submissions', { credentials: 'include' });
+      const res = await fetch('/api/portal/brands/quests/my-submissions', { credentials: 'include' });
       const data = await res.json();
       if (!res.ok || !data.ok) {
         throw new Error(data.error || 'Failed to load submissions');
@@ -86,7 +86,7 @@ export default function MySubmissions() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">My Submissions</h1>
-          <p className="text-white/60">Track everything you submitted across campaigns.</p>
+          <p className="text-white/60">Track everything you submitted across quests.</p>
         </div>
 
         {loading ? (
@@ -102,7 +102,7 @@ export default function MySubmissions() {
               {submissions.map((s) => (
                 <div key={s.id} className="rounded-xl border border-white/10 bg-black/40 p-5">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs uppercase tracking-wider text-white/40">Campaign</div>
+            <div className="text-xs uppercase tracking-wider text-white/40">Quest</div>
                     <span className="px-2 py-1 rounded-full text-[11px] bg-white/10 border border-white/10 text-white/70">
                       {s.status}
                     </span>
@@ -116,8 +116,8 @@ export default function MySubmissions() {
                       </div>
                     )}
                     <div>
-                      <Link href={`/portal/arc/campaigns/${s.campaign_id}`} className="text-lg text-white font-semibold block">
-                        {s.campaign?.name || 'Campaign'}
+                  <Link href={`/portal/arc/quests/${s.campaign_id}`} className="text-lg text-white font-semibold block">
+                    {s.campaign?.name || 'Quest'}
                       </Link>
                       <div className="text-xs text-white/50">{s.campaign?.brand?.name || 'Brand'}</div>
                     </div>
@@ -139,7 +139,7 @@ export default function MySubmissions() {
               <table className="w-full text-sm text-white/70">
                 <thead>
                   <tr className="text-xs text-white/40 uppercase">
-                    <th className="text-left py-2">Campaign</th>
+                    <th className="text-left py-2">Quest</th>
                     <th className="text-left py-2">Brand</th>
                     <th className="text-left py-2">Platform</th>
                     <th className="text-left py-2">Post</th>
@@ -152,8 +152,8 @@ export default function MySubmissions() {
                   {submissions.map((s) => (
                     <tr key={s.id} className="hover:bg-white/5">
                       <td className="py-3">
-                        <Link href={`/portal/arc/campaigns/${s.campaign_id}`} className="text-white hover:text-teal-300">
-                          {s.campaign?.name || 'Campaign'}
+                      <Link href={`/portal/arc/quests/${s.campaign_id}`} className="text-white hover:text-teal-300">
+                          {s.campaign?.name || 'Quest'}
                         </Link>
                       </td>
                       <td className="py-3">
