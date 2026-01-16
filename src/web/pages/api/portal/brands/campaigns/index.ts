@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 type Response =
   | { ok: true; campaigns: any[] }
@@ -76,6 +77,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const campaignIds = (campaigns || []).map((c: any) => c.id);
   const brandIds = (campaigns || []).map((c: any) => c.brand_id);
 
+  const handleSet = new Set<string>();
+  for (const campaign of campaigns || []) {
+    const handle = campaign.brand_profiles?.x_handle?.replace('@', '').trim();
+    if (!campaign.brand_profiles?.logo_url && handle) {
+      handleSet.add(handle);
+    }
+  }
+
+  const handles = Array.from(handleSet).slice(0, 15);
+  const handleToImage: Record<string, string> = {};
+  for (const handle of handles) {
+    const userInfo = await taioGetUserInfo(handle);
+    if (userInfo?.profileImageUrl) {
+      handleToImage[handle] = userInfo.profileImageUrl;
+    }
+  }
+
   const { data: creatorRows } = await supabase
     .from('brand_campaign_creators')
     .select('campaign_id, status, username, profile_id')
@@ -143,6 +161,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           name: c.brand_profiles.name,
           logo_url: c.brand_profiles.logo_url,
           x_handle: c.brand_profiles.x_handle,
+          x_profile_image_url:
+            !c.brand_profiles.logo_url && c.brand_profiles.x_handle
+              ? handleToImage[c.brand_profiles.x_handle.replace('@', '').trim()] || null
+              : null,
         }
       : null,
     creatorStatus: creatorMap[c.id]?.status || null,

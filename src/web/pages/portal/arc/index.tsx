@@ -245,8 +245,12 @@ export default function ArcHome() {
                           </p>
                         )}
                       </div>
-                      {quest.brand?.logo_url ? (
-                        <img src={quest.brand.logo_url} alt={quest.brand.name} className="w-11 h-11 rounded-full border border-white/10" />
+                      {quest.brand?.logo_url || quest.brand?.x_profile_image_url ? (
+                        <img
+                          src={quest.brand.logo_url || quest.brand.x_profile_image_url}
+                          alt={quest.brand.name}
+                          className="w-11 h-11 rounded-full border border-white/10"
+                        />
                       ) : (
                         <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
                           {(quest.brand?.name || 'B').slice(0, 1).toUpperCase()}
