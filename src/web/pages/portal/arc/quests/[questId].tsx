@@ -331,7 +331,7 @@ export default function QuestDetail() {
                 <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
                   <div>
                     <div className="text-sm text-white/80">{link.label || 'Link'}</div>
-                    <div className="text-xs text-white/40 truncate max-w-[320px]">{link.url}</div>
+                    <div className="text-xs text-white/40 truncate max-w-[320px]">{link.utmUrl || link.url}</div>
                   </div>
                   <button
                     onClick={() => handleCopy(link.utmUrl)}
