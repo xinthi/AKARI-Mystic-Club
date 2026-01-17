@@ -24,11 +24,38 @@ export async function resolveProfileId(
   const username = xIdentity?.username ? xIdentity.username.toLowerCase().replace('@', '').trim() : null;
   if (!username) return null;
 
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('profiles')
     .select('id')
     .eq('username', username)
     .maybeSingle();
+
+  if (!profile) {
+    const { data: profileFallback } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .maybeSingle();
+    profile = profileFallback || profile;
+  }
+
+  if (!profile) {
+    const { data: created, error: createError } = await supabase
+      .from('profiles')
+      .insert({ username })
+      .select('id')
+      .single();
+    if (!createError && created) {
+      return created.id;
+    }
+
+    const { data: retryProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .maybeSingle();
+    profile = retryProfile || profile;
+  }
 
   return profile?.id || null;
 }
