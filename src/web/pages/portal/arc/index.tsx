@@ -444,7 +444,7 @@ export default function ArcHome() {
                     </div>
                     <div className="flex gap-2 mt-4">
                       <Link
-                        href={`/portal/arc/brands/${brand.id}`}
+                        href={`/portal/arc/brands/${brand.id}?view=analytics`}
                         className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10"
                       >
                         View

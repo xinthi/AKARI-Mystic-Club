@@ -8,10 +8,13 @@ import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { EmptyState } from '@/components/arc/EmptyState';
+import { useArcMode } from '@/lib/arc/useArcMode';
 
 export default function BrandDetail() {
   const router = useRouter();
   const { brandId } = router.query;
+  const { mode } = useArcMode();
+  const analyticsView = mode === 'crm' && router.query.view === 'analytics';
 
   const [brand, setBrand] = useState<any>(null);
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -214,7 +217,7 @@ export default function BrandDetail() {
           </div>
         )}
 
-        {isOwner && (
+        {!analyticsView && isOwner && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-4">
             <button
               onClick={() => setShowCreate((prev) => !prev)}
@@ -301,35 +304,37 @@ export default function BrandDetail() {
           </div>
         )}
 
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Quests</h2>
-          {campaigns.length === 0 ? (
-            <EmptyState
-              icon="🚀"
-              title="No quests yet"
-              description="Quests will appear here when available."
-            />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {campaigns.map((campaign) => (
-                <Link
-                  key={campaign.id}
-                  href={`/portal/arc/quests/${campaign.id}`}
-                  className="block rounded-xl border border-white/10 bg-black/30 p-5 hover:border-teal-400/40 hover:shadow-[0_0_20px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
-                >
-                  <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Campaign</div>
-                  <div className="text-base font-semibold text-white">{campaign.name}</div>
-                  {campaign.pitch && <div className="text-xs text-white/60 mt-2 line-clamp-2">{campaign.pitch}</div>}
-                  <div className="text-xs text-white/50 mt-3">
-                    Type: {campaign.campaign_type} • Status: {campaign.status}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+        {!analyticsView && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Quests</h2>
+            {campaigns.length === 0 ? (
+              <EmptyState
+                icon="🚀"
+                title="No quests yet"
+                description="Quests will appear here when available."
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {campaigns.map((campaign) => (
+                  <Link
+                    key={campaign.id}
+                    href={`/portal/arc/quests/${campaign.id}`}
+                    className="block rounded-xl border border-white/10 bg-black/30 p-5 hover:border-teal-400/40 hover:shadow-[0_0_20px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
+                  >
+                    <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Campaign</div>
+                    <div className="text-base font-semibold text-white">{campaign.name}</div>
+                    {campaign.pitch && <div className="text-xs text-white/60 mt-2 line-clamp-2">{campaign.pitch}</div>}
+                    <div className="text-xs text-white/50 mt-3">
+                      Type: {campaign.campaign_type} • Status: {campaign.status}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-        {isOwner && (
+        {!analyticsView && isOwner && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Pending Requests</h2>
             {pendingRequests.length === 0 ? (
