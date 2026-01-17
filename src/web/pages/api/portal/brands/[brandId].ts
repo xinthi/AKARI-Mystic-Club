@@ -9,7 +9,20 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 type Response =
-  | { ok: true; brand: any; campaigns: any[]; isOwner: boolean; membersCount: number; pendingRequests: any[] }
+  | {
+      ok: true;
+      brand: any;
+      campaigns: any[];
+      isOwner: boolean;
+      membersCount: number;
+      pendingRequests: any[];
+      analytics: {
+        trackingSince: string | null;
+        totalQuests: number;
+        totalSubmissions: number;
+        totalClicks: number;
+      };
+    }
   | { ok: false; error: string };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Response>) {
