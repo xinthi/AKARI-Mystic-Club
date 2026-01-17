@@ -210,7 +210,7 @@ export default function BrandDetail() {
                 <div className="text-2xl font-semibold text-white">{analytics.totalClicks || 0}</div>
               </div>
             </div>
-            <p className="text-xs text-white/40 mt-3">Analytics for discovery only — no rewards.</p>
+            <p className="text-xs text-white/40 mt-3">Analytics for discovery only. No rewards.</p>
           </div>
         )}
 

@@ -9,12 +9,12 @@ import { useArcMode } from '@/lib/arc/useArcMode';
 
 const PLATFORMS = ['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram'] as const;
 const PLATFORM_ICONS: Record<string, string> = {
-  x: '𝕏',
-  youtube: '▶️',
-  tiktok: '🎵',
-  telegram: '✈️',
-  linkedin: '💼',
-  instagram: '📷',
+  x: 'X',
+  youtube: 'YT',
+  tiktok: 'TT',
+  telegram: 'TG',
+  linkedin: 'IN',
+  instagram: 'IG',
 };
 
 export default function QuestDetail() {
@@ -446,7 +446,7 @@ export default function QuestDetail() {
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Quest Leaderboard</h2>
-          <p className="text-xs text-white/50 mb-3">Analytics for discovery only — no rewards or incentives.</p>
+          <p className="text-xs text-white/50 mb-3">Analytics for discovery only. No rewards or incentives.</p>
           {leaderboard.length === 0 ? (
             <div className="space-y-3">
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center text-white/60">

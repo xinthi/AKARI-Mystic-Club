@@ -147,7 +147,7 @@ export default function CreatorQuestsHome() {
             Join quests, share content across platforms, and track analytics.
           </p>
           <p className="text-xs text-white/40 mt-2">
-            Analytics for discovery only — no rewards.
+            Analytics for discovery only. No rewards.
           </p>
         </div>
 
