@@ -145,6 +145,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
   }
 
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await supabase
+    .from('campaign_submissions')
+    .select('*', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .eq('creator_profile_id', profileId)
+    .gte('submitted_at', weekAgo);
+  if ((recentCount || 0) >= 5) {
+    return res.status(400).json({ ok: false, error: 'Weekly submission limit reached (5 per 7 days).' });
+  }
+
   const platformLower = String(platform).toLowerCase();
   let status: 'pending' | 'approved' | 'rejected' | 'verified' = 'pending';
   let rejected_reason: string | null = null;

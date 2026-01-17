@@ -36,6 +36,7 @@ export default function BrandDetail() {
     endAt: '',
     links: [{ label: '', url: '', linkIndex: 1 }],
   });
+  const [campaignError, setCampaignError] = useState<string | null>(null);
 
   const loadBrand = useCallback(async () => {
     if (!brandId || typeof brandId !== 'string') return;
@@ -73,6 +74,21 @@ export default function BrandDetail() {
   const handleCreateCampaign = async () => {
     if (!brandId || typeof brandId !== 'string') return;
     if (!campaignForm.name.trim()) return;
+    if (!campaignForm.startAt || !campaignForm.endAt) {
+      setCampaignError('Start and end dates are required.');
+      return;
+    }
+    const startMs = new Date(campaignForm.startAt).getTime();
+    const endMs = new Date(campaignForm.endAt).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      setCampaignError('End date must be after start date.');
+      return;
+    }
+    if (endMs - startMs < 7 * 24 * 60 * 60 * 1000) {
+      setCampaignError('Quest must run for at least 7 days.');
+      return;
+    }
+    setCampaignError(null);
     const links = campaignForm.links.filter((l) => l.url.trim().length > 0).slice(0, 5);
     const languages = campaignForm.languages
       .split(',')
@@ -97,10 +113,11 @@ export default function BrandDetail() {
 
     const data = await res.json();
     if (!res.ok || !data.ok) {
-      setError(data.error || 'Failed to create campaign');
+      setCampaignError(data.error || 'Failed to create campaign');
       return;
     }
     setShowCreate(false);
+    setCampaignError(null);
     setCampaignForm({
       name: '',
       pitch: '',
@@ -350,6 +367,9 @@ export default function BrandDetail() {
                     className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
                   />
                 </div>
+                {campaignError && (
+                  <div className="text-xs text-red-300">{campaignError}</div>
+                )}
                 <div className="grid gap-2">
                   {campaignForm.links.map((link, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row gap-2">

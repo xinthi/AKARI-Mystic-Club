@@ -72,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         tg_community: tgCommunity ? String(tgCommunity).trim() : null,
         tg_channel: tgChannel ? String(tgChannel).trim() : null,
         brief_text: briefText ? String(briefText).trim() : null,
-        logo_url: null,
+        logo_url: xProfile.profileImageUrl || null,
         banner_url: null,
       })
       .select('id, name, x_handle, website, logo_url, banner_url, brief_text')

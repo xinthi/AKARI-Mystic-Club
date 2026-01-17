@@ -52,6 +52,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (!name) {
       return res.status(400).json({ ok: false, error: 'Campaign name is required' });
     }
+    if (!startAt || !endAt) {
+      return res.status(400).json({ ok: false, error: 'Start and end dates are required' });
+    }
+    const startMs = new Date(startAt).getTime();
+    const endMs = new Date(endAt).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return res.status(400).json({ ok: false, error: 'Invalid campaign dates' });
+    }
+    const minDurationMs = 7 * 24 * 60 * 60 * 1000;
+    if (endMs - startMs < minDurationMs) {
+      return res.status(400).json({ ok: false, error: 'Quest must run for at least 7 days' });
+    }
 
     const { data: campaign, error } = await supabase
       .from('brand_campaigns')
@@ -62,8 +74,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         objectives: objectives ? String(objectives).trim() : null,
         campaign_type: campaignType || 'public',
         languages: Array.isArray(languages) ? languages : null,
-        start_at: startAt ? new Date(startAt).toISOString() : null,
-        end_at: endAt ? new Date(endAt).toISOString() : null,
+        start_at: new Date(startAt).toISOString(),
+        end_at: new Date(endAt).toISOString(),
       })
       .select('id, name, pitch, objectives, campaign_type, status, languages, created_at')
       .single();
