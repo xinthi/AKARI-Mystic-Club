@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { twitterApiGetTweetById } from '@/lib/twitterapi';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
   | { ok: true }
@@ -34,7 +35,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: 'campaignId, platform, and postUrl are required' });
   }
 
-  if (!user.profileId) {
+  let profileId = user.profileId;
+  if (!profileId) {
+    profileId = await resolveProfileId(supabase, user.userId);
+  }
+  if (!profileId) {
     return res.status(403).json({ ok: false, error: 'Profile not found' });
   }
 
@@ -76,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('campaign_submissions')
     .insert({
       campaign_id: campaignId,
-      creator_profile_id: user.profileId,
+      creator_profile_id: profileId,
       platform: String(platform),
       post_url: String(postUrl),
       status: 'pending',

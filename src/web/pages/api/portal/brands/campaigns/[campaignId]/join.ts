@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
   | { ok: true; status: string }
@@ -51,7 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   const twitterUsername = await getUserTwitterUsername(supabase, user.userId);
-  if (!user.profileId && !twitterUsername) {
+  let profileId = user.profileId;
+  if (!profileId) {
+    profileId = await resolveProfileId(supabase, user.userId);
+  }
+  if (!profileId && !twitterUsername) {
     return res.status(403).json({ ok: false, error: 'Profile not found' });
   }
 
@@ -71,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('brand_id', campaign.brand_id)
     .or(
       [
-        user.profileId ? `profile_id.eq.${user.profileId}` : null,
+        profileId ? `profile_id.eq.${profileId}` : null,
         twitterUsername ? `username.eq.${twitterUsername}` : null,
       ]
         .filter(Boolean)
@@ -89,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('campaign_id', campaignId)
     .or(
       [
-        user.profileId ? `profile_id.eq.${user.profileId}` : null,
+        profileId ? `profile_id.eq.${profileId}` : null,
         twitterUsername ? `username.eq.${twitterUsername}` : null,
       ]
         .filter(Boolean)
@@ -105,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('brand_campaign_creators')
     .insert({
       campaign_id: campaignId,
-      profile_id: user.profileId,
+      profile_id: profileId,
       username: twitterUsername,
       status: 'pending',
     });

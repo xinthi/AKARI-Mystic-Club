@@ -7,6 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
   | { ok: true; links: Array<{ label: string | null; url: string; utmUrl: string }> }
@@ -26,7 +27,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: 'campaignId is required' });
   }
 
-  if (!user.profileId) {
+  let profileId = user.profileId;
+  if (!profileId) {
+    profileId = await resolveProfileId(supabase, user.userId);
+  }
+  if (!profileId) {
     return res.status(403).json({ ok: false, error: 'Profile not found' });
   }
 
@@ -52,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('campaign_utm_links')
     .select('utm_content, generated_url')
     .eq('campaign_id', campaignId)
-    .eq('creator_profile_id', user.profileId);
+    .eq('creator_profile_id', profileId);
 
   const existingMap = (existing || []).reduce<Record<string, string>>((acc, row: any) => {
     acc[row.utm_content] = row.generated_url;
@@ -64,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const base = link.url;
     const utmUrl =
       existingMap[utmContent] ||
-      `/api/portal/utm/redirect?campaignId=${campaignId}&creatorProfileId=${user.profileId}&linkId=${link.id}`;
+      `/api/portal/utm/redirect?campaignId=${campaignId}&creatorProfileId=${profileId}&linkId=${link.id}`;
     return {
       label: link.label,
       url: base,
@@ -76,13 +81,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .filter((link) => !existingMap[link.id])
     .map((link) => ({
       campaign_id: campaignId,
-      creator_profile_id: user.profileId,
+      creator_profile_id: profileId,
       base_url: link.url,
       utm_source: 'akari',
       utm_medium: 'creator',
       utm_campaign: campaignId,
       utm_content: link.id,
-      generated_url: `/api/portal/utm/redirect?campaignId=${campaignId}&creatorProfileId=${user.profileId}&linkId=${link.id}`,
+      generated_url: `/api/portal/utm/redirect?campaignId=${campaignId}&creatorProfileId=${profileId}&linkId=${link.id}`,
     }));
 
   if (toInsert.length > 0) {
