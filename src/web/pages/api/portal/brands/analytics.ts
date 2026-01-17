@@ -9,7 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 
 type Response =
-  | { ok: true; summary: any; quests: any[] }
+  | { ok: true; summary: any; quests: any[]; series: any[] }
   | { ok: false; error: string };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Response>) {
@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const brandIds = (brands || []).map((b: any) => b.id);
   if (brandIds.length === 0) {
-    return res.status(200).json({ ok: true, summary: { totalClicks: 0, totalSubmissions: 0 }, quests: [] });
+    return res.status(200).json({ ok: true, summary: { totalClicks: 0, totalSubmissions: 0 }, quests: [], series: [] });
   }
 
   const { data: campaigns } = await supabase
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: submissions } = await supabase
     .from('campaign_submissions')
-    .select('campaign_id, platform, verified_at, used_campaign_link, engagement_score')
+    .select('campaign_id, platform, verified_at, used_campaign_link, engagement_score, submitted_at')
     .in('campaign_id', campaignIds.length ? campaignIds : ['00000000-0000-0000-0000-000000000000']);
 
   const { data: events } = await supabase
@@ -128,5 +128,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     { totalClicks: 0, totalSubmissions: 0, totalVerifiedX: 0 }
   );
 
-  return res.status(200).json({ ok: true, summary, quests: normalized });
+  const seriesMap = new Map<string, { date: string; clicks: number; submissions: number; verifiedX: number }>();
+  const days = 30;
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    seriesMap.set(key, { date: key, clicks: 0, submissions: 0, verifiedX: 0 });
+  }
+
+  for (const ev of events || []) {
+    if (ev.event_type !== 'click' || !ev.created_at) continue;
+    const key = new Date(ev.created_at).toISOString().slice(0, 10);
+    const row = seriesMap.get(key);
+    if (row) row.clicks += 1;
+  }
+
+  for (const sub of submissions || []) {
+    if (!sub.submitted_at) continue;
+    const key = new Date(sub.submitted_at).toISOString().slice(0, 10);
+    const row = seriesMap.get(key);
+    if (row) row.submissions += 1;
+    if (sub.platform === 'x' && sub.verified_at && row) {
+      row.verifiedX += 1;
+    }
+  }
+
+  const series = Array.from(seriesMap.values());
+
+  return res.status(200).json({ ok: true, summary, quests: normalized, series });
 }

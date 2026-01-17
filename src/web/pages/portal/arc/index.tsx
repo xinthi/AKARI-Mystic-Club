@@ -458,6 +458,24 @@ export default function ArcHome() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <AnalyticsChart
+                        title="Clicks (last 30d)"
+                        color="#00F6A2"
+                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.clicks }))}
+                      />
+                      <AnalyticsChart
+                        title="Submissions (last 30d)"
+                        color="#60A5FA"
+                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.submissions }))}
+                      />
+                      <AnalyticsChart
+                        title="Verified X (last 30d)"
+                        color="#FBBF24"
+                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.verifiedX }))}
+                      />
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {crmAnalytics.quests.map((quest: any) => (
                         <Link
@@ -484,6 +502,9 @@ export default function ArcHome() {
                             <div>24h: {quest.last24hClicks}</div>
                             <div>Submissions: {quest.totalSubmissions}</div>
                             <div>Verified X: {quest.verifiedX}</div>
+                          </div>
+                          <div className="mt-3 text-xs text-white/50">
+                            Started: {quest.start_at ? new Date(quest.start_at).toLocaleDateString() : 'TBD'}
                           </div>
                         </Link>
                       ))}
@@ -566,5 +587,101 @@ export default function ArcHome() {
         )}
       </div>
     </ArcPageShell>
+  );
+}
+
+type AnalyticsPoint = { label: string; value: number };
+
+function AnalyticsChart({ title, data, color }: { title: string; data: AnalyticsPoint[]; color: string }) {
+  const [type, setType] = useState<'line' | 'bar'>('line');
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const width = 360;
+  const height = 160;
+  const paddingX = 24;
+  const paddingY = 20;
+  const maxVal = Math.max(1, ...data.map((d) => d.value));
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingY * 2;
+
+  const getX = (index: number) => paddingX + (index / Math.max(1, data.length - 1)) * plotWidth;
+  const getY = (value: number) => paddingY + plotHeight - (value / maxVal) * plotHeight;
+
+  const linePath = data
+    .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.value)}`)
+    .join(' ');
+
+  const handleHover = (evt: React.MouseEvent<SVGSVGElement>) => {
+    if (data.length === 0) return;
+    const rect = evt.currentTarget.getBoundingClientRect();
+    const x = evt.clientX - rect.left - paddingX;
+    const idx = Math.round((x / plotWidth) * (data.length - 1));
+    const clamped = Math.max(0, Math.min(data.length - 1, idx));
+    setHoverIndex(clamped);
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm text-white/80">{title}</div>
+        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
+          <button
+            onClick={() => setType('line')}
+            className={`px-2 py-1 text-xs rounded-md ${
+              type === 'line' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'
+            }`}
+          >
+            Line
+          </button>
+          <button
+            onClick={() => setType('bar')}
+            className={`px-2 py-1 text-xs rounded-md ${
+              type === 'bar' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'
+            }`}
+          >
+            Bar
+          </button>
+        </div>
+      </div>
+      <svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        onMouseMove={handleHover}
+        onMouseLeave={() => setHoverIndex(null)}
+        className="rounded-lg bg-black/30 border border-white/5"
+      >
+        <path d={`M ${paddingX} ${paddingY + plotHeight} L ${paddingX + plotWidth} ${paddingY + plotHeight}`} stroke="#1f2937" />
+        <path d={`M ${paddingX} ${paddingY} L ${paddingX} ${paddingY + plotHeight}`} stroke="#1f2937" />
+        {type === 'line' && data.length > 0 && (
+          <>
+            <path d={linePath} fill="none" stroke={color} strokeWidth="2" />
+            {data.map((d, i) => (
+              <circle key={d.label} cx={getX(i)} cy={getY(d.value)} r="2.5" fill={color} />
+            ))}
+          </>
+        )}
+        {type === 'bar' &&
+          data.map((d, i) => {
+            const x = getX(i) - 3;
+            const y = getY(d.value);
+            const barHeight = paddingY + plotHeight - y;
+            return <rect key={d.label} x={x} y={y} width="6" height={barHeight} fill={color} opacity="0.85" />;
+          })}
+        {hoverIndex !== null && data[hoverIndex] && (
+          <>
+            <line x1={getX(hoverIndex)} x2={getX(hoverIndex)} y1={paddingY} y2={paddingY + plotHeight} stroke="#ffffff33" />
+            <text x={getX(hoverIndex)} y={paddingY - 4} fill="#ffffffb0" fontSize="10" textAnchor="middle">
+              {data[hoverIndex].value}
+            </text>
+          </>
+        )}
+      </svg>
+      {hoverIndex !== null && data[hoverIndex] && (
+        <div className="mt-2 text-[11px] text-white/50">
+          {data[hoverIndex].label} • {data[hoverIndex].value}
+        </div>
+      )}
+    </div>
   );
 }
