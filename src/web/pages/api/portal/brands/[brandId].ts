@@ -56,6 +56,93 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .order('created_at', { ascending: false });
 
   const campaignIds = (campaigns || []).map((c: any) => c.id);
+  const { data: submissions } = campaignIds.length
+    ? await supabase
+        .from('campaign_submissions')
+        .select('campaign_id, platform, status, verified_at, used_campaign_link, engagement_score, submitted_at')
+        .in('campaign_id', campaignIds)
+    : { data: [] };
+
+  const { data: events } = campaignIds.length
+    ? await supabase
+        .from('campaign_utm_events')
+        .select('campaign_id, event_type, created_at')
+        .in('campaign_id', campaignIds)
+    : { data: [] };
+
+  const submissionAgg = (submissions || []).reduce<Record<string, any>>((acc, row: any) => {
+    if (!acc[row.campaign_id]) {
+      acc[row.campaign_id] = {
+        totalSubmissions: 0,
+        verifiedX: 0,
+        usedLinkCount: 0,
+        engagementScore: 0,
+      };
+    }
+    acc[row.campaign_id].totalSubmissions += 1;
+    if (row.platform === 'x' && row.verified_at) {
+      acc[row.campaign_id].verifiedX += 1;
+    }
+    if (row.used_campaign_link) {
+      acc[row.campaign_id].usedLinkCount += 1;
+    }
+    acc[row.campaign_id].engagementScore += Number(row.engagement_score || 0);
+    return acc;
+  }, {});
+
+  const now = Date.now();
+  const oneHourAgo = new Date(now - 60 * 60 * 1000);
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
+  const clickAgg = (events || []).reduce<Record<string, any>>((acc, row: any) => {
+    if (row.event_type !== 'click') return acc;
+    if (!acc[row.campaign_id]) {
+      acc[row.campaign_id] = { totalClicks: 0, last24hClicks: 0, last1hClicks: 0 };
+    }
+    acc[row.campaign_id].totalClicks += 1;
+    const createdAt = row.created_at ? new Date(row.created_at) : null;
+    if (createdAt && createdAt > dayAgo) acc[row.campaign_id].last24hClicks += 1;
+    if (createdAt && createdAt > oneHourAgo) acc[row.campaign_id].last1hClicks += 1;
+    return acc;
+  }, {});
+
+  const campaignsWithAnalytics = (campaigns || []).map((c: any) => ({
+    ...c,
+    totalSubmissions: submissionAgg[c.id]?.totalSubmissions || 0,
+    verifiedX: submissionAgg[c.id]?.verifiedX || 0,
+    usedLinkCount: submissionAgg[c.id]?.usedLinkCount || 0,
+    engagementScore: submissionAgg[c.id]?.engagementScore || 0,
+    totalClicks: clickAgg[c.id]?.totalClicks || 0,
+    last24hClicks: clickAgg[c.id]?.last24hClicks || 0,
+    last1hClicks: clickAgg[c.id]?.last1hClicks || 0,
+  }));
+
+  const seriesMap = new Map<string, { date: string; clicks: number; submissions: number; verifiedX: number }>();
+  const days = 30;
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    seriesMap.set(key, { date: key, clicks: 0, submissions: 0, verifiedX: 0 });
+  }
+
+  for (const ev of events || []) {
+    if (ev.event_type !== 'click' || !ev.created_at) continue;
+    const key = new Date(ev.created_at).toISOString().slice(0, 10);
+    const row = seriesMap.get(key);
+    if (row) row.clicks += 1;
+  }
+
+  for (const sub of submissions || []) {
+    if (!sub.submitted_at) continue;
+    const key = new Date(sub.submitted_at).toISOString().slice(0, 10);
+    const row = seriesMap.get(key);
+    if (row) row.submissions += 1;
+    if (sub.platform === 'x' && sub.verified_at && row) {
+      row.verifiedX += 1;
+    }
+  }
+
+  const series = Array.from(seriesMap.values());
   const [submissionCount, clickCount] = await Promise.all([
     campaignIds.length
       ? supabase
@@ -106,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   return res.status(200).json({
     ok: true,
     brand,
-    campaigns: campaigns || [],
+    campaigns: campaignsWithAnalytics || [],
     isOwner,
     membersCount: count || 0,
     pendingRequests,
@@ -116,5 +203,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       totalSubmissions: submissionCount.count || 0,
       totalClicks: clickCount.count || 0,
     },
+    series,
   });
 }

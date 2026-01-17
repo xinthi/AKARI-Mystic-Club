@@ -16,7 +16,6 @@ export default function ArcHome() {
   const { mode } = useArcMode();
   const [quests, setQuests] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
-  const [crmAnalytics, setCrmAnalytics] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('public');
@@ -63,23 +62,6 @@ export default function ArcHome() {
     }
   };
 
-  const loadCrmAnalytics = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/portal/brands/analytics', { credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to load analytics');
-      }
-      setCrmAnalytics(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load analytics');
-      setCrmAnalytics(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (mode === 'creator') {
@@ -87,11 +69,7 @@ export default function ArcHome() {
       return;
     }
     if (mode === 'crm') {
-      if (view === 'analytics') {
-        loadCrmAnalytics();
-      } else {
-        loadCrmBrands();
-      }
+      loadCrmBrands();
     }
   }, [mode, view]);
 
@@ -421,9 +399,8 @@ export default function ArcHome() {
             {view === 'analytics' ? (
               <>
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Live Analytics</h1>
-                  <p className="text-white/60">Live performance across all active quests.</p>
-                  <p className="text-xs text-white/40 mt-2">Analytics for discovery only. No rewards.</p>
+                  <h1 className="text-3xl font-bold text-white mb-2">Brand Analytics</h1>
+                  <p className="text-white/60">Select a brand to view quest analytics.</p>
                 </div>
 
                 {loading ? (
@@ -438,78 +415,42 @@ export default function ArcHome() {
                     ))}
                   </div>
                 ) : error ? (
-                  <ErrorState message={error} onRetry={loadCrmAnalytics} />
-                ) : !crmAnalytics || crmAnalytics.quests.length === 0 ? (
-                  <EmptyState icon="📊" title="No live quests" description="Live quests will appear here once started." />
+                  <ErrorState message={error} onRetry={loadCrmBrands} />
+                ) : brands.length === 0 ? (
+                  <EmptyState icon="🏷️" title="No brands yet" description="Create a brand profile to view analytics." />
                 ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-                        <div className="text-xs text-white/40 mb-1">Total Clicks</div>
-                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalClicks || 0}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-                        <div className="text-xs text-white/40 mb-1">Total Submissions</div>
-                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalSubmissions || 0}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-                        <div className="text-xs text-white/40 mb-1">Verified X</div>
-                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalVerifiedX || 0}</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <AnalyticsChart
-                        title="Clicks (last 30d)"
-                        color="#00F6A2"
-                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.clicks }))}
-                      />
-                      <AnalyticsChart
-                        title="Submissions (last 30d)"
-                        color="#60A5FA"
-                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.submissions }))}
-                      />
-                      <AnalyticsChart
-                        title="Verified X (last 30d)"
-                        color="#FBBF24"
-                        data={(crmAnalytics.series || []).map((d: any) => ({ label: d.date, value: d.verifiedX }))}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {crmAnalytics.quests.map((quest: any) => (
-                        <Link
-                          key={quest.id}
-                          href={`/portal/arc/quests/${quest.id}`}
-                          className="rounded-xl border border-white/10 bg-black/40 p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
-                        >
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Quest</div>
-                              <h3 className="text-lg font-semibold text-white">{quest.name}</h3>
-                              <div className="text-xs text-white/50">{quest.brand?.name}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {brands.map((brand) => (
+                      <Link
+                        key={brand.id}
+                        href={`/portal/arc/brands/${brand.id}?view=analytics`}
+                        className="rounded-xl border border-white/10 bg-black/40 p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Brand</div>
+                            <h3 className="text-lg font-semibold text-white">{brand.name}</h3>
+                          </div>
+                          {brand.logo_url || brand.x_profile_image_url ? (
+                            <img
+                              src={brand.logo_url || brand.x_profile_image_url}
+                              alt={brand.name}
+                              className="w-11 h-11 rounded-full border border-white/10"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                              {(brand.name || 'B').slice(0, 1).toUpperCase()}
                             </div>
-                            {quest.brand?.logo_url ? (
-                              <img src={quest.brand.logo_url} alt={quest.brand.name} className="w-10 h-10 rounded-full border border-white/10" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
-                                {(quest.brand?.name || 'B').slice(0, 1).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 text-xs text-white/60">
-                            <div>Clicks: {quest.totalClicks}</div>
-                            <div>24h: {quest.last24hClicks}</div>
-                            <div>Submissions: {quest.totalSubmissions}</div>
-                            <div>Verified X: {quest.verifiedX}</div>
-                          </div>
-                          <div className="mt-3 text-xs text-white/50">
-                            Started: {quest.start_at ? new Date(quest.start_at).toLocaleDateString() : 'TBD'}
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  </>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-white/50">
+                          <span>{brand.membersCount} members</span>
+                          <span>{brand.questsCount} quests</span>
+                        </div>
+                        <div className="mt-3 text-xs text-white/50">View analytics →</div>
+                      </Link>
+                    ))}
+                  </div>
                 )}
               </>
             ) : (
@@ -590,98 +531,3 @@ export default function ArcHome() {
   );
 }
 
-type AnalyticsPoint = { label: string; value: number };
-
-function AnalyticsChart({ title, data, color }: { title: string; data: AnalyticsPoint[]; color: string }) {
-  const [type, setType] = useState<'line' | 'bar'>('line');
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-
-  const width = 360;
-  const height = 160;
-  const paddingX = 24;
-  const paddingY = 20;
-  const maxVal = Math.max(1, ...data.map((d) => d.value));
-  const plotWidth = width - paddingX * 2;
-  const plotHeight = height - paddingY * 2;
-
-  const getX = (index: number) => paddingX + (index / Math.max(1, data.length - 1)) * plotWidth;
-  const getY = (value: number) => paddingY + plotHeight - (value / maxVal) * plotHeight;
-
-  const linePath = data
-    .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.value)}`)
-    .join(' ');
-
-  const handleHover = (evt: React.MouseEvent<SVGSVGElement>) => {
-    if (data.length === 0) return;
-    const rect = evt.currentTarget.getBoundingClientRect();
-    const x = evt.clientX - rect.left - paddingX;
-    const idx = Math.round((x / plotWidth) * (data.length - 1));
-    const clamped = Math.max(0, Math.min(data.length - 1, idx));
-    setHoverIndex(clamped);
-  };
-
-  return (
-    <div className="rounded-xl border border-white/10 bg-black/40 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm text-white/80">{title}</div>
-        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1">
-          <button
-            onClick={() => setType('line')}
-            className={`px-2 py-1 text-xs rounded-md ${
-              type === 'line' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'
-            }`}
-          >
-            Line
-          </button>
-          <button
-            onClick={() => setType('bar')}
-            className={`px-2 py-1 text-xs rounded-md ${
-              type === 'bar' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white'
-            }`}
-          >
-            Bar
-          </button>
-        </div>
-      </div>
-      <svg
-        width="100%"
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        onMouseMove={handleHover}
-        onMouseLeave={() => setHoverIndex(null)}
-        className="rounded-lg bg-black/30 border border-white/5"
-      >
-        <path d={`M ${paddingX} ${paddingY + plotHeight} L ${paddingX + plotWidth} ${paddingY + plotHeight}`} stroke="#1f2937" />
-        <path d={`M ${paddingX} ${paddingY} L ${paddingX} ${paddingY + plotHeight}`} stroke="#1f2937" />
-        {type === 'line' && data.length > 0 && (
-          <>
-            <path d={linePath} fill="none" stroke={color} strokeWidth="2" />
-            {data.map((d, i) => (
-              <circle key={d.label} cx={getX(i)} cy={getY(d.value)} r="2.5" fill={color} />
-            ))}
-          </>
-        )}
-        {type === 'bar' &&
-          data.map((d, i) => {
-            const x = getX(i) - 3;
-            const y = getY(d.value);
-            const barHeight = paddingY + plotHeight - y;
-            return <rect key={d.label} x={x} y={y} width="6" height={barHeight} fill={color} opacity="0.85" />;
-          })}
-        {hoverIndex !== null && data[hoverIndex] && (
-          <>
-            <line x1={getX(hoverIndex)} x2={getX(hoverIndex)} y1={paddingY} y2={paddingY + plotHeight} stroke="#ffffff33" />
-            <text x={getX(hoverIndex)} y={paddingY - 4} fill="#ffffffb0" fontSize="10" textAnchor="middle">
-              {data[hoverIndex].value}
-            </text>
-          </>
-        )}
-      </svg>
-      {hoverIndex !== null && data[hoverIndex] && (
-        <div className="mt-2 text-[11px] text-white/50">
-          {data[hoverIndex].label} • {data[hoverIndex].value}
-        </div>
-      )}
-    </div>
-  );
-}
