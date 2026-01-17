@@ -19,6 +19,95 @@ function extractTweetId(url: string): string | null {
   return match?.[1] || null;
 }
 
+function normalizeXUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/^https?:\/\/twitter\.com\//i, 'https://x.com/');
+}
+
+function extractAuthorHandle(tweet: any): string | null {
+  const data = tweet?.data || tweet;
+  const author = data?.author || data?.user || data?.author_details || {};
+  const handle =
+    author?.userName ||
+    author?.username ||
+    author?.screen_name ||
+    data?.author_username ||
+    data?.userName ||
+    data?.username ||
+    null;
+  return handle ? String(handle).replace(/^@+/, '').toLowerCase() : null;
+}
+
+function extractTweetUrls(tweet: any): string[] {
+  const data = tweet?.data || tweet;
+  const entities = data?.entities || {};
+  const urls = entities?.urls || data?.urls || [];
+  if (Array.isArray(urls)) {
+    return urls
+      .map((u: any) => u?.expanded_url || u?.expandedUrl || u?.url || u?.display_url || u?.displayUrl)
+      .filter(Boolean)
+      .map((u: any) => String(u));
+  }
+  return [];
+}
+
+async function getCreatorHandle(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  profileId: string,
+  userId: string
+): Promise<string | null> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (profile?.username) {
+    return String(profile.username).replace(/^@+/, '').toLowerCase();
+  }
+  const { data: identity } = await supabase
+    .from('akari_user_identities')
+    .select('username')
+    .eq('user_id', userId)
+    .in('provider', ['x', 'twitter'])
+    .maybeSingle();
+  return identity?.username ? String(identity.username).replace(/^@+/, '').toLowerCase() : null;
+}
+
+function findMatchingUtmLink(
+  urls: string[],
+  utmLinks: Array<{ id: string; generated_url: string; brand_campaign_link_id: string; base_url: string }>
+): { matched: boolean; matchedId: string | null } {
+  const normalizedUrls = urls.map((u) => u.toLowerCase());
+  const redirectPath = '/api/portal/utm/redirect';
+
+  for (const link of utmLinks) {
+    const generated = link.generated_url?.toLowerCase() || '';
+    const linkId = link.brand_campaign_link_id;
+    if (generated && normalizedUrls.some((u) => u.includes(generated))) {
+      return { matched: true, matchedId: link.id };
+    }
+    for (const raw of urls) {
+      try {
+        const parsed = new URL(raw);
+        const hasRedirect = parsed.pathname.includes(redirectPath);
+        const content = parsed.searchParams.get('utm_content') || parsed.searchParams.get('linkId');
+        const campaign = parsed.searchParams.get('utm_campaign') || parsed.searchParams.get('campaignId');
+        if (hasRedirect && content && content === linkId) {
+          return { matched: true, matchedId: link.id };
+        }
+        if (campaign && content && content === linkId) {
+          return { matched: true, matchedId: link.id };
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }
+
+  return { matched: false, matchedId: null };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Response>) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
@@ -56,23 +145,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
   }
 
+  const platformLower = String(platform).toLowerCase();
+  let status: 'pending' | 'approved' | 'rejected' | 'verified' = 'pending';
+  let rejected_reason: string | null = null;
+  let verified_at: string | null = null;
+  let x_tweet_id: string | null = null;
+  let used_campaign_link = false;
+  let matched_utm_link_id: string | null = null;
+
   let like_count: number | null = null;
   let reply_count: number | null = null;
   let repost_count: number | null = null;
   let view_count: number | null = null;
   let engagement_score: number | null = null;
 
-  if (String(platform).toLowerCase() === 'x') {
+  if (platformLower === 'x') {
     const tweetId = extractTweetId(String(postUrl));
-    if (tweetId) {
+    if (!tweetId) {
+      status = 'rejected';
+      rejected_reason = 'Tweet ID not found';
+    } else {
       const tweet = await twitterApiGetTweetById(tweetId);
-      const metrics = tweet?.data?.public_metrics || tweet?.public_metrics || tweet?.metrics || null;
-      if (metrics) {
-        like_count = Number(metrics.like_count ?? metrics.likes ?? 0);
-        reply_count = Number(metrics.reply_count ?? metrics.replies ?? 0);
-        repost_count = Number(metrics.retweet_count ?? metrics.retweets ?? 0);
-        view_count = Number(metrics.impression_count ?? metrics.views ?? 0);
-        engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
+      if (!tweet) {
+        status = 'rejected';
+        rejected_reason = 'Tweet not found';
+      } else {
+        const creatorHandle = await getCreatorHandle(supabase, profileId, user.userId);
+        const authorHandle = extractAuthorHandle(tweet);
+        if (!creatorHandle || !authorHandle || creatorHandle !== authorHandle) {
+          status = 'rejected';
+          rejected_reason = 'Tweet not authored by creator';
+        } else {
+          status = 'verified';
+          verified_at = new Date().toISOString();
+          x_tweet_id = tweetId;
+          const metrics = tweet?.data?.public_metrics || tweet?.public_metrics || tweet?.metrics || null;
+          if (metrics) {
+            like_count = Number(metrics.like_count ?? metrics.likes ?? 0);
+            reply_count = Number(metrics.reply_count ?? metrics.replies ?? 0);
+            repost_count = Number(metrics.retweet_count ?? metrics.retweets ?? 0);
+            view_count = Number(metrics.impression_count ?? metrics.views ?? 0);
+            engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
+          }
+
+          const { data: utmLinks } = await supabase
+            .from('campaign_utm_links')
+            .select('id, generated_url, brand_campaign_link_id, base_url')
+            .eq('campaign_id', campaignId)
+            .eq('creator_profile_id', profileId);
+
+          const urls = extractTweetUrls(tweet);
+          const match = findMatchingUtmLink(urls, utmLinks || []);
+          used_campaign_link = match.matched;
+          matched_utm_link_id = match.matchedId;
+        }
       }
     }
   }
@@ -83,8 +209,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       campaign_id: campaignId,
       creator_profile_id: profileId,
       platform: String(platform),
-      post_url: String(postUrl),
-      status: 'pending',
+      post_url: platformLower === 'x' ? normalizeXUrl(String(postUrl)) : String(postUrl),
+      status: status === 'verified' ? 'approved' : status,
+      x_tweet_id,
+      verified_at,
+      rejected_reason,
+      used_campaign_link,
+      matched_utm_link_id,
       like_count,
       reply_count,
       repost_count,

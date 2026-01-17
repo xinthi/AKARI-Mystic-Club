@@ -90,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: links } = await supabase
     .from('brand_campaign_links')
-    .select('id, label, url, display_order')
+    .select('id, label, url, display_order, link_index')
     .eq('campaign_id', campaignId)
     .order('display_order', { ascending: true });
 
@@ -130,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: submissions } = await supabase
     .from('campaign_submissions')
-    .select('id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count')
+    .select('id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count, x_tweet_id, verified_at, rejected_reason, used_campaign_link, matched_utm_link_id')
     .eq('campaign_id', campaignId)
     .eq('creator_profile_id', profileId || '00000000-0000-0000-0000-000000000000')
     .order('submitted_at', { ascending: false });

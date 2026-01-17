@@ -34,7 +34,7 @@ export default function BrandDetail() {
     languages: '',
     startAt: '',
     endAt: '',
-    links: [{ label: '', url: '' }],
+    links: [{ label: '', url: '', linkIndex: 1 }],
   });
 
   const loadBrand = useCallback(async () => {
@@ -73,7 +73,7 @@ export default function BrandDetail() {
   const handleCreateCampaign = async () => {
     if (!brandId || typeof brandId !== 'string') return;
     if (!campaignForm.name.trim()) return;
-    const links = campaignForm.links.filter((l) => l.url.trim().length > 0).slice(0, 6);
+    const links = campaignForm.links.filter((l) => l.url.trim().length > 0).slice(0, 5);
     const languages = campaignForm.languages
       .split(',')
       .map((l) => l.trim())
@@ -109,7 +109,7 @@ export default function BrandDetail() {
       languages: '',
       startAt: '',
       endAt: '',
-      links: [{ label: '', url: '' }],
+      links: [{ label: '', url: '', linkIndex: 1 }],
     });
     loadBrand();
   };
@@ -352,7 +352,7 @@ export default function BrandDetail() {
                 </div>
                 <div className="grid gap-2">
                   {campaignForm.links.map((link, idx) => (
-                    <div key={idx} className="flex gap-2">
+                    <div key={idx} className="flex flex-col sm:flex-row gap-2">
                       <input
                         value={link.label}
                         onChange={(e) => {
@@ -361,7 +361,20 @@ export default function BrandDetail() {
                           setCampaignForm({ ...campaignForm, links: next });
                         }}
                         placeholder="Link label"
-                        className="w-1/3 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                        className="sm:w-1/3 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={link.linkIndex || 1}
+                        onChange={(e) => {
+                          const next = [...campaignForm.links];
+                          next[idx] = { ...next[idx], linkIndex: Number(e.target.value) };
+                          setCampaignForm({ ...campaignForm, links: next });
+                        }}
+                        placeholder="Index"
+                        className="sm:w-24 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
                       />
                       <input
                         value={link.url}
@@ -375,6 +388,34 @@ export default function BrandDetail() {
                       />
                     </div>
                   ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      if (campaignForm.links.length >= 5) return;
+                      const nextIndex = Math.min(5, campaignForm.links.length + 1);
+                      setCampaignForm({
+                        ...campaignForm,
+                        links: [...campaignForm.links, { label: '', url: '', linkIndex: nextIndex }],
+                      });
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Add Link
+                  </button>
+                  {campaignForm.links.length > 1 && (
+                    <button
+                      onClick={() => {
+                        setCampaignForm({
+                          ...campaignForm,
+                          links: campaignForm.links.slice(0, -1),
+                        });
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      Remove Last
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={handleCreateCampaign}

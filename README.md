@@ -41,6 +41,10 @@ ADMIN_PANEL_TOKEN=your-secret-admin-token
 TWITTER_CLIENT_ID=...
 TWITTER_CLIENT_SECRET=...
 
+# TwitterAPI.io (server-side only)
+TWITTERAPI_IO_KEY=...
+TWITTERAPIIO_API_KEY=...
+
 # TON Integration
 TON_TREASURY_ADDRESS=EQB...your-treasury-address
 TON_PRICE_USD_FALLBACK=1.0
@@ -62,6 +66,21 @@ npx prisma generate --schema=prisma/schema.prisma
 cd src/web
 pnpm dev
 ```
+
+## ARC Quest Tracking (Brand/Quest)
+
+### Required Env
+- `SUPABASE_SERVICE_ROLE_KEY` for server-side writes to tracking tables
+- `TWITTERAPI_IO_KEY` or `TWITTERAPIIO_API_KEY` for X verification
+
+### Testing Steps
+1. Create a brand and launch a quest with up to 5 links (each has a link index 1-5).
+2. As a creator, open the quest and copy your tracked links.
+3. Post on X with the tracked link and submit the tweet URL.
+4. Confirm:
+   - Submission is verified
+   - Clicks are tracked via `/api/portal/utm/redirect`
+   - Leaderboard reflects submissions + clicks
 
 ## Deployment (Vercel + Supabase)
 

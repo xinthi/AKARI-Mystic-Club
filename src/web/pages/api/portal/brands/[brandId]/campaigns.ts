@@ -73,12 +73,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
 
     if (Array.isArray(links) && links.length > 0) {
-      const linkRows = links.slice(0, 6).map((link: any, index: number) => ({
-        campaign_id: campaign.id,
-        label: link.label ? String(link.label).trim() : null,
-        url: String(link.url || '').trim(),
-        display_order: index,
-      })).filter((l: any) => l.url);
+      const limitedLinks = links.slice(0, 5);
+      const linkRows = limitedLinks
+        .map((link: any, index: number) => {
+          const rawIndex = link.linkIndex ?? link.link_index ?? link.index;
+          const linkIndex = Number.isFinite(Number(rawIndex)) ? Number(rawIndex) : index + 1;
+          return {
+            campaign_id: campaign.id,
+            label: link.label ? String(link.label).trim() : null,
+            url: String(link.url || '').trim(),
+            display_order: index,
+            link_index: linkIndex,
+          };
+        })
+        .filter((l: any) => l.url);
+
+      const seenIndexes = new Set<number>();
+      for (const row of linkRows) {
+        if (!Number.isInteger(row.link_index) || row.link_index < 1 || row.link_index > 5) {
+          return res.status(400).json({ ok: false, error: 'link_index must be between 1 and 5' });
+        }
+        if (seenIndexes.has(row.link_index)) {
+          return res.status(400).json({ ok: false, error: 'link_index must be unique per campaign' });
+        }
+        seenIndexes.add(row.link_index);
+      }
+
       if (linkRows.length > 0) {
         await supabase.from('brand_campaign_links').insert(linkRows);
       }

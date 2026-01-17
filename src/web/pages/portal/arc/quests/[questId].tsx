@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/arc/ErrorState';
 import { createPortalClient } from '@/lib/portal/supabase';
 import { useArcMode } from '@/lib/arc/useArcMode';
 
-const PLATFORMS = ['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram'] as const;
+const PLATFORMS = ['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram', 'other'] as const;
 const PLATFORM_ICONS: Record<string, string> = {
   x: 'X',
   youtube: 'YT',
@@ -15,6 +15,7 @@ const PLATFORM_ICONS: Record<string, string> = {
   telegram: 'TG',
   linkedin: 'IN',
   instagram: 'IG',
+  other: 'OT',
 };
 
 export default function QuestDetail() {
@@ -32,6 +33,8 @@ export default function QuestDetail() {
   const [isOwner, setIsOwner] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [detectedTweets, setDetectedTweets] = useState<any[]>([]);
+  const [loadingDetected, setLoadingDetected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
@@ -91,6 +94,19 @@ export default function QuestDetail() {
     }
   }, [questId, isOwner]);
 
+  const loadDetectedTweets = useCallback(async () => {
+    if (!questId || typeof questId !== 'string' || mode !== 'creator') return;
+    setLoadingDetected(true);
+    const res = await fetch(`/api/portal/brands/quests/${questId}/detected-x`, { credentials: 'include' });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      setDetectedTweets(data.tweets || []);
+    } else {
+      setDetectedTweets([]);
+    }
+    setLoadingDetected(false);
+  }, [questId, mode]);
+
   useEffect(() => {
     loadQuest();
   }, [loadQuest]);
@@ -100,8 +116,9 @@ export default function QuestDetail() {
       loadUtmLinks();
       loadLeaderboard();
       loadRequests();
+      loadDetectedTweets();
     }
-  }, [questId, loadUtmLinks, loadLeaderboard, loadRequests]);
+  }, [questId, loadUtmLinks, loadLeaderboard, loadRequests, loadDetectedTweets]);
 
   useEffect(() => {
     if (!questId || typeof questId !== 'string') return;
@@ -111,6 +128,7 @@ export default function QuestDetail() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'campaign_submissions' }, () => {
         loadQuest();
         loadLeaderboard();
+        loadDetectedTweets();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'campaign_utm_events' }, () => {
         loadLeaderboard();
@@ -318,7 +336,7 @@ export default function QuestDetail() {
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-white">Official Links</h2>
-            <span className="text-xs text-white/40">Use the official links below</span>
+            <span className="text-xs text-white/40">Your tracked URLs per link</span>
           </div>
           {copiedLink && (
             <div className="mb-3 text-xs text-teal-300">Link copied to clipboard.</div>
@@ -327,23 +345,63 @@ export default function QuestDetail() {
             <EmptyState icon="🔗" title="No links yet" description="Official links will appear once the quest is configured." />
           ) : (
             <div className="space-y-3">
-              {utmLinks.map((link: any, idx: number) => (
+              {[...utmLinks]
+                .sort((a, b) => (a.linkIndex || 0) - (b.linkIndex || 0))
+                .map((link: any, idx: number) => (
                 <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
                   <div>
-                    <div className="text-sm text-white/80">{link.label || 'Link'}</div>
+                    <div className="text-sm text-white/80">
+                      {link.linkIndex ? `Link ${link.linkIndex}` : 'Link'}{link.label ? ` • ${link.label}` : ''}
+                    </div>
                     <div className="text-xs text-white/40 truncate max-w-[320px]">{link.utmUrl || link.url}</div>
                   </div>
                   <button
-                    onClick={() => handleCopy(link.utmUrl)}
+                    onClick={() => handleCopy(link.utmUrl || link.url)}
                     className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20"
                   >
-                    {copiedLink === link.utmUrl ? 'Copied' : 'Copy Link'}
+                    {copiedLink === (link.utmUrl || link.url) ? 'Copied' : 'Copy Link'}
                   </button>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {mode === 'creator' && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white">Detected on X (not submitted)</h2>
+              <span className="text-xs text-white/40">Only submitted posts count</span>
+            </div>
+            {loadingDetected ? (
+              <div className="text-xs text-white/60">Scanning recent tweets...</div>
+            ) : detectedTweets.length === 0 ? (
+              <p className="text-sm text-white/60">No detected tweets yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {detectedTweets.map((tweet: any) => (
+                  <div key={tweet.tweet_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                    <div className="text-sm text-white/80 line-clamp-2">
+                      {tweet.text || tweet.tweet_url}
+                      <div className="text-xs text-white/40 mt-1">
+                        {tweet.tweet_url || `https://x.com/${tweet.author_handle}/status/${tweet.tweet_id}`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setPlatform('x');
+                        setPostUrl(tweet.tweet_url || `https://x.com/${tweet.author_handle}/status/${tweet.tweet_id}`);
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-lg hover:bg-purple-500/30"
+                    >
+                      Use this tweet
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {mode === 'creator' ? (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
@@ -379,7 +437,13 @@ export default function QuestDetail() {
               <div className="mt-4 space-y-2 text-xs text-white/60">
                 {submissions.map((s: any) => (
                   <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
-                    <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform.toUpperCase()} • {s.status}</span>
+                    <div className="flex flex-col">
+                      <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform.toUpperCase()} • {s.status}</span>
+                      <span className="text-[11px] text-white/40">
+                        {s.used_campaign_link ? 'Tracked link used' : 'No tracked link detected'}
+                        {s.rejected_reason ? ` • ${s.rejected_reason}` : ''}
+                      </span>
+                    </div>
                     <a href={s.post_url} className="text-teal-300">View</a>
                   </div>
                 ))}
@@ -462,7 +526,11 @@ export default function QuestDetail() {
                       {PLATFORMS.map((p) => (
                         <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
                       ))}
+                      <th className="text-right py-2">Submitted</th>
+                      <th className="text-right py-2">Verified X</th>
                       <th className="text-right py-2">Clicks</th>
+                      <th className="text-right py-2">24h</th>
+                      <th className="text-right py-2">1h</th>
                       <th className="text-right py-2">Engagement</th>
                       <th className="text-right py-2">Score</th>
                     </tr>
@@ -477,6 +545,10 @@ export default function QuestDetail() {
                         {PLATFORMS.map((p) => (
                           <td key={p} className="py-3 text-center text-xs text-white/50">—</td>
                         ))}
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
@@ -496,7 +568,11 @@ export default function QuestDetail() {
                     {PLATFORMS.map((p) => (
                       <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
                     ))}
+                    <th className="text-right py-2">Submitted</th>
+                    <th className="text-right py-2">Verified X</th>
                     <th className="text-right py-2">Clicks</th>
+                    <th className="text-right py-2">24h</th>
+                    <th className="text-right py-2">1h</th>
                     <th className="text-right py-2">Engagement</th>
                     <th className="text-right py-2">Score</th>
                   </tr>
@@ -528,7 +604,12 @@ export default function QuestDetail() {
                             ) : (
                               <div className="w-5 h-5 rounded-full bg-white/10 border border-white/10" />
                             )}
-                            <span>@{row.username}</span>
+                            <div className="flex flex-col">
+                              <span>@{row.username}</span>
+                              {!row.hasSubmissions && (
+                                <span className="text-[11px] text-yellow-300">No submissions yet</span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         {PLATFORMS.map((p) => (
@@ -536,7 +617,11 @@ export default function QuestDetail() {
                             {row.platforms?.[p] || 0}
                           </td>
                         ))}
+                        <td className="py-3 text-right">{row.submittedPostsCount || 0}</td>
+                        <td className="py-3 text-right">{row.verifiedXPostsCount || 0}</td>
                         <td className="py-3 text-right">{row.clicks}</td>
+                        <td className="py-3 text-right">{row.last24hClicks || 0}</td>
+                        <td className="py-3 text-right">{row.last1hClicks || 0}</td>
                         <td className="py-3 text-right">{row.engagementScore}</td>
                         <td className="py-3 text-right font-semibold">{row.totalScore}</td>
                       </tr>
