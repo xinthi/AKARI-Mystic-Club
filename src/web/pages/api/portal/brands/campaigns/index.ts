@@ -58,6 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       objectives,
       campaign_type,
       status,
+      launch_status,
       languages,
       start_at,
       end_at,
@@ -65,7 +66,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         id,
         name,
         logo_url,
-        x_handle
+        x_handle,
+        verification_status
       )
     `)
     .order('created_at', { ascending: false });
@@ -142,6 +144,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const memberSet = new Set((memberRows || []).map((m: any) => m.brand_id));
 
   const filtered = (campaigns || []).filter((c: any) => {
+    if (c.launch_status && c.launch_status !== 'approved') return false;
+    const brandProfile = Array.isArray(c.brand_profiles) ? c.brand_profiles[0] : c.brand_profiles;
+    if (brandProfile?.verification_status && brandProfile.verification_status !== 'approved') return false;
     const creatorStatus = creatorMap[c.id]?.status || null;
     if (creatorStatus) return true;
     return c.campaign_type === 'public';
@@ -155,6 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     objectives: c.objectives,
     campaign_type: c.campaign_type,
     status: c.status,
+    launch_status: c.launch_status,
     languages: c.languages || [],
     start_at: c.start_at,
     end_at: c.end_at,

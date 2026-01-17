@@ -37,11 +37,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: campaigns } = await supabase
     .from('brand_campaigns')
-    .select('id, brand_id, name, campaign_type, status, start_at, end_at, brand_profiles (id, name, logo_url, x_handle)')
+    .select('id, brand_id, name, campaign_type, status, launch_status, start_at, end_at, brand_profiles (id, name, logo_url, x_handle, verification_status)')
     .in('brand_id', brandIds);
 
   const now = Date.now();
   const liveCampaigns = (campaigns || []).filter((c: any) => {
+    if (c.launch_status && c.launch_status !== 'approved') return false;
+    const brandProfile = Array.isArray(c.brand_profiles) ? c.brand_profiles[0] : c.brand_profiles;
+    if (brandProfile?.verification_status && brandProfile.verification_status !== 'approved') return false;
     const start = c.start_at ? new Date(c.start_at).getTime() : null;
     const end = c.end_at ? new Date(c.end_at).getTime() : null;
     const hasStarted = start ? start <= now : true;

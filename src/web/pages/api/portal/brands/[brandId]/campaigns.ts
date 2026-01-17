@@ -76,6 +76,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         languages: Array.isArray(languages) ? languages : null,
         start_at: new Date(startAt).toISOString(),
         end_at: new Date(endAt).toISOString(),
+        launch_status: 'pending',
+        launch_requested_at: new Date().toISOString(),
       })
       .select('id, name, pitch, objectives, campaign_type, status, languages, created_at')
       .single();

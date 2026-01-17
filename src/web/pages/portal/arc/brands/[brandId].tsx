@@ -189,6 +189,22 @@ export default function BrandDetail() {
                 <div className="text-sm text-white/60">@{brand.x_handle.replace(/^@+/, '')}</div>
               )}
               {brand.brief_text && <p className="text-sm text-white/60 mt-2">{brand.brief_text}</p>}
+              {brand.verification_status && (
+                <div className="mt-2 inline-flex items-center gap-2 text-xs">
+                  <span className="text-white/50">Verification:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full border ${
+                      brand.verification_status === 'approved'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : brand.verification_status === 'rejected'
+                        ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                        : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                    }`}
+                  >
+                    {brand.verification_status}
+                  </span>
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/50">
                 {brand.website && <span>Website: {brand.website}</span>}
                 {brand.tg_community && <span>Community: {brand.tg_community}</span>}
@@ -441,7 +457,7 @@ export default function BrandDetail() {
                   onClick={handleCreateCampaign}
                   className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 transition-colors"
                 >
-                  Launch Quest
+                  Request Quest Launch
                 </button>
               </div>
             )}
@@ -465,11 +481,12 @@ export default function BrandDetail() {
                     href={`/portal/arc/quests/${campaign.id}`}
                     className="block rounded-xl border border-white/10 bg-black/30 p-5 hover:border-teal-400/40 hover:shadow-[0_0_20px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
                   >
-                    <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Campaign</div>
+                    <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Quest</div>
                     <div className="text-base font-semibold text-white">{campaign.name}</div>
                     {campaign.pitch && <div className="text-xs text-white/60 mt-2 line-clamp-2">{campaign.pitch}</div>}
                     <div className="text-xs text-white/50 mt-3">
                       Type: {campaign.campaign_type} • Status: {campaign.status}
+                      {campaign.launch_status ? ` • Launch: ${campaign.launch_status}` : ''}
                     </div>
                   </Link>
                 ))}

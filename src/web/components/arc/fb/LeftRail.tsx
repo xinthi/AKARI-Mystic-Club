@@ -8,6 +8,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useArcMode } from '@/lib/arc/useArcMode';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin as isSuperAdminRole } from '@/lib/permissions';
 
 interface LeftRailProps {
   canManageArc?: boolean;
@@ -29,6 +31,8 @@ interface NavItem {
 export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperAdmin }: LeftRailProps) {
   const router = useRouter();
   const { mode } = useArcMode();
+  const akariUser = useAkariUser();
+  const userIsSuperAdmin = isSuperAdmin ?? isSuperAdminRole(akariUser.user);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -140,7 +144,30 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
       },
     ];
 
-  const adminItems = [] as Array<any>;
+  const adminItems = userIsSuperAdmin
+    ? [
+        {
+          label: 'Brand Verifications',
+          href: '/portal/arc/superadmin/brands',
+          active: router.pathname.startsWith('/portal/arc/superadmin/brands'),
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m-3-7l7 4v5c0 5-3.5 9-7 10-3.5-1-7-5-7-10V9l7-4z" />
+            </svg>
+          ),
+        },
+        {
+          label: 'Quest Approvals',
+          href: '/portal/arc/superadmin/quests',
+          active: router.pathname.startsWith('/portal/arc/superadmin/quests'),
+          icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h6m-6 4h6m-6 4h6m-6 4h6M7 5h.01M7 9h.01M7 13h.01M7 17h.01" />
+            </svg>
+          ),
+        },
+      ]
+    : [];
 
   return (
     <div className="w-60 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">

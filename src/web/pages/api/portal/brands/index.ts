@@ -74,6 +74,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         brief_text: briefText ? String(briefText).trim() : null,
         logo_url: xProfile.profileImageUrl || null,
         banner_url: null,
+        verification_status: 'pending',
+        verification_requested_at: new Date().toISOString(),
       })
       .select('id, name, x_handle, website, logo_url, banner_url, brief_text')
       .single();

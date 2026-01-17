@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: brand, error: brandError } = await supabase
     .from('brand_profiles')
-    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, created_at')
+    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, created_at, verification_status, verified_at')
     .eq('id', brandId)
     .single();
 
@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: campaigns } = await supabase
     .from('brand_campaigns')
-    .select('id, name, pitch, objectives, campaign_type, status, languages, created_at')
+    .select('id, name, pitch, objectives, campaign_type, status, launch_status, languages, created_at, start_at, end_at')
     .eq('brand_id', brandId)
     .order('created_at', { ascending: false });
 
