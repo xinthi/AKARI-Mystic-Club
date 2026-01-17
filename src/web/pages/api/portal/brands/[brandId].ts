@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: brand, error: brandError } = await supabase
     .from('brand_profiles')
-    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url')
+    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, created_at')
     .eq('id', brandId)
     .single();
 
@@ -42,6 +42,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('brand_id', brandId)
     .order('created_at', { ascending: false });
 
+  const campaignIds = (campaigns || []).map((c: any) => c.id);
+  const [submissionCount, clickCount] = await Promise.all([
+    campaignIds.length
+      ? supabase
+          .from('campaign_submissions')
+          .select('*', { count: 'exact', head: true })
+          .in('campaign_id', campaignIds)
+      : Promise.resolve({ count: 0 }),
+    campaignIds.length
+      ? supabase
+          .from('campaign_utm_events')
+          .select('*', { count: 'exact', head: true })
+          .eq('event_type', 'click')
+          .in('campaign_id', campaignIds)
+      : Promise.resolve({ count: 0 }),
+  ]);
+
   const { count } = await supabase
     .from('brand_members')
     .select('*', { count: 'exact', head: true })
@@ -51,7 +68,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let pendingRequests: any[] = [];
 
   if (isOwner) {
-    const campaignIds = (campaigns || []).map((c: any) => c.id);
     if (campaignIds.length > 0) {
       const { data: pending } = await supabase
         .from('brand_campaign_creators')
@@ -81,5 +97,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     isOwner,
     membersCount: count || 0,
     pendingRequests,
+    analytics: {
+      trackingSince: brand.created_at,
+      totalQuests: campaignIds.length,
+      totalSubmissions: submissionCount.count || 0,
+      totalClicks: clickCount.count || 0,
+    },
   });
 }

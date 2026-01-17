@@ -17,6 +17,7 @@ export default function BrandDetail() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [membersCount, setMembersCount] = useState(0);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -47,6 +48,7 @@ export default function BrandDetail() {
       setIsOwner(!!data.isOwner);
       setMembersCount(Number(data.membersCount || 0));
       setPendingRequests(data.pendingRequests || []);
+      setAnalytics(data.analytics || null);
     } catch (err: any) {
       setError(err.message || 'Failed to load brand');
     } finally {
@@ -168,15 +170,49 @@ export default function BrandDetail() {
                   {(brand.name || 'B').slice(0, 1).toUpperCase()}
                 </div>
               )}
-              <button
-                onClick={handleJoinBrand}
-                className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
-              >
-                Join Brand
-              </button>
+              {!isOwner && (
+                <button
+                  onClick={handleJoinBrand}
+                  className="px-3 py-1.5 text-xs font-medium bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Join Brand
+                </button>
+              )}
+              {isOwner && (
+                <div className="px-3 py-1.5 text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded-lg">
+                  Owner
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {isOwner && analytics && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Live Analytics</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Tracking Since</div>
+                <div className="text-sm text-white">
+                  {analytics.trackingSince ? new Date(analytics.trackingSince).toLocaleDateString() : '—'}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Total Quests</div>
+                <div className="text-2xl font-semibold text-white">{analytics.totalQuests || 0}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Total Submissions</div>
+                <div className="text-2xl font-semibold text-white">{analytics.totalSubmissions || 0}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/30 p-4">
+                <div className="text-xs text-white/40 mb-1">Total Clicks</div>
+                <div className="text-2xl font-semibold text-white">{analytics.totalClicks || 0}</div>
+              </div>
+            </div>
+            <p className="text-xs text-white/40 mt-3">Analytics for discovery only — no rewards.</p>
+          </div>
+        )}
 
         {isOwner && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-4">

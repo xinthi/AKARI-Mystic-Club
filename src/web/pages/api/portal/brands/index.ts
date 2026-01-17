@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { taioGetUserInfo } from '@/server/twitterapiio';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Brand = {
   id: string;
@@ -79,6 +80,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     if (error || !data) {
       return res.status(500).json({ ok: false, error: 'Failed to create brand' });
+    }
+
+    const ownerProfileId = await resolveProfileId(supabase, user.userId);
+    if (ownerProfileId) {
+      await supabase
+        .from('brand_members')
+        .upsert(
+          { brand_id: data.id, profile_id: ownerProfileId },
+          { onConflict: 'brand_id,profile_id' }
+        );
     }
 
     const uploadImage = async (image: string, filePrefix: string) => {
