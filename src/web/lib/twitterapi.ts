@@ -35,6 +35,7 @@ export async function twitterApiGet<T>(
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${API_KEY}`,
+      'X-API-Key': API_KEY,
       'Content-Type': 'application/json',
     },
   });
@@ -46,6 +47,7 @@ export async function twitterApiGet<T>(
     const retryRes = await fetch(url, {
       headers: {
         Authorization: `Bearer ${API_KEY}`,
+        'X-API-Key': API_KEY,
         'Content-Type': 'application/json',
       },
     });
