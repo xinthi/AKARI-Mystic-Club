@@ -141,7 +141,7 @@ export default function QuestDetail() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [questId, loadQuest, loadLeaderboard, loadRequests]);
+  }, [questId, loadQuest, loadLeaderboard, loadRequests, loadDetectedTweets]);
 
   const handleJoinBrand = async () => {
     if (!brand?.id) return;

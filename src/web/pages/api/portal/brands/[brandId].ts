@@ -22,6 +22,7 @@ type Response =
         totalSubmissions: number;
         totalClicks: number;
       };
+      series: Array<{ date: string; clicks: number; submissions: number; verifiedX: number }>;
     }
   | { ok: false; error: string };
 
