@@ -16,6 +16,7 @@ export default function ArcHome() {
   const { mode } = useArcMode();
   const [quests, setQuests] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
+  const [crmAnalytics, setCrmAnalytics] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('public');
@@ -23,7 +24,8 @@ export default function ArcHome() {
   const [showLanguageFilter, setShowLanguageFilter] = useState(false);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
-  const view = typeof router.query.view === 'string' ? router.query.view : 'quests';
+  const viewParam = typeof router.query.view === 'string' ? router.query.view : null;
+  const view = viewParam || (mode === 'crm' ? 'analytics' : 'quests');
 
   const loadCreatorQuests = async () => {
     setLoading(true);
@@ -61,14 +63,37 @@ export default function ArcHome() {
     }
   };
 
+  const loadCrmAnalytics = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/portal/brands/analytics', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load analytics');
+      }
+      setCrmAnalytics(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load analytics');
+      setCrmAnalytics(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (mode === 'creator') {
       loadCreatorQuests();
+      return;
     }
     if (mode === 'crm') {
-      loadCrmBrands();
+      if (view === 'analytics') {
+        loadCrmAnalytics();
+      } else {
+        loadCrmBrands();
+      }
     }
-  }, [mode]);
+  }, [mode, view]);
 
   const availableLanguages = useMemo(() => {
     const all = new Set<string>();
@@ -393,72 +418,149 @@ export default function ArcHome() {
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-2">Brand Hub</h1>
-                <p className="text-white/60">Manage your brands and launch quests.</p>
-              </div>
-              <Link
-                href="/portal/arc/brands?create=1"
-                className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
-              >
-                Create Brand
-              </Link>
-            </div>
+            {view === 'analytics' ? (
+              <>
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-2">Live Analytics</h1>
+                  <p className="text-white/60">Live performance across all active quests.</p>
+                  <p className="text-xs text-white/40 mt-2">Analytics for discovery only. No rewards.</p>
+                </div>
 
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {Array.from({ length: 6 }).map((_, idx) => (
-                  <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
-                    <div className="h-4 w-24 bg-white/10 rounded mb-4" />
-                    <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
-                    <div className="h-3 w-full bg-white/10 rounded mb-2" />
-                    <div className="h-3 w-2/3 bg-white/10 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : error ? (
-              <ErrorState message={error} onRetry={loadCrmBrands} />
-            ) : brands.length === 0 ? (
-              <EmptyState icon="🏷️" title="No brands yet" description="Create a brand profile to launch quests." />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {brands.map((brand) => (
-                  <div key={brand.id} className="rounded-xl border border-white/10 bg-black/40 p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Brand</div>
-                        <h3 className="text-lg font-semibold text-white">{brand.name}</h3>
+                {loading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {Array.from({ length: 6 }).map((_, idx) => (
+                      <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
+                        <div className="h-4 w-24 bg-white/10 rounded mb-4" />
+                        <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
+                        <div className="h-3 w-full bg-white/10 rounded mb-2" />
+                        <div className="h-3 w-2/3 bg-white/10 rounded" />
                       </div>
-                      {brand.logo_url || brand.x_profile_image_url ? (
-                        <img src={brand.logo_url || brand.x_profile_image_url} alt={brand.name} className="w-11 h-11 rounded-full border border-white/10" />
-                      ) : (
-                        <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
-                          {(brand.name || 'B').slice(0, 1).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-white/50">
-                      <span>{brand.membersCount} members</span>
-                      <span>{brand.questsCount} quests</span>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <Link
-                        href={`/portal/arc/brands/${brand.id}?view=analytics`}
-                        className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10"
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={`/portal/arc/brands/${brand.id}?create=1`}
-                        className="px-3 py-1.5 text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
-                      >
-                        Launch Quest
-                      </Link>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : error ? (
+                  <ErrorState message={error} onRetry={loadCrmAnalytics} />
+                ) : !crmAnalytics || crmAnalytics.quests.length === 0 ? (
+                  <EmptyState icon="📊" title="No live quests" description="Live quests will appear here once started." />
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                        <div className="text-xs text-white/40 mb-1">Total Clicks</div>
+                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalClicks || 0}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                        <div className="text-xs text-white/40 mb-1">Total Submissions</div>
+                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalSubmissions || 0}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                        <div className="text-xs text-white/40 mb-1">Verified X</div>
+                        <div className="text-2xl font-semibold text-white">{crmAnalytics.summary?.totalVerifiedX || 0}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {crmAnalytics.quests.map((quest: any) => (
+                        <Link
+                          key={quest.id}
+                          href={`/portal/arc/quests/${quest.id}`}
+                          className="rounded-xl border border-white/10 bg-black/40 p-6 hover:border-teal-400/50 hover:shadow-[0_0_24px_rgba(0,246,162,0.12)] transition-all hover:-translate-y-0.5"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Quest</div>
+                              <h3 className="text-lg font-semibold text-white">{quest.name}</h3>
+                              <div className="text-xs text-white/50">{quest.brand?.name}</div>
+                            </div>
+                            {quest.brand?.logo_url ? (
+                              <img src={quest.brand.logo_url} alt={quest.brand.name} className="w-10 h-10 rounded-full border border-white/10" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                                {(quest.brand?.name || 'B').slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-xs text-white/60">
+                            <div>Clicks: {quest.totalClicks}</div>
+                            <div>24h: {quest.last24hClicks}</div>
+                            <div>Submissions: {quest.totalSubmissions}</div>
+                            <div>Verified X: {quest.verifiedX}</div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold text-white mb-2">Brand Hub</h1>
+                    <p className="text-white/60">Manage your brands and launch quests.</p>
+                  </div>
+                  <Link
+                    href="/portal/arc/brands?create=1"
+                    className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
+                  >
+                    Create Brand
+                  </Link>
+                </div>
+
+                {loading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {Array.from({ length: 6 }).map((_, idx) => (
+                      <div key={idx} className="rounded-xl border border-white/10 bg-black/40 p-6 animate-pulse">
+                        <div className="h-4 w-24 bg-white/10 rounded mb-4" />
+                        <div className="h-6 w-3/4 bg-white/10 rounded mb-3" />
+                        <div className="h-3 w-full bg-white/10 rounded mb-2" />
+                        <div className="h-3 w-2/3 bg-white/10 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : error ? (
+                  <ErrorState message={error} onRetry={loadCrmBrands} />
+                ) : brands.length === 0 ? (
+                  <EmptyState icon="🏷️" title="No brands yet" description="Create a brand profile to launch quests." />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {brands.map((brand) => (
+                      <div key={brand.id} className="rounded-xl border border-white/10 bg-black/40 p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-2">Brand</div>
+                            <h3 className="text-lg font-semibold text-white">{brand.name}</h3>
+                          </div>
+                          {brand.logo_url || brand.x_profile_image_url ? (
+                            <img src={brand.logo_url || brand.x_profile_image_url} alt={brand.name} className="w-11 h-11 rounded-full border border-white/10" />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-sm text-white/60">
+                              {(brand.name || 'B').slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-white/50">
+                          <span>{brand.membersCount} members</span>
+                          <span>{brand.questsCount} quests</span>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <Link
+                            href={`/portal/arc/brands/${brand.id}?view=analytics`}
+                            className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10"
+                          >
+                            View
+                          </Link>
+                          <Link
+                            href={`/portal/arc/brands/${brand.id}?create=1`}
+                            className="px-3 py-1.5 text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30"
+                          >
+                            Launch Quest
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

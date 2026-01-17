@@ -52,8 +52,8 @@ export function LeftRail({ canManageArc, projectSlug, canManageProject, isSuperA
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v18h18M7 15v-4m5 4V8m5 7v-6" />
           </svg>
         ),
-        href: '/portal/arc',
-        active: router.pathname === '/portal/arc',
+        href: '/portal/arc?view=analytics',
+        active: router.pathname === '/portal/arc' && router.asPath.includes('view=analytics'),
       },
       {
         label: 'Brands',
