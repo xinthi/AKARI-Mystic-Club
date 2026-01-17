@@ -21,6 +21,7 @@ export default function BrandDetail() {
   const [membersCount, setMembersCount] = useState(0);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [inviteHandles, setInviteHandles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -131,6 +132,19 @@ export default function BrandDetail() {
     loadBrand();
   };
 
+  const handleInviteCreator = async (campaignId: string) => {
+    const handle = inviteHandles[campaignId] || '';
+    if (!handle.trim()) return;
+    await fetch(`/api/portal/brands/quests/${campaignId}/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username: handle }),
+    });
+    setInviteHandles((prev) => ({ ...prev, [campaignId]: '' }));
+    loadBrand();
+  };
+
   if (loading) {
     return (
       <ArcPageShell>
@@ -214,6 +228,75 @@ export default function BrandDetail() {
               </div>
             </div>
             <p className="text-xs text-white/40 mt-3">Analytics for discovery only. No rewards.</p>
+          </div>
+        )}
+
+        {analyticsView && isOwner && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Join Requests</h2>
+            {pendingRequests.length === 0 ? (
+              <p className="text-sm text-white/60">No pending requests.</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingRequests.map((req) => (
+                  <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                    <div className="text-sm text-white">
+                      @{req.username || 'unknown'} • <span className="text-white/60">{req.campaign_name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRequestUpdate(req.id, 'approved', req.campaign_id)}
+                        className="px-2 py-1 text-xs bg-green-500/20 text-green-300 rounded-lg"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleRequestUpdate(req.id, 'rejected', req.campaign_id)}
+                        className="px-2 py-1 text-xs bg-red-500/20 text-red-300 rounded-lg"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {analyticsView && isOwner && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Invite Creators / KOLs</h2>
+            {campaigns.length === 0 ? (
+              <p className="text-sm text-white/60">Create a quest to invite creators.</p>
+            ) : (
+              <div className="space-y-3">
+                {campaigns.map((campaign) => (
+                  <div key={campaign.id} className="rounded-lg border border-white/10 bg-black/30 p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-white font-semibold">{campaign.name}</div>
+                        <div className="text-xs text-white/50">Type: {campaign.campaign_type} • Status: {campaign.status}</div>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                          value={inviteHandles[campaign.id] || ''}
+                          onChange={(e) => setInviteHandles((prev) => ({ ...prev, [campaign.id]: e.target.value }))}
+                          placeholder="X handle (e.g. @creator)"
+                          className="flex-1 sm:w-56 px-3 py-2 text-xs rounded-lg bg-white/5 border border-white/10 text-white"
+                        />
+                        <button
+                          onClick={() => handleInviteCreator(campaign.id)}
+                          className="px-3 py-2 text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-lg hover:bg-purple-500/30"
+                        >
+                          Invite
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
