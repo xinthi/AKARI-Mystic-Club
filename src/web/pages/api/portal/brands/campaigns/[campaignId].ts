@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { taioGetUserInfo } from '@/server/twitterapiio';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
   | {
@@ -94,6 +95,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .order('display_order', { ascending: true });
 
   const twitterUsername = await getUserTwitterUsername(supabase, user.userId);
+  let profileId = user.profileId;
+  if (!profileId) {
+    profileId = await resolveProfileId(supabase, user.userId);
+  }
 
   const { data: creatorRow } = await supabase
     .from('brand_campaign_creators')
@@ -101,7 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('campaign_id', campaignId)
     .or(
       [
-        user.profileId ? `profile_id.eq.${user.profileId}` : null,
+        profileId ? `profile_id.eq.${profileId}` : null,
         twitterUsername ? `username.eq.${twitterUsername}` : null,
       ]
         .filter(Boolean)
@@ -115,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('brand_id', brand.id)
     .or(
       [
-        user.profileId ? `profile_id.eq.${user.profileId}` : null,
+        profileId ? `profile_id.eq.${profileId}` : null,
         twitterUsername ? `username.eq.${twitterUsername}` : null,
       ]
         .filter(Boolean)
@@ -127,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .from('campaign_submissions')
     .select('id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count')
     .eq('campaign_id', campaignId)
-    .eq('creator_profile_id', user.profileId || '00000000-0000-0000-0000-000000000000')
+    .eq('creator_profile_id', profileId || '00000000-0000-0000-0000-000000000000')
     .order('submitted_at', { ascending: false });
 
   return res.status(200).json({
