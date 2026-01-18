@@ -43,6 +43,7 @@ export default function QuestDetail() {
   const [postUrl, setPostUrl] = useState('');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
+  const [refreshingX, setRefreshingX] = useState(false);
 
   const loadQuest = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
@@ -194,6 +195,22 @@ export default function QuestDetail() {
       loadLeaderboard();
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRefreshX = async () => {
+    if (!questId || typeof questId !== 'string') return;
+    setRefreshingX(true);
+    try {
+      await fetch(`/api/portal/brands/quests/${questId}/refresh-x`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      loadQuest();
+      loadLeaderboard();
+      loadDetectedTweets();
+    } finally {
+      setRefreshingX(false);
     }
   };
 
@@ -458,6 +475,18 @@ export default function QuestDetail() {
             </div>
             {submissions.length > 0 && (
               <div className="mt-4 space-y-2 text-xs text-white/60">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-white/70 font-semibold">My Submissions</p>
+                  {submissions.some((s: any) => String(s.platform).toLowerCase() === 'x') && (
+                    <button
+                      onClick={handleRefreshX}
+                      disabled={refreshingX}
+                      className="px-2.5 py-1 text-[11px] bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/20 disabled:opacity-50"
+                    >
+                      {refreshingX ? 'Refreshing…' : 'Refresh X stats'}
+                    </button>
+                  )}
+                </div>
                 {submissions.map((s: any) => (
                   <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                     <div className="flex flex-col">
