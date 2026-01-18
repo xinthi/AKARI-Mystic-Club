@@ -213,8 +213,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       await supabase
         .from('campaign_submissions')
         .update({
-          status: 'rejected',
-          rejected_reason: 'Tweet not found',
+          status: 'pending',
+          rejected_reason: null,
         })
         .eq('id', row.id);
       refreshed += 1;

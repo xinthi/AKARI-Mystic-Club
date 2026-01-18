@@ -223,8 +223,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     } else {
       const tweet = await twitterApiGetTweetById(tweetId);
       if (!tweet) {
-        status = 'rejected';
-        rejected_reason = 'Tweet not found';
+        // Keep pending so creators can refresh later instead of showing "not found"
+        status = 'pending';
+        rejected_reason = null;
       } else {
         const creatorHandle = await getCreatorHandle(supabase, profileId, user.userId);
         const authorHandle = extractAuthorHandle(tweet);

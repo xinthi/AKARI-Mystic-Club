@@ -409,41 +409,7 @@ export default function QuestDetail() {
           )}
         </div>
 
-        {mode === 'creator' && (
-          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-white">Detected on X (not submitted)</h2>
-              <span className="text-xs text-white/40">Only submitted posts count</span>
-            </div>
-            {loadingDetected ? (
-              <div className="text-xs text-white/60">Scanning recent tweets...</div>
-            ) : detectedTweets.length === 0 ? (
-              <p className="text-sm text-white/60">No detected tweets yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {detectedTweets.map((tweet: any) => (
-                  <div key={tweet.tweet_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
-                    <div className="text-sm text-white/80 line-clamp-2">
-                      {tweet.text || tweet.tweet_url}
-                      <div className="text-xs text-white/40 mt-1">
-                        {tweet.tweet_url || `https://x.com/${tweet.author_handle}/status/${tweet.tweet_id}`}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setPlatform('x');
-                        setPostUrl(tweet.tweet_url || `https://x.com/${tweet.author_handle}/status/${tweet.tweet_id}`);
-                      }}
-                      className="px-3 py-1.5 text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-lg hover:bg-purple-500/30"
-                    >
-                      Use this tweet
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Removed detected tweets helper for cleaner creator UI */}
 
         {mode === 'creator' ? (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
@@ -541,7 +507,7 @@ export default function QuestDetail() {
           </div>
         )}
 
-        {isOwner && (
+        {isOwner && mode === 'crm' && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-white">Pending Requests</h2>
