@@ -44,7 +44,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   if (req.method === 'POST') {
-    const { name, xHandle, website, tgCommunity, tgChannel, briefText, logoImage, bannerImage } = req.body || {};
+    const {
+      name,
+      xHandle,
+      website,
+      tgCommunity,
+      tgChannel,
+      briefText,
+      logoImage,
+      bannerImage,
+      logoUrl,
+      bannerUrl,
+    } = req.body || {};
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ ok: false, error: 'Brand name is required' });
     }
@@ -62,6 +73,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       return res.status(400).json({ ok: false, error: 'X handle not found' });
     }
 
+    const initialLogoUrl = typeof logoUrl === 'string' && logoUrl.trim() ? logoUrl.trim() : null;
+    const initialBannerUrl = typeof bannerUrl === 'string' && bannerUrl.trim() ? bannerUrl.trim() : null;
+
     const { data, error } = await supabase
       .from('brand_profiles')
       .insert({
@@ -72,8 +86,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         tg_community: tgCommunity ? String(tgCommunity).trim() : null,
         tg_channel: tgChannel ? String(tgChannel).trim() : null,
         brief_text: briefText ? String(briefText).trim() : null,
-        logo_url: xProfile.profileImageUrl || null,
-        banner_url: null,
+        logo_url: initialLogoUrl || xProfile.profileImageUrl || null,
+        banner_url: initialBannerUrl || null,
         verification_status: 'pending',
         verification_requested_at: new Date().toISOString(),
       })
@@ -147,10 +161,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const updates: Record<string, string> = {};
     try {
-      if (logoImage) {
+      if (!initialLogoUrl && logoImage) {
         updates.logo_url = await uploadImage(String(logoImage), 'logo');
       }
-      if (bannerImage) {
+      if (!initialBannerUrl && bannerImage) {
         updates.banner_url = await uploadImage(String(bannerImage), 'banner');
       }
     } catch (uploadError: any) {

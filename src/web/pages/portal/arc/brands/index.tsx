@@ -8,6 +8,7 @@ import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
+import { createPortalClient } from '@/lib/portal/supabase';
 
 interface Brand {
   id: string;
@@ -32,8 +33,9 @@ export default function BrandsHome() {
     tgChannel: '',
     briefText: '',
   });
-  const [logoImage, setLogoImage] = useState<string | null>(null);
-  const [bannerImage, setBannerImage] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const loadBrands = async () => {
     setLoading(true);
@@ -72,8 +74,8 @@ export default function BrandsHome() {
         credentials: 'include',
         body: JSON.stringify({
           ...form,
-          logoImage,
-          bannerImage,
+          logoUrl,
+          bannerUrl,
         }),
       });
       const data = await res.json();
@@ -89,22 +91,33 @@ export default function BrandsHome() {
         tgChannel: '',
         briefText: '',
       });
-      setLogoImage(null);
-      setBannerImage(null);
+      setLogoUrl(null);
+      setBannerUrl(null);
       loadBrands();
     } catch (err: any) {
       setError(err.message || 'Failed to create brand');
     }
   };
 
-  const readImage = (file: File, onLoad: (result: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onLoad(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+  const uploadImage = async (file: File, prefix: 'logo' | 'banner') => {
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size exceeds 10MB limit');
+    }
+    await fetch('/api/portal/brands/storage/ensure', { credentials: 'include' });
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'png';
+    const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
+    const filePath = `brand-assets/${fileName}`;
+    const supabase = createPortalClient();
+    const { error: uploadError } = await supabase.storage.from('brand-assets').upload(filePath, file, {
+      contentType: file.type || `image/${safeExt}`,
+      upsert: false,
+    });
+    if (uploadError) {
+      throw new Error(uploadError.message || 'Failed to upload image');
+    }
+    const { data } = supabase.storage.from('brand-assets').getPublicUrl(filePath);
+    return data.publicUrl;
   };
 
   return (
@@ -150,7 +163,11 @@ export default function BrandsHome() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      readImage(file, setLogoImage);
+                      setUploading(true);
+                      uploadImage(file, 'logo')
+                        .then((url) => setLogoUrl(url))
+                        .catch((err: any) => setError(err.message || 'Failed to upload logo'))
+                        .finally(() => setUploading(false));
                     }
                   }}
                 />
@@ -164,7 +181,11 @@ export default function BrandsHome() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      readImage(file, setBannerImage);
+                      setUploading(true);
+                      uploadImage(file, 'banner')
+                        .then((url) => setBannerUrl(url))
+                        .catch((err: any) => setError(err.message || 'Failed to upload banner'))
+                        .finally(() => setUploading(false));
                     }
                   }}
                 />
@@ -180,10 +201,10 @@ export default function BrandsHome() {
             <div className="flex justify-end">
               <button
                 onClick={handleCreate}
-                disabled={!form.name.trim() || !form.xHandle.trim()}
+                disabled={!form.name.trim() || !form.xHandle.trim() || uploading}
                 className="px-4 py-2 text-sm font-medium bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Brand
+                {uploading ? 'Uploading...' : 'Create Brand'}
               </button>
             </div>
           </div>
