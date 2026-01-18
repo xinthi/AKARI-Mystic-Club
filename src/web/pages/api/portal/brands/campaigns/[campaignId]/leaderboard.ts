@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: submissions } = await supabase
     .from('campaign_submissions')
-    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link')
+    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link, like_count, reply_count, repost_count, view_count')
     .eq('campaign_id', campaignId);
 
   const { data: events } = await supabase
@@ -53,6 +53,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         submittedPostsCount: 0,
         verifiedXPostsCount: 0,
         usedCampaignLinkCount: 0,
+        xLikes: 0,
+        xReplies: 0,
+        xReposts: 0,
+        xViews: 0,
       };
     }
     acc[creatorId].engagementScore += Number(row.engagement_score || 0);
@@ -61,6 +65,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     acc[creatorId].submittedPostsCount += 1;
     if (platform === 'x' && row.verified_at) {
       acc[creatorId].verifiedXPostsCount += 1;
+      acc[creatorId].xLikes += Number(row.like_count || 0);
+      acc[creatorId].xReplies += Number(row.reply_count || 0);
+      acc[creatorId].xReposts += Number(row.repost_count || 0);
+      acc[creatorId].xViews += Number(row.view_count || 0);
     }
     if (row.used_campaign_link) {
       acc[creatorId].usedCampaignLinkCount += 1;
@@ -112,6 +120,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const submittedPostsCount = submissionAgg[creatorId]?.submittedPostsCount || 0;
     const verifiedXPostsCount = submissionAgg[creatorId]?.verifiedXPostsCount || 0;
     const usedCampaignLinkCount = submissionAgg[creatorId]?.usedCampaignLinkCount || 0;
+    const xLikes = submissionAgg[creatorId]?.xLikes || 0;
+    const xReplies = submissionAgg[creatorId]?.xReplies || 0;
+    const xReposts = submissionAgg[creatorId]?.xReposts || 0;
+    const xViews = submissionAgg[creatorId]?.xViews || 0;
     const totalScore = clicks + engagementScore;
     return {
       creator_profile_id: creatorId,
@@ -126,6 +138,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       clicks,
       last24hClicks,
       last1hClicks,
+      xLikes,
+      xReplies,
+      xReposts,
+      xViews,
       hasSubmissions: submittedPostsCount > 0,
       totalScore,
     };

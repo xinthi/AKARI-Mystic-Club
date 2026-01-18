@@ -641,10 +641,13 @@ export default function QuestDetail() {
                     ))}
                     <th className="text-right py-2">Submitted</th>
                     <th className="text-right py-2">Verified X</th>
-                    <th className="text-right py-2">Clicks</th>
+                    <th className="text-right py-2">X Likes</th>
+                    <th className="text-right py-2">X Replies</th>
+                    <th className="text-right py-2">X Reposts</th>
+                    <th className="text-right py-2">X Views</th>
+                    <th className="text-right py-2">Link Clicks</th>
                     <th className="text-right py-2">24h</th>
                     <th className="text-right py-2">1h</th>
-                    <th className="text-right py-2">Engagement</th>
                     <th className="text-right py-2">Score</th>
                   </tr>
                 </thead>
@@ -670,11 +673,6 @@ export default function QuestDetail() {
                             ) : (
                               <div className="w-6 h-6 rounded-full bg-white/10" />
                             )}
-                            {brand.logo_url ? (
-                              <img src={brand.logo_url} alt={brand.name} className="w-5 h-5 rounded-full border border-white/10" />
-                            ) : (
-                              <div className="w-5 h-5 rounded-full bg-white/10 border border-white/10" />
-                            )}
                             <div className="flex flex-col">
                               <span>@{row.username}</span>
                               {!row.hasSubmissions && (
@@ -690,10 +688,13 @@ export default function QuestDetail() {
                         ))}
                         <td className="py-3 text-right">{row.submittedPostsCount || 0}</td>
                         <td className="py-3 text-right">{row.verifiedXPostsCount || 0}</td>
+                        <td className="py-3 text-right">{row.xLikes || 0}</td>
+                        <td className="py-3 text-right">{row.xReplies || 0}</td>
+                        <td className="py-3 text-right">{row.xReposts || 0}</td>
+                        <td className="py-3 text-right">{row.xViews || 0}</td>
                         <td className="py-3 text-right">{row.clicks}</td>
                         <td className="py-3 text-right">{row.last24hClicks || 0}</td>
                         <td className="py-3 text-right">{row.last1hClicks || 0}</td>
-                        <td className="py-3 text-right">{row.engagementScore}</td>
                         <td className="py-3 text-right font-semibold">{row.totalScore}</td>
                       </tr>
                     );
