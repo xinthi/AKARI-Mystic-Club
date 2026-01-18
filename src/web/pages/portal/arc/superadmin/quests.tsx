@@ -42,6 +42,16 @@ export default function SuperAdminQuests() {
     load();
   };
 
+  const updateQuestState = async (questId: string, status: string) => {
+    await fetch(`/api/portal/brands/quests/${questId}/state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status }),
+    });
+    load();
+  };
+
   if (!canAccess) {
     return (
       <ArcPageShell hideRightRail>
@@ -99,6 +109,31 @@ export default function SuperAdminQuests() {
                     Reject
                   </button>
                 </div>
+                {quest.launch_status === 'approved' && quest.status !== 'ended' && (
+                  <div className="flex gap-2 mt-3">
+                    {quest.status === 'active' ? (
+                      <button
+                        onClick={() => updateQuestState(quest.id, 'paused')}
+                        className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-300 rounded-lg"
+                      >
+                        Pause
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => updateQuestState(quest.id, 'active')}
+                        className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-300 rounded-lg"
+                      >
+                        Resume
+                      </button>
+                    )}
+                    <button
+                      onClick={() => updateQuestState(quest.id, 'ended')}
+                      className="px-2 py-1 text-xs bg-red-500/20 text-red-300 rounded-lg"
+                    >
+                      End
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

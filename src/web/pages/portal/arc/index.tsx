@@ -98,6 +98,7 @@ export default function ArcHome() {
     return filteredQuests.filter((quest) => {
       const start = quest.start_at ? new Date(quest.start_at).getTime() : null;
       const end = quest.end_at ? new Date(quest.end_at).getTime() : null;
+      if (!start || !end) return false;
       const hasStarted = start ? start <= now : true;
       const notEnded = end ? end >= now : true;
       return hasStarted && notEnded;

@@ -164,6 +164,16 @@ export default function BrandDetail() {
     loadBrand();
   };
 
+  const handleQuestState = async (campaignId: string, nextStatus: 'paused' | 'ended' | 'active') => {
+    await fetch(`/api/portal/brands/quests/${campaignId}/state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    loadBrand();
+  };
+
   if (loading) {
     return (
       <ArcPageShell>
@@ -549,6 +559,40 @@ export default function BrandDetail() {
                       Type: {campaign.campaign_type} • Status: {campaign.status}
                       {campaign.launch_status ? ` • Launch: ${campaign.launch_status}` : ''}
                     </div>
+                    {isOwner && campaign.status !== 'ended' && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {campaign.status === 'active' ? (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleQuestState(campaign.id, 'paused');
+                            }}
+                            className="px-2.5 py-1 text-[11px] bg-yellow-500/20 text-yellow-300 rounded-lg"
+                          >
+                            Pause
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleQuestState(campaign.id, 'active');
+                            }}
+                            className="px-2.5 py-1 text-[11px] bg-emerald-500/20 text-emerald-300 rounded-lg"
+                          >
+                            Resume
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleQuestState(campaign.id, 'ended');
+                          }}
+                          className="px-2.5 py-1 text-[11px] bg-red-500/20 text-red-300 rounded-lg"
+                        >
+                          End
+                        </button>
+                      </div>
+                    )}
                   </Link>
                 ))}
               </div>

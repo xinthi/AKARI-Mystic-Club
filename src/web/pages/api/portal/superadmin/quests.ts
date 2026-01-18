@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const { data, error } = await supabase
       .from('brand_campaigns')
       .select(
-        'id, name, brand_id, campaign_type, start_at, end_at, launch_status, launch_requested_at, brand_profiles (id, name, logo_url, x_handle)'
+        'id, name, brand_id, campaign_type, status, start_at, end_at, launch_status, launch_requested_at, brand_profiles (id, name, logo_url, x_handle)'
       )
       .neq('launch_status', 'approved')
       .order('launch_requested_at', { ascending: true });

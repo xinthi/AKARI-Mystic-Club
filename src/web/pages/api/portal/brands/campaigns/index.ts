@@ -147,6 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (c.launch_status && c.launch_status !== 'approved') return false;
     const brandProfile = Array.isArray(c.brand_profiles) ? c.brand_profiles[0] : c.brand_profiles;
     if (brandProfile?.verification_status && brandProfile.verification_status !== 'approved') return false;
+    if (!c.start_at || !c.end_at) return false;
     const creatorStatus = creatorMap[c.id]?.status || null;
     if (creatorStatus) return true;
     return c.campaign_type === 'public';

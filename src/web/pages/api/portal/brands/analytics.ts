@@ -47,6 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (brandProfile?.verification_status && brandProfile.verification_status !== 'approved') return false;
     const start = c.start_at ? new Date(c.start_at).getTime() : null;
     const end = c.end_at ? new Date(c.end_at).getTime() : null;
+    if (!start || !end) return false;
     const hasStarted = start ? start <= now : true;
     const notEnded = end ? end >= now : true;
     return hasStarted && notEnded;
