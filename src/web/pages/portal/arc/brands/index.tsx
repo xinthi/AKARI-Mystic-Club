@@ -8,7 +8,6 @@ import { useRouter } from 'next/router';
 import { ArcPageShell } from '@/components/arc/fb/ArcPageShell';
 import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
-import { createPortalClient } from '@/lib/portal/supabase';
 
 interface Brand {
   id: string;
@@ -108,16 +107,25 @@ export default function BrandsHome() {
     const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'png';
     const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
     const filePath = `brand-assets/${fileName}`;
-    const supabase = createPortalClient();
-    const { error: uploadError } = await supabase.storage.from('brand-assets').upload(filePath, file, {
-      contentType: file.type || `image/${safeExt}`,
-      upsert: false,
+    const signRes = await fetch('/api/portal/brands/storage/signed-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ path: filePath }),
     });
-    if (uploadError) {
-      throw new Error(uploadError.message || 'Failed to upload image');
+    const signData = await signRes.json();
+    if (!signRes.ok || !signData.ok) {
+      throw new Error(signData.error || 'Failed to prepare upload');
     }
-    const { data } = supabase.storage.from('brand-assets').getPublicUrl(filePath);
-    return data.publicUrl;
+    const putRes = await fetch(signData.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || `image/${safeExt}` },
+      body: file,
+    });
+    if (!putRes.ok) {
+      throw new Error('Failed to upload image');
+    }
+    return signData.publicUrl;
   };
 
   return (
