@@ -137,7 +137,11 @@ function findMatchingUtmLink(
         const parsed = new URL(raw);
         const hasRedirect = parsed.pathname.includes(redirectPath);
         const content = parsed.searchParams.get('utm_content') || parsed.searchParams.get('linkId');
+        const utmLinkId = parsed.searchParams.get('utmLinkId');
         const campaign = parsed.searchParams.get('utm_campaign') || parsed.searchParams.get('campaignId');
+        if (utmLinkId && utmLinkId === link.id) {
+          return { matched: true, matchedId: link.id };
+        }
         if (hasRedirect && content && content === linkId) {
           return { matched: true, matchedId: link.id };
         }
