@@ -42,6 +42,7 @@ export default function QuestDetail() {
   const [platform, setPlatform] = useState<typeof PLATFORMS[number]>('x');
   const [postUrl, setPostUrl] = useState('');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [origin, setOrigin] = useState('');
 
   const loadQuest = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
@@ -119,6 +120,12 @@ export default function QuestDetail() {
       loadDetectedTweets();
     }
   }, [questId, loadUtmLinks, loadLeaderboard, loadRequests, loadDetectedTweets]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   useEffect(() => {
     if (!questId || typeof questId !== 'string') return;
@@ -347,22 +354,26 @@ export default function QuestDetail() {
             <div className="space-y-3">
               {[...utmLinks]
                 .sort((a, b) => (a.linkIndex || 0) - (b.linkIndex || 0))
-                .map((link: any, idx: number) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
-                  <div>
-                    <div className="text-sm text-white/80">
-                      {link.linkIndex ? `Link ${link.linkIndex}` : 'Link'}{link.label ? ` • ${link.label}` : ''}
+                .map((link: any, idx: number) => {
+                  const rawUrl = link.utmUrl || link.url;
+                  const fullUrl = origin && rawUrl?.startsWith('/') ? `${origin}${rawUrl}` : rawUrl;
+                  return (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                      <div>
+                        <div className="text-sm text-white/80">
+                          {link.linkIndex ? `Link ${link.linkIndex}` : 'Link'}{link.label ? ` • ${link.label}` : ''}
+                        </div>
+                        <div className="text-xs text-white/40 truncate max-w-[320px]">{fullUrl}</div>
+                      </div>
+                      <button
+                        onClick={() => handleCopy(fullUrl || rawUrl)}
+                        className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20"
+                      >
+                        {copiedLink === (fullUrl || rawUrl) ? 'Copied' : 'Copy Link'}
+                      </button>
                     </div>
-                    <div className="text-xs text-white/40 truncate max-w-[320px]">{link.utmUrl || link.url}</div>
-                  </div>
-                  <button
-                    onClick={() => handleCopy(link.utmUrl || link.url)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20"
-                  >
-                    {copiedLink === (link.utmUrl || link.url) ? 'Copied' : 'Copy Link'}
-                  </button>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>
