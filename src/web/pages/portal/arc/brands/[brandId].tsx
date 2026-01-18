@@ -126,7 +126,6 @@ export default function BrandDetail() {
       credentials: 'include',
       body: JSON.stringify({
         name: campaignForm.name.trim(),
-        pitch: campaignForm.pitch.trim(),
         objectives: campaignForm.objectives.trim(),
         campaignType: campaignForm.campaignType,
         languages,
@@ -143,16 +142,16 @@ export default function BrandDetail() {
     }
     setShowCreate(false);
     setCampaignError(null);
-    setCampaignForm({
-      name: '',
-      pitch: '',
-      objectives: '',
-      campaignType: 'public',
-      languages: '',
-      startAt: '',
-      endAt: '',
-      links: [{ label: '', url: '', linkIndex: 1 }],
-    });
+      setCampaignForm({
+        name: '',
+        pitch: '',
+        objectives: '',
+        campaignType: 'public',
+        languages: '',
+        startAt: '',
+        endAt: '',
+        links: [{ label: '', url: '', linkIndex: 1 }],
+      });
     loadBrand();
   };
 
@@ -626,13 +625,6 @@ export default function BrandDetail() {
                   value={campaignForm.name}
                   onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
                   placeholder="Quest name"
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
-                />
-                <textarea
-                  value={campaignForm.pitch}
-                  onChange={(e) => setCampaignForm({ ...campaignForm, pitch: e.target.value })}
-                  placeholder="Pitch/overview"
-                  rows={3}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
                 />
                 <textarea
