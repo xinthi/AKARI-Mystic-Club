@@ -258,6 +258,11 @@ export default function QuestDetail() {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-gradient-to-br from-black/60 to-black/30 backdrop-blur-sm p-6">
+          {brand.banner_url && (
+            <div className="mb-4 overflow-hidden rounded-xl border border-white/10">
+              <img src={brand.banner_url} alt={`${brand.name} banner`} className="w-full h-36 object-cover" />
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div className="flex-1">
               <div className="text-xs uppercase tracking-wider text-white/40 mb-2">{brand.name}</div>
@@ -272,7 +277,7 @@ export default function QuestDetail() {
                   </span>
                 )}
               </div>
-              {quest.pitch && <p className="text-sm text-white/70 mt-3">{quest.pitch}</p>}
+              {brand.brief_text && <p className="text-sm text-white/70 mt-3">{brand.brief_text}</p>}
               {quest.start_at || quest.end_at ? (
                 <div className="mt-3 text-sm text-white/50">
                   {quest.start_at ? new Date(quest.start_at).toLocaleDateString() : 'Now'} — {quest.end_at ? new Date(quest.end_at).toLocaleDateString() : 'Ongoing'}
@@ -330,6 +335,13 @@ export default function QuestDetail() {
             <div className="text-2xl font-semibold text-white">{totals.engagementRate.toFixed(1)}%</div>
           </div>
         </div>
+
+        {quest.objectives && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <h2 className="text-lg font-semibold text-white mb-3">Quest Objectives</h2>
+            <p className="text-sm text-white/70 whitespace-pre-wrap">{quest.objectives}</p>
+          </div>
+        )}
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Quest Guidelines</h2>
