@@ -67,11 +67,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }, {});
 
   const pendingMap = new Map<string, string>();
+  const updateGeneratedUrls: Array<{ id: string; generated_url: string }> = [];
 
   const result = linkRows.map((link) => {
     const base = link.url;
     const existingEntry = existingMap[String(link.id)];
     let utmUrl = existingEntry?.url || '';
+    if (!utmUrl && existingEntry?.id) {
+      utmUrl = `/api/portal/utm/redirect?utmLinkId=${existingEntry.id}`;
+      updateGeneratedUrls.push({ id: existingEntry.id, generated_url: utmUrl });
+    }
     if (!utmUrl) {
       const utmLinkId = randomUUID();
       pendingMap.set(String(link.id), utmLinkId);
@@ -108,6 +113,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     await supabase
       .from('campaign_utm_links')
       .upsert(toInsert, { onConflict: 'campaign_id,creator_profile_id,utm_content' });
+  }
+
+  if (updateGeneratedUrls.length > 0) {
+    for (const row of updateGeneratedUrls) {
+      await supabase
+        .from('campaign_utm_links')
+        .update({ generated_url: row.generated_url })
+        .eq('id', row.id);
+    }
   }
 
   return res.status(200).json({ ok: true, links: result });
