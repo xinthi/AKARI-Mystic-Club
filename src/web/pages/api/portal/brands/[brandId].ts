@@ -2,11 +2,14 @@
  * API Route: /api/portal/brands/[brandId]
  *
  * GET: Brand details + campaigns
+ * PATCH: Update brand (owner only)
+ * DELETE: Delete brand (owner only)
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
+import { taioGetUserInfo } from '@/server/twitterapiio';
 
 type Response =
   | {
@@ -36,13 +39,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: 'brandId is required' });
   }
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
-  }
-
   const { data: brand, error: brandError } = await supabase
     .from('brand_profiles')
-    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, created_at, verification_status, verified_at')
+    .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, banner_url, created_at, verification_status, verified_at')
     .eq('id', brandId)
     .single();
 
