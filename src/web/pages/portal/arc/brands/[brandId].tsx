@@ -285,6 +285,11 @@ export default function BrandDetail() {
     <ArcPageShell>
       <div className="space-y-6">
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+          {brand.banner_url && (
+            <div className="mb-4 overflow-hidden rounded-xl border border-white/10">
+              <img src={brand.banner_url} alt={`${brand.name} banner`} className="w-full h-36 object-cover" />
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-white">{brand.name}</h1>

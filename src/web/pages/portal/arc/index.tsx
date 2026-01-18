@@ -16,6 +16,7 @@ export default function ArcHome() {
   const { mode } = useArcMode();
   const [quests, setQuests] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
+  const [creatorBrands, setCreatorBrands] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('public');
@@ -44,6 +45,24 @@ export default function ArcHome() {
     }
   };
 
+  const loadCreatorBrands = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/portal/brands/approved', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to load brands');
+      }
+      setCreatorBrands(data.brands || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load brands');
+      setCreatorBrands([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadCrmBrands = async () => {
     setLoading(true);
     setError(null);
@@ -65,7 +84,11 @@ export default function ArcHome() {
 
   useEffect(() => {
     if (mode === 'creator') {
-      loadCreatorQuests();
+      if (view === 'brands') {
+        loadCreatorBrands();
+      } else {
+        loadCreatorQuests();
+      }
       return;
     }
     if (mode === 'crm') {
@@ -108,16 +131,6 @@ export default function ArcHome() {
   const livePublicQuests = useMemo(() => {
     return liveQuests.filter((quest) => quest.campaign_type === 'public');
   }, [liveQuests]);
-
-  const liveBrands = useMemo(() => {
-    const map = new Map<string, any>();
-    livePublicQuests.forEach((quest) => {
-      if (quest.brand?.id && !map.has(quest.brand.id)) {
-        map.set(quest.brand.id, quest.brand);
-      }
-    });
-    return Array.from(map.values());
-  }, [livePublicQuests]);
 
   const myRequests = useMemo(() => {
     return quests.filter((quest) => quest.creatorStatus === 'pending' || quest.creatorStatus === 'invited');
@@ -263,11 +276,11 @@ export default function ArcHome() {
             ) : error ? (
               <ErrorState message={error} onRetry={loadCreatorQuests} />
             ) : view === 'brands' ? (
-              liveBrands.length === 0 ? (
-                <EmptyState icon="🏷️" title="No live brands yet" description="Brands with live public quests will appear here." />
+              creatorBrands.length === 0 ? (
+                <EmptyState icon="🏷️" title="No approved brands yet" description="Approved brands will appear here." />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {liveBrands.map((brand) => (
+                  {creatorBrands.map((brand) => (
                     <Link
                       key={brand.id}
                       href={`/portal/arc/brands/${brand.id}`}
@@ -289,7 +302,7 @@ export default function ArcHome() {
                           </div>
                         )}
                       </div>
-                      <div className="text-xs text-white/60">Live public quests available</div>
+                      {brand.brief_text && <div className="text-xs text-white/60 line-clamp-2">{brand.brief_text}</div>}
                     </Link>
                   ))}
                 </div>
