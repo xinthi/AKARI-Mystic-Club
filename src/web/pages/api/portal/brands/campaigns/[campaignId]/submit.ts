@@ -260,6 +260,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         }
       }
     }
+  } else {
+    status = 'approved';
   }
 
   const { error } = await supabase
