@@ -67,10 +67,20 @@ export async function twitterApiGet<T>(
 }
 
 export async function twitterApiGetTweetById(tweetId: string): Promise<any | null> {
-  try {
-    const data = await twitterApiGet<any>('/twitter/tweet/info', { tweetId });
-    return data || null;
-  } catch (err) {
-    return null;
+  const attempts = [
+    { tweetId },
+    { tweet_id: tweetId },
+    { id: tweetId },
+  ];
+
+  for (const params of attempts) {
+    try {
+      const data = await twitterApiGet<any>('/twitter/tweet/info', params);
+      if (data) return data;
+    } catch {
+      // try next param shape
+    }
   }
+
+  return null;
 }
