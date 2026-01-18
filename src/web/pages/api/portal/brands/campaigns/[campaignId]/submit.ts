@@ -52,6 +52,51 @@ function extractTweetUrls(tweet: any): string[] {
   return [];
 }
 
+function extractTweetMetrics(tweet: any): {
+  likeCount: number;
+  replyCount: number;
+  repostCount: number;
+  viewCount: number;
+} {
+  const data = tweet?.data || tweet?.tweet || tweet?.result || tweet;
+  const metrics =
+    data?.public_metrics ||
+    data?.metrics ||
+    data?.publicMetrics ||
+    null;
+
+  const likeCount = Number(
+    metrics?.like_count ??
+      metrics?.likes ??
+      data?.favorite_count ??
+      data?.likes ??
+      0
+  );
+  const replyCount = Number(
+    metrics?.reply_count ??
+      metrics?.replies ??
+      data?.reply_count ??
+      data?.replies ??
+      0
+  );
+  const repostCount = Number(
+    metrics?.retweet_count ??
+      metrics?.retweets ??
+      data?.retweet_count ??
+      data?.retweets ??
+      0
+  );
+  const viewCount = Number(
+    metrics?.impression_count ??
+      metrics?.views ??
+      data?.view_count ??
+      data?.views ??
+      0
+  );
+
+  return { likeCount, replyCount, repostCount, viewCount };
+}
+
 async function getCreatorHandle(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   profileId: string,
@@ -190,14 +235,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           status = 'verified';
           verified_at = new Date().toISOString();
           x_tweet_id = tweetId;
-          const metrics = tweet?.data?.public_metrics || tweet?.public_metrics || tweet?.metrics || null;
-          if (metrics) {
-            like_count = Number(metrics.like_count ?? metrics.likes ?? 0);
-            reply_count = Number(metrics.reply_count ?? metrics.replies ?? 0);
-            repost_count = Number(metrics.retweet_count ?? metrics.retweets ?? 0);
-            view_count = Number(metrics.impression_count ?? metrics.views ?? 0);
-            engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
-          }
+          const metrics = extractTweetMetrics(tweet);
+          like_count = metrics.likeCount;
+          reply_count = metrics.replyCount;
+          repost_count = metrics.repostCount;
+          view_count = metrics.viewCount;
+          engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
 
           const { data: utmLinks } = await supabase
             .from('campaign_utm_links')
