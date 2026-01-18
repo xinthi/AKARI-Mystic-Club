@@ -351,6 +351,9 @@ export default function QuestDetail() {
             <div className="text-2xl font-semibold text-white">{totals.engagementRate.toFixed(1)}%</div>
           </div>
         </div>
+        <div className="text-xs text-white/40">
+          Clicks are tracked from shared links and may update even if a post is not verified yet.
+        </div>
 
         {quest.objectives && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">
@@ -490,8 +493,8 @@ export default function QuestDetail() {
                   const platformKey = String(s.platform || '').toLowerCase();
                   const isX = platformKey === 'x';
                   const statusLabel = s.status === 'approved' ? 'approved' : s.status;
-                  let trackingLabel = 'Tracking check not available';
-                  if (isX) {
+                  let trackingLabel = '';
+                  if (isX && !s.rejected_reason?.toLowerCase().includes('tweet not found')) {
                     trackingLabel = s.used_campaign_link ? 'Tracked link used' : 'Tracked link not detected';
                   }
                   let postLabel = 'Post received';
@@ -506,7 +509,8 @@ export default function QuestDetail() {
                       <div className="flex flex-col">
                         <span>{PLATFORM_ICONS[s.platform] || '🔗'} {String(s.platform).toUpperCase()} • {statusLabel}</span>
                         <span className="text-[11px] text-white/40">
-                          {postLabel}{isX ? ` • ${trackingLabel}` : ''}
+                          {postLabel}
+                          {trackingLabel ? ` • ${trackingLabel}` : ''}
                           {s.rejected_reason ? ` • ${s.rejected_reason}` : ''}
                         </span>
                       </div>
