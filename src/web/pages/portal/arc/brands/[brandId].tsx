@@ -38,6 +38,19 @@ export default function BrandDetail() {
     links: [{ label: '', url: '', linkIndex: 1 }],
   });
   const [campaignError, setCampaignError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    xHandle: '',
+    website: '',
+    tgCommunity: '',
+    tgChannel: '',
+    briefText: '',
+    logoUrl: '',
+    bannerUrl: '',
+  });
 
   const loadBrand = useCallback(async () => {
     if (!brandId || typeof brandId !== 'string') return;
@@ -56,6 +69,16 @@ export default function BrandDetail() {
       setPendingRequests(data.pendingRequests || []);
       setAnalytics(data.analytics || null);
       setSeries(data.series || []);
+      setEditForm({
+        name: data.brand?.name || '',
+        xHandle: data.brand?.x_handle ? `@${data.brand.x_handle.replace(/^@+/, '')}` : '',
+        website: data.brand?.website || '',
+        tgCommunity: data.brand?.tg_community || '',
+        tgChannel: data.brand?.tg_channel || '',
+        briefText: data.brand?.brief_text || '',
+        logoUrl: data.brand?.logo_url || '',
+        bannerUrl: data.brand?.banner_url || '',
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to load brand');
     } finally {
@@ -174,6 +197,74 @@ export default function BrandDetail() {
     loadBrand();
   };
 
+  const uploadImage = async (file: File, prefix: 'logo' | 'banner') => {
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size exceeds 10MB limit');
+    }
+    await fetch('/api/portal/brands/storage/ensure', { credentials: 'include' });
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'png';
+    const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
+    const filePath = `brand-assets/${fileName}`;
+    const signRes = await fetch('/api/portal/brands/storage/signed-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ path: filePath }),
+    });
+    const signData = await signRes.json();
+    if (!signRes.ok || !signData.ok) {
+      throw new Error(signData.error || 'Failed to prepare upload');
+    }
+    const putRes = await fetch(signData.signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || `image/${safeExt}` },
+      body: file,
+    });
+    if (!putRes.ok) {
+      throw new Error('Failed to upload image');
+    }
+    return signData.publicUrl as string;
+  };
+
+  const handleSaveBrand = async () => {
+    if (!brandId || typeof brandId !== 'string') return;
+    setSavingBrand(true);
+    try {
+      const res = await fetch(`/api/portal/brands/${brandId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to update brand');
+      }
+      setEditMode(false);
+      loadBrand();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update brand');
+    } finally {
+      setSavingBrand(false);
+    }
+  };
+
+  const handleDeleteBrand = async () => {
+    if (!brandId || typeof brandId !== 'string') return;
+    if (!window.confirm('Delete this brand? This will remove all quests and data.')) return;
+    const res = await fetch(`/api/portal/brands/${brandId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setError(data.error || 'Failed to delete brand');
+      return;
+    }
+    router.push('/portal/arc/brands');
+  };
+
   if (loading) {
     return (
       <ArcPageShell>
@@ -248,6 +339,118 @@ export default function BrandDetail() {
             </div>
           </div>
         </div>
+
+        {isOwner && (
+          <div className="rounded-xl border border-white/10 bg-black/40 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Brand Settings</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditMode((prev) => !prev)}
+                  className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/80 rounded-lg hover:bg-white/10"
+                >
+                  {editMode ? 'Close' : 'Edit'}
+                </button>
+                <button
+                  onClick={handleDeleteBrand}
+                  className="px-3 py-1.5 text-xs font-semibold bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg hover:bg-red-500/30"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+            {editMode && (
+              <div className="space-y-3">
+                <input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Brand name"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                />
+                <input
+                  value={editForm.xHandle}
+                  onChange={(e) => setEditForm({ ...editForm, xHandle: e.target.value })}
+                  placeholder="X handle"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                />
+                <input
+                  value={editForm.website}
+                  onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                  placeholder="Website"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    value={editForm.tgCommunity}
+                    onChange={(e) => setEditForm({ ...editForm, tgCommunity: e.target.value })}
+                    placeholder="Telegram community"
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                  <input
+                    value={editForm.tgChannel}
+                    onChange={(e) => setEditForm({ ...editForm, tgChannel: e.target.value })}
+                    placeholder="Telegram channel"
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="text-xs text-white/60">
+                    Logo Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-2 w-full text-xs text-white/70"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploading(true);
+                          uploadImage(file, 'logo')
+                            .then((url) => setEditForm((prev) => ({ ...prev, logoUrl: url })))
+                            .catch((err: any) => setError(err.message || 'Failed to upload logo'))
+                            .finally(() => setUploading(false));
+                        }
+                      }}
+                    />
+                  </label>
+                  <label className="text-xs text-white/60">
+                    Banner Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="mt-2 w-full text-xs text-white/70"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setUploading(true);
+                          uploadImage(file, 'banner')
+                            .then((url) => setEditForm((prev) => ({ ...prev, bannerUrl: url })))
+                            .catch((err: any) => setError(err.message || 'Failed to upload banner'))
+                            .finally(() => setUploading(false));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <textarea
+                  value={editForm.briefText}
+                  onChange={(e) => setEditForm({ ...editForm, briefText: e.target.value })}
+                  placeholder="Brief / overview"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveBrand}
+                    disabled={savingBrand || uploading}
+                    className="px-4 py-2 text-sm font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/40 rounded-lg hover:bg-teal-500/30 disabled:opacity-50"
+                  >
+                    {savingBrand ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {isOwner && analytics && (
           <div className="rounded-xl border border-white/10 bg-black/40 p-6">

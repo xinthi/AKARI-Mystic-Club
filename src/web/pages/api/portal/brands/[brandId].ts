@@ -49,6 +49,102 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(404).json({ ok: false, error: 'Brand not found' });
   }
 
+  if (req.method === 'PATCH') {
+    if (brand.owner_user_id !== user.userId) {
+      return res.status(403).json({ ok: false, error: 'Not authorized' });
+    }
+
+    const {
+      name,
+      xHandle,
+      website,
+      tgCommunity,
+      tgChannel,
+      briefText,
+      logoUrl,
+      bannerUrl,
+    } = req.body || {};
+
+    const updates: Record<string, any> = {};
+    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
+    if (typeof website === 'string') updates.website = website.trim() || null;
+    if (typeof tgCommunity === 'string') updates.tg_community = tgCommunity.trim() || null;
+    if (typeof tgChannel === 'string') updates.tg_channel = tgChannel.trim() || null;
+    if (typeof briefText === 'string') updates.brief_text = briefText.trim() || null;
+    if (typeof logoUrl === 'string' && logoUrl.trim()) updates.logo_url = logoUrl.trim();
+    if (typeof bannerUrl === 'string' && bannerUrl.trim()) updates.banner_url = bannerUrl.trim();
+
+    if (typeof xHandle === 'string' && xHandle.trim()) {
+      const cleanHandle = xHandle.replace(/^@+/, '').trim().toLowerCase();
+      if (cleanHandle && cleanHandle !== brand.x_handle) {
+        const xProfile = await taioGetUserInfo(cleanHandle);
+        if (!xProfile) {
+          return res.status(400).json({ ok: false, error: 'X handle not found' });
+        }
+        updates.x_handle = cleanHandle;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(200).json({
+        ok: true,
+        brand,
+        campaigns: [],
+        isOwner: true,
+        membersCount: 0,
+        pendingRequests: [],
+        analytics: { trackingSince: brand.created_at, totalQuests: 0, totalSubmissions: 0, totalClicks: 0 },
+        series: [],
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('brand_profiles')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', brandId)
+      .select('id, owner_user_id, name, x_handle, website, tg_community, tg_channel, brief_text, logo_url, banner_url, created_at, verification_status, verified_at')
+      .single();
+
+    if (updateError || !updated) {
+      return res.status(500).json({ ok: false, error: 'Failed to update brand' });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      brand: updated,
+      campaigns: [],
+      isOwner: true,
+      membersCount: 0,
+      pendingRequests: [],
+      analytics: { trackingSince: updated.created_at, totalQuests: 0, totalSubmissions: 0, totalClicks: 0 },
+      series: [],
+    });
+  }
+
+  if (req.method === 'DELETE') {
+    if (brand.owner_user_id !== user.userId) {
+      return res.status(403).json({ ok: false, error: 'Not authorized' });
+    }
+    const { error: deleteError } = await supabase.from('brand_profiles').delete().eq('id', brandId);
+    if (deleteError) {
+      return res.status(500).json({ ok: false, error: 'Failed to delete brand' });
+    }
+    return res.status(200).json({
+      ok: true,
+      brand: null,
+      campaigns: [],
+      isOwner: true,
+      membersCount: 0,
+      pendingRequests: [],
+      analytics: { trackingSince: null, totalQuests: 0, totalSubmissions: 0, totalClicks: 0 },
+      series: [],
+    });
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  }
+
   const { data: campaigns } = await supabase
     .from('brand_campaigns')
     .select('id, name, pitch, objectives, campaign_type, status, launch_status, languages, created_at, start_at, end_at')
