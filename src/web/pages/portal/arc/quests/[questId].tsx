@@ -300,7 +300,6 @@ export default function QuestDetail() {
                   {quest.start_at ? new Date(quest.start_at).toLocaleDateString() : 'Now'} — {quest.end_at ? new Date(quest.end_at).toLocaleDateString() : 'Ongoing'}
                 </div>
               ) : null}
-              <div className="mt-2 text-xs text-white/40">Reward pool: TBD</div>
               {!isMember && (
                 <div className="mt-3 text-xs text-yellow-300">
                   Join the brand community before requesting access.
@@ -487,18 +486,34 @@ export default function QuestDetail() {
                     </button>
                   )}
                 </div>
-                {submissions.map((s: any) => (
-                  <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
-                    <div className="flex flex-col">
-                      <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform.toUpperCase()} • {s.status}</span>
-                      <span className="text-[11px] text-white/40">
-                        {s.used_campaign_link ? 'Tracked link used' : 'No tracked link detected'}
-                        {s.rejected_reason ? ` • ${s.rejected_reason}` : ''}
-                      </span>
+                {submissions.map((s: any) => {
+                  const platformKey = String(s.platform || '').toLowerCase();
+                  const isX = platformKey === 'x';
+                  const statusLabel = s.status === 'approved' ? 'approved' : s.status;
+                  let trackingLabel = 'Tracking check not available';
+                  if (isX) {
+                    trackingLabel = s.used_campaign_link ? 'Tracked link used' : 'Tracked link not detected';
+                  }
+                  let postLabel = 'Post received';
+                  if (isX) {
+                    postLabel = s.status === 'approved' ? 'Post found' : 'Post not verified';
+                    if (s.rejected_reason?.toLowerCase().includes('tweet not found')) {
+                      postLabel = 'Post not found on X';
+                    }
+                  }
+                  return (
+                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                      <div className="flex flex-col">
+                        <span>{PLATFORM_ICONS[s.platform] || '🔗'} {String(s.platform).toUpperCase()} • {statusLabel}</span>
+                        <span className="text-[11px] text-white/40">
+                          {postLabel}{isX ? ` • ${trackingLabel}` : ''}
+                          {s.rejected_reason ? ` • ${s.rejected_reason}` : ''}
+                        </span>
+                      </div>
+                      <a href={s.post_url} className="text-teal-300">View</a>
                     </div>
-                    <a href={s.post_url} className="text-teal-300">View</a>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
