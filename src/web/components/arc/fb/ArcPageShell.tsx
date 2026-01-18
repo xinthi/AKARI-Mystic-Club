@@ -12,6 +12,7 @@ import { RightRail } from './RightRail';
 import { MobileArcPageLayout } from './mobile/MobileArcPageLayout';
 import { useArcNotifications } from '@/lib/arc/useArcNotifications';
 import { useArcLiveItems } from '@/lib/arc/useArcLiveItems';
+import { useArcMode } from '@/lib/arc/useArcMode';
 
 interface ArcPageShellProps {
   children: React.ReactNode;
@@ -39,6 +40,7 @@ export function ArcPageShell({
   canManageProject,
   isSuperAdmin,
 }: ArcPageShellProps) {
+  const { mode } = useArcMode();
   const [searchQuery, setSearchQuery] = useState('');
   const { activities, unreadCount } = useArcNotifications();
   
@@ -48,6 +50,8 @@ export function ArcPageShell({
   // Default filter states (used only if using default right rail)
   const [kindFilter, setKindFilter] = useState<'all' | 'arena' | 'campaign' | 'gamified'>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | 'live' | 'upcoming'>('all');
+
+  const shouldHideRightRail = hideRightRail || mode === 'crm';
 
   return (
     <>
@@ -77,7 +81,7 @@ export function ArcPageShell({
             </div>
 
             {/* Right Rail */}
-            {hideRightRail ? null : rightRailContent ? (
+            {shouldHideRightRail ? null : rightRailContent ? (
               <div className="w-64 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
                 <div className="p-4">
                   {rightRailContent}
