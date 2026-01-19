@@ -658,7 +658,6 @@ export default function QuestDetail() {
                           <th className="text-right py-2">Qualified X</th>
                         </>
                       ) : null}
-                      <th className="text-right py-2">Tracked Link</th>
                       {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                         <>
                           <th className="text-right py-2">Likes</th>
@@ -684,7 +683,6 @@ export default function QuestDetail() {
                         {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                           <td key={p} className="py-3 text-center text-xs text-white/50">—</td>
                         ))}
-                        <td className="py-3 text-right">0</td>
                         {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                           <>
                             <td className="py-3 text-right">0</td>
@@ -728,7 +726,6 @@ export default function QuestDetail() {
                         <th className="text-right py-2">Qualified X</th>
                       </>
                     ) : null}
-                    <th className="text-right py-2">Tracked Link</th>
                     {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                       <>
                         <th className="text-right py-2">Likes</th>
@@ -786,7 +783,6 @@ export default function QuestDetail() {
                             <td className="py-3 text-right">{row.qualifiedXPostsCount || 0}</td>
                           </>
                         ) : null}
-                        <td className="py-3 text-right">{row.usedCampaignLinkCount || 0}</td>
                         {(leaderboardPlatform === 'all' || leaderboardPlatform === 'x') && (
                           <>
                             <td className="py-3 text-right">{row.xLikes || 0}</td>
