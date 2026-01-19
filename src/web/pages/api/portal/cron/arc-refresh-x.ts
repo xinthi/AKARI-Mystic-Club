@@ -321,8 +321,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       }
 
       const metrics = extractTweetMetrics(tweet);
-      const engagementScore =
-        metrics.likeCount + metrics.replyCount + metrics.repostCount + Math.round(metrics.viewCount / 100);
+      const engagementScore = metrics.likeCount + metrics.replyCount + metrics.repostCount;
 
       const urls = await expandTrackingUrls(extractTweetUrls(tweet));
       const match = findMatchingUtmLink(urls, utmLinks || []);

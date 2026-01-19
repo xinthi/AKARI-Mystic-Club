@@ -334,7 +334,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           reply_count = metrics.replyCount;
           repost_count = metrics.repostCount;
           view_count = metrics.viewCount;
-          engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
+          engagement_score = like_count + reply_count + repost_count;
 
           const brandRow = Array.isArray(campaign?.brand_profiles)
             ? campaign?.brand_profiles?.[0]
