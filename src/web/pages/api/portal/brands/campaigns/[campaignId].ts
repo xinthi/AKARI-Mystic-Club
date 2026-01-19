@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { taioGetUserInfo } from '@/server/twitterapiio';
+import { isSuperAdminServerSide } from '@/lib/server-auth';
 import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
@@ -128,12 +129,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     )
     .maybeSingle();
 
-  const { data: submissions } = await supabase
+  const isSuperAdmin = await isSuperAdminServerSide(user.userId);
+  const submissionsQuery = supabase
     .from('campaign_submissions')
-    .select('id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count, x_tweet_id, verified_at, rejected_reason, used_campaign_link, matched_utm_link_id')
+    .select('id, creator_profile_id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count, x_tweet_id, verified_at, rejected_reason, used_campaign_link, matched_utm_link_id')
     .eq('campaign_id', campaignId)
-    .eq('creator_profile_id', profileId || '00000000-0000-0000-0000-000000000000')
     .order('submitted_at', { ascending: false });
+  if (!isSuperAdmin) {
+    submissionsQuery.eq('creator_profile_id', profileId || '00000000-0000-0000-0000-000000000000');
+  }
+  const { data: submissions } = await submissionsQuery;
 
   return res.status(200).json({
     ok: true,

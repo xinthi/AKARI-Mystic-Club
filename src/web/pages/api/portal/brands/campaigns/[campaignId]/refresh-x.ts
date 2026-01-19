@@ -7,7 +7,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 import { twitterApiGetTweetById } from '@/lib/twitterapi';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
 
@@ -45,6 +44,23 @@ function extractTweetUrls(tweet: any): string[] {
       .map((u: any) => String(u));
   }
   return [];
+}
+
+async function expandTrackingUrls(urls: string[]): Promise<string[]> {
+  const expanded: string[] = [];
+  for (const raw of urls) {
+    expanded.push(raw);
+    try {
+      const parsed = new URL(raw);
+      if (parsed.hostname.endsWith('t.co')) {
+        const res = await fetch(raw, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+        if (res.url) expanded.push(res.url);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return Array.from(new Set(expanded));
 }
 
 function extractTweetMetrics(tweet: any): {
@@ -162,6 +178,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: 'campaignId is required' });
   }
 
+  const isSuperAdmin = await isSuperAdminServerSide(user.userId);
+  if (!isSuperAdmin) {
+    return res.status(403).json({ ok: false, error: 'superadmin_only' });
+  }
+
   const { data: campaign } = await supabase
     .from('brand_campaigns')
     .select('id, brand_id')
@@ -172,32 +193,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(404).json({ ok: false, error: 'Quest not found' });
   }
 
-  const { data: brand } = await supabase
-    .from('brand_profiles')
-    .select('owner_user_id')
-    .eq('id', campaign.brand_id)
-    .maybeSingle();
-
-  const isOwner = brand?.owner_user_id === user.userId;
-  const isSuperAdmin = await isSuperAdminServerSide(user.userId);
-
-  let profileId = user.profileId;
-  if (!profileId) {
-    profileId = await resolveProfileId(supabase, user.userId);
-  }
-
   const submissionsQuery = supabase
     .from('campaign_submissions')
     .select('id, creator_profile_id, post_url, x_tweet_id, platform')
     .eq('campaign_id', campaignId)
     .eq('platform', 'x');
-
-  if (!isOwner && !isSuperAdmin) {
-    if (!profileId) {
-      return res.status(403).json({ ok: false, error: 'Profile not found' });
-    }
-    submissionsQuery.eq('creator_profile_id', profileId);
-  }
 
   const { data: submissions } = await submissionsQuery;
   const rows = submissions || [];
@@ -243,7 +243,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const engagementScore =
       metrics.likeCount + metrics.replyCount + metrics.repostCount + Math.round(metrics.viewCount / 100);
 
-    const urls = extractTweetUrls(tweet);
+    const urls = await expandTrackingUrls(extractTweetUrls(tweet));
     const match = findMatchingUtmLink(urls, utmLinks || []);
 
     await supabase

@@ -70,6 +70,23 @@ function extractTweetUrls(tweet: any): string[] {
   return [];
 }
 
+async function expandTrackingUrls(urls: string[]): Promise<string[]> {
+  const expanded: string[] = [];
+  for (const raw of urls) {
+    expanded.push(raw);
+    try {
+      const parsed = new URL(raw);
+      if (parsed.hostname.endsWith('t.co')) {
+        const res = await fetch(raw, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+        if (res.url) expanded.push(res.url);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return Array.from(new Set(expanded));
+}
+
 function extractTweetMetrics(tweet: any): {
   likeCount: number;
   replyCount: number;
@@ -225,7 +242,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const engagementScore =
         metrics.likeCount + metrics.replyCount + metrics.repostCount + Math.round(metrics.viewCount / 100);
 
-      const urls = extractTweetUrls(tweet);
+      const urls = await expandTrackingUrls(extractTweetUrls(tweet));
       const match = findMatchingUtmLink(urls, utmLinks || []);
 
       await supabase

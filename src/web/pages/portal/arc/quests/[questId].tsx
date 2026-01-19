@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/arc/EmptyState';
 import { ErrorState } from '@/components/arc/ErrorState';
 import { createPortalClient } from '@/lib/portal/supabase';
 import { useArcMode } from '@/lib/arc/useArcMode';
+import { useAkariUser } from '@/lib/akari-auth';
+import { isSuperAdmin } from '@/lib/permissions';
 
 const PLATFORMS = ['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram', 'other'] as const;
 const PLATFORM_ICONS: Record<string, string> = {
@@ -22,6 +24,8 @@ export default function QuestDetail() {
   const router = useRouter();
   const { questId } = router.query;
   const { mode } = useArcMode();
+  const akariUser = useAkariUser();
+  const userIsSuperAdmin = isSuperAdmin(akariUser.user);
 
   const [quest, setQuest] = useState<any>(null);
   const [brand, setBrand] = useState<any>(null);
@@ -445,7 +449,7 @@ export default function QuestDetail() {
               <div className="mt-4 space-y-2 text-xs text-white/60">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-white/70 font-semibold">My Submissions</p>
-                  {submissions.some((s: any) => String(s.platform).toLowerCase() === 'x') && (
+                  {userIsSuperAdmin && submissions.some((s: any) => String(s.platform).toLowerCase() === 'x') && (
                     <button
                       onClick={handleRefreshX}
                       disabled={refreshingX}
