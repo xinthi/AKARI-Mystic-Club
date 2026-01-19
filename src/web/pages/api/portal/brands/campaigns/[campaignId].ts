@@ -132,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const isSuperAdmin = await isSuperAdminServerSide(user.userId);
   const submissionsQuery = supabase
     .from('campaign_submissions')
-    .select('id, creator_profile_id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count, x_tweet_id, verified_at, rejected_reason, used_campaign_link, matched_utm_link_id, twitter_fetch_error, twitter_fetch_at')
+    .select('id, creator_profile_id, platform, post_url, status, submitted_at, like_count, reply_count, repost_count, view_count, x_tweet_id, verified_at, rejected_reason, used_campaign_link, matched_utm_link_id, twitter_fetch_error, twitter_fetch_at, qualified, qualification_reason')
     .eq('campaign_id', campaignId)
     .order('submitted_at', { ascending: false });
   if (!isSuperAdmin) {

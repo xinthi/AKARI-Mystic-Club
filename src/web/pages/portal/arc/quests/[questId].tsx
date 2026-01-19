@@ -616,6 +616,9 @@ export default function QuestDetail() {
                     postLabel && s.rejected_reason && postLabel.toLowerCase().includes(s.rejected_reason.toLowerCase())
                       ? null
                       : s.rejected_reason;
+                  const qualificationLabel = isX && s.qualified === false
+                    ? (s.qualification_reason || 'Post does not meet quest standards')
+                    : null;
                   const debugError = userIsSuperAdmin && s.twitter_fetch_error
                     ? String(s.twitter_fetch_error).slice(0, 120)
                     : null;
@@ -630,6 +633,7 @@ export default function QuestDetail() {
                           {postLabel}
                           {trackingLabel ? ` • ${trackingLabel}` : ''}
                           {rejectedReason ? ` • ${rejectedReason}` : ''}
+                          {qualificationLabel ? ` • ${qualificationLabel}` : ''}
                           {debugError ? ` • twitter: ${debugError}` : ''}
                         </span>
                       </div>
