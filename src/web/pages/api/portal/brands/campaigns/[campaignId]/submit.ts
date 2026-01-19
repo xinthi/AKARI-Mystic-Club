@@ -333,6 +333,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let repost_count: number | null = null;
   let view_count: number | null = null;
   let engagement_score: number | null = null;
+  let twitter_fetch_error: string | null = null;
+  let twitter_fetch_at: string | null = null;
   let qualified = false;
   let qualification_reason: string | null = null;
 
@@ -344,7 +346,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     } else {
       const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(postUrl));
       const tweet = tweetResult.data;
-      const fetchError = tweetResult.errors.slice(0, 3).join(' | ') || null;
+      twitter_fetch_error = tweetResult.errors.slice(0, 3).join(' | ') || null;
+      twitter_fetch_at = new Date().toISOString();
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
         status = 'pending';
@@ -407,8 +410,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       matched_utm_link_id,
       qualified,
       qualification_reason,
-      twitter_fetch_error: tweet ? null : fetchError,
-      twitter_fetch_at: new Date().toISOString(),
+      twitter_fetch_error,
+      twitter_fetch_at,
       like_count,
       reply_count,
       repost_count,
