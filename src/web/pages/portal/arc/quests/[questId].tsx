@@ -55,7 +55,12 @@ function PlatformIcon({
       title={PLATFORM_LABELS[platform]}
     >
       {platform === 'other' ? (
-        <span className="font-semibold">{PLATFORM_ICONS[platform]}</span>
+        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M10.6 13.4a4 4 0 0 1 0-5.7l2-2a4 4 0 1 1 5.7 5.7l-1 1a1 1 0 1 1-1.4-1.4l1-1a2 2 0 0 0-2.9-2.9l-2 2a2 2 0 1 0 2.9 2.9 1 1 0 1 1 1.4 1.4 4 4 0 0 1-5.7 0Zm2.8-2.8a1 1 0 1 1 1.4 1.4 2 2 0 0 0 2.9 2.9l2-2a2 2 0 1 0-2.9-2.9 1 1 0 0 1-1.4-1.4 4 4 0 1 1 5.7 5.7l-2 2a4 4 0 0 1-5.7-5.7Z"
+          />
+        </svg>
       ) : (
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
           {platform === 'x' && (
