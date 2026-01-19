@@ -25,8 +25,45 @@ function normalizeXUrl(url: string): string {
   return trimmed.replace(/^https?:\/\/twitter\.com\//i, 'https://x.com/');
 }
 
+function normalizeTweetData(tweet: any): any {
+  const candidates = [
+    tweet,
+    tweet?.data,
+    tweet?.data?.data,
+    tweet?.data?.tweet,
+    tweet?.data?.result,
+    tweet?.tweet,
+    tweet?.result,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (
+      candidate.public_metrics ||
+      candidate.metrics ||
+      candidate.publicMetrics ||
+      candidate.favorite_count ||
+      candidate.reply_count ||
+      candidate.retweet_count ||
+      candidate.view_count ||
+      candidate.views ||
+      candidate.likes ||
+      candidate.entities ||
+      candidate.urls ||
+      candidate.author ||
+      candidate.user ||
+      candidate.author_details ||
+      candidate.author_username ||
+      candidate.userName ||
+      candidate.username
+    ) {
+      return candidate;
+    }
+  }
+  return tweet?.data || tweet;
+}
+
 function extractAuthorHandle(tweet: any): string | null {
-  const data = tweet?.data || tweet;
+  const data = normalizeTweetData(tweet);
   const author = data?.author || data?.user || data?.author_details || {};
   const handle =
     author?.userName ||
@@ -40,7 +77,7 @@ function extractAuthorHandle(tweet: any): string | null {
 }
 
 function extractTweetUrls(tweet: any): string[] {
-  const data = tweet?.data || tweet;
+  const data = normalizeTweetData(tweet);
   const entities = data?.entities || {};
   const urls = entities?.urls || data?.urls || [];
   if (Array.isArray(urls)) {
@@ -78,7 +115,7 @@ function extractTweetMetrics(tweet: any): {
   repostCount: number;
   viewCount: number;
 } {
-  const data = tweet?.data || tweet?.tweet || tweet?.result || tweet;
+  const data = normalizeTweetData(tweet);
   const metrics =
     data?.public_metrics ||
     data?.metrics ||

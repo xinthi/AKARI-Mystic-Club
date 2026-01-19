@@ -12,6 +12,7 @@ export default function SuperAdminQuests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [debugInput, setDebugInput] = useState('');
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState<any | null>(null);
@@ -59,12 +60,20 @@ export default function SuperAdminQuests() {
 
   const handleGlobalRefresh = async () => {
     setRefreshingAll(true);
+    setRefreshMessage(null);
     try {
-      await fetch('/api/portal/superadmin/refresh-x', {
+      const res = await fetch('/api/portal/superadmin/refresh-x', {
         method: 'POST',
         credentials: 'include',
       });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to refresh');
+      }
+      setRefreshMessage(`Refreshed ${data.refreshed || 0} X submissions.`);
       load();
+    } catch (err: any) {
+      setRefreshMessage(err.message || 'Failed to refresh');
     } finally {
       setRefreshingAll(false);
     }
@@ -110,13 +119,16 @@ export default function SuperAdminQuests() {
             <h1 className="text-2xl font-bold text-white">Quest Approvals</h1>
             <p className="text-sm text-white/60">Approve or reject quest launch requests.</p>
           </div>
-          <button
-            onClick={handleGlobalRefresh}
-            disabled={refreshingAll}
-            className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/20 disabled:opacity-50"
-          >
-            {refreshingAll ? 'Refreshing…' : 'Refresh X stats (all)'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleGlobalRefresh}
+              disabled={refreshingAll}
+              className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/20 disabled:opacity-50"
+            >
+              {refreshingAll ? 'Refreshing…' : 'Refresh X stats (all)'}
+            </button>
+            {refreshMessage && <div className="text-[11px] text-white/50">{refreshMessage}</div>}
+          </div>
         </div>
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-5">
