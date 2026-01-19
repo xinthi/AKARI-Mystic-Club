@@ -499,10 +499,10 @@ export default function QuestDetail() {
                   <button
                     key={p}
                     onClick={() => setUtmPlatform(p)}
-                    className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center border border-white/10 ${utmPlatform === p ? 'bg-white/10 text-white' : `${PLATFORM_BADGES[p]} hover:text-white`}`}
-                    title={p.toUpperCase()}
+                    className={`rounded-full ${utmPlatform === p ? 'ring-1 ring-white/30' : ''}`}
+                    title={PLATFORM_LABELS[p]}
                   >
-                    {PLATFORM_ICONS[p]}
+                    <PlatformIcon platform={p} size="sm" showBorder />
                   </button>
                 ))}
               </div>
