@@ -177,22 +177,39 @@ function extractTweetText(tweet: any): string {
   ).toString();
 }
 
-function buildQualificationKeywords(brandName?: string | null, objectives?: string | null, handle?: string | null): string[] {
-  const raw = [brandName, objectives, handle ? `@${handle}` : null]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  const words = raw
-    .replace(/[^a-z0-9@ ]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length >= 4);
-  return Array.from(new Set(words));
+function normalizeHandle(handle?: string | null): string | null {
+  if (!handle) return null;
+  return handle.replace(/^@+/, '').toLowerCase();
 }
 
-function isTweetQualified(tweetText: string, keywords: string[]): boolean {
-  if (!tweetText || keywords.length === 0) return false;
+function containsWord(haystack: string, needle: string): boolean {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b${escaped}\\b`, 'i');
+  return re.test(haystack);
+}
+
+function extractObjectivePhrases(objectives?: string | null): string[] {
+  if (!objectives) return [];
+  return objectives
+    .split(/[.\n;•-]/)
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 6);
+}
+
+function isTweetQualified(
+  tweetText: string,
+  brandName?: string | null,
+  objectives?: string | null,
+  handle?: string | null
+): boolean {
+  if (!tweetText) return false;
   const normalized = tweetText.toLowerCase();
-  return keywords.some((keyword) => normalized.includes(keyword));
+  const brand = brandName ? brandName.toLowerCase() : null;
+  const brandHandle = normalizeHandle(handle);
+  const phrases = extractObjectivePhrases(objectives);
+  if (brandHandle && normalized.includes(`@${brandHandle}`)) return true;
+  if (brand && brand.length >= 4 && containsWord(normalized, brand)) return true;
+  return phrases.some((phrase) => normalized.includes(phrase.toLowerCase()));
 }
 
 async function getCreatorHandle(
@@ -350,9 +367,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           const brandRow = Array.isArray(campaign?.brand_profiles)
             ? campaign?.brand_profiles?.[0]
             : campaign?.brand_profiles;
-          const keywords = buildQualificationKeywords(brandRow?.name, campaign?.objectives, brandRow?.x_handle);
           const tweetText = extractTweetText(tweet);
-          qualified = isTweetQualified(tweetText, keywords);
+          qualified = isTweetQualified(tweetText, brandRow?.name, campaign?.objectives, brandRow?.x_handle);
           if (!qualified) {
             qualification_reason = 'Content does not match brand or objectives';
           }

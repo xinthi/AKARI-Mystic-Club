@@ -15,8 +15,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const utmLinkId = req.query.utmLinkId as string | undefined;
   const platformParam = req.query.platform as string | undefined;
   const allowedPlatforms = new Set(['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram', 'other']);
+  const referrer = (req.headers.referer || '').toString().toLowerCase();
+  const inferredPlatform =
+    referrer.includes('x.com') || referrer.includes('twitter.com')
+      ? 'x'
+      : referrer.includes('youtube.com') || referrer.includes('youtu.be')
+        ? 'youtube'
+        : referrer.includes('tiktok.com')
+          ? 'tiktok'
+          : referrer.includes('t.me') || referrer.includes('telegram')
+            ? 'telegram'
+            : referrer.includes('linkedin.com')
+              ? 'linkedin'
+              : referrer.includes('instagram.com')
+                ? 'instagram'
+                : null;
   const sourcePlatform =
-    platformParam && allowedPlatforms.has(platformParam.toLowerCase()) ? platformParam.toLowerCase() : null;
+    platformParam && allowedPlatforms.has(platformParam.toLowerCase())
+      ? platformParam.toLowerCase()
+      : inferredPlatform;
 
   if (!utmLinkId && (!campaignId || !creatorProfileId || !linkId)) {
     return res.status(400).json({ ok: false, error: 'utmLinkId or campaignId, creatorProfileId, linkId are required' });
