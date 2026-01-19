@@ -19,6 +19,15 @@ const PLATFORM_ICONS: Record<string, string> = {
   instagram: 'IG',
   other: 'OT',
 };
+const PLATFORM_LABELS: Record<string, string> = {
+  x: 'X',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  telegram: 'Telegram',
+  linkedin: 'LinkedIn',
+  instagram: 'Instagram',
+  other: 'Other',
+};
 const PLATFORM_BADGES: Record<string, string> = {
   x: 'bg-white/10 text-white',
   youtube: 'bg-red-500/20 text-red-300',
@@ -28,6 +37,27 @@ const PLATFORM_BADGES: Record<string, string> = {
   instagram: 'bg-purple-500/20 text-purple-300',
   other: 'bg-white/10 text-white/70',
 };
+
+function PlatformIcon({
+  platform,
+  size = 'md',
+  showBorder = true,
+}: {
+  platform: keyof typeof PLATFORM_ICONS;
+  size?: 'sm' | 'md' | 'lg';
+  showBorder?: boolean;
+}) {
+  const sizeClass = size === 'sm' ? 'w-6 h-6 text-[10px]' : size === 'lg' ? 'w-10 h-10 text-sm' : 'w-8 h-8 text-xs';
+  const borderClass = showBorder ? 'border border-white/10' : '';
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full bg-black/40 ${borderClass} ${sizeClass} ${PLATFORM_BADGES[platform]}`}
+      title={PLATFORM_LABELS[platform]}
+    >
+      {PLATFORM_ICONS[platform]}
+    </span>
+  );
+}
 
 export default function QuestDetail() {
   const router = useRouter();
@@ -480,7 +510,7 @@ export default function QuestDetail() {
               >
                 {PLATFORMS.map((p) => (
                   <option key={p} value={p} className="bg-black text-white">
-                    {`${PLATFORM_ICONS[p] || ''} ${p.toUpperCase()}`}
+                    {`${PLATFORM_ICONS[p] || ''} ${PLATFORM_LABELS[p] || p.toUpperCase()}`}
                   </option>
                 ))}
               </select>
@@ -534,7 +564,10 @@ export default function QuestDetail() {
                   return (
                     <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                       <div className="flex flex-col">
-                        <span>{PLATFORM_ICONS[s.platform] || '🔗'} {String(s.platform).toUpperCase()} • {statusLabel}</span>
+                        <span className="flex items-center gap-2">
+                          {PLATFORM_ICONS[s.platform] ? <PlatformIcon platform={s.platform} size="sm" /> : '🔗'}
+                          {PLATFORM_LABELS[s.platform] || String(s.platform).toUpperCase()} • {statusLabel}
+                        </span>
                         <span className="text-[11px] text-white/40">
                           {postLabel}
                           {trackingLabel ? ` • ${trackingLabel}` : ''}
@@ -624,14 +657,14 @@ export default function QuestDetail() {
                   <button
                     key={p}
                     onClick={() => setLeaderboardPlatform(p)}
-                    className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center border border-white/10 ${leaderboardPlatform === p ? 'bg-white/10 text-white' : `${PLATFORM_BADGES[p]} hover:text-white`}`}
-                    title={p.toUpperCase()}
+                    className={`rounded-full ${leaderboardPlatform === p ? 'ring-1 ring-white/30' : ''}`}
+                    title={PLATFORM_LABELS[p]}
                   >
-                    {PLATFORM_ICONS[p]}
+                    <PlatformIcon platform={p} size="sm" showBorder />
                   </button>
                 ))}
               </div>
-              <div className={`w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-xs ${leaderboardPlatform === 'all' ? 'bg-black/30 text-white/80' : PLATFORM_BADGES[leaderboardPlatform]}`}>
+              <div className={`w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-[10px] ${leaderboardPlatform === 'all' ? 'bg-black/30 text-white/80' : PLATFORM_BADGES[leaderboardPlatform]}`}>
                 {leaderboardPlatform === 'all' ? 'ALL' : PLATFORM_ICONS[leaderboardPlatform]}
               </div>
             </div>
@@ -648,9 +681,11 @@ export default function QuestDetail() {
                     <tr className="text-xs text-white/30 uppercase">
                       <th className="text-left py-2">Rank</th>
                       <th className="text-left py-2">Creator</th>
-                      {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
-                        <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
-                      ))}
+                        {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
+                          <th key={p} className="text-center py-2">
+                            <PlatformIcon platform={p} size="sm" />
+                          </th>
+                        ))}
                       <th className="text-right py-2">Submitted</th>
                       {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                         <>
@@ -717,7 +752,9 @@ export default function QuestDetail() {
                     <th className="text-left py-2">Rank</th>
                     <th className="text-left py-2">Creator</th>
                     {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
-                      <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
+                      <th key={p} className="text-center py-2">
+                        <PlatformIcon platform={p} size="sm" />
+                      </th>
                     ))}
                     <th className="text-right py-2">Submitted</th>
                     {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (

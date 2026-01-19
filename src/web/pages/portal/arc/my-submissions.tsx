@@ -10,13 +10,50 @@ import { ErrorState } from '@/components/arc/ErrorState';
 import { createPortalClient } from '@/lib/portal/supabase';
 
 const PLATFORM_ICONS: Record<string, string> = {
-  x: '𝕏',
-  youtube: '▶️',
-  tiktok: '🎵',
-  telegram: '✈️',
-  linkedin: '💼',
-  instagram: '📸',
+  x: 'X',
+  youtube: 'YT',
+  tiktok: 'TT',
+  telegram: 'TG',
+  linkedin: 'IN',
+  instagram: 'IG',
+  other: 'OT',
 };
+const PLATFORM_LABELS: Record<string, string> = {
+  x: 'X',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  telegram: 'Telegram',
+  linkedin: 'LinkedIn',
+  instagram: 'Instagram',
+  other: 'Other',
+};
+const PLATFORM_BADGES: Record<string, string> = {
+  x: 'bg-white/10 text-white',
+  youtube: 'bg-red-500/20 text-red-300',
+  tiktok: 'bg-pink-500/20 text-pink-300',
+  telegram: 'bg-sky-500/20 text-sky-300',
+  linkedin: 'bg-blue-500/20 text-blue-300',
+  instagram: 'bg-purple-500/20 text-purple-300',
+  other: 'bg-white/10 text-white/70',
+};
+
+function PlatformIcon({
+  platform,
+  size = 'sm',
+}: {
+  platform: keyof typeof PLATFORM_ICONS;
+  size?: 'sm' | 'md';
+}) {
+  const sizeClass = size === 'md' ? 'w-8 h-8 text-xs' : 'w-6 h-6 text-[10px]';
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full bg-black/40 border border-white/10 ${sizeClass} ${PLATFORM_BADGES[platform]}`}
+      title={PLATFORM_LABELS[platform]}
+    >
+      {PLATFORM_ICONS[platform]}
+    </span>
+  );
+}
 
 export default function MySubmissions() {
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -123,7 +160,10 @@ export default function MySubmissions() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-white/60 mt-3">
-                    <span>{PLATFORM_ICONS[s.platform] || '🔗'} {s.platform?.toUpperCase()}</span>
+                    <span className="flex items-center gap-2">
+                      {PLATFORM_ICONS[s.platform] ? <PlatformIcon platform={s.platform} /> : '🔗'}
+                      {PLATFORM_LABELS[s.platform] || s.platform?.toUpperCase()}
+                    </span>
                     <a href={s.post_url} className="text-teal-300">Open Post</a>
                   </div>
                   <div className="flex items-center justify-between text-xs text-white/50 mt-3">
@@ -170,7 +210,10 @@ export default function MySubmissions() {
                       </td>
                       <td className="py-3">
                         <span className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs">
-                          {PLATFORM_ICONS[s.platform] || '🔗'} {s.platform?.toUpperCase()}
+                          <span className="flex items-center gap-2">
+                            {PLATFORM_ICONS[s.platform] ? <PlatformIcon platform={s.platform} /> : '🔗'}
+                            {PLATFORM_LABELS[s.platform] || s.platform?.toUpperCase()}
+                          </span>
                         </span>
                       </td>
                       <td className="py-3">
