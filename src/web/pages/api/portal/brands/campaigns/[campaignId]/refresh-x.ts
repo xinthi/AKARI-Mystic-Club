@@ -228,7 +228,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         .from('campaign_submissions')
         .update({
           status: 'pending',
-          rejected_reason: null,
+          rejected_reason: 'Awaiting X verification',
         })
         .eq('id', row.id);
       refreshed += 1;

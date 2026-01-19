@@ -470,8 +470,12 @@ export default function QuestDetail() {
                   let postLabel = 'Post received';
                   if (isX) {
                     postLabel = s.status === 'approved' ? 'Post found' : 'Post not verified';
-                    if (s.rejected_reason?.toLowerCase().includes('tweet not found')) {
+                    if (s.rejected_reason?.toLowerCase().includes('awaiting x verification')) {
+                      postLabel = 'Awaiting X verification';
+                    } else if (s.rejected_reason?.toLowerCase().includes('tweet not found')) {
                       postLabel = 'Post not found on X';
+                    } else if (s.rejected_reason?.toLowerCase().includes('not authored')) {
+                      postLabel = 'Post not authored by creator';
                     }
                   }
                   return (

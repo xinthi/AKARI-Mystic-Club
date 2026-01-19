@@ -249,7 +249,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
         status = 'pending';
-        rejected_reason = null;
+        rejected_reason = 'Awaiting X verification';
       } else {
         const creatorHandle = await getCreatorHandle(supabase, profileId, user.userId);
         const authorHandle = extractAuthorHandle(tweet);
