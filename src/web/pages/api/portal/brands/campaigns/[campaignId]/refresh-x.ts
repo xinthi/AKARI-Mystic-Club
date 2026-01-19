@@ -53,7 +53,10 @@ async function expandTrackingUrls(urls: string[]): Promise<string[]> {
     try {
       const parsed = new URL(raw);
       if (parsed.hostname.endsWith('t.co')) {
-        const res = await fetch(raw, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+        let res = await fetch(raw, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+        if (!res.ok) {
+          res = await fetch(raw, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+        }
         if (res.url) expanded.push(res.url);
       }
     } catch {
@@ -192,6 +195,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   if (!campaign) {
     return res.status(404).json({ ok: false, error: 'Quest not found' });
   }
+
+  await supabase
+    .from('campaign_submissions')
+    .update({ status: 'approved' })
+    .eq('campaign_id', campaignId)
+    .neq('platform', 'x')
+    .eq('status', 'pending');
 
   const submissionsQuery = supabase
     .from('campaign_submissions')
