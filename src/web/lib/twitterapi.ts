@@ -66,7 +66,10 @@ export async function twitterApiGet<T>(
   return res.json() as Promise<T>;
 }
 
-export async function twitterApiGetTweetById(tweetId: string, tweetUrl?: string): Promise<any | null> {
+export async function twitterApiGetTweetByIdDebug(
+  tweetId: string,
+  tweetUrl?: string
+): Promise<{ data: any | null; errors: string[] }> {
   const paramAttempts = [
     { tweetId },
     { tweet_id: tweetId },
@@ -84,25 +87,31 @@ export async function twitterApiGetTweetById(tweetId: string, tweetUrl?: string)
     '/twitter/tweet/lookup',
     '/twitter/tweet',
   ];
+  const errors: string[] = [];
 
   for (const path of endpointAttempts) {
     for (const params of paramAttempts) {
       try {
         const data = await twitterApiGet<any>(path, params);
-        if (data) return data;
-      } catch {
-        // try next param shape
+        if (data) return { data, errors };
+      } catch (err: any) {
+        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
       }
     }
     for (const params of urlAttempts) {
       try {
         const data = await twitterApiGet<any>(path, params);
-        if (data) return data;
-      } catch {
-        // try next param shape
+        if (data) return { data, errors };
+      } catch (err: any) {
+        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
       }
     }
   }
 
-  return null;
+  return { data: null, errors };
+}
+
+export async function twitterApiGetTweetById(tweetId: string, tweetUrl?: string): Promise<any | null> {
+  const result = await twitterApiGetTweetByIdDebug(tweetId, tweetUrl);
+  return result.data;
 }

@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { twitterApiGetTweetById } from '@/lib/twitterapi';
+import { twitterApiGetTweetByIdDebug } from '@/lib/twitterapi';
 import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
@@ -342,7 +342,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       status = 'rejected';
       rejected_reason = 'Tweet ID not found';
     } else {
-      const tweet = await twitterApiGetTweetById(tweetId, String(postUrl));
+      const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(postUrl));
+      const tweet = tweetResult.data;
+      const fetchError = tweetResult.errors.slice(0, 3).join(' | ') || null;
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
         status = 'pending';
@@ -405,6 +407,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       matched_utm_link_id,
       qualified,
       qualification_reason,
+      twitter_fetch_error: tweet ? null : fetchError,
+      twitter_fetch_at: new Date().toISOString(),
       like_count,
       reply_count,
       repost_count,

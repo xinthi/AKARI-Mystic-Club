@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { twitterApiGetTweetById } from '@/lib/twitterapi';
+import { twitterApiGetTweetByIdDebug } from '@/lib/twitterapi';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
 
 type Response =
@@ -320,13 +320,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
     if (!tweetId) continue;
 
-    const tweet = await twitterApiGetTweetById(tweetId, String(row.post_url || ''));
+    const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(row.post_url || ''));
+    const tweet = tweetResult.data;
+    const fetchError = tweetResult.errors.slice(0, 3).join(' | ') || null;
     if (!tweet) {
       await supabase
         .from('campaign_submissions')
         .update({
           status: 'pending',
           rejected_reason: 'Awaiting X verification',
+          twitter_fetch_error: fetchError,
+          twitter_fetch_at: new Date().toISOString(),
         })
         .eq('id', row.id);
       refreshed += 1;
@@ -341,6 +345,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         .update({
           status: 'rejected',
           rejected_reason: 'Tweet not authored by creator',
+          twitter_fetch_error: 'author_mismatch',
+          twitter_fetch_at: new Date().toISOString(),
         })
         .eq('id', row.id);
       refreshed += 1;
@@ -367,6 +373,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         matched_utm_link_id: match.matchedId,
         qualified,
         qualification_reason: qualified ? null : 'Content does not match brand or objectives',
+        twitter_fetch_error: null,
+        twitter_fetch_at: new Date().toISOString(),
         like_count: metrics.likeCount,
         reply_count: metrics.replyCount,
         repost_count: metrics.repostCount,

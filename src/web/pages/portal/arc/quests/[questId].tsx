@@ -612,6 +612,13 @@ export default function QuestDetail() {
                       postLabel = 'Post not authored by creator';
                     }
                   }
+                  const rejectedReason =
+                    postLabel && s.rejected_reason && postLabel.toLowerCase().includes(s.rejected_reason.toLowerCase())
+                      ? null
+                      : s.rejected_reason;
+                  const debugError = userIsSuperAdmin && s.twitter_fetch_error
+                    ? String(s.twitter_fetch_error).slice(0, 120)
+                    : null;
                   return (
                     <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                       <div className="flex flex-col">
@@ -622,7 +629,8 @@ export default function QuestDetail() {
                         <span className="text-[11px] text-white/40">
                           {postLabel}
                           {trackingLabel ? ` • ${trackingLabel}` : ''}
-                          {s.rejected_reason ? ` • ${s.rejected_reason}` : ''}
+                          {rejectedReason ? ` • ${rejectedReason}` : ''}
+                          {debugError ? ` • twitter: ${debugError}` : ''}
                         </span>
                       </div>
                       <a href={s.post_url} className="text-teal-300">View</a>
