@@ -36,10 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(400).json({ ok: false, error: 'input is required' });
   }
 
-  const tweetId = extractTweetId(input);
-  if (!tweetId) {
+  const parsedTweetId = extractTweetId(input);
+  if (!parsedTweetId) {
     return res.status(400).json({ ok: false, error: 'Invalid tweet URL or ID' });
   }
+  const tweetId = parsedTweetId;
 
   const paramAttempts = [
     { tweetId },
