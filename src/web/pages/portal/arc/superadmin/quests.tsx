@@ -12,6 +12,10 @@ export default function SuperAdminQuests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [debugInput, setDebugInput] = useState('');
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugResult, setDebugResult] = useState<any | null>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +70,30 @@ export default function SuperAdminQuests() {
     }
   };
 
+  const handleDebugFetch = async () => {
+    if (!debugInput.trim()) return;
+    setDebugLoading(true);
+    setDebugError(null);
+    setDebugResult(null);
+    try {
+      const res = await fetch('/api/portal/superadmin/twitter-debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ input: debugInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to fetch tweet');
+      }
+      setDebugResult(data);
+    } catch (err: any) {
+      setDebugError(err.message || 'Failed to fetch tweet');
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
   if (!canAccess) {
     return (
       <ArcPageShell hideRightRail>
@@ -89,6 +117,31 @@ export default function SuperAdminQuests() {
           >
             {refreshingAll ? 'Refreshing…' : 'Refresh X stats (all)'}
           </button>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-black/40 p-5">
+          <div className="text-sm text-white/70 font-semibold mb-2">X Debug (twitterapi.io)</div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={debugInput}
+              onChange={(e) => setDebugInput(e.target.value)}
+              placeholder="Paste tweet URL or ID"
+              className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+            />
+            <button
+              onClick={handleDebugFetch}
+              disabled={debugLoading || !debugInput.trim()}
+              className="px-3 py-2 text-xs font-semibold bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/20 disabled:opacity-50"
+            >
+              {debugLoading ? 'Fetching…' : 'Fetch'}
+            </button>
+          </div>
+          {debugError && <div className="mt-2 text-xs text-red-300">{debugError}</div>}
+          {debugResult && (
+            <pre className="mt-3 max-h-80 overflow-auto text-[11px] text-white/60 bg-black/40 border border-white/10 rounded-lg p-3">
+{JSON.stringify(debugResult, null, 2)}
+            </pre>
+          )}
         </div>
 
         {loading ? (
