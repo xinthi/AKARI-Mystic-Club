@@ -315,11 +315,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       ? campaign?.brand_profiles?.[0]
       : campaign?.brand_profiles;
 
-    const brandRow = Array.isArray(campaign?.brand_profiles)
-      ? campaign?.brand_profiles?.[0]
-      : campaign?.brand_profiles;
-    const qualificationKeywords = buildQualificationKeywords(brandRow?.name, campaign?.objectives, brandRow?.x_handle);
-
     const rows = submissions || [];
     for (const row of rows) {
       const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
