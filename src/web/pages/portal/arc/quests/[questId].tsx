@@ -48,6 +48,7 @@ export default function QuestDetail() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
   const [refreshingX, setRefreshingX] = useState(false);
+  const [leaderboardPlatform, setLeaderboardPlatform] = useState<'all' | typeof PLATFORMS[number]>('all');
 
   const loadQuest = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
@@ -250,6 +251,11 @@ export default function QuestDetail() {
   }, [leaderboard]);
 
   const topKols = leaderboard.slice(0, 3);
+
+  const filteredLeaderboard = useMemo(() => {
+    if (leaderboardPlatform === 'all') return leaderboard;
+    return leaderboard.filter((row: any) => (row.platforms?.[leaderboardPlatform] || 0) > 0);
+  }, [leaderboard, leaderboardPlatform]);
 
   if (loading) {
     return (
@@ -554,9 +560,35 @@ export default function QuestDetail() {
         )}
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <h2 className="text-lg font-semibold text-white mb-3">Quest Leaderboard</h2>
-          <p className="text-xs text-white/50 mb-3">Analytics for discovery only. No rewards or incentives.</p>
-          {leaderboard.length === 0 ? (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Quest Leaderboard</h2>
+              <p className="text-xs text-white/50">Analytics for discovery only. No rewards or incentives.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/30 p-1">
+                <button
+                  onClick={() => setLeaderboardPlatform('all')}
+                  className={`px-3 py-1 text-[11px] rounded-full ${leaderboardPlatform === 'all' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
+                >
+                  All
+                </button>
+                {PLATFORMS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setLeaderboardPlatform(p)}
+                    className={`px-2.5 py-1 text-[11px] rounded-full ${leaderboardPlatform === p ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
+                  >
+                    {PLATFORM_ICONS[p]}
+                  </button>
+                ))}
+              </div>
+              <div className="w-8 h-8 rounded-full border border-white/10 bg-black/30 flex items-center justify-center text-xs text-white/80">
+                {leaderboardPlatform === 'all' ? 'ALL' : PLATFORM_ICONS[leaderboardPlatform]}
+              </div>
+            </div>
+          </div>
+          {filteredLeaderboard.length === 0 ? (
             <div className="space-y-3">
               <div className="rounded-lg border border-white/10 bg-black/20 p-4 text-center text-white/60">
                 <div className="text-sm font-semibold text-white/80">Sample Leaderboard</div>
@@ -568,15 +600,22 @@ export default function QuestDetail() {
                     <tr className="text-xs text-white/30 uppercase">
                       <th className="text-left py-2">Rank</th>
                       <th className="text-left py-2">Creator</th>
-                      {PLATFORMS.map((p) => (
+                      {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                         <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
                       ))}
                       <th className="text-right py-2">Submitted</th>
                       <th className="text-right py-2">Verified X</th>
-                      <th className="text-right py-2">Clicks</th>
+                      {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
+                        <>
+                          <th className="text-right py-2">X Likes</th>
+                          <th className="text-right py-2">X Replies</th>
+                          <th className="text-right py-2">X Reposts</th>
+                          <th className="text-right py-2">X Views</th>
+                        </>
+                      ) : null}
+                      <th className="text-right py-2">Link Clicks</th>
                       <th className="text-right py-2">24h</th>
                       <th className="text-right py-2">1h</th>
-                      <th className="text-right py-2">Engagement</th>
                       <th className="text-right py-2">Score</th>
                     </tr>
                   </thead>
@@ -587,12 +626,19 @@ export default function QuestDetail() {
                           <span className="px-2 py-1 rounded-md text-xs bg-white/5 text-white/60">{rank}</span>
                         </td>
                         <td className="py-3">@creator_{rank}</td>
-                        {PLATFORMS.map((p) => (
+                        {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                           <td key={p} className="py-3 text-center text-xs text-white/50">—</td>
                         ))}
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
-                        <td className="py-3 text-right">0</td>
+                        {(leaderboardPlatform === 'all' || leaderboardPlatform === 'x') && (
+                          <>
+                            <td className="py-3 text-right">0</td>
+                            <td className="py-3 text-right">0</td>
+                            <td className="py-3 text-right">0</td>
+                            <td className="py-3 text-right">0</td>
+                          </>
+                        )}
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
@@ -610,15 +656,19 @@ export default function QuestDetail() {
                   <tr className="text-xs text-white/40 uppercase">
                     <th className="text-left py-2">Rank</th>
                     <th className="text-left py-2">Creator</th>
-                    {PLATFORMS.map((p) => (
+                    {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                       <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
                     ))}
                     <th className="text-right py-2">Submitted</th>
                     <th className="text-right py-2">Verified X</th>
-                    <th className="text-right py-2">X Likes</th>
-                    <th className="text-right py-2">X Replies</th>
-                    <th className="text-right py-2">X Reposts</th>
-                    <th className="text-right py-2">X Views</th>
+                    {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
+                      <>
+                        <th className="text-right py-2">X Likes</th>
+                        <th className="text-right py-2">X Replies</th>
+                        <th className="text-right py-2">X Reposts</th>
+                        <th className="text-right py-2">X Views</th>
+                      </>
+                    ) : null}
                     <th className="text-right py-2">Link Clicks</th>
                     <th className="text-right py-2">24h</th>
                     <th className="text-right py-2">1h</th>
@@ -626,7 +676,7 @@ export default function QuestDetail() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {leaderboard.map((row: any, idx: number) => {
+                  {filteredLeaderboard.map((row: any, idx: number) => {
                     const rank = idx + 1;
                     const rankStyles = rank === 1
                       ? 'bg-yellow-500/20 text-yellow-300'
@@ -655,17 +705,21 @@ export default function QuestDetail() {
                             </div>
                           </div>
                         </td>
-                        {PLATFORMS.map((p) => (
+                        {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                           <td key={p} className="py-3 text-center text-xs text-white/60">
                             {row.platforms?.[p] || 0}
                           </td>
                         ))}
                         <td className="py-3 text-right">{row.submittedPostsCount || 0}</td>
                         <td className="py-3 text-right">{row.verifiedXPostsCount || 0}</td>
-                        <td className="py-3 text-right">{row.xLikes || 0}</td>
-                        <td className="py-3 text-right">{row.xReplies || 0}</td>
-                        <td className="py-3 text-right">{row.xReposts || 0}</td>
-                        <td className="py-3 text-right">{row.xViews || 0}</td>
+                        {(leaderboardPlatform === 'all' || leaderboardPlatform === 'x') && (
+                          <>
+                            <td className="py-3 text-right">{row.xLikes || 0}</td>
+                            <td className="py-3 text-right">{row.xReplies || 0}</td>
+                            <td className="py-3 text-right">{row.xReposts || 0}</td>
+                            <td className="py-3 text-right">{row.xViews || 0}</td>
+                          </>
+                        )}
                         <td className="py-3 text-right">{row.clicks}</td>
                         <td className="py-3 text-right">{row.last24hClicks || 0}</td>
                         <td className="py-3 text-right">{row.last1hClicks || 0}</td>
