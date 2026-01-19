@@ -320,7 +320,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
       if (!tweetId) continue;
 
-      const tweet = await twitterApiGetTweetById(tweetId);
+      const tweet = await twitterApiGetTweetById(tweetId, String(row.post_url || ''));
       if (!tweet) {
         await supabase
           .from('campaign_submissions')

@@ -342,7 +342,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       status = 'rejected';
       rejected_reason = 'Tweet ID not found';
     } else {
-      const tweet = await twitterApiGetTweetById(tweetId);
+      const tweet = await twitterApiGetTweetById(tweetId, String(postUrl));
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
         status = 'pending';

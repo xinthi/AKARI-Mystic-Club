@@ -66,12 +66,19 @@ export async function twitterApiGet<T>(
   return res.json() as Promise<T>;
 }
 
-export async function twitterApiGetTweetById(tweetId: string): Promise<any | null> {
+export async function twitterApiGetTweetById(tweetId: string, tweetUrl?: string): Promise<any | null> {
   const paramAttempts = [
     { tweetId },
     { tweet_id: tweetId },
     { id: tweetId },
   ];
+  const urlAttempts = tweetUrl
+    ? [
+        { url: tweetUrl },
+        { tweet_url: tweetUrl },
+        { tweetUrl },
+      ]
+    : [];
   const endpointAttempts = [
     '/twitter/tweet/info',
     '/twitter/tweet/lookup',
@@ -80,6 +87,14 @@ export async function twitterApiGetTweetById(tweetId: string): Promise<any | nul
 
   for (const path of endpointAttempts) {
     for (const params of paramAttempts) {
+      try {
+        const data = await twitterApiGet<any>(path, params);
+        if (data) return data;
+      } catch {
+        // try next param shape
+      }
+    }
+    for (const params of urlAttempts) {
       try {
         const data = await twitterApiGet<any>(path, params);
         if (data) return data;
