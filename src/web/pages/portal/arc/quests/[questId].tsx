@@ -54,7 +54,53 @@ function PlatformIcon({
       className={`inline-flex items-center justify-center rounded-full bg-black/40 ${borderClass} ${sizeClass} ${PLATFORM_BADGES[platform]}`}
       title={PLATFORM_LABELS[platform]}
     >
-      {PLATFORM_ICONS[platform]}
+      {platform === 'other' ? (
+        <span className="font-semibold">{PLATFORM_ICONS[platform]}</span>
+      ) : (
+        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+          {platform === 'x' && (
+            <path
+              fill="currentColor"
+              d="M18.244 2H21l-6.75 7.72L22 22h-6.828l-4.25-5.73L4.88 22H2.05l7.25-8.3L2 2h6.999l3.85 5.162L18.244 2zM16.9 19.7h1.502L7.27 4.18H5.68L16.9 19.7z"
+            />
+          )}
+          {platform === 'youtube' && (
+            <>
+              <path
+                fill="currentColor"
+                d="M23.5 7.2a2.9 2.9 0 0 0-2.04-2.05C19.6 4.7 12 4.7 12 4.7s-7.6 0-9.46.45A2.9 2.9 0 0 0 .5 7.2 30.3 30.3 0 0 0 0 12c0 1.6.2 3.2.5 4.8a2.9 2.9 0 0 0 2.04 2.05C4.4 19.3 12 19.3 12 19.3s7.6 0 9.46-.45a2.9 2.9 0 0 0 2.04-2.05A30.3 30.3 0 0 0 24 12c0-1.6-.2-3.2-.5-4.8Z"
+              />
+              <path fill="#0b0b0b" d="M9.75 15.02V8.98L15.5 12l-5.75 3.02Z" />
+            </>
+          )}
+          {platform === 'tiktok' && (
+            <path
+              fill="currentColor"
+              d="M21 8.2a6.5 6.5 0 0 1-3.77-1.2v7.2a5.5 5.5 0 1 1-5.5-5.5c.2 0 .41.02.61.05v2.7a2.8 2.8 0 1 0 2.8 2.75V2h2.7a6.5 6.5 0 0 0 3.16 3.8Z"
+            />
+          )}
+          {platform === 'telegram' && (
+            <path
+              fill="currentColor"
+              d="M22.5 3.5 2.9 11.2c-1.3.5-1.3 1.2-.2 1.6l5 1.6 1.9 5.8c.2.6.4.8 1 .8l2.8-2.7 5.8 4.2c1 .6 1.8.3 2.1-1l3.8-17.8c.4-1.6-.6-2.3-2-1.7Zm-5.4 4.7-8.6 7.8-.3 3.3-1.4-4.4 10.3-6.7Z"
+            />
+          )}
+          {platform === 'linkedin' && (
+            <>
+              <path fill="currentColor" d="M4.98 3.5C4.98 4.88 3.86 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5ZM.2 8h4.6v14H.2V8Zm7.1 0h4.4v1.9h.1c.6-1.1 2.1-2.3 4.4-2.3 4.7 0 5.6 3.1 5.6 7.1V22h-4.6v-6.4c0-1.5 0-3.5-2.1-3.5s-2.4 1.7-2.4 3.4V22H7.3V8Z" />
+            </>
+          )}
+          {platform === 'instagram' && (
+            <>
+              <path
+                fill="currentColor"
+                d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2.3A2.7 2.7 0 0 0 4.3 7v10A2.7 2.7 0 0 0 7 19.7h10A2.7 2.7 0 0 0 19.7 17V7A2.7 2.7 0 0 0 17 4.3H7Z"
+              />
+              <path fill="currentColor" d="M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2.3A2.7 2.7 0 1 0 12 14.7 2.7 2.7 0 0 0 12 9.3Zm5.7-3.1a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z" />
+            </>
+          )}
+        </svg>
+      )}
     </span>
   );
 }
