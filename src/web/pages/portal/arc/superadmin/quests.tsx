@@ -11,6 +11,7 @@ export default function SuperAdminQuests() {
   const [quests, setQuests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,6 +53,19 @@ export default function SuperAdminQuests() {
     load();
   };
 
+  const handleGlobalRefresh = async () => {
+    setRefreshingAll(true);
+    try {
+      await fetch('/api/portal/superadmin/refresh-x', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      load();
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
+
   if (!canAccess) {
     return (
       <ArcPageShell hideRightRail>
@@ -63,9 +77,18 @@ export default function SuperAdminQuests() {
   return (
     <ArcPageShell hideRightRail>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Quest Approvals</h1>
-          <p className="text-sm text-white/60">Approve or reject quest launch requests.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Quest Approvals</h1>
+            <p className="text-sm text-white/60">Approve or reject quest launch requests.</p>
+          </div>
+          <button
+            onClick={handleGlobalRefresh}
+            disabled={refreshingAll}
+            className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/20 disabled:opacity-50"
+          >
+            {refreshingAll ? 'Refreshing…' : 'Refresh X stats (all)'}
+          </button>
         </div>
 
         {loading ? (
