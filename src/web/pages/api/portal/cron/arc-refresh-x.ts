@@ -50,6 +50,10 @@ function normalizeTweetData(tweet: any): any {
     tweet?.data?.data,
     tweet?.data?.tweet,
     tweet?.data?.result,
+    tweet?.data?.tweets?.[0],
+    tweet?.data?.results?.[0],
+    tweet?.tweets?.[0],
+    tweet?.results?.[0],
     tweet?.tweet,
     tweet?.result,
   ];
@@ -152,15 +156,22 @@ function extractTweetMetrics(tweet: any): {
   );
   const repostCount = Number(
     metrics?.retweet_count ??
+      metrics?.repost_count ??
       metrics?.retweets ??
+      metrics?.reposts ??
       data?.retweet_count ??
+      data?.repost_count ??
       data?.retweets ??
+      data?.reposts ??
       0
   );
   const viewCount = Number(
     metrics?.impression_count ??
       metrics?.views ??
+      metrics?.view_count ??
+      metrics?.viewCount ??
       data?.view_count ??
+      data?.viewCount ??
       data?.views ??
       0
   );
@@ -297,7 +308,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       if (!tweet) {
         await supabase
           .from('campaign_submissions')
-          .update({ status: 'pending', rejected_reason: null })
+          .update({ status: 'pending', rejected_reason: 'Awaiting X verification' })
           .eq('id', row.id);
         refreshed += 1;
         continue;
