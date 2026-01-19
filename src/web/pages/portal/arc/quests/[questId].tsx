@@ -19,6 +19,15 @@ const PLATFORM_ICONS: Record<string, string> = {
   instagram: 'IG',
   other: 'OT',
 };
+const PLATFORM_BADGES: Record<string, string> = {
+  x: 'bg-white/10 text-white',
+  youtube: 'bg-red-500/20 text-red-300',
+  tiktok: 'bg-pink-500/20 text-pink-300',
+  telegram: 'bg-sky-500/20 text-sky-300',
+  linkedin: 'bg-blue-500/20 text-blue-300',
+  instagram: 'bg-purple-500/20 text-purple-300',
+  other: 'bg-white/10 text-white/70',
+};
 
 export default function QuestDetail() {
   const router = useRouter();
@@ -49,6 +58,7 @@ export default function QuestDetail() {
   const [origin, setOrigin] = useState('');
   const [refreshingX, setRefreshingX] = useState(false);
   const [leaderboardPlatform, setLeaderboardPlatform] = useState<'all' | typeof PLATFORMS[number]>('all');
+  const [utmPlatform, setUtmPlatform] = useState<'all' | typeof PLATFORMS[number]>('all');
 
   const loadQuest = useCallback(async () => {
     if (!questId || typeof questId !== 'string') return;
@@ -241,6 +251,19 @@ export default function QuestDetail() {
     }
   };
 
+  const buildPlatformUrl = (url?: string | null) => {
+    if (!url) return url || '';
+    if (utmPlatform === 'all') return url;
+    try {
+      const target = url.startsWith('http') ? url : `${origin}${url}`;
+      const parsed = new URL(target);
+      parsed.searchParams.set('platform', utmPlatform);
+      return parsed.pathname.startsWith('/api') ? parsed.toString().replace(origin, '') : parsed.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const totals = useMemo(() => {
     const participants = leaderboard.length;
     const totalClicks = leaderboard.reduce((acc, row) => acc + Number(row.clicks || 0), 0);
@@ -382,9 +405,32 @@ export default function QuestDetail() {
         </div>
 
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">Official Links</h2>
-            <span className="text-xs text-white/40">Your tracked URLs per link</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Official Links</h2>
+              <span className="text-xs text-white/40">Your tracked URLs per link</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-white/50">Platform</span>
+              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/30 p-1">
+                <button
+                  onClick={() => setUtmPlatform('all')}
+                  className={`px-2.5 py-1 text-[11px] rounded-full ${utmPlatform === 'all' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
+                >
+                  All
+                </button>
+                {PLATFORMS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setUtmPlatform(p)}
+                    className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center border border-white/10 ${utmPlatform === p ? 'bg-white/10 text-white' : `${PLATFORM_BADGES[p]} hover:text-white`}`}
+                    title={p.toUpperCase()}
+                  >
+                    {PLATFORM_ICONS[p]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           {copiedLink && (
             <div className="mb-3 text-xs text-teal-300">Link copied to clipboard.</div>
@@ -397,7 +443,8 @@ export default function QuestDetail() {
                 .sort((a, b) => (a.linkIndex || 0) - (b.linkIndex || 0))
                 .map((link: any, idx: number) => {
                   const rawUrl = link.utmUrl || link.url;
-                  const fullUrl = origin && rawUrl?.startsWith('/') ? `${origin}${rawUrl}` : rawUrl;
+                  const platformUrl = buildPlatformUrl(rawUrl);
+                  const fullUrl = origin && platformUrl?.startsWith('/') ? `${origin}${platformUrl}` : platformUrl;
                   return (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
                       <div>
@@ -407,7 +454,7 @@ export default function QuestDetail() {
                         <div className="text-xs text-white/40 truncate max-w-[320px]">{fullUrl}</div>
                       </div>
                       <button
-                        onClick={() => handleCopy(fullUrl || rawUrl)}
+                        onClick={() => handleCopy(fullUrl || platformUrl || rawUrl)}
                         className="px-3 py-1.5 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20"
                       >
                         {copiedLink === (fullUrl || rawUrl) ? 'Copied' : 'Copy Link'}
@@ -577,13 +624,14 @@ export default function QuestDetail() {
                   <button
                     key={p}
                     onClick={() => setLeaderboardPlatform(p)}
-                    className={`px-2.5 py-1 text-[11px] rounded-full ${leaderboardPlatform === p ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white'}`}
+                    className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center border border-white/10 ${leaderboardPlatform === p ? 'bg-white/10 text-white' : `${PLATFORM_BADGES[p]} hover:text-white`}`}
+                    title={p.toUpperCase()}
                   >
                     {PLATFORM_ICONS[p]}
                   </button>
                 ))}
               </div>
-              <div className="w-8 h-8 rounded-full border border-white/10 bg-black/30 flex items-center justify-center text-xs text-white/80">
+              <div className={`w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-xs ${leaderboardPlatform === 'all' ? 'bg-black/30 text-white/80' : PLATFORM_BADGES[leaderboardPlatform]}`}>
                 {leaderboardPlatform === 'all' ? 'ALL' : PLATFORM_ICONS[leaderboardPlatform]}
               </div>
             </div>
@@ -605,12 +653,15 @@ export default function QuestDetail() {
                       ))}
                       <th className="text-right py-2">Submitted</th>
                       <th className="text-right py-2">Verified X</th>
+                      <th className="text-right py-2">Qualified X</th>
+                      <th className="text-right py-2">Tracked Link</th>
                       {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                         <>
                           <th className="text-right py-2">X Likes</th>
                           <th className="text-right py-2">X Replies</th>
                           <th className="text-right py-2">X Reposts</th>
                           <th className="text-right py-2">X Views</th>
+                          <th className="text-right py-2">Avg Engage</th>
                         </>
                       ) : null}
                       <th className="text-right py-2">Link Clicks</th>
@@ -631,8 +682,11 @@ export default function QuestDetail() {
                         ))}
                         <td className="py-3 text-right">0</td>
                         <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
+                        <td className="py-3 text-right">0</td>
                         {(leaderboardPlatform === 'all' || leaderboardPlatform === 'x') && (
                           <>
+                            <td className="py-3 text-right">0</td>
                             <td className="py-3 text-right">0</td>
                             <td className="py-3 text-right">0</td>
                             <td className="py-3 text-right">0</td>
@@ -659,14 +713,17 @@ export default function QuestDetail() {
                     {leaderboardPlatform === 'all' && PLATFORMS.map((p) => (
                       <th key={p} className="text-center py-2">{PLATFORM_ICONS[p]}</th>
                     ))}
-                    <th className="text-right py-2">Submitted</th>
-                    <th className="text-right py-2">Verified X</th>
+                      <th className="text-right py-2">Submitted</th>
+                      <th className="text-right py-2">Verified X</th>
+                      <th className="text-right py-2">Qualified X</th>
+                      <th className="text-right py-2">Tracked Link</th>
                     {leaderboardPlatform === 'all' || leaderboardPlatform === 'x' ? (
                       <>
                         <th className="text-right py-2">X Likes</th>
                         <th className="text-right py-2">X Replies</th>
                         <th className="text-right py-2">X Reposts</th>
                         <th className="text-right py-2">X Views</th>
+                        <th className="text-right py-2">Avg Engage</th>
                       </>
                     ) : null}
                     <th className="text-right py-2">Link Clicks</th>
@@ -712,17 +769,32 @@ export default function QuestDetail() {
                         ))}
                         <td className="py-3 text-right">{row.submittedPostsCount || 0}</td>
                         <td className="py-3 text-right">{row.verifiedXPostsCount || 0}</td>
+                        <td className="py-3 text-right">{row.qualifiedXPostsCount || 0}</td>
+                        <td className="py-3 text-right">{row.usedCampaignLinkCount || 0}</td>
                         {(leaderboardPlatform === 'all' || leaderboardPlatform === 'x') && (
                           <>
                             <td className="py-3 text-right">{row.xLikes || 0}</td>
                             <td className="py-3 text-right">{row.xReplies || 0}</td>
                             <td className="py-3 text-right">{row.xReposts || 0}</td>
                             <td className="py-3 text-right">{row.xViews || 0}</td>
+                            <td className="py-3 text-right">{row.xAvgEngagement || 0}</td>
                           </>
                         )}
-                        <td className="py-3 text-right">{row.clicks}</td>
-                        <td className="py-3 text-right">{row.last24hClicks || 0}</td>
-                        <td className="py-3 text-right">{row.last1hClicks || 0}</td>
+                        <td className="py-3 text-right">
+                          {leaderboardPlatform === 'all'
+                            ? row.clicks
+                            : row.clicksByPlatform?.[leaderboardPlatform] || 0}
+                        </td>
+                        <td className="py-3 text-right">
+                          {leaderboardPlatform === 'all'
+                            ? row.last24hClicks || 0
+                            : row.last24hClicksByPlatform?.[leaderboardPlatform] || 0}
+                        </td>
+                        <td className="py-3 text-right">
+                          {leaderboardPlatform === 'all'
+                            ? row.last1hClicks || 0
+                            : row.last1hClicksByPlatform?.[leaderboardPlatform] || 0}
+                        </td>
                         <td className="py-3 text-right font-semibold">{row.totalScore}</td>
                       </tr>
                     );

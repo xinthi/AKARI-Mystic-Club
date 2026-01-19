@@ -36,12 +36,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: submissions } = await supabase
     .from('campaign_submissions')
-    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link, like_count, reply_count, repost_count, view_count')
+    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link, like_count, reply_count, repost_count, view_count, qualified')
     .eq('campaign_id', campaignId);
 
   const { data: events } = await supabase
     .from('campaign_utm_events')
-    .select('creator_profile_id, event_type, created_at')
+    .select('creator_profile_id, event_type, created_at, source_platform')
     .eq('campaign_id', campaignId);
 
   const submissionAgg = (submissions || []).reduce<Record<string, any>>((acc, row: any) => {
@@ -53,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         submittedPostsCount: 0,
         verifiedXPostsCount: 0,
         usedCampaignLinkCount: 0,
+        qualifiedXPostsCount: 0,
         xLikes: 0,
         xReplies: 0,
         xReposts: 0,
@@ -65,6 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     acc[creatorId].submittedPostsCount += 1;
     if (platform === 'x' && row.verified_at) {
       acc[creatorId].verifiedXPostsCount += 1;
+      if (row.qualified) acc[creatorId].qualifiedXPostsCount += 1;
       acc[creatorId].xLikes += Number(row.like_count || 0);
       acc[creatorId].xReplies += Number(row.reply_count || 0);
       acc[creatorId].xReposts += Number(row.repost_count || 0);
@@ -79,16 +81,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   const now = Date.now();
   const hourAgo = now - 60 * 60 * 1000;
   const dayAgo = now - 24 * 60 * 60 * 1000;
+  const allowedPlatforms = new Set(['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram', 'other']);
   const clickAgg = (events || []).reduce<Record<string, any>>((acc, row: any) => {
     const creatorId = row.creator_profile_id || 'unknown';
     if (!acc[creatorId]) {
-      acc[creatorId] = { clicks: 0, last24h: 0, last1h: 0 };
+      acc[creatorId] = {
+        clicks: 0,
+        last24h: 0,
+        last1h: 0,
+        byPlatform: {},
+        byPlatform24h: {},
+        byPlatform1h: {},
+      };
     }
     if (row.event_type === 'click') {
       acc[creatorId].clicks += 1;
       const ts = row.created_at ? new Date(row.created_at).getTime() : 0;
       if (ts >= dayAgo) acc[creatorId].last24h += 1;
       if (ts >= hourAgo) acc[creatorId].last1h += 1;
+      const platform = row.source_platform && allowedPlatforms.has(String(row.source_platform))
+        ? String(row.source_platform)
+        : null;
+      if (platform) {
+        acc[creatorId].byPlatform[platform] = (acc[creatorId].byPlatform[platform] || 0) + 1;
+        if (ts >= dayAgo) {
+          acc[creatorId].byPlatform24h[platform] = (acc[creatorId].byPlatform24h[platform] || 0) + 1;
+        }
+        if (ts >= hourAgo) {
+          acc[creatorId].byPlatform1h[platform] = (acc[creatorId].byPlatform1h[platform] || 0) + 1;
+        }
+      }
     }
     return acc;
   }, {});
@@ -117,9 +139,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const clicks = clickAgg[creatorId]?.clicks || 0;
     const last24hClicks = clickAgg[creatorId]?.last24h || 0;
     const last1hClicks = clickAgg[creatorId]?.last1h || 0;
+    const clicksByPlatform = clickAgg[creatorId]?.byPlatform || {};
+    const last24hClicksByPlatform = clickAgg[creatorId]?.byPlatform24h || {};
+    const last1hClicksByPlatform = clickAgg[creatorId]?.byPlatform1h || {};
     const submittedPostsCount = submissionAgg[creatorId]?.submittedPostsCount || 0;
     const verifiedXPostsCount = submissionAgg[creatorId]?.verifiedXPostsCount || 0;
     const usedCampaignLinkCount = submissionAgg[creatorId]?.usedCampaignLinkCount || 0;
+    const qualifiedXPostsCount = submissionAgg[creatorId]?.qualifiedXPostsCount || 0;
+    const xAvgEngagement = verifiedXPostsCount > 0 ? Math.round(engagementScore / verifiedXPostsCount) : 0;
     const xLikes = submissionAgg[creatorId]?.xLikes || 0;
     const xReplies = submissionAgg[creatorId]?.xReplies || 0;
     const xReposts = submissionAgg[creatorId]?.xReposts || 0;
@@ -133,11 +160,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       platforms: submissionAgg[creatorId]?.platforms || {},
       submittedPostsCount,
       verifiedXPostsCount,
+      qualifiedXPostsCount,
       usedCampaignLinkCount,
       engagementScore,
+      xAvgEngagement,
       clicks,
       last24hClicks,
       last1hClicks,
+      clicksByPlatform,
+      last24hClicksByPlatform,
+      last1hClicksByPlatform,
       xLikes,
       xReplies,
       xReposts,

@@ -13,6 +13,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const creatorProfileId = req.query.creatorProfileId as string | undefined;
   const linkId = req.query.linkId as string | undefined;
   const utmLinkId = req.query.utmLinkId as string | undefined;
+  const platformParam = req.query.platform as string | undefined;
+  const allowedPlatforms = new Set(['x', 'youtube', 'tiktok', 'telegram', 'linkedin', 'instagram', 'other']);
+  const sourcePlatform =
+    platformParam && allowedPlatforms.has(platformParam.toLowerCase()) ? platformParam.toLowerCase() : null;
 
   if (!utmLinkId && (!campaignId || !creatorProfileId || !linkId)) {
     return res.status(400).json({ ok: false, error: 'utmLinkId or campaignId, creatorProfileId, linkId are required' });
@@ -84,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     event_type: 'click',
     referrer: req.headers.referer || null,
     user_agent: req.headers['user-agent'] || null,
-    source_platform: null,
+    source_platform: sourcePlatform,
     location: null,
     ip_hash: ipHash,
     country,

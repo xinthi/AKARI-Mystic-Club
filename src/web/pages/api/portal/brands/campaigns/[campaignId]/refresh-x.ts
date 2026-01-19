@@ -144,6 +144,36 @@ function extractTweetMetrics(tweet: any): {
   return { likeCount, replyCount, repostCount, viewCount };
 }
 
+function extractTweetText(tweet: any): string {
+  const data = normalizeTweetData(tweet);
+  return (
+    data?.full_text ||
+    data?.fullText ||
+    data?.text ||
+    data?.content ||
+    data?.body ||
+    ''
+  ).toString();
+}
+
+function buildQualificationKeywords(brandName?: string | null, objectives?: string | null, handle?: string | null): string[] {
+  const raw = [brandName, objectives, handle ? `@${handle}` : null]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const words = raw
+    .replace(/[^a-z0-9@ ]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 4);
+  return Array.from(new Set(words));
+}
+
+function isTweetQualified(tweetText: string, keywords: string[]): boolean {
+  if (!tweetText || keywords.length === 0) return false;
+  const normalized = tweetText.toLowerCase();
+  return keywords.some((keyword) => normalized.includes(keyword));
+}
+
 async function getCreatorHandle(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   profileId: string,
@@ -225,7 +255,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: campaign } = await supabase
     .from('brand_campaigns')
-    .select('id, brand_id')
+    .select('id, brand_id, objectives, brand_profiles(name, x_handle)')
     .eq('id', campaignId)
     .maybeSingle();
 
@@ -255,6 +285,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .eq('campaign_id', campaignId);
 
   let refreshed = 0;
+  const brandRow = Array.isArray(campaign?.brand_profiles)
+    ? campaign?.brand_profiles?.[0]
+    : campaign?.brand_profiles;
+  const qualificationKeywords = buildQualificationKeywords(brandRow?.name, campaign?.objectives, brandRow?.x_handle);
   for (const row of rows) {
     const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
     if (!tweetId) continue;
@@ -293,6 +327,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const urls = await expandTrackingUrls(extractTweetUrls(tweet));
     const match = findMatchingUtmLink(urls, utmLinks || []);
 
+    const tweetText = extractTweetText(tweet);
+    const qualified = isTweetQualified(tweetText, qualificationKeywords);
+
     await supabase
       .from('campaign_submissions')
       .update({
@@ -302,6 +339,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         rejected_reason: null,
         used_campaign_link: match.matched,
         matched_utm_link_id: match.matchedId,
+        qualified,
+        qualification_reason: qualified ? null : 'Content does not match brand or objectives',
         like_count: metrics.likeCount,
         reply_count: metrics.replyCount,
         repost_count: metrics.repostCount,

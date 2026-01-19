@@ -154,6 +154,36 @@ function extractTweetMetrics(tweet: any): {
   return { likeCount, replyCount, repostCount, viewCount };
 }
 
+function extractTweetText(tweet: any): string {
+  const data = normalizeTweetData(tweet);
+  return (
+    data?.full_text ||
+    data?.fullText ||
+    data?.text ||
+    data?.content ||
+    data?.body ||
+    ''
+  ).toString();
+}
+
+function buildQualificationKeywords(brandName?: string | null, objectives?: string | null, handle?: string | null): string[] {
+  const raw = [brandName, objectives, handle ? `@${handle}` : null]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const words = raw
+    .replace(/[^a-z0-9@ ]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 4);
+  return Array.from(new Set(words));
+}
+
+function isTweetQualified(tweetText: string, keywords: string[]): boolean {
+  if (!tweetText || keywords.length === 0) return false;
+  const normalized = tweetText.toLowerCase();
+  return keywords.some((keyword) => normalized.includes(keyword));
+}
+
 async function getCreatorHandle(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   profileId: string,
@@ -240,7 +270,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: campaign } = await supabase
     .from('brand_campaigns')
-    .select('end_at')
+    .select('end_at, objectives, brand_id, brand_profiles(name, x_handle)')
     .eq('id', campaignId)
     .maybeSingle();
 
@@ -275,6 +305,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let repost_count: number | null = null;
   let view_count: number | null = null;
   let engagement_score: number | null = null;
+  let qualified = false;
+  let qualification_reason: string | null = null;
 
   if (platformLower === 'x') {
     const tweetId = extractTweetId(String(postUrl));
@@ -303,6 +335,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           repost_count = metrics.repostCount;
           view_count = metrics.viewCount;
           engagement_score = like_count + reply_count + repost_count + Math.round(view_count / 100);
+
+          const brandRow = Array.isArray(campaign?.brand_profiles)
+            ? campaign?.brand_profiles?.[0]
+            : campaign?.brand_profiles;
+          const keywords = buildQualificationKeywords(brandRow?.name, campaign?.objectives, brandRow?.x_handle);
+          const tweetText = extractTweetText(tweet);
+          qualified = isTweetQualified(tweetText, keywords);
+          if (!qualified) {
+            qualification_reason = 'Content does not match brand or objectives';
+          }
 
           const { data: utmLinks } = await supabase
             .from('campaign_utm_links')
@@ -334,6 +376,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       rejected_reason,
       used_campaign_link,
       matched_utm_link_id,
+      qualified,
+      qualification_reason,
       like_count,
       reply_count,
       repost_count,
