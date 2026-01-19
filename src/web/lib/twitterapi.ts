@@ -67,18 +67,25 @@ export async function twitterApiGet<T>(
 }
 
 export async function twitterApiGetTweetById(tweetId: string): Promise<any | null> {
-  const attempts = [
+  const paramAttempts = [
     { tweetId },
     { tweet_id: tweetId },
     { id: tweetId },
   ];
+  const endpointAttempts = [
+    '/twitter/tweet/info',
+    '/twitter/tweet/lookup',
+    '/twitter/tweet',
+  ];
 
-  for (const params of attempts) {
-    try {
-      const data = await twitterApiGet<any>('/twitter/tweet/info', params);
-      if (data) return data;
-    } catch {
-      // try next param shape
+  for (const path of endpointAttempts) {
+    for (const params of paramAttempts) {
+      try {
+        const data = await twitterApiGet<any>(path, params);
+        if (data) return data;
+      } catch {
+        // try next param shape
+      }
     }
   }
 
