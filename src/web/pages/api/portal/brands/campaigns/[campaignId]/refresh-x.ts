@@ -183,6 +183,67 @@ function extractSearchTweets(payload: any): any[] {
   return [];
 }
 
+function cleanTweetUrl(raw?: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
+function extractTweetIdFromPayload(tweet: any): string | null {
+  const data = tweet?.data || tweet;
+  const id =
+    data?.id ||
+    data?.tweet_id ||
+    data?.rest_id ||
+    tweet?.id ||
+    tweet?.tweet_id ||
+    tweet?.rest_id;
+  return id ? String(id) : null;
+}
+
+function pickTweetFromSearch(tweets: any[], tweetId: string): any | null {
+  for (const t of tweets) {
+    const id = extractTweetIdFromPayload(t);
+    if (id === tweetId) return t;
+    const text = extractTweetText(t);
+    if (text && text.includes(tweetId)) return t;
+  }
+  return tweets[0] || null;
+}
+
+async function findTweetViaSearch(tweetId: string, tweetUrl: string | null, creatorHandle: string | null) {
+  const queries: string[] = [];
+  const cleanUrl = cleanTweetUrl(tweetUrl);
+  if (cleanUrl) {
+    queries.push(`url:"${cleanUrl}"`);
+    queries.push(`url:${cleanUrl}`);
+  }
+  queries.push(`conversation_id:${tweetId}`);
+  if (creatorHandle) {
+    queries.push(`from:${creatorHandle} ${tweetId}`);
+    if (cleanUrl) queries.push(`from:${creatorHandle} url:${cleanUrl}`);
+  }
+
+  const errors: string[] = [];
+  for (const query of queries) {
+    const searchResult = await twitterApiSearchTweetsDebug(query, 25);
+    if (searchResult.errors?.length) {
+      errors.push(...searchResult.errors);
+    }
+    const tweets = extractSearchTweets(searchResult.data);
+    const found = pickTweetFromSearch(tweets, tweetId);
+    if (found) return { tweet: found, errors };
+  }
+
+  return { tweet: null, errors };
+}
+
 async function findReplyUrls(tweetId: string, creatorHandle: string | null): Promise<string[]> {
   if (!creatorHandle) return [];
   const query = `conversation_id:${tweetId} from:${creatorHandle}`;
@@ -350,8 +411,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const creatorHandle = await getCreatorHandle(supabase, row.creator_profile_id, user.userId);
     const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(row.post_url || ''));
-    const tweet = tweetResult.data;
-    const fetchError = tweetResult.errors.slice(0, 6).join(' | ') || null;
+    let tweet = tweetResult.data;
+    const searchFallback = !tweet
+      ? await findTweetViaSearch(tweetId, String(row.post_url || ''), creatorHandle)
+      : { tweet: null, errors: [] };
+    if (!tweet && searchFallback.tweet) {
+      tweet = searchFallback.tweet;
+    }
+    const combinedErrors = [
+      ...tweetResult.errors,
+      ...(searchFallback.errors || []),
+    ];
+    const fetchError = combinedErrors.slice(0, 6).join(' | ') || null;
     if (!tweet) {
       const replyUrls = await findReplyUrls(tweetId, creatorHandle);
       const urls = await expandTrackingUrls(replyUrls);
