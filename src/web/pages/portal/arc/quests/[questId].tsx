@@ -624,7 +624,7 @@ export default function QuestDetail() {
                     ? (s.qualification_reason || 'Post does not meet quest standards')
                     : null;
                   const debugError = userIsSuperAdmin && s.twitter_fetch_error
-                    ? String(s.twitter_fetch_error).slice(0, 120)
+                    ? String(s.twitter_fetch_error).replace(/twitterapi\.io/gi, 'X API').slice(0, 120)
                     : null;
                   return (
                     <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
@@ -638,7 +638,7 @@ export default function QuestDetail() {
                           {trackingLabel ? ` • ${trackingLabel}` : ''}
                           {rejectedReason ? ` • ${rejectedReason}` : ''}
                           {qualificationLabel ? ` • ${qualificationLabel}` : ''}
-                          {debugError ? ` • twitter: ${debugError}` : ''}
+                          {debugError ? ` • X API: ${debugError}` : ''}
                         </span>
                       </div>
                       <a href={s.post_url} className="text-teal-300">View</a>

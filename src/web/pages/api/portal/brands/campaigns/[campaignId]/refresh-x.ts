@@ -348,6 +348,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
     if (!tweetId) continue;
 
+    const creatorHandle = await getCreatorHandle(supabase, row.creator_profile_id, user.userId);
     const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(row.post_url || ''));
     const tweet = tweetResult.data;
     const fetchError = tweetResult.errors.slice(0, 6).join(' | ') || null;
@@ -370,7 +371,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       continue;
     }
 
-    const creatorHandle = await getCreatorHandle(supabase, row.creator_profile_id, user.userId);
     const authorHandle = extractAuthorHandle(tweet);
     if (!creatorHandle || !authorHandle || creatorHandle !== authorHandle) {
       await supabase

@@ -66,6 +66,10 @@ export async function twitterApiGet<T>(
   return res.json() as Promise<T>;
 }
 
+function sanitizeApiError(message: string): string {
+  return message.replace(/TwitterAPI\.io/gi, 'X API');
+}
+
 export async function twitterApiGetTweetByIdDebug(
   tweetId: string,
   tweetUrl?: string
@@ -106,7 +110,8 @@ export async function twitterApiGetTweetByIdDebug(
         const data = await twitterApiGet<any>(path, params);
         if (data) return { data, errors };
       } catch (err: any) {
-        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
+        const msg = err?.message || 'Unknown error';
+        errors.push(`${path} ${JSON.stringify(params)} -> ${sanitizeApiError(msg)}`);
       }
     }
     for (const params of urlAttempts) {
@@ -114,7 +119,8 @@ export async function twitterApiGetTweetByIdDebug(
         const data = await twitterApiGet<any>(path, params);
         if (data) return { data, errors };
       } catch (err: any) {
-        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
+        const msg = err?.message || 'Unknown error';
+        errors.push(`${path} ${JSON.stringify(params)} -> ${sanitizeApiError(msg)}`);
       }
     }
   }
@@ -150,7 +156,8 @@ export async function twitterApiSearchTweetsDebug(
         const data = await twitterApiGet<any>(path, params);
         if (data) return { data, errors };
       } catch (err: any) {
-        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
+        const msg = err?.message || 'Unknown error';
+        errors.push(`${path} ${JSON.stringify(params)} -> ${sanitizeApiError(msg)}`);
       }
     }
   }
