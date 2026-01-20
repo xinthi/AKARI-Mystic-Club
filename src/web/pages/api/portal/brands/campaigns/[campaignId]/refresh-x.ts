@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { twitterApiGetTweetByIdDebug } from '@/lib/twitterapi';
+import { twitterApiGetTweetByIdDebug, twitterApiSearchTweetsDebug } from '@/lib/twitterapi';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
 
 type Response =
@@ -167,6 +167,34 @@ function extractTweetText(tweet: any): string {
   ).toString();
 }
 
+function extractSearchTweets(payload: any): any[] {
+  const data = payload?.data || payload;
+  const candidates = [
+    data?.tweets,
+    data?.results,
+    data?.data,
+    data,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate?.tweets && Array.isArray(candidate.tweets)) return candidate.tweets;
+    if (candidate?.results && Array.isArray(candidate.results)) return candidate.results;
+  }
+  return [];
+}
+
+async function findReplyUrls(tweetId: string, creatorHandle: string | null): Promise<string[]> {
+  if (!creatorHandle) return [];
+  const query = `conversation_id:${tweetId} from:${creatorHandle}`;
+  const searchResult = await twitterApiSearchTweetsDebug(query, 25);
+  const tweets = extractSearchTweets(searchResult.data);
+  const urls: string[] = [];
+  for (const t of tweets) {
+    urls.push(...extractTweetUrls(t));
+  }
+  return urls;
+}
+
 function normalizeHandle(handle?: string | null): string | null {
   if (!handle) return null;
   return handle.replace(/^@+/, '').toLowerCase();
@@ -322,13 +350,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(row.post_url || ''));
     const tweet = tweetResult.data;
-    const fetchError = tweetResult.errors.slice(0, 3).join(' | ') || null;
+    const fetchError = tweetResult.errors.slice(0, 6).join(' | ') || null;
     if (!tweet) {
+      const replyUrls = await findReplyUrls(tweetId, creatorHandle);
+      const urls = await expandTrackingUrls(replyUrls);
+      const match = findMatchingUtmLink(urls, utmLinks || []);
       await supabase
         .from('campaign_submissions')
         .update({
           status: 'pending',
           rejected_reason: 'Awaiting X verification',
+          used_campaign_link: match.matched,
+          matched_utm_link_id: match.matchedId,
           twitter_fetch_error: fetchError,
           twitter_fetch_at: new Date().toISOString(),
         })
@@ -356,7 +389,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const metrics = extractTweetMetrics(tweet);
     const engagementScore = metrics.likeCount + metrics.replyCount + metrics.repostCount;
 
-    const urls = await expandTrackingUrls(extractTweetUrls(tweet));
+    const replyUrls = await findReplyUrls(tweetId, creatorHandle);
+    const urls = await expandTrackingUrls([...extractTweetUrls(tweet), ...replyUrls]);
     const match = findMatchingUtmLink(urls, utmLinks || []);
 
     const tweetText = extractTweetText(tweet);

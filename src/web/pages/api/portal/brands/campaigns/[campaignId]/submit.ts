@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
-import { twitterApiGetTweetByIdDebug } from '@/lib/twitterapi';
+import { twitterApiGetTweetByIdDebug, twitterApiSearchTweetsDebug } from '@/lib/twitterapi';
 import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 
 type Response =
@@ -177,6 +177,34 @@ function extractTweetText(tweet: any): string {
   ).toString();
 }
 
+function extractSearchTweets(payload: any): any[] {
+  const data = payload?.data || payload;
+  const candidates = [
+    data?.tweets,
+    data?.results,
+    data?.data,
+    data,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate?.tweets && Array.isArray(candidate.tweets)) return candidate.tweets;
+    if (candidate?.results && Array.isArray(candidate.results)) return candidate.results;
+  }
+  return [];
+}
+
+async function findReplyUrls(tweetId: string, creatorHandle: string | null): Promise<string[]> {
+  if (!creatorHandle) return [];
+  const query = `conversation_id:${tweetId} from:${creatorHandle}`;
+  const searchResult = await twitterApiSearchTweetsDebug(query, 25);
+  const tweets = extractSearchTweets(searchResult.data);
+  const urls: string[] = [];
+  for (const t of tweets) {
+    urls.push(...extractTweetUrls(t));
+  }
+  return urls;
+}
+
 function normalizeHandle(handle?: string | null): string | null {
   if (!handle) return null;
   return handle.replace(/^@+/, '').toLowerCase();
@@ -344,16 +372,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       status = 'rejected';
       rejected_reason = 'Tweet ID not found';
     } else {
+      const creatorHandle = await getCreatorHandle(supabase, profileId, user.userId);
       const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(postUrl));
       const tweet = tweetResult.data;
-      twitter_fetch_error = tweetResult.errors.slice(0, 3).join(' | ') || null;
+      twitter_fetch_error = tweetResult.errors.slice(0, 6).join(' | ') || null;
       twitter_fetch_at = new Date().toISOString();
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
         status = 'pending';
         rejected_reason = 'Awaiting X verification';
       } else {
-        const creatorHandle = await getCreatorHandle(supabase, profileId, user.userId);
         const authorHandle = extractAuthorHandle(tweet);
         if (!creatorHandle || !authorHandle || creatorHandle !== authorHandle) {
           status = 'rejected';
@@ -384,7 +412,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
             .eq('campaign_id', campaignId)
             .eq('creator_profile_id', profileId);
 
-          const urls = await expandTrackingUrls(extractTweetUrls(tweet));
+          const replyUrls = await findReplyUrls(tweetId, creatorHandle);
+          const urls = await expandTrackingUrls([...extractTweetUrls(tweet), ...replyUrls]);
+          const match = findMatchingUtmLink(urls, utmLinks || []);
+          used_campaign_link = match.matched;
+          matched_utm_link_id = match.matchedId;
+        }
+      }
+      if (!used_campaign_link) {
+        const { data: utmLinks } = await supabase
+          .from('campaign_utm_links')
+          .select('id, generated_url, brand_campaign_link_id, base_url')
+          .eq('campaign_id', campaignId)
+          .eq('creator_profile_id', profileId);
+        const replyUrls = await findReplyUrls(tweetId, creatorHandle);
+        if (replyUrls.length > 0) {
+          const urls = await expandTrackingUrls(replyUrls);
           const match = findMatchingUtmLink(urls, utmLinks || []);
           used_campaign_link = match.matched;
           matched_utm_link_id = match.matchedId;

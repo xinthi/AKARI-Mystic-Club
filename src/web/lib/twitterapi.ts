@@ -75,11 +75,22 @@ export async function twitterApiGetTweetByIdDebug(
     { tweet_id: tweetId },
     { id: tweetId },
   ];
-  const urlAttempts = tweetUrl
+  let cleanUrl = tweetUrl;
+  if (tweetUrl) {
+    try {
+      const parsed = new URL(tweetUrl);
+      parsed.search = '';
+      parsed.hash = '';
+      cleanUrl = parsed.toString();
+    } catch {
+      cleanUrl = tweetUrl;
+    }
+  }
+  const urlAttempts = cleanUrl
     ? [
-        { url: tweetUrl },
-        { tweet_url: tweetUrl },
-        { tweetUrl },
+        { url: cleanUrl },
+        { tweet_url: cleanUrl },
+        { tweetUrl: cleanUrl },
       ]
     : [];
   const endpointAttempts = [
@@ -114,4 +125,35 @@ export async function twitterApiGetTweetByIdDebug(
 export async function twitterApiGetTweetById(tweetId: string, tweetUrl?: string): Promise<any | null> {
   const result = await twitterApiGetTweetByIdDebug(tweetId, tweetUrl);
   return result.data;
+}
+
+export async function twitterApiSearchTweetsDebug(
+  query: string,
+  limit = 25
+): Promise<{ data: any | null; errors: string[] }> {
+  const errors: string[] = [];
+  const endpointAttempts = [
+    '/twitter/tweet/search',
+    '/twitter/tweets/search',
+    '/twitter/search',
+  ];
+  const paramAttempts = [
+    { query, limit },
+    { q: query, limit },
+    { query },
+    { q: query },
+  ];
+
+  for (const path of endpointAttempts) {
+    for (const params of paramAttempts) {
+      try {
+        const data = await twitterApiGet<any>(path, params);
+        if (data) return { data, errors };
+      } catch (err: any) {
+        errors.push(`${path} ${JSON.stringify(params)} -> ${err?.message || 'Unknown error'}`);
+      }
+    }
+  }
+
+  return { data: null, errors };
 }
