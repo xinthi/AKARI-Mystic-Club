@@ -348,6 +348,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const tweetId = row.x_tweet_id || extractTweetId(String(row.post_url || ''));
       if (!tweetId) continue;
 
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, akari_user_id')
+        .eq('id', row.creator_profile_id)
+        .maybeSingle();
+
+      let creatorHandle = profile?.username ? String(profile.username).replace(/^@+/, '').toLowerCase() : null;
+      if (!creatorHandle && profile?.akari_user_id) {
+        const { data: identity } = await supabase
+          .from('akari_user_identities')
+          .select('username')
+          .eq('user_id', profile.akari_user_id)
+          .in('provider', ['x', 'twitter'])
+          .maybeSingle();
+        creatorHandle = identity?.username ? String(identity.username).replace(/^@+/, '').toLowerCase() : null;
+      }
+
       const tweetResult = await twitterApiGetTweetByIdDebug(tweetId, String(row.post_url || ''));
       const tweet = tweetResult.data;
       const fetchError = tweetResult.errors.slice(0, 6).join(' | ') || null;
@@ -370,22 +387,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         continue;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username, akari_user_id')
-        .eq('id', row.creator_profile_id)
-        .maybeSingle();
-
-      let creatorHandle = profile?.username ? String(profile.username).replace(/^@+/, '').toLowerCase() : null;
-      if (!creatorHandle && profile?.akari_user_id) {
-        const { data: identity } = await supabase
-          .from('akari_user_identities')
-          .select('username')
-          .eq('user_id', profile.akari_user_id)
-          .in('provider', ['x', 'twitter'])
-          .maybeSingle();
-        creatorHandle = identity?.username ? String(identity.username).replace(/^@+/, '').toLowerCase() : null;
-      }
       const authorHandle = extractAuthorHandle(tweet);
       if (!creatorHandle || !authorHandle || creatorHandle !== authorHandle) {
         await supabase
