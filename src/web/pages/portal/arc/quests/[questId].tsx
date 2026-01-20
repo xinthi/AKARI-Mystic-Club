@@ -358,7 +358,11 @@ export default function QuestDetail() {
 
   const filteredLeaderboard = useMemo(() => {
     if (leaderboardPlatform === 'all') return leaderboard;
-    return leaderboard.filter((row: any) => (row.platforms?.[leaderboardPlatform] || 0) > 0);
+    return leaderboard.filter((row: any) => {
+      const hasSubmissions = (row.platforms?.[leaderboardPlatform] || 0) > 0;
+      const hasClicks = (row.clicksByPlatform?.[leaderboardPlatform] || 0) > 0;
+      return hasSubmissions || hasClicks;
+    });
   }, [leaderboard, leaderboardPlatform]);
 
   if (loading) {
