@@ -58,6 +58,22 @@ export async function twitterApiGet<T>(
     return retryRes.json() as Promise<T>;
   }
 
+  if (res.status >= 500) {
+    await sleep(800);
+    const retryRes = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        'X-API-Key': API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!retryRes.ok) {
+      const retryText = await retryRes.text();
+      throw new Error(`[TwitterAPI.io] ${retryRes.status} ${retryRes.statusText}: ${retryText}`);
+    }
+    return retryRes.json() as Promise<T>;
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`[TwitterAPI.io] ${res.status} ${res.statusText}: ${text}`);
