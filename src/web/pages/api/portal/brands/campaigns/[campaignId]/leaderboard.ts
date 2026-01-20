@@ -63,12 +63,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const platform = row.platform || 'x';
     const isX = platform === 'x';
     const isQualifiedX = !isX || row.qualified !== false;
-    if (!isQualifiedX) {
-      return acc;
-    }
     acc[creatorId].platforms[platform] = (acc[creatorId].platforms[platform] || 0) + 1;
     acc[creatorId].submittedPostsCount += 1;
-    acc[creatorId].engagementScore += Number(row.engagement_score || 0);
+    if (isQualifiedX) {
+      acc[creatorId].engagementScore += Number(row.engagement_score || 0);
+    }
     if (isX && row.verified_at) {
       acc[creatorId].verifiedXPostsCount += 1;
       if (row.qualified) acc[creatorId].qualifiedXPostsCount += 1;
