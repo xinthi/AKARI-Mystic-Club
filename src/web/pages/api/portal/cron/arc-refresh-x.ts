@@ -196,6 +196,7 @@ function extractSearchTweets(payload: any): any[] {
   const candidates = [
     data?.tweets,
     data?.results,
+    data?.items,
     data?.data,
     data,
   ];
@@ -203,6 +204,7 @@ function extractSearchTweets(payload: any): any[] {
     if (Array.isArray(candidate)) return candidate;
     if (candidate?.tweets && Array.isArray(candidate.tweets)) return candidate.tweets;
     if (candidate?.results && Array.isArray(candidate.results)) return candidate.results;
+    if (candidate?.items && Array.isArray(candidate.items)) return candidate.items;
   }
   return [];
 }
@@ -252,6 +254,7 @@ async function findTweetViaSearch(tweetId: string, tweetUrl: string | null, crea
   if (creatorHandle) {
     queries.push(`from:${creatorHandle} ${tweetId}`);
     if (cleanUrl) queries.push(`from:${creatorHandle} url:${cleanUrl}`);
+    queries.push(`from:${creatorHandle}`);
   }
 
   const errors: string[] = [];
@@ -265,6 +268,7 @@ async function findTweetViaSearch(tweetId: string, tweetUrl: string | null, crea
     if (found) return { tweet: found, errors };
   }
 
+  errors.push('X API search returned no match');
   return { tweet: null, errors };
 }
 
