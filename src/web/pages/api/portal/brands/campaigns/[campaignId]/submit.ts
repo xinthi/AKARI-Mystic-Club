@@ -446,7 +446,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         ...tweetResult.errors,
         ...(searchFallback.errors || []),
       ];
-      twitter_fetch_error = combinedErrors.slice(0, 6).join(' | ') || null;
+      twitter_fetch_error = tweet ? null : (combinedErrors.slice(0, 6).join(' | ') || null);
       twitter_fetch_at = new Date().toISOString();
       if (!tweet) {
         // Keep pending so creators can refresh later instead of showing "not found"
