@@ -483,10 +483,11 @@ export default function QuestDetail() {
         <div className="rounded-xl border border-white/10 bg-black/40 p-6">
           <h2 className="text-lg font-semibold text-white mb-3">Quest Guidelines</h2>
           <div className="space-y-2 text-sm text-white/70">
-            <div>• Use the tracked links below in your post (or a reply) for click tracking.</div>
+            <div>• Use the tracked link below in your post or a reply (UTM/redirect link only).</div>
             <div>• For X, submit the exact tweet URL (x.com or twitter.com).</div>
             <div>• Your X handle must match your Akari profile handle.</div>
             <div>• X accounts must be public; deleted/protected posts cannot be verified.</div>
+            <div>• To qualify, mention the brand or align with quest objectives.</div>
             <div>• If verification is pending, wait a few minutes and retry or ask a Superadmin to refresh.</div>
             <div>• Submit before the quest end date to be counted.</div>
           </div>
