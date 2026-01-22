@@ -623,7 +623,7 @@ export default function QuestDetail() {
                   const qualificationLabel = isX && s.qualified === false
                     ? (s.qualification_reason || 'Post does not meet quest standards')
                     : null;
-                  const debugError = userIsSuperAdmin && s.twitter_fetch_error
+                  const debugError = userIsSuperAdmin && s.twitter_fetch_error && !String(s.twitter_fetch_error).includes('404 Not Found')
                     ? String(s.twitter_fetch_error).replace(/twitterapi\.io/gi, 'X API').slice(0, 120)
                     : null;
                   return (
