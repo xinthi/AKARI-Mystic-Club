@@ -197,6 +197,21 @@ function cleanTweetUrl(raw?: string | null): string | null {
   }
 }
 
+function buildUrlVariants(url: string | null): string[] {
+  if (!url) return [];
+  const variants = new Set<string>();
+  variants.add(url);
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname;
+    variants.add(`https://x.com${path}`);
+    variants.add(`https://twitter.com${path}`);
+  } catch {
+    // ignore
+  }
+  return Array.from(variants);
+}
+
 function extractTweetIdFromPayload(tweet: any): string | null {
   const data = tweet?.data || tweet;
   const id =
@@ -222,14 +237,16 @@ function pickTweetFromSearch(tweets: any[], tweetId: string): any | null {
 async function findTweetViaSearch(tweetId: string, tweetUrl: string | null, creatorHandle: string | null) {
   const queries: string[] = [];
   const cleanUrl = cleanTweetUrl(tweetUrl);
-  if (cleanUrl) {
-    queries.push(`url:"${cleanUrl}"`);
-    queries.push(`url:${cleanUrl}`);
+  for (const url of buildUrlVariants(cleanUrl)) {
+    queries.push(`url:"${url}"`);
+    queries.push(`url:${url}`);
   }
   queries.push(`conversation_id:${tweetId}`);
   if (creatorHandle) {
     queries.push(`from:${creatorHandle} ${tweetId}`);
-    if (cleanUrl) queries.push(`from:${creatorHandle} url:${cleanUrl}`);
+    for (const url of buildUrlVariants(cleanUrl)) {
+      queries.push(`from:${creatorHandle} url:${url}`);
+    }
     queries.push(`from:${creatorHandle}`);
   }
 
