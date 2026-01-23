@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const { data: submissions } = await supabase
     .from('campaign_submissions')
-    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link, like_count, reply_count, repost_count, view_count, qualified')
+    .select('creator_profile_id, platform, status, engagement_score, verified_at, used_campaign_link, like_count, reply_count, repost_count, view_count, qualified, eligible, brand_attribution, post_final_score')
     .eq('campaign_id', campaignId);
 
   const { data: events } = await supabase
@@ -49,11 +49,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (!acc[creatorId]) {
       acc[creatorId] = {
         platforms: {},
+        eligibleByPlatform: {},
+        brandAttributionByPlatform: {},
+        usedLinkByPlatform: {},
+        scoresByPlatform: {},
         engagementScore: 0,
         submittedPostsCount: 0,
         verifiedXPostsCount: 0,
         usedCampaignLinkCount: 0,
         qualifiedXPostsCount: 0,
+        eligiblePostsCount: 0,
         xLikes: 0,
         xReplies: 0,
         xReposts: 0,
@@ -65,6 +70,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const isQualifiedX = !isX || row.qualified !== false;
     acc[creatorId].platforms[platform] = (acc[creatorId].platforms[platform] || 0) + 1;
     acc[creatorId].submittedPostsCount += 1;
+    if (row.eligible) {
+      acc[creatorId].eligiblePostsCount += 1;
+      acc[creatorId].eligibleByPlatform[platform] = (acc[creatorId].eligibleByPlatform[platform] || 0) + 1;
+      const score = Number(row.post_final_score || 0);
+      if (!acc[creatorId].scoresByPlatform[platform]) {
+        acc[creatorId].scoresByPlatform[platform] = [];
+      }
+      acc[creatorId].scoresByPlatform[platform].push(score);
+    }
+    if (row.brand_attribution) {
+      acc[creatorId].brandAttributionByPlatform[platform] = (acc[creatorId].brandAttributionByPlatform[platform] || 0) + 1;
+    }
     if (isQualifiedX) {
       acc[creatorId].engagementScore += Number(row.engagement_score || 0);
     }
@@ -78,9 +95,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
     if (row.used_campaign_link) {
       acc[creatorId].usedCampaignLinkCount += 1;
+      acc[creatorId].usedLinkByPlatform[platform] = (acc[creatorId].usedLinkByPlatform[platform] || 0) + 1;
     }
     return acc;
   }, {});
+
+  const computeSocialScore = (scores: number[], topN = 3) => {
+    if (!scores || scores.length === 0) return 0;
+    const top = [...scores].sort((a, b) => b - a).slice(0, topN);
+    const sum = top.reduce((acc, s) => acc + s, 0);
+    return sum / top.length;
+  };
+
+  const adjustSocialScore = (score: number, n: number) => {
+    if (n === 0) return 0;
+    const base = 25;
+    const k = 2;
+    return (k * base + n * score) / (k + n);
+  };
+
+  const computeOverallScore = (scores: Record<string, number>, counts: Record<string, number>) => {
+    const platforms = Object.keys(scores);
+    let weighted = 0;
+    let weights = 0;
+    for (const platform of platforms) {
+      const n = counts[platform] || 0;
+      if (n <= 0) continue;
+      const weight = Math.sqrt(n);
+      weighted += weight * (scores[platform] || 0);
+      weights += weight;
+    }
+    if (weights === 0) return 0;
+    return weighted / weights;
+  };
 
   const now = Date.now();
   const hourAgo = now - 60 * 60 * 1000;
@@ -155,13 +202,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const xReplies = submissionAgg[creatorId]?.xReplies || 0;
     const xReposts = submissionAgg[creatorId]?.xReposts || 0;
     const xViews = submissionAgg[creatorId]?.xViews || 0;
-    const totalScore = clicks + engagementScore;
+    const scoresByPlatform = submissionAgg[creatorId]?.scoresByPlatform || {};
+    const eligibleByPlatform = submissionAgg[creatorId]?.eligibleByPlatform || {};
+    const socialScores: Record<string, number> = {};
+    Object.keys(scoresByPlatform).forEach((platform) => {
+      const raw = computeSocialScore(scoresByPlatform[platform] || []);
+      socialScores[platform] = Number(adjustSocialScore(raw, eligibleByPlatform[platform] || 0).toFixed(2));
+    });
+    const overallScore = Number(computeOverallScore(socialScores, eligibleByPlatform).toFixed(2));
+    const totalScore = overallScore;
     return {
       creator_profile_id: creatorId,
       username: creator?.username || profile?.username || 'unknown',
       avatar_url: profile?.profile_image_url || null,
       status: creator?.status || 'unknown',
       platforms: submissionAgg[creatorId]?.platforms || {},
+      eligiblePostsCountByPlatform: eligibleByPlatform,
+      brandAttributionCountByPlatform: submissionAgg[creatorId]?.brandAttributionByPlatform || {},
+      usedCampaignLinkCountByPlatform: submissionAgg[creatorId]?.usedLinkByPlatform || {},
+      socialScores,
+      overallScore,
       submittedPostsCount,
       verifiedXPostsCount,
       qualifiedXPostsCount,
@@ -184,8 +244,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   });
 
   rows.sort((a, b) => {
+    if ((b.overallScore || 0) !== (a.overallScore || 0)) return (b.overallScore || 0) - (a.overallScore || 0);
     if (b.clicks !== a.clicks) return b.clicks - a.clicks;
-    if (b.engagementScore !== a.engagementScore) return b.engagementScore - a.engagementScore;
     return b.verifiedXPostsCount - a.verifiedXPostsCount;
   });
 

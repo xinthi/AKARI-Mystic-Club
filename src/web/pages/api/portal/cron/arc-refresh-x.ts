@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { twitterApiGetTweetByIdDebug, twitterApiSearchTweetsDebug } from '@/lib/twitterapi';
+import { detectBrandAttribution, normalizeBrandAliases, scoreQuestPost } from '@/lib/arc/quest-scoring';
 
 type Response =
   | { ok: true; refreshed: number }
@@ -301,41 +302,6 @@ async function findReplyUrls(tweetId: string, creatorHandle: string | null): Pro
   return urls;
 }
 
-function normalizeHandle(handle?: string | null): string | null {
-  if (!handle) return null;
-  return handle.replace(/^@+/, '').toLowerCase();
-}
-
-function containsWord(haystack: string, needle: string): boolean {
-  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`\\b${escaped}\\b`, 'i');
-  return re.test(haystack);
-}
-
-function extractObjectivePhrases(objectives?: string | null): string[] {
-  if (!objectives) return [];
-  return objectives
-    .split(/[.\n;•-]/)
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 6);
-}
-
-function isTweetQualified(
-  tweetText: string,
-  brandName?: string | null,
-  objectives?: string | null,
-  handle?: string | null
-): boolean {
-  if (!tweetText) return false;
-  const normalized = tweetText.toLowerCase();
-  const brand = brandName ? brandName.toLowerCase() : null;
-  const brandHandle = normalizeHandle(handle);
-  const phrases = extractObjectivePhrases(objectives);
-  if (brandHandle && normalized.includes(`@${brandHandle}`)) return true;
-  if (brand && brand.length >= 4 && containsWord(normalized, brand)) return true;
-  return phrases.some((phrase) => normalized.includes(phrase.toLowerCase()));
-}
-
 function findMatchingUtmLink(
   urls: string[],
   utmLinks: Array<{ id: string; generated_url: string; brand_campaign_link_id: string; base_url: string }>
@@ -424,6 +390,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const brandRow = Array.isArray(campaign?.brand_profiles)
       ? campaign?.brand_profiles?.[0]
       : campaign?.brand_profiles;
+    const brandAliases = normalizeBrandAliases({
+      brandName: brandRow?.name,
+      brandHandle: brandRow?.x_handle,
+    });
 
     const rows = submissions || [];
     for (const row of rows) {
@@ -471,6 +441,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
             rejected_reason: 'Awaiting X verification',
             used_campaign_link: match.matched,
             matched_utm_link_id: match.matchedId,
+            eligible: false,
+            brand_attribution: false,
+            post_quality_score: 0,
+            post_final_score: 0,
+            alignment_score: 0,
+            compliance_score: 0,
+            clarity_score: 0,
+            safety_score: 0,
+            score_reason_json: null,
             twitter_fetch_error: fetchError,
             twitter_fetch_at: new Date().toISOString(),
           })
@@ -502,7 +481,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       const match = findMatchingUtmLink(urls, utmLinks || []);
 
       const tweetText = extractTweetText(tweet);
-      const qualified = isTweetQualified(tweetText, brandRow?.name, campaign?.objectives, brandRow?.x_handle);
+      const brandAttribution = detectBrandAttribution(tweetText, brandAliases, brandRow?.x_handle);
+      const eligible = match.matched && brandAttribution;
+      const scores = eligible
+        ? scoreQuestPost({
+            text: tweetText,
+            objectives: campaign?.objectives || null,
+            usedCampaignLink: match.matched,
+            brandAttribution,
+            platform: 'x',
+            likes: metrics.likeCount,
+            replies: metrics.replyCount,
+            reposts: metrics.repostCount,
+          })
+        : null;
+      const qualified = eligible && (scores?.postQualityScore || 0) >= 50;
 
       await supabase
         .from('campaign_submissions')
@@ -513,8 +506,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           rejected_reason: null,
           used_campaign_link: match.matched,
           matched_utm_link_id: match.matchedId,
+          content_text: tweetText,
+          eligible,
+          brand_attribution: brandAttribution,
+          post_quality_score: scores?.postQualityScore || 0,
+          post_final_score: scores?.postFinalScore || 0,
+          alignment_score: scores?.alignmentScore || 0,
+          compliance_score: scores?.complianceScore || 0,
+          clarity_score: scores?.clarityScore || 0,
+          safety_score: scores?.safetyScore || 0,
+          score_reason_json: scores?.reason || null,
           qualified,
-          qualification_reason: qualified ? null : 'Content does not match brand or objectives',
+          qualification_reason: qualified ? null : (eligible ? 'Content does not meet quest standards' : 'Missing brand mention or tracked link'),
           twitter_fetch_error: null,
           twitter_fetch_at: new Date().toISOString(),
           like_count: metrics.likeCount,

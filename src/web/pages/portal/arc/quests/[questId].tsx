@@ -135,6 +135,7 @@ export default function QuestDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [platform, setPlatform] = useState<typeof PLATFORMS[number]>('x');
   const [postUrl, setPostUrl] = useState('');
+  const [contentText, setContentText] = useState('');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
   const [refreshingX, setRefreshingX] = useState(false);
@@ -279,7 +280,7 @@ export default function QuestDetail() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ platform, postUrl: postUrl.trim() }),
+        body: JSON.stringify({ platform, postUrl: postUrl.trim(), contentText: contentText.trim() }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -287,6 +288,7 @@ export default function QuestDetail() {
         return;
       }
       setPostUrl('');
+      setContentText('');
       loadQuest();
       loadLeaderboard();
     } finally {
@@ -488,7 +490,7 @@ export default function QuestDetail() {
             <div>• Your X handle must match your Akari profile handle.</div>
             <div>• X accounts must be public; deleted/protected posts cannot be verified.</div>
             <div>• To qualify, mention the brand or align with quest objectives.</div>
-            <div>• If verification is pending, wait a few minutes and retry or ask a Superadmin to refresh.</div>
+            <div>• If verification is pending, wait a few minutes and retry.</div>
             <div>• Submit before the quest end date to be counted.</div>
           </div>
         </div>
@@ -579,6 +581,12 @@ export default function QuestDetail() {
                 placeholder="Post URL"
                 className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
               />
+              <input
+                value={contentText}
+                onChange={(e) => setContentText(e.target.value)}
+                placeholder="Caption or description (optional)"
+                className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white"
+              />
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !postUrl.trim()}
@@ -627,6 +635,12 @@ export default function QuestDetail() {
                   const qualificationLabel = isX && s.qualified === false
                     ? (s.qualification_reason || 'Post does not meet quest standards')
                     : null;
+                  const eligibleLabel = typeof s.eligible === 'boolean'
+                    ? (s.eligible ? 'Eligible' : 'Not eligible')
+                    : null;
+                  const scoreLabel = s.post_final_score !== null && s.post_final_score !== undefined
+                    ? `Score: ${Number(s.post_final_score).toFixed(1)}`
+                    : null;
                   const debugError = userIsSuperAdmin && s.twitter_fetch_error && !String(s.twitter_fetch_error).includes('404 Not Found')
                     ? String(s.twitter_fetch_error).replace(/twitterapi\.io/gi, 'X API').slice(0, 120)
                     : null;
@@ -640,6 +654,8 @@ export default function QuestDetail() {
                         <span className="text-[11px] text-white/40">
                           {postLabel}
                           {trackingLabel ? ` • ${trackingLabel}` : ''}
+                          {eligibleLabel ? ` • ${eligibleLabel}` : ''}
+                          {scoreLabel ? ` • ${scoreLabel}` : ''}
                           {rejectedReason ? ` • ${rejectedReason}` : ''}
                           {qualificationLabel ? ` • ${qualificationLabel}` : ''}
                           {debugError ? ` • X API: ${debugError}` : ''}
@@ -915,7 +931,7 @@ export default function QuestDetail() {
                             ? row.last1hClicks || 0
                             : row.last1hClicksByPlatform?.[leaderboardPlatform] || 0}
                         </td>
-                        <td className="py-3 text-right font-semibold">{row.totalScore}</td>
+                        <td className="py-3 text-right font-semibold">{row.overallScore ?? row.totalScore}</td>
                       </tr>
                     );
                   })}

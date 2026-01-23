@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { twitterApiGetTweetByIdDebug, twitterApiSearchTweetsDebug } from '@/lib/twitterapi';
 import { resolveProfileId } from '@/lib/arc/resolveProfileId';
+import { detectBrandAttribution, normalizeBrandAliases, scoreQuestPost } from '@/lib/arc/quest-scoring';
 
 type Response =
   | { ok: true }
@@ -177,6 +178,30 @@ function extractTweetText(tweet: any): string {
   ).toString();
 }
 
+function extractUrlsFromText(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/https?:\/\/\S+/gi) || [];
+  return matches.map((m) => m.replace(/[)\].,!?]+$/, ''));
+}
+
+async function fetchOpenGraphText(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return '';
+    const html = await res.text();
+    const extract = (prop: string) => {
+      const re = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i');
+      const match = html.match(re);
+      return match?.[1] || '';
+    };
+    const title = extract('og:title');
+    const desc = extract('og:description');
+    return [title, desc].filter(Boolean).join(' ').trim();
+  } catch {
+    return '';
+  }
+}
+
 function extractSearchTweets(payload: any): any[] {
   const data = payload?.data || payload;
   const candidates = [
@@ -285,41 +310,6 @@ async function findReplyUrls(tweetId: string, creatorHandle: string | null): Pro
     urls.push(...extractTweetUrls(t));
   }
   return urls;
-}
-
-function normalizeHandle(handle?: string | null): string | null {
-  if (!handle) return null;
-  return handle.replace(/^@+/, '').toLowerCase();
-}
-
-function containsWord(haystack: string, needle: string): boolean {
-  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`\\b${escaped}\\b`, 'i');
-  return re.test(haystack);
-}
-
-function extractObjectivePhrases(objectives?: string | null): string[] {
-  if (!objectives) return [];
-  return objectives
-    .split(/[.\n;•-]/)
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 6);
-}
-
-function isTweetQualified(
-  tweetText: string,
-  brandName?: string | null,
-  objectives?: string | null,
-  handle?: string | null
-): boolean {
-  if (!tweetText) return false;
-  const normalized = tweetText.toLowerCase();
-  const brand = brandName ? brandName.toLowerCase() : null;
-  const brandHandle = normalizeHandle(handle);
-  const phrases = extractObjectivePhrases(objectives);
-  if (brandHandle && normalized.includes(`@${brandHandle}`)) return true;
-  if (brand && brand.length >= 4 && containsWord(normalized, brand)) return true;
-  return phrases.some((phrase) => normalized.includes(phrase.toLowerCase()));
 }
 
 async function getCreatorHandle(
@@ -437,6 +427,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   let x_tweet_id: string | null = null;
   let used_campaign_link = false;
   let matched_utm_link_id: string | null = null;
+  let eligible = false;
+  let brand_attribution = false;
+  let content_text: string | null = null;
+  let alignment_score: number | null = null;
+  let compliance_score: number | null = null;
+  let clarity_score: number | null = null;
+  let safety_score: number | null = null;
+  let post_quality_score: number | null = null;
+  let post_final_score: number | null = null;
+  let score_reason_json: any = null;
 
   let like_count: number | null = null;
   let reply_count: number | null = null;
@@ -493,10 +493,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
             ? campaign?.brand_profiles?.[0]
             : campaign?.brand_profiles;
           const tweetText = extractTweetText(tweet);
-          qualified = isTweetQualified(tweetText, brandRow?.name, campaign?.objectives, brandRow?.x_handle);
-          if (!qualified) {
-            qualification_reason = 'Content does not match brand or objectives';
-          }
+          content_text = tweetText;
+          const aliases = normalizeBrandAliases({
+            brandName: brandRow?.name,
+            brandHandle: brandRow?.x_handle,
+          });
+          brand_attribution = detectBrandAttribution(tweetText, aliases, brandRow?.x_handle);
 
           const { data: utmLinks } = await supabase
             .from('campaign_utm_links')
@@ -509,25 +511,85 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           const match = findMatchingUtmLink(urls, utmLinks || []);
           used_campaign_link = match.matched;
           matched_utm_link_id = match.matchedId;
-        }
-      }
-      if (!used_campaign_link) {
-        const { data: utmLinks } = await supabase
-          .from('campaign_utm_links')
-          .select('id, generated_url, brand_campaign_link_id, base_url')
-          .eq('campaign_id', campaignId)
-          .eq('creator_profile_id', profileId);
-        const replyUrls = await findReplyUrls(tweetId, creatorHandle);
-        if (replyUrls.length > 0) {
-          const urls = await expandTrackingUrls(replyUrls);
-          const match = findMatchingUtmLink(urls, utmLinks || []);
-          used_campaign_link = match.matched;
-          matched_utm_link_id = match.matchedId;
+
+          eligible = used_campaign_link && brand_attribution;
+          if (eligible) {
+            const scores = scoreQuestPost({
+              text: tweetText,
+              objectives: campaign?.objectives || null,
+              usedCampaignLink: used_campaign_link,
+              brandAttribution: brand_attribution,
+              platform: 'x',
+              likes: like_count,
+              replies: reply_count,
+              reposts: repost_count,
+            });
+            alignment_score = scores.alignmentScore;
+            compliance_score = scores.complianceScore;
+            clarity_score = scores.clarityScore;
+            safety_score = scores.safetyScore;
+            post_quality_score = scores.postQualityScore;
+            post_final_score = scores.postFinalScore;
+            score_reason_json = scores.reason;
+            qualified = post_quality_score >= 50;
+            if (!qualified) {
+              qualification_reason = 'Content does not meet quest standards';
+            }
+          } else {
+            qualified = false;
+            qualification_reason = used_campaign_link ? 'Missing brand mention' : 'Tracked link not detected';
+          }
         }
       }
     }
   } else {
     status = 'approved';
+    const brandRow = Array.isArray(campaign?.brand_profiles)
+      ? campaign?.brand_profiles?.[0]
+      : campaign?.brand_profiles;
+    const aliases = normalizeBrandAliases({
+      brandName: brandRow?.name,
+      brandHandle: brandRow?.x_handle,
+    });
+    const rawContentText = req.body?.contentText ? String(req.body.contentText) : '';
+    const ogText = !rawContentText && postUrl ? await fetchOpenGraphText(String(postUrl)) : '';
+    content_text = rawContentText || ogText || null;
+    brand_attribution = content_text ? detectBrandAttribution(content_text, aliases, brandRow?.x_handle) : false;
+
+    const { data: utmLinks } = await supabase
+      .from('campaign_utm_links')
+      .select('id, generated_url, brand_campaign_link_id, base_url')
+      .eq('campaign_id', campaignId)
+      .eq('creator_profile_id', profileId);
+    const urls = [String(postUrl), ...extractUrlsFromText(content_text || '')];
+    const match = findMatchingUtmLink(urls, utmLinks || []);
+    used_campaign_link = match.matched;
+    matched_utm_link_id = match.matchedId;
+    eligible = used_campaign_link && brand_attribution;
+
+    if (eligible) {
+      const scores = scoreQuestPost({
+        text: content_text || '',
+        objectives: campaign?.objectives || null,
+        usedCampaignLink: used_campaign_link,
+        brandAttribution: brand_attribution,
+        platform: platformLower,
+      });
+      alignment_score = scores.alignmentScore;
+      compliance_score = scores.complianceScore;
+      clarity_score = scores.clarityScore;
+      safety_score = scores.safetyScore;
+      post_quality_score = scores.postQualityScore;
+      post_final_score = scores.postFinalScore;
+      score_reason_json = scores.reason;
+      qualified = post_quality_score >= 50;
+      if (!qualified) {
+        qualification_reason = 'Content does not meet quest standards';
+      }
+    } else {
+      qualified = false;
+      qualification_reason = used_campaign_link ? 'Missing brand mention' : 'Tracked link not detected';
+    }
   }
 
   const { error } = await supabase
@@ -543,6 +605,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       rejected_reason,
       used_campaign_link,
       matched_utm_link_id,
+      eligible,
+      brand_attribution,
+      content_text,
+      alignment_score,
+      compliance_score,
+      clarity_score,
+      safety_score,
+      post_quality_score,
+      post_final_score,
+      score_reason_json,
       qualified,
       qualification_reason,
       twitter_fetch_error,
