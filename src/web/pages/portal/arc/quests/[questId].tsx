@@ -614,7 +614,8 @@ export default function QuestDetail() {
                   const isX = platformKey === 'x';
                   const statusLabel = s.status === 'approved' ? 'approved' : s.status;
                   let trackingLabel = '';
-                  if (isX && !s.rejected_reason?.toLowerCase().includes('tweet not found')) {
+                  const isVerified = Boolean(s.verified_at) || s.status === 'approved';
+                  if (isX && isVerified) {
                     trackingLabel = s.used_campaign_link ? 'Tracked link used' : 'Tracked link not detected';
                   }
                   let postLabel = 'Post received';
@@ -632,13 +633,13 @@ export default function QuestDetail() {
                     postLabel && s.rejected_reason && postLabel.toLowerCase().includes(s.rejected_reason.toLowerCase())
                       ? null
                       : s.rejected_reason;
-                  const qualificationLabel = isX && s.qualified === false
+                  const qualificationLabel = isX && isVerified && s.qualified === false
                     ? (s.qualification_reason || 'Post does not meet quest standards')
                     : null;
-                  const eligibleLabel = typeof s.eligible === 'boolean'
+                  const eligibleLabel = isVerified && typeof s.eligible === 'boolean'
                     ? (s.eligible ? 'Eligible' : 'Not eligible')
                     : null;
-                  const scoreLabel = s.post_final_score !== null && s.post_final_score !== undefined
+                  const scoreLabel = isVerified && s.post_final_score !== null && s.post_final_score !== undefined
                     ? `Score: ${Number(s.post_final_score).toFixed(1)}`
                     : null;
                   const debugError = userIsSuperAdmin && s.twitter_fetch_error && !String(s.twitter_fetch_error).includes('404 Not Found')
