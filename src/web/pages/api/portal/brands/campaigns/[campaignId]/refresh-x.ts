@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/server/require-portal-user';
 import { twitterApiGetTweetByIdDebug, twitterApiSearchTweetsDebug } from '@/lib/twitterapi';
 import { isSuperAdminServerSide } from '@/lib/server-auth';
+import { resolveProfileId } from '@/lib/arc/resolveProfileId';
 import { detectBrandAttribution, normalizeBrandAliases, scoreQuestPost } from '@/lib/arc/quest-scoring';
 
 type Response =
@@ -353,8 +354,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 
   const isSuperAdmin = await isSuperAdminServerSide(user.userId);
-  if (!isSuperAdmin) {
-    return res.status(403).json({ ok: false, error: 'superadmin_only' });
+  let scopeProfileId = user.profileId || null;
+  if (!isSuperAdmin && !scopeProfileId) {
+    scopeProfileId = await resolveProfileId(supabase, user.userId);
+  }
+  if (!isSuperAdmin && !scopeProfileId) {
+    return res.status(403).json({ ok: false, error: 'profile_not_found' });
   }
 
   const { data: campaign } = await supabase
@@ -379,14 +384,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     .select('id, creator_profile_id, post_url, x_tweet_id, platform')
     .eq('campaign_id', campaignId)
     .eq('platform', 'x');
+  if (!isSuperAdmin && scopeProfileId) {
+    submissionsQuery.eq('creator_profile_id', scopeProfileId);
+  }
 
   const { data: submissions } = await submissionsQuery;
   const rows = submissions || [];
 
-  const { data: utmLinks } = await supabase
+  const utmLinksQuery = supabase
     .from('campaign_utm_links')
     .select('id, generated_url, brand_campaign_link_id, base_url')
     .eq('campaign_id', campaignId);
+  if (!isSuperAdmin && scopeProfileId) {
+    utmLinksQuery.eq('creator_profile_id', scopeProfileId);
+  }
+  const { data: utmLinks } = await utmLinksQuery;
 
   let refreshed = 0;
   const brandRow = Array.isArray(campaign?.brand_profiles)

@@ -599,7 +599,7 @@ export default function QuestDetail() {
               <div className="mt-4 space-y-2 text-xs text-white/60">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-white/70 font-semibold">My Submissions</p>
-                  {userIsSuperAdmin && submissions.some((s: any) => String(s.platform).toLowerCase() === 'x') && (
+                  {submissions.some((s: any) => String(s.platform).toLowerCase() === 'x') && (
                     <button
                       onClick={handleRefreshX}
                       disabled={refreshingX}
@@ -615,8 +615,10 @@ export default function QuestDetail() {
                   const statusLabel = s.status === 'approved' ? 'approved' : s.status;
                   let trackingLabel = '';
                   const isVerified = Boolean(s.verified_at) || s.status === 'approved';
-                  if (isX && isVerified) {
-                    trackingLabel = s.used_campaign_link ? 'Tracked link used' : 'Tracked link not detected';
+                  if (isX && s.used_campaign_link) {
+                    trackingLabel = 'Tracked link used';
+                  } else if (isX && isVerified) {
+                    trackingLabel = 'Tracked link not detected';
                   }
                   let postLabel = 'Post received';
                   if (isX) {
